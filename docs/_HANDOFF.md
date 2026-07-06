@@ -10,6 +10,53 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S13、完整离线交付、平台升级冲突分析、全角色全功能或 134
+  清库部署收口，而是在第一百四十三批“部分选择上线”基础上，把既有
+  `runtime-release-frontdesk.spec.ts` 继续补成可证明“两机构差异化发布 / 读回隔离”的真实证据切片。
+  `launchCoverageEvidence` 现在只有在 `runtime-release-coverage-codes` 同时证明 partial selection、
+  两家不同医院、两个不同本院候选、两院后端当前机构生效版本读回互不串用、两院第三方 runtime contract
+  读回互不串用，且两院各自读回均包含本院 selected 候选并排除另一院候选时，才额外声明
+  `scenarios:S13`；否则仍只按完整发布 / 回滚 / 13 类资产闭包事实声明基础 `RELEASE_GOVERNANCE` 等 coverage。
+- 第一百四十四批真实链路说明：`runtime-release-frontdesk.spec.ts` 现在先由平台管理员真实确保第二家演练医院
+  `本地上线演练二院`（code `e2e-rehearsal-hospital-b`）和第二医院职责账号
+  `e2e-runtime-second-engine-operator` 存在，并把该账号绑定到第二医院 `engine-operator` facility scope；
+  该账号首次登录需要改密时走真实 `/auth/change-password`，随后回读 `/security/me` 断言 JWT
+  的 `dataScope.hospitalId` 必须是第二家医院。测试为第一医院和第二医院分别创建不同的
+  `ACTION_CARD.RUNTIME.RELEASE.*` 本院候选；真实前台在 `/config/releases` 先为 `本地上线演练医院`
+  选择第一医院候选并发布，再切到第二医院选择第二医院候选并发布；随后分别回读两院当前 runtime release
+  和两院第三方运行契约 `/engine/integration/knowledge-runtime/runtime-release/current`。第二医院第三方运行契约
+  必须用第二医院职责账号读取，避免后端按认证医院上下文返回第一医院数据；附件记录 primary / secondary 两组
+  `hospitalId/hospitalName/selectedCandidate/activationReadback/runtimeConsumerReadback`，以及
+  `distinctHospitals/distinctSelectedCandidates/backendReadbacksIsolated/runtimeConsumerReadbacksIsolated`。
+- 第一百四十四批边界说明：本批 coverage 只是 S13 的“部分选择 + 两机构差异化后端读回 + 两机构第三方 runtime
+  contract 读回隔离”窄口径切片；不声明完整 S13、离线交付文件导出 / 签名 / 导入校验、平台升级冲突分析、
+  13 类资产逐类业务消费者、完整临床运行、全角色真实操作、完整 S0-S40 或 134 清库复演。第二医院和演练账号
+  是本地 E2E 演练资产，未清理删除，用于后续重复演练和差异化隔离验证。
+- 第一百四十四批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "two-hospital differentiation"`
+  曾失败于缺两机构证据仍声明 `S13`；`npm --prefix frontend run test -- e2eAuthCredentialContract -t "runtime release frontdesk"`
+  曾失败于目标 spec 缺 `multiHospitalDifferentiation` 等源码契约。实现后 E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/runtime-release-frontdesk.spec.ts`
+  通过。目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-release-multi-hospital npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky）；coverage 含
+  `scenarios:S13`、`productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、`deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`、
+  `serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`；附件记录 `partialSelectionProved=true`、
+  `multiHospitalDifferentiation.distinctHospitals=true`、`distinctSelectedCandidates=true`、
+  `backendReadbacksIsolated=true`、`runtimeConsumerReadbacksIsolated=true`，primary / secondary 均
+  `excludesOtherHospitalCandidate=true`。新增回归护栏
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "two-hospital|reuses one hospital|leak"`
+  通过（3 tests），证明缺两机构证据、同一医院冒充两机构、读回混入另一院候选时均不声明 `S13`，且基础
+  `RELEASE_GOVERNANCE` 不被误删。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（59 tests）；
+  `npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。
+- 第一百四十四批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把两机构差异证据切片
+  等同于完整上线验收。后续继续补真实覆盖缺口：S13 离线交付文件导出 / 签名 / 导入校验闭环、平台升级冲突分析，
+  S2/S4 真实接入与字典映射，S0-S40 其余场景、完整语义族 / 专业域 / 全知识、13 类 runtime 资产逐类消费者、
+  真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持全角色真实前台和真实服务链路，发现红点先复现、
+  定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S13、两机构差异化发布、离线交付、导入校验、全角色全功能或 134
   清库部署收口，而是把既有 `runtime-release-frontdesk.spec.ts` 从“选择一个本院候选进入机构生效版本”

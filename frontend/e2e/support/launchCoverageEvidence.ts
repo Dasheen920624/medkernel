@@ -235,6 +235,8 @@ const requiredRuntimeReleaseScenarioEvidence = [
 
 const requiredRuntimeReleasePartialSelectionScenarioEvidence = [
   "前台只选择本轮部分本院内容进入机构生效版本",
+  "前台为第二家医院选择不同本院内容生成机构生效版本",
+  "两家医院后端与第三方运行契约读回互不串用",
 ];
 
 const requiredSourceLineageScenarioEvidence: Record<string, string[]> = {
@@ -707,10 +709,12 @@ function hasRequiredRuntimeReleasePartialSelectionAttachment(test: BrowserE2eTes
       activationReadback?: unknown;
       runtimeConsumerReadback?: unknown;
       partialSelection?: unknown;
+      multiHospitalDifferentiation?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
       !hasCompleteRuntimeReleasePartialSelectionEvidence(parsed) ||
+      !hasCompleteRuntimeReleaseMultiHospitalEvidence(parsed.multiHospitalDifferentiation) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -751,6 +755,93 @@ function hasCompleteRuntimeReleaseLocalCandidateEvidence(value: {
     runtimeReleasePayloadExcludesCandidate(value.rollbackReadback, candidate) &&
     runtimeReleasePayloadExcludesCandidate(value.rollbackRuntimeConsumerReadback, candidate)
   );
+}
+
+function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  const primary = parseRuntimeReleaseHospitalEvidence(evidence.primaryHospital);
+  const secondary = parseRuntimeReleaseHospitalEvidence(evidence.secondaryHospital);
+  if (!primary || !secondary) return false;
+  if (primary.hospitalId === secondary.hospitalId) return false;
+  if (runtimeReleaseSameCandidate(primary.selectedCandidate, secondary.selectedCandidate)) {
+    return false;
+  }
+  return (
+    evidence.distinctHospitals === true &&
+    evidence.distinctSelectedCandidates === true &&
+    evidence.backendReadbacksIsolated === true &&
+    evidence.runtimeConsumerReadbacksIsolated === true &&
+    primary.excludesOtherHospitalCandidate === true &&
+    secondary.excludesOtherHospitalCandidate === true &&
+    runtimeReleasePayloadContainsCandidate(
+      primary.activationReadback,
+      "assets",
+      primary.selectedCandidate,
+      { requireActive: true },
+    ) &&
+    runtimeReleasePayloadContainsCandidate(
+      primary.runtimeConsumerReadback,
+      "assets",
+      primary.selectedCandidate,
+      { requireActive: true },
+    ) &&
+    runtimeReleasePayloadContainsCandidate(
+      secondary.activationReadback,
+      "assets",
+      secondary.selectedCandidate,
+      { requireActive: true },
+    ) &&
+    runtimeReleasePayloadContainsCandidate(
+      secondary.runtimeConsumerReadback,
+      "assets",
+      secondary.selectedCandidate,
+      { requireActive: true },
+    ) &&
+    !runtimeReleasePayloadContainsIdentity(
+      primary.activationReadback,
+      "assets",
+      secondary.selectedCandidate,
+    ) &&
+    !runtimeReleasePayloadContainsIdentity(
+      primary.runtimeConsumerReadback,
+      "assets",
+      secondary.selectedCandidate,
+    ) &&
+    !runtimeReleasePayloadContainsIdentity(
+      secondary.activationReadback,
+      "assets",
+      primary.selectedCandidate,
+    ) &&
+    !runtimeReleasePayloadContainsIdentity(
+      secondary.runtimeConsumerReadback,
+      "assets",
+      primary.selectedCandidate,
+    )
+  );
+}
+
+function parseRuntimeReleaseHospitalEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const hospital = value as Record<string, unknown>;
+  const selectedCandidate = parseRuntimeReleaseCandidate(hospital.selectedCandidate);
+  if (
+    typeof hospital.hospitalId !== "string" ||
+    hospital.hospitalId.length === 0 ||
+    typeof hospital.hospitalName !== "string" ||
+    hospital.hospitalName.length === 0 ||
+    !selectedCandidate
+  ) {
+    return null;
+  }
+  return {
+    hospitalId: hospital.hospitalId,
+    hospitalName: hospital.hospitalName,
+    selectedCandidate,
+    activationReadback: hospital.activationReadback,
+    runtimeConsumerReadback: hospital.runtimeConsumerReadback,
+    excludesOtherHospitalCandidate: hospital.excludesOtherHospitalCandidate,
+  };
 }
 
 function hasCompleteRuntimeReleasePartialSelectionEvidence(value: {

@@ -1,11 +1,21 @@
-import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
 import {
+  apiBase,
   ensureReadySession,
   expectOk,
+  patchApi,
   postApi,
   requiredRuntimeAssetsForRehearsal,
+  resolvedTenantIdFor,
 } from "./support/auth";
 
 type RuntimeCollectors = {
@@ -69,6 +79,14 @@ type RuntimeReleaseCoverageEvidence = {
     activationReadbackOmitsUnselected: boolean;
     runtimeConsumerOmitsUnselected: boolean;
   };
+  multiHospitalDifferentiation?: {
+    primaryHospital: RuntimeReleaseHospitalDifferentiationEvidence;
+    secondaryHospital: RuntimeReleaseHospitalDifferentiationEvidence;
+    distinctHospitals: boolean;
+    distinctSelectedCandidates: boolean;
+    backendReadbacksIsolated: boolean;
+    runtimeConsumerReadbacksIsolated: boolean;
+  };
   rollbackReadback?: { localCandidateAbsent: boolean; assets: RuntimeReleaseAssetEvidence[] };
   rollbackRuntimeConsumerReadback?: {
     localCandidateAbsent: boolean;
@@ -76,17 +94,62 @@ type RuntimeReleaseCoverageEvidence = {
   };
   scenarioEvidence: Array<{ observedStages: string[] }>;
 };
+type RuntimeReleaseHospitalDifferentiationEvidence = {
+  hospitalId: string;
+  hospitalName: string;
+  selectedCandidate: RuntimeReleaseLocalCandidate;
+  activationReadback: { assets: RuntimeReleaseAssetEvidence[] };
+  runtimeConsumerReadback: { assets: RuntimeReleaseAssetEvidence[] };
+  excludesOtherHospitalCandidate: boolean;
+};
+type RuntimeReleaseSecondHospitalContext = {
+  hospitalId: string;
+  hospitalName: string;
+  account: {
+    userId: string;
+    username: string;
+    tenantId: string;
+    initialPassword: string;
+    finalPassword: string;
+  };
+};
+
+const primaryHospitalName = "本地上线演练医院";
+const secondHospitalCode = "e2e-rehearsal-hospital-b";
+const secondHospitalName = "本地上线演练二院";
+const secondHospitalEngineOperator = {
+  userId: "e2e-runtime-second-engine-operator",
+  username: "e2e-runtime-second-engine-operator",
+  initialPassword: "Mk@2026RuntimeSecondInit!",
+  finalPassword: "Mk@2026RuntimeSecondFinal!",
+};
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("机构生效版本真实前台发布回滚", () => {
-  test("医疗引擎运营员可为本院生成新生效版本并从历史版本回滚", async ({ page }, testInfo) => {
-    test.setTimeout(300_000);
+  test("医疗引擎运营员可为本院生成新生效版本并从历史版本回滚", async ({
+    browser,
+    page,
+  }, testInfo) => {
+    test.setTimeout(420_000);
+    const adminContext = await browser.newContext();
+    const secondHospitalContext = await browser.newContext();
+    const adminPage = await adminContext.newPage();
+    const secondHospitalPage = await secondHospitalContext.newPage();
     const runtime = collectRuntime(page);
     const records: RuntimeRecord[] = [];
     const coverageEvidence = createRuntimeReleaseCoverageEvidence();
 
     try {
+      await ensureReadySession(adminPage, "platform-admin");
+      const secondHospital = await ensureSecondHospitalRuntimeReleaseRehearsalContext(adminPage);
+      await loginSecondHospitalRuntimeAccount(secondHospitalPage, secondHospital);
+      const secondaryCandidate = await createHospitalRuntimeReleaseCandidate(
+        secondHospitalPage,
+        testInfo,
+        { purpose: "secondary" },
+      );
+
       await ensureReadySession(page, "engine-operator");
       const localCandidate = await createHospitalRuntimeReleaseCandidate(page, testInfo);
       const unselectedLocalCandidate = await createHospitalRuntimeReleaseCandidate(page, testInfo, {
@@ -98,12 +161,13 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
       await expect(page.getByText("平台标准版本由平台治理入口发布")).toBeVisible();
       await page.getByRole("tab", { name: "机构生效版本" }).click();
-      await chooseHospital(page, "本地上线演练医院");
+      await chooseHospital(page, primaryHospitalName);
       await expect(page.getByText(/当前机构生效版本 第 \d+ 版/)).toBeVisible({
         timeout: 20_000,
       });
       await expectNoRootOverflow(page, "机构生效版本初始桌面");
       const initialRevision = await currentHospitalRevision(page);
+      const primaryHospitalId = await resolveHospitalId(page, primaryHospitalName);
       recordCleanRuntime(page, "选择本地上线演练医院", runtime, records);
       await assertRequiredRuntimeInputsVisibleAndSelected(page);
       recordRuntimeReleaseStage(coverageEvidence, "前台展示并勾选 13 类平台标准资产");
@@ -163,7 +227,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       ).toBeVisible({ timeout: 20_000 });
       const activatedRuntime = await assertCurrentRuntimeAssetsReady(
         page,
-        "本地上线演练医院",
+        primaryHospitalName,
         activated.data?.revisionNo,
         "前台生成新机构生效版本",
       );
@@ -215,6 +279,179 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       recordCleanRuntime(page, "前台生成新机构生效版本", runtime, records);
 
       clearRuntime(runtime);
+      await chooseHospital(page, secondHospital.hospitalName);
+      await assertRequiredRuntimeInputsVisibleAndSelected(page);
+      await selectHospitalLocalRuntimeCandidate(page, secondaryCandidate);
+      await assessLocalReleaseImpact(page);
+      const secondaryActivateResponsePromise = waitForPost(
+        page,
+        "/engine/releases/hospitals/",
+        "/runtime-releases",
+      );
+      await page.getByRole("button", { name: "生成新机构生效版本" }).click();
+      const secondaryActivateResponse = await secondaryActivateResponsePromise;
+      const secondaryActivateBody = await secondaryActivateResponse.text();
+      expect(
+        secondaryActivateResponse.ok(),
+        `前台为第二家医院生成机构生效版本应返回成功 status=${secondaryActivateResponse.status()} body=${secondaryActivateBody}`,
+      ).toBe(true);
+      const secondaryActivationRequest =
+        secondaryActivateResponse.request().postDataJSON();
+      const secondaryActivationRequestAssets =
+        assertRuntimeReleaseRequestCarriesRequiredAssets(
+          secondaryActivationRequest,
+          "前台为第二家医院生成机构生效版本",
+        );
+      assertRuntimeAssetsContainLocalCandidate(
+        secondaryActivationRequestAssets,
+        secondaryCandidate,
+        "前台为第二家医院生成机构生效版本请求",
+      );
+      assertRuntimeAssetsExcludeUnselectedCandidate(
+        secondaryActivationRequestAssets,
+        localCandidate,
+        "前台为第二家医院生成机构生效版本请求",
+      );
+      const secondaryActivated = JSON.parse(secondaryActivateBody) as {
+        data?: { revisionNo?: number };
+      };
+      await expect(
+        page.getByText(`当前机构生效版本 第 ${secondaryActivated.data?.revisionNo} 版`),
+      ).toBeVisible({ timeout: 20_000 });
+      const secondaryRuntime = await assertCurrentRuntimeAssetsReady(
+        page,
+        secondHospital.hospitalName,
+        secondaryActivated.data?.revisionNo,
+        "前台为第二家医院生成机构生效版本",
+      );
+      const secondaryReadbackCandidate = assertRuntimeAssetsContainLocalCandidate(
+        secondaryRuntime.items ?? [],
+        secondaryCandidate,
+        "第二家医院后端当前机构生效版本读回",
+        { requireActive: true },
+      );
+      const secondaryBackendExcludesPrimary = assertRuntimeAssetsExcludeUnselectedCandidate(
+        secondaryRuntime.items ?? [],
+        localCandidate,
+        "第二家医院后端当前机构生效版本读回",
+      );
+      const secondaryConsumer = await readThirdPartyRuntimeConsumerForRole(
+        secondHospitalPage,
+        secondHospital,
+        secondaryActivated.data?.revisionNo,
+        "第二家医院第三方运行契约",
+      );
+      const secondaryConsumerCandidate = assertRuntimeAssetsContainLocalCandidate(
+        secondaryConsumer.assets ?? [],
+        secondaryCandidate,
+        "第二家医院第三方运行契约",
+        { requireActive: true },
+      );
+      const secondaryConsumerExcludesPrimary = assertRuntimeAssetsExcludeUnselectedCandidate(
+        secondaryConsumer.assets ?? [],
+        localCandidate,
+        "第二家医院第三方运行契约",
+      );
+      const primaryRuntimeAfterSecondary = await assertCurrentRuntimeAssetsReady(
+        page,
+        primaryHospitalName,
+        activated.data?.revisionNo,
+        "第二家医院发布后第一家医院当前机构生效版本读回",
+      );
+      const primaryReadbackCandidateAfterSecondary = assertRuntimeAssetsContainLocalCandidate(
+        primaryRuntimeAfterSecondary.items ?? [],
+        localCandidate,
+        "第二家医院发布后第一家医院当前机构生效版本读回",
+        { requireActive: true },
+      );
+      const primaryBackendExcludesSecondary = assertRuntimeAssetsExcludeUnselectedCandidate(
+        primaryRuntimeAfterSecondary.items ?? [],
+        secondaryCandidate,
+        "第二家医院发布后第一家医院当前机构生效版本读回",
+      );
+      const primaryConsumerAfterSecondary =
+        await assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
+          page,
+          activated.data?.revisionNo,
+          "第二家医院发布后第一家医院第三方运行契约",
+        );
+      const primaryConsumerCandidateAfterSecondary = assertRuntimeAssetsContainLocalCandidate(
+        primaryConsumerAfterSecondary.assets ?? [],
+        localCandidate,
+        "第二家医院发布后第一家医院第三方运行契约",
+        { requireActive: true },
+      );
+      const primaryConsumerExcludesSecondary = assertRuntimeAssetsExcludeUnselectedCandidate(
+        primaryConsumerAfterSecondary.assets ?? [],
+        secondaryCandidate,
+        "第二家医院发布后第一家医院第三方运行契约",
+      );
+      coverageEvidence.multiHospitalDifferentiation = {
+        primaryHospital: {
+          hospitalId: primaryHospitalId,
+          hospitalName: primaryHospitalName,
+          selectedCandidate: localCandidate,
+          activationReadback: {
+            assets: (primaryRuntimeAfterSecondary.items ?? []).map((asset) =>
+              toRuntimeReleaseAssetEvidence(asset),
+            ),
+          },
+          runtimeConsumerReadback: {
+            assets: (primaryConsumerAfterSecondary.assets ?? []).map((asset) =>
+              toRuntimeReleaseAssetEvidence(asset),
+            ),
+          },
+          excludesOtherHospitalCandidate:
+            primaryBackendExcludesSecondary && primaryConsumerExcludesSecondary,
+        },
+        secondaryHospital: {
+          hospitalId: secondHospital.hospitalId,
+          hospitalName: secondHospital.hospitalName,
+          selectedCandidate: secondaryCandidate,
+          activationReadback: {
+            assets: (secondaryRuntime.items ?? []).map((asset) =>
+              toRuntimeReleaseAssetEvidence(asset),
+            ),
+          },
+          runtimeConsumerReadback: {
+            assets: (secondaryConsumer.assets ?? []).map((asset) =>
+              toRuntimeReleaseAssetEvidence(asset),
+            ),
+          },
+          excludesOtherHospitalCandidate:
+            secondaryBackendExcludesPrimary && secondaryConsumerExcludesPrimary,
+        },
+        distinctHospitals: primaryHospitalId !== secondHospital.hospitalId,
+        distinctSelectedCandidates: !sameRuntimeReleaseCandidate(
+          localCandidate,
+          secondaryCandidate,
+        ),
+        backendReadbacksIsolated:
+          primaryBackendExcludesSecondary &&
+          secondaryBackendExcludesPrimary &&
+          Boolean(primaryReadbackCandidateAfterSecondary.versionId) &&
+          Boolean(secondaryReadbackCandidate.versionId),
+        runtimeConsumerReadbacksIsolated:
+          primaryConsumerExcludesSecondary &&
+          secondaryConsumerExcludesPrimary &&
+          Boolean(primaryConsumerCandidateAfterSecondary.versionId) &&
+          Boolean(secondaryConsumerCandidate.versionId),
+      };
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "前台为第二家医院选择不同本院内容生成机构生效版本",
+      );
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "两家医院后端与第三方运行契约读回互不串用",
+      );
+      recordCleanRuntime(page, "前台为第二家医院生成差异化机构生效版本", runtime, records);
+
+      clearRuntime(runtime);
+      await chooseHospital(page, primaryHospitalName);
+      await expect(
+        page.getByText(`当前机构生效版本 第 ${activated.data?.revisionNo} 版`),
+      ).toBeVisible({ timeout: 20_000 });
       await page.getByRole("button", { name: "刷新" }).click();
       const rollbackButton = page
         .getByRole("button", { name: `回滚到 第 ${initialRevision} 版` })
@@ -244,7 +481,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       ).toBeVisible({ timeout: 20_000 });
       const rollbackRuntime = await assertCurrentRuntimeAssetsReady(
         page,
-        "本地上线演练医院",
+        primaryHospitalName,
         rolledBack.data?.revisionNo,
         "前台从历史机构生效版本回滚",
       );
@@ -275,6 +512,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
     } finally {
       await attachRuntimeRecords(testInfo, records);
       await attachRuntimeReleaseCoverageEvidence(testInfo, coverageEvidence);
+      await Promise.allSettled([adminContext.close(), secondHospitalContext.close()]);
     }
   });
 });
@@ -294,6 +532,149 @@ async function chooseHospital(page: Page, hospitalName: string) {
     .first();
   await expect(option).toBeVisible({ timeout: 20_000 });
   await option.click();
+}
+
+async function ensureSecondHospitalRuntimeReleaseRehearsalContext(
+  page: Page,
+): Promise<RuntimeReleaseSecondHospitalContext> {
+  const tenantId = resolvedTenantIdFor("engine-operator");
+  const hospital = await ensureSecondHospital(page);
+  await ensureSecondHospitalRuntimeAccount(page, hospital.id);
+  return {
+    hospitalId: hospital.id,
+    hospitalName: secondHospitalName,
+    account: {
+      userId: secondHospitalEngineOperator.userId,
+      username: secondHospitalEngineOperator.username,
+      tenantId,
+      initialPassword: secondHospitalEngineOperator.initialPassword,
+      finalPassword: secondHospitalEngineOperator.finalPassword,
+    },
+  };
+}
+
+async function ensureSecondHospital(page: Page) {
+  const existing = await apiGet(page, `/engine/org/org-units/${encodeURIComponent(secondHospitalCode)}`);
+  if (existing.ok()) {
+    return requireOrgUnit(await responseData(existing), "读取第二家上线演练医院");
+  }
+  if (existing.status() !== 404) {
+    await expectOk(existing, "读取第二家上线演练医院");
+  }
+  const rootsResponse = await apiGet(page, "/engine/org/org-units/by-level?level=TENANT");
+  await expectOk(rootsResponse, "读取上线演练租户根组织");
+  const root = arrayData(await responseData(rootsResponse)).find(
+    (item) =>
+      textField(item, "tenantId") === resolvedTenantIdFor("engine-operator") ||
+      textField(item, "code") === resolvedTenantIdFor("engine-operator"),
+  );
+  const rootId = textField(root, "id");
+  expect(rootId, "上线演练租户必须存在根组织用于创建第二家医院").toBeTruthy();
+  const created = await postApi(page, "/engine/org/org-units", {
+    parentId: rootId,
+    level: "FACILITY",
+    code: secondHospitalCode,
+    name: secondHospitalName,
+    namePinyin: "bendi shangxian yanlian eryuan",
+    facilityType: "HOSPITAL",
+    status: "ACTIVE",
+  });
+  await expectOk(created, "创建第二家上线演练医院");
+  return requireOrgUnit(await responseData(created), "创建第二家上线演练医院");
+}
+
+async function ensureSecondHospitalRuntimeAccount(page: Page, hospitalId: string) {
+  const detail = await apiGet(
+    page,
+    `/compliance/users/${encodeURIComponent(secondHospitalEngineOperator.userId)}`,
+  );
+  if (detail.status() === 404) {
+    const created = await postApi(page, "/compliance/users", {
+      credentialManaged: true,
+      userId: secondHospitalEngineOperator.userId,
+      displayName: "第二医院机构版本演练运营员",
+      username: secondHospitalEngineOperator.username,
+      initialPassword: secondHospitalEngineOperator.initialPassword,
+    });
+    await expectOk(created, "创建第二医院机构版本演练运营员");
+  } else {
+    await expectOk(detail, "读取第二医院机构版本演练运营员");
+  }
+  const status = await patchApi(
+    page,
+    `/compliance/users/${encodeURIComponent(secondHospitalEngineOperator.userId)}/status`,
+    { status: "ACTIVE" },
+  );
+  await expectOk(status, "启用第二医院机构版本演练运营员");
+  const assigned = await postApi(
+    page,
+    `/compliance/users/${encodeURIComponent(secondHospitalEngineOperator.userId)}/roles`,
+    {
+      roleCode: "engine-operator",
+      scopeLevel: "FACILITY",
+      scopeCode: hospitalId,
+    },
+  );
+  await expectOk(assigned, "绑定第二医院机构版本演练运营员职责");
+}
+
+async function loginSecondHospitalRuntimeAccount(
+  page: Page,
+  context: RuntimeReleaseSecondHospitalContext,
+) {
+  const firstLogin = await apiLogin(
+    page,
+    context.account.username,
+    context.account.finalPassword,
+    context.account.tenantId,
+  );
+  if (!firstLogin.ok()) {
+    const initialLogin = await apiLogin(
+      page,
+      context.account.username,
+      context.account.initialPassword,
+      context.account.tenantId,
+    );
+    await expectOk(initialLogin, "第二医院机构版本演练运营员初始登录");
+    const initialPayload = (await initialLogin.json()) as { data?: { mustChangePwd?: boolean } };
+    if (initialPayload.data?.mustChangePwd) {
+      const change = await postApi(page, "/auth/change-password", {
+        oldPassword: context.account.initialPassword,
+        newPassword: context.account.finalPassword,
+      });
+      await expectOk(change, "第二医院机构版本演练运营员首次改密");
+    }
+    const relogin = await apiLogin(
+      page,
+      context.account.username,
+      context.account.finalPassword,
+      context.account.tenantId,
+    );
+    await expectOk(relogin, "第二医院机构版本演练运营员改密后登录");
+  }
+  const profile = await apiGet(page, "/security/me");
+  await expectOk(profile, "第二医院机构版本演练运营员权限画像");
+  const profilePayload = (await profile.json()) as {
+    data?: { dataScope?: { hospitalId?: string | null }; roles?: Array<{ code?: string }> };
+  };
+  expect(
+    profilePayload.data?.roles?.map((role) => role.code),
+    "第二医院机构版本演练运营员必须拥有 engine-operator 角色",
+  ).toContain("engine-operator");
+  expect(
+    profilePayload.data?.dataScope?.hospitalId,
+    "第二医院机构版本演练运营员 JWT 必须绑定第二家医院",
+  ).toBe(context.hospitalId);
+}
+
+async function readThirdPartyRuntimeConsumerForRole(
+  page: Page,
+  context: RuntimeReleaseSecondHospitalContext,
+  expectedRevision: number | undefined,
+  label: string,
+) {
+  await loginSecondHospitalRuntimeAccount(page, context);
+  return assertThirdPartyRuntimeConsumerCarriesRequiredAssets(page, expectedRevision, label);
 }
 
 async function assertRequiredRuntimeInputsVisibleAndSelected(page: Page) {
@@ -332,7 +713,7 @@ async function assertRequiredRuntimeInputsVisibleAndSelected(page: Page) {
 async function createHospitalRuntimeReleaseCandidate(
   page: Page,
   testInfo: TestInfo,
-  options: { purpose?: "selected" | "unselected" } = {},
+  options: { purpose?: "selected" | "unselected" | "secondary" } = {},
 ): Promise<RuntimeReleaseLocalCandidate> {
   const suffix = `${Date.now()}-${testInfo.retry}-${options.purpose ?? "selected"}`;
   const assetIdentity = `ACTION_CARD.RUNTIME.RELEASE.${suffix}`;
@@ -346,6 +727,8 @@ async function createHospitalRuntimeReleaseCandidate(
       title:
         options.purpose === "unselected"
           ? "机构生效版本未选择本院提示卡"
+          : options.purpose === "secondary"
+            ? "第二医院机构生效版本本院提示卡"
           : "机构生效版本本院提示卡",
       actionCode: "INFO",
       atSeverity: "LOW",
@@ -353,10 +736,14 @@ async function createHospitalRuntimeReleaseCandidate(
       summary:
         options.purpose === "unselected"
           ? "用于验证本院候选资产可见但未被选入本轮机构生效版本。"
+          : options.purpose === "secondary"
+            ? "用于验证第二家医院可选择不同本院资产并形成独立机构生效版本。"
           : "用于验证本院候选资产进入机构生效版本前必须完成发布影响评估。",
       detail:
         options.purpose === "unselected"
           ? "本资产仅用于本地上线演练的部分选择缺席证明，不参与临床运行。"
+          : options.purpose === "secondary"
+            ? "本资产仅用于本地上线演练的两机构差异证明，不包含诊疗结论，不自动开立医嘱。"
           : "本资产仅用于本地上线演练，不包含诊疗结论，不自动开立医嘱。",
       source: { label: "MedKernel 本地上线演练" },
       suggestions: [
@@ -815,5 +1202,63 @@ async function expectNoRootOverflow(page: Page, label: string) {
   }));
   expect(dimensions.documentWidth, `${label} 页面根节点不应横向溢出`).toBeLessThanOrEqual(
     dimensions.viewportWidth,
+  );
+}
+
+async function apiGet(page: Page, path: string) {
+  return page.request.get(`${apiBase}${path}`, {
+    headers: { "X-Trace-Id": `e2e-runtime-release-get-${Date.now()}` },
+  });
+}
+
+async function apiLogin(page: Page, username: string, password: string, tenantId: string) {
+  return page.request.post(`${apiBase}/auth/login`, {
+    data: { username, password, tenantId },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Trace-Id": `e2e-runtime-release-login-${Date.now()}`,
+    },
+  });
+}
+
+async function responseData(response: APIResponse) {
+  const body = (await response.json()) as { data?: unknown };
+  return body.data ?? null;
+}
+
+function requireOrgUnit(value: unknown, label: string) {
+  const id = textField(value, "id");
+  const code = textField(value, "code");
+  if (!id || !code) {
+    throw new Error(`${label} 响应缺少组织 id/code`);
+  }
+  return { id, code };
+}
+
+function arrayData(value: unknown) {
+  if (Array.isArray(value)) return value;
+  const items = recordField(value, "items");
+  return Array.isArray(items) ? items : [];
+}
+
+function recordField(value: unknown, field: string) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[field]
+    : undefined;
+}
+
+function textField(value: unknown, field: string) {
+  const raw = recordField(value, field);
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function sameRuntimeReleaseCandidate(
+  left: RuntimeReleaseLocalCandidate,
+  right: RuntimeReleaseLocalCandidate,
+) {
+  return (
+    left.assetType === right.assetType &&
+    left.assetIdentity === right.assetIdentity &&
+    left.versionId === right.versionId
   );
 }

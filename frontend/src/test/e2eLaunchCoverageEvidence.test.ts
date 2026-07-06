@@ -44,14 +44,114 @@ const runtimeReleaseScenarioEvidence = [
       "前台展示并勾选 13 类平台标准资产",
       "前台评估机构生效版本发布影响",
       "前台只选择本轮部分本院内容进入机构生效版本",
+      "前台为第二家医院选择不同本院内容生成机构生效版本",
       "前台生成携带 13 类资产闭包的机构生效版本",
       "后端回读当前机构生效版本资产闭包",
       "第三方运行契约读取同一机构生效版本",
+      "两家医院后端与第三方运行契约读回互不串用",
       "前台从历史机构生效版本回滚",
       "回滚后后端和第三方运行契约读取同一修订",
     ],
   },
 ];
+
+const runtimeReleasePrimaryCandidate = {
+  assetType: "ACTION_CARD",
+  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+  versionId: "local-version-1",
+};
+
+const runtimeReleaseUnselectedCandidate = {
+  assetType: "ACTION_CARD",
+  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.2",
+  versionId: "local-version-2",
+};
+
+const runtimeReleaseSecondaryCandidate = {
+  assetType: "ACTION_CARD",
+  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.3",
+  versionId: "local-version-3",
+};
+
+const runtimeReleasePrimaryAsset = {
+  ...runtimeReleasePrimaryCandidate,
+  entryState: "ACTIVE",
+};
+
+const runtimeReleaseSecondaryAsset = {
+  ...runtimeReleaseSecondaryCandidate,
+  entryState: "ACTIVE",
+};
+
+const runtimeReleaseMultiHospitalDifferentiation = {
+  primaryHospital: {
+    hospitalId: "hospital-A",
+    hospitalName: "本地上线演练医院",
+    selectedCandidate: runtimeReleasePrimaryCandidate,
+    activationReadback: { assets: [runtimeReleasePrimaryAsset] },
+    runtimeConsumerReadback: { assets: [runtimeReleasePrimaryAsset] },
+    excludesOtherHospitalCandidate: true,
+  },
+  secondaryHospital: {
+    hospitalId: "hospital-B",
+    hospitalName: "本地上线演练二院",
+    selectedCandidate: runtimeReleaseSecondaryCandidate,
+    activationReadback: { assets: [runtimeReleaseSecondaryAsset] },
+    runtimeConsumerReadback: { assets: [runtimeReleaseSecondaryAsset] },
+    excludesOtherHospitalCandidate: true,
+  },
+  distinctHospitals: true,
+  distinctSelectedCandidates: true,
+  backendReadbacksIsolated: true,
+  runtimeConsumerReadbacksIsolated: true,
+};
+
+function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    productLayers: ["RELEASE_GOVERNANCE"],
+    versionedAssets: runtimeReleaseVersionedAssets,
+    deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
+    serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
+    apiEvidence: runtimeReleaseApiEvidence,
+    localCandidate: runtimeReleasePrimaryCandidate,
+    unselectedLocalCandidate: runtimeReleaseUnselectedCandidate,
+    activationRequest: { activeAssets: [runtimeReleasePrimaryCandidate] },
+    activationReadback: { assets: [runtimeReleasePrimaryAsset] },
+    runtimeConsumerReadback: { assets: [runtimeReleasePrimaryAsset] },
+    partialSelection: {
+      selectedCandidate: runtimeReleasePrimaryCandidate,
+      unselectedCandidate: runtimeReleaseUnselectedCandidate,
+      activationRequestOmitsUnselected: true,
+      activationReadbackOmitsUnselected: true,
+      runtimeConsumerOmitsUnselected: true,
+    },
+    multiHospitalDifferentiation: runtimeReleaseMultiHospitalDifferentiation,
+    rollbackReadback: { localCandidateAbsent: true, assets: [] },
+    rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
+    scenarioEvidence: runtimeReleaseScenarioEvidence,
+    ...overrides,
+  };
+}
+
+function runtimeReleaseEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+        title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+        status: "passed",
+        attachments: [
+          {
+            name: "runtime-release-coverage-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
 
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
@@ -280,6 +380,72 @@ describe("browser E2E launch coverage evidence", () => {
                   activationReadbackOmitsUnselected: true,
                   runtimeConsumerOmitsUnselected: true,
                 },
+                multiHospitalDifferentiation: {
+                  primaryHospital: {
+                    hospitalId: "hospital-A",
+                    hospitalName: "本地上线演练医院",
+                    selectedCandidate: {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                    },
+                    activationReadback: {
+                      assets: [
+                        {
+                          assetType: "ACTION_CARD",
+                          assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                          versionId: "local-version-1",
+                          entryState: "ACTIVE",
+                        },
+                      ],
+                    },
+                    runtimeConsumerReadback: {
+                      assets: [
+                        {
+                          assetType: "ACTION_CARD",
+                          assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                          versionId: "local-version-1",
+                          entryState: "ACTIVE",
+                        },
+                      ],
+                    },
+                    excludesOtherHospitalCandidate: true,
+                  },
+                  secondaryHospital: {
+                    hospitalId: "hospital-B",
+                    hospitalName: "本地上线演练二院",
+                    selectedCandidate: {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.3",
+                      versionId: "local-version-3",
+                    },
+                    activationReadback: {
+                      assets: [
+                        {
+                          assetType: "ACTION_CARD",
+                          assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.3",
+                          versionId: "local-version-3",
+                          entryState: "ACTIVE",
+                        },
+                      ],
+                    },
+                    runtimeConsumerReadback: {
+                      assets: [
+                        {
+                          assetType: "ACTION_CARD",
+                          assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.3",
+                          versionId: "local-version-3",
+                          entryState: "ACTIVE",
+                        },
+                      ],
+                    },
+                    excludesOtherHospitalCandidate: true,
+                  },
+                  distinctHospitals: true,
+                  distinctSelectedCandidates: true,
+                  backendReadbacksIsolated: true,
+                  runtimeConsumerReadbacksIsolated: true,
+                },
                 rollbackReadback: { localCandidateAbsent: true, assets: [] },
                 rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
                 scenarioEvidence: runtimeReleaseScenarioEvidence,
@@ -466,6 +632,134 @@ describe("browser E2E launch coverage evidence", () => {
         },
       ],
     });
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when runtime evidence lacks two-hospital differentiation", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+          title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+          status: "passed",
+          attachments: [
+            {
+              name: "runtime-release-coverage-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                productLayers: ["RELEASE_GOVERNANCE"],
+                versionedAssets: runtimeReleaseVersionedAssets,
+                deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
+                serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
+                apiEvidence: runtimeReleaseApiEvidence,
+                localCandidate: {
+                  assetType: "ACTION_CARD",
+                  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                  versionId: "local-version-1",
+                },
+                unselectedLocalCandidate: {
+                  assetType: "ACTION_CARD",
+                  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.2",
+                  versionId: "local-version-2",
+                },
+                activationRequest: {
+                  activeAssets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                    },
+                  ],
+                },
+                activationReadback: {
+                  assets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                      entryState: "ACTIVE",
+                    },
+                  ],
+                },
+                runtimeConsumerReadback: {
+                  assets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                      entryState: "ACTIVE",
+                    },
+                  ],
+                },
+                partialSelection: {
+                  selectedCandidate: {
+                    assetType: "ACTION_CARD",
+                    assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                    versionId: "local-version-1",
+                  },
+                  unselectedCandidate: {
+                    assetType: "ACTION_CARD",
+                    assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.2",
+                    versionId: "local-version-2",
+                  },
+                  activationRequestOmitsUnselected: true,
+                  activationReadbackOmitsUnselected: true,
+                  runtimeConsumerOmitsUnselected: true,
+                },
+                rollbackReadback: { localCandidateAbsent: true, assets: [] },
+                rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
+                scenarioEvidence: runtimeReleaseScenarioEvidence,
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when two-hospital evidence reuses one hospital", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        multiHospitalDifferentiation: {
+          ...runtimeReleaseMultiHospitalDifferentiation,
+          secondaryHospital: {
+            ...runtimeReleaseMultiHospitalDifferentiation.secondaryHospital,
+            hospitalId: "hospital-A",
+          },
+        },
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when hospital readbacks leak the other hospital candidate", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        multiHospitalDifferentiation: {
+          ...runtimeReleaseMultiHospitalDifferentiation,
+          primaryHospital: {
+            ...runtimeReleaseMultiHospitalDifferentiation.primaryHospital,
+            activationReadback: {
+              assets: [runtimeReleasePrimaryAsset, runtimeReleaseSecondaryAsset],
+            },
+          },
+        },
+      }),
+    );
 
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
       "RELEASE_GOVERNANCE",

@@ -470,6 +470,11 @@ describe("E2E credential contract", () => {
     expect(source).toContain("前台只选择本轮部分本院内容进入机构生效版本");
     expect(source).toContain("activationRequestCarriesRequiredAssets");
     expect(source).toContain("partialSelection");
+    expect(source).toContain("multiHospitalDifferentiation");
+    expect(source).toContain("ensureSecondHospitalRuntimeReleaseRehearsalContext");
+    expect(source).toContain("readThirdPartyRuntimeConsumerForRole");
+    expect(source).toContain("前台为第二家医院选择不同本院内容生成机构生效版本");
+    expect(source).toContain("两家医院后端与第三方运行契约读回互不串用");
     expect(source).toContain("unselectedLocalCandidate");
     expect(source).toContain("activationRequestOmitsUnselected");
     expect(source).toContain("activationReadbackOmitsUnselected");
