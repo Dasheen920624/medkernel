@@ -7661,6 +7661,26 @@ export interface RuntimeReleaseOfflineImportPreview {
   message: string;
 }
 
+export interface RuntimeReleaseOfflineRestoreRequest {
+  evidenceId: string;
+  expectedSourceReleaseId: string;
+  expectedHospitalId: string;
+  expectedCurrentReleaseId: string;
+  confirmedFileDigest: string;
+}
+
+export interface RuntimeReleaseOfflineRestore {
+  status: "RESTORED" | string;
+  runtimeMutation: boolean;
+  evidenceId: string;
+  sourceReleaseId: string;
+  targetHospitalId: string;
+  fileDigest: string;
+  manifestSha256: string;
+  itemCount: number;
+  restoredRelease: ClinicalRuntimeRelease;
+}
+
 export interface ReleaseCandidateAsset {
   sourceLayer: ReleaseSourceLayer;
   assetType: RuntimeAssetType;
@@ -8032,6 +8052,29 @@ export function useValidateHospitalRuntimeOfflineImport() {
         payload.request,
       );
       return data.data;
+    },
+  });
+}
+
+export function useRestoreHospitalRuntimeOfflineDelivery() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      hospitalId: string;
+      request: RuntimeReleaseOfflineRestoreRequest;
+    }) => {
+      const { data } = await apiClient.post<{ data: RuntimeReleaseOfflineRestore }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases/offline-delivery:restore`,
+        payload.request,
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["runtime-releases", "hospital", variables.hospitalId],
+      });
     },
   });
 }

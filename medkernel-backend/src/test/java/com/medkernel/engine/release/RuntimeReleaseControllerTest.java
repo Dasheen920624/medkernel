@@ -292,6 +292,51 @@ class RuntimeReleaseControllerTest {
             .isEqualTo("@perm.has('tenant.override')");
     }
 
+    @Test
+    void offlineDeliveryRestoreUsesAuthenticatedTenantAndRejectsHospitalMismatch() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        RuntimeReleaseOfflineRestoreRequest request = new RuntimeReleaseOfflineRestoreRequest(
+            "ev-runtime",
+            "runtime-H9",
+            "hospital-A",
+            "runtime-current",
+            "sm3:" + "1".repeat(64)
+        );
+        RuntimeReleaseOfflineRestoreResponse restored =
+            new RuntimeReleaseOfflineRestoreResponse(
+                "RESTORED",
+                true,
+                "ev-runtime",
+                "runtime-H9",
+                "hospital-A",
+                "sm3:" + "1".repeat(64),
+                "b".repeat(64),
+                13,
+                runtimeRelease()
+            );
+        when(offlineDelivery.restoreImport(
+            "tenant-A", request, "operator-hospital", "trace-hospital"))
+            .thenReturn(restored);
+
+        assertThat(controller.restoreHospitalRuntimeOfflineDelivery("hospital-A", request).data())
+            .isEqualTo(restored);
+        assertThatThrownBy(() -> controller.restoreHospitalRuntimeOfflineDelivery(
+            "hospital-B",
+            request
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void releaseOfflineDeliveryRestoreRequiresTenantOverridePermission() throws Exception {
+        assertThat(permissionOf(
+            "restoreHospitalRuntimeOfflineDelivery",
+            String.class,
+            RuntimeReleaseOfflineRestoreRequest.class
+        )).isEqualTo("@perm.has('tenant.override')");
+    }
+
     private String permissionOf(String methodName, Class<?>... parameterTypes) throws Exception {
         Method method = RuntimeReleaseController.class.getMethod(methodName, parameterTypes);
         return method.getAnnotation(PreAuthorize.class).value();

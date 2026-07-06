@@ -27,6 +27,7 @@ import com.medkernel.engine.release.PlatformBaselineItem;
 import com.medkernel.engine.release.PlatformBaselineItemRepository;
 import com.medkernel.engine.release.PlatformBaselineRelease;
 import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
+import com.medkernel.engine.release.ClinicalRuntimeReleaseItemOfflineSnapshot;
 import com.medkernel.engine.release.ReleaseEntryState;
 import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.versioning.AssetDependency;
@@ -595,6 +596,158 @@ class ClinicalRuntimeReleaseServiceTest {
         assertThat(copied.getValue().versionId()).isEqualTo("rule-v1");
     }
 
+    @Test
+    void restoreOfflineSnapshotCopiesValidatedItemsIntoANewHigherRevision() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L)));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        ClinicalRuntimeRelease restored = service.restoreOfflineSnapshot(
+            new ClinicalRuntimeReleaseOfflineRestoreCommand(
+                "tenant-A",
+                "hospital-A",
+                "runtime-current",
+                "runtime-H3",
+                "baseline-A8",
+                "b".repeat(64),
+                List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                    PlatformTenant.ID,
+                    ReleaseSourceLayer.PLATFORM,
+                    VersionedAssetType.RULE,
+                    "RULE.CKD",
+                    ReleaseEntryState.ACTIVE,
+                    "rule-v1",
+                    "V1",
+                    "3".repeat(64)
+                )),
+                "operator-A",
+                "trace-restore"
+            ));
+
+        assertThat(restored.releaseId()).startsWith("runtime-");
+        assertThat(restored.releaseId()).isNotEqualTo("runtime-H3");
+        assertThat(restored.revisionNo()).isEqualTo(10L);
+        assertThat(restored.rollbackFromReleaseId()).isEqualTo("runtime-H3");
+        assertThat(restored.manifestSha256()).isEqualTo("b".repeat(64));
+        ArgumentCaptor<ClinicalRuntimeReleaseItem> copied =
+            ArgumentCaptor.forClass(ClinicalRuntimeReleaseItem.class);
+        verify(runtimeItems).save(copied.capture());
+        assertThat(copied.getValue().releaseId()).isEqualTo(restored.releaseId());
+        assertThat(copied.getValue().assetIdentity()).isEqualTo("RULE.CKD");
+        assertThat(copied.getValue().traceId()).isEqualTo("trace-restore");
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsMissingSourceRuntimeLedger() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.empty());
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(restoreCommand(
+            "runtime-current",
+            "runtime-H3",
+            "hospital-A",
+            "baseline-A8",
+            "b".repeat(64)
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("来源机构生效版本不存在")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsSourceRuntimeLedgerMismatch() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L, "other-hospital", "b".repeat(64))));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(restoreCommand(
+            "runtime-current",
+            "runtime-H3",
+            "hospital-A",
+            "baseline-A8",
+            "b".repeat(64)
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("来源机构生效版本不一致")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsStaleExpectedCurrentRelease() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L)));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(
+            new ClinicalRuntimeReleaseOfflineRestoreCommand(
+                "tenant-A",
+                "hospital-A",
+                "runtime-old",
+                "runtime-H3",
+                "baseline-A8",
+                "b".repeat(64),
+                List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                    PlatformTenant.ID,
+                    ReleaseSourceLayer.PLATFORM,
+                    VersionedAssetType.RULE,
+                    "RULE.CKD",
+                    ReleaseEntryState.ACTIVE,
+                    "rule-v1",
+                    "V1",
+                    "3".repeat(64)
+                )),
+                "operator-A",
+                "trace-restore"
+            )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("当前机构生效版本已变化")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    private ClinicalRuntimeReleaseOfflineRestoreCommand restoreCommand(
+            String expectedCurrentReleaseId,
+            String sourceReleaseId,
+            String hospitalId,
+            String platformBaselineReleaseId,
+            String manifestSha256) {
+        return new ClinicalRuntimeReleaseOfflineRestoreCommand(
+            "tenant-A",
+            hospitalId,
+            expectedCurrentReleaseId,
+            sourceReleaseId,
+            platformBaselineReleaseId,
+            manifestSha256,
+            List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                PlatformTenant.ID,
+                ReleaseSourceLayer.PLATFORM,
+                VersionedAssetType.RULE,
+                "RULE.CKD",
+                ReleaseEntryState.ACTIVE,
+                "rule-v1",
+                "V1",
+                "3".repeat(64)
+            )),
+            "operator-A",
+            "trace-restore"
+        );
+    }
+
     private void stubHospitalAndBaseline() {
         stubHospital();
         when(baselines.findByBaselineReleaseId("baseline-A8"))
@@ -682,14 +835,22 @@ class ClinicalRuntimeReleaseServiceTest {
     }
 
     private ClinicalRuntimeRelease release(String releaseId, long revision) {
+        return release(releaseId, revision, "hospital-A", "b".repeat(64));
+    }
+
+    private ClinicalRuntimeRelease release(
+            String releaseId,
+            long revision,
+            String hospitalId,
+            String manifestSha256) {
         return new ClinicalRuntimeRelease(
             1L,
             releaseId,
             "tenant-A",
-            "hospital-A",
+            hospitalId,
             revision,
             "baseline-A8",
-            "b".repeat(64),
+            manifestSha256,
             null,
             NOW.minusSeconds(3600),
             "operator-old",

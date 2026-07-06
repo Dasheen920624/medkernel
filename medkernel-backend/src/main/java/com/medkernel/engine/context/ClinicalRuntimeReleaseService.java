@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.release.ClinicalRuntimeReleaseItemOfflineSnapshot;
 import com.medkernel.engine.release.PlatformBaselineItem;
 import com.medkernel.engine.release.PlatformBaselineItemRepository;
 import com.medkernel.engine.release.PlatformBaselineRelease;
@@ -258,6 +259,93 @@ public class ClinicalRuntimeReleaseService {
             ));
         }
         return release;
+    }
+
+    /**
+     * 将已验签的离线交付快照恢复为新的不可变机构生效版本。
+     */
+    @Transactional
+    public ClinicalRuntimeRelease restoreOfflineSnapshot(
+            ClinicalRuntimeReleaseOfflineRestoreCommand command) {
+        if (command == null) {
+            throw validation("离线恢复命令不能为空");
+        }
+        String tenantId = required(command.tenantId(), "租户");
+        String hospitalId = required(command.hospitalId(), "医院");
+        String actor = required(command.actor(), "操作人");
+        String sourceReleaseId = required(command.sourceReleaseId(), "来源机构生效版本");
+        String platformBaselineReleaseId = required(
+            command.platformBaselineReleaseId(), "平台标准版本发布");
+        String manifestSha256 = required(command.manifestSha256(), "离线清单摘要");
+        List<ClinicalRuntimeReleaseItemOfflineSnapshot> snapshotItems =
+            required(command.items(), "离线物化资产清单");
+        if (snapshotItems.isEmpty()) {
+            throw validation("离线物化资产清单不能为空");
+        }
+        requireHospital(tenantId, hospitalId);
+        ClinicalRuntimeRelease source = releases
+            .findByTenantIdAndReleaseId(tenantId, sourceReleaseId)
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "来源机构生效版本不存在"));
+        assertSourceMatchesOfflineSnapshot(
+            source, tenantId, hospitalId, platformBaselineReleaseId, manifestSha256);
+        ClinicalRuntimeRelease current = releases
+            .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(tenantId, hospitalId)
+            .orElse(null);
+        assertExpectedCurrent(current, command.expectedCurrentReleaseId());
+        long nextRevision = current == null ? 1L : current.revisionNo() + 1L;
+        Instant now = clock.instant();
+        String newReleaseId = "runtime-" + Ulid.newUlid();
+        ClinicalRuntimeRelease release = releases.save(new ClinicalRuntimeRelease(
+            null,
+            newReleaseId,
+            tenantId,
+            hospitalId,
+            nextRevision,
+            platformBaselineReleaseId,
+            manifestSha256,
+            sourceReleaseId,
+            now,
+            actor,
+            now,
+            actor,
+            blankToNull(command.traceId())
+        ));
+        for (ClinicalRuntimeReleaseItemOfflineSnapshot item : snapshotItems.stream()
+                .sorted(Comparator
+                    .comparing((ClinicalRuntimeReleaseItemOfflineSnapshot item) -> item.assetType().name())
+                    .thenComparing(ClinicalRuntimeReleaseItemOfflineSnapshot::assetIdentity))
+                .toList()) {
+            runtimeItems.save(new ClinicalRuntimeReleaseItem(
+                null,
+                newReleaseId,
+                required(item.sourceTenantId(), "来源租户"),
+                required(item.sourceLayer(), "来源层级"),
+                required(item.assetType(), "资产类型"),
+                required(item.assetIdentity(), "资产身份"),
+                required(item.entryState(), "条目状态"),
+                blankToNull(item.versionId()),
+                blankToNull(item.versionNo()),
+                blankToNull(item.contentHash()),
+                now,
+                actor,
+                blankToNull(command.traceId())
+            ));
+        }
+        return release;
+    }
+
+    private void assertSourceMatchesOfflineSnapshot(
+            ClinicalRuntimeRelease source,
+            String tenantId,
+            String hospitalId,
+            String platformBaselineReleaseId,
+            String manifestSha256) {
+        if (!source.tenantId().equals(tenantId)
+                || !source.hospitalId().equals(hospitalId)
+                || !source.platformBaselineReleaseId().equals(platformBaselineReleaseId)
+                || !source.manifestSha256().equals(manifestSha256)) {
+            throw new ApiException(ErrorCode.CONFLICT, "来源机构生效版本不一致，不能恢复离线交付文件");
+        }
     }
 
     private Map<AssetKey, RuntimeEntry> loadPlatformBaseline(

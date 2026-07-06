@@ -14,10 +14,13 @@ const simulateReleaseImpactAsync = vi.fn();
 const platformUpgradeRefetchAsync = vi.fn();
 const exportOfflineDeliveryAsync = vi.fn();
 const validateOfflineImportAsync = vi.fn();
+const restoreOfflineDeliveryAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
 const usePlatformReleaseCandidatesMock = vi.fn();
 let currentTenantId = "t-1";
 let currentHospitalPlatformBaselineReleaseId = "baseline-A8";
+let currentHospitalReleaseId = "runtime-H9";
+let currentHospitalRevisionNo = 9;
 let platformUpgradeAnalysisMock: ApiHooks.PlatformUpgradeAnalysis | undefined;
 
 vi.mock("@/shared/api/hooks", async () => {
@@ -123,10 +126,10 @@ vi.mock("@/shared/api/hooks", async () => {
       data: hospitalId
         ? {
             release: {
-              releaseId: "runtime-H9",
+              releaseId: currentHospitalReleaseId,
               tenantId: "tenant-a",
               hospitalId,
-              revisionNo: 9,
+              revisionNo: currentHospitalRevisionNo,
               platformBaselineReleaseId: currentHospitalPlatformBaselineReleaseId,
               manifestSha256: "b".repeat(64),
               activatedAt: "2026-06-23T09:00:00Z",
@@ -134,7 +137,7 @@ vi.mock("@/shared/api/hooks", async () => {
             },
             items: [
               {
-                releaseId: "runtime-H9",
+                releaseId: currentHospitalReleaseId,
                 sourceTenantId: "platform",
                 sourceLayer: "PLATFORM",
                 assetType: "RULE",
@@ -224,6 +227,10 @@ vi.mock("@/shared/api/hooks", async () => {
       mutateAsync: validateOfflineImportAsync,
       isPending: false,
     }),
+    useRestoreHospitalRuntimeOfflineDelivery: () => ({
+      mutateAsync: restoreOfflineDeliveryAsync,
+      isPending: false,
+    }),
     useSimulateReleaseImpact: () => ({
       mutateAsync: simulateReleaseImpactAsync,
       isPending: false,
@@ -255,9 +262,12 @@ describe("ReleaseGovernance", () => {
     platformUpgradeRefetchAsync.mockReset();
     exportOfflineDeliveryAsync.mockReset();
     validateOfflineImportAsync.mockReset();
+    restoreOfflineDeliveryAsync.mockReset();
     useOrgUnitsMock.mockReset();
     usePlatformReleaseCandidatesMock.mockReset();
     currentHospitalPlatformBaselineReleaseId = "baseline-A8";
+    currentHospitalReleaseId = "runtime-H9";
+    currentHospitalRevisionNo = 9;
     platformUpgradeAnalysisMock = undefined;
     publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
     activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
@@ -284,6 +294,27 @@ describe("ReleaseGovernance", () => {
       fileDigest: "sm3:" + "1".repeat(64),
       itemCount: 1,
       message: "离线交付文件仅用于完整性校验和导入预检，不作为临床运行指针",
+    });
+    restoreOfflineDeliveryAsync.mockResolvedValue({
+      status: "RESTORED",
+      runtimeMutation: true,
+      evidenceId: "runtime-offline-runtime-H9-01",
+      sourceReleaseId: "runtime-H9",
+      targetHospitalId: "hospital-a",
+      fileDigest: "sm3:" + "1".repeat(64),
+      manifestSha256: "b".repeat(64),
+      itemCount: 1,
+      restoredRelease: {
+        releaseId: "runtime-H10",
+        tenantId: "tenant-a",
+        hospitalId: "hospital-a",
+        revisionNo: 10,
+        platformBaselineReleaseId: "baseline-A8",
+        manifestSha256: "b".repeat(64),
+        rollbackFromReleaseId: "runtime-H9",
+        activatedAt: "2026-06-23T10:00:00Z",
+        activatedBy: "operator-a",
+      },
     });
     simulateReleaseImpactAsync.mockResolvedValue({
       simulationDigest: "d".repeat(64),
@@ -559,6 +590,83 @@ describe("ReleaseGovernance", () => {
     expect(screen.getByText("runtime-offline-runtime-H9-01")).toBeInTheDocument();
     expect(screen.getByText("sm3:1111111111111111111111111111111111111111111111111111111111111111")).toBeInTheDocument();
     expect(screen.getByText("/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file")).toBeInTheDocument();
+  });
+
+  it("restores a validated offline delivery file as a new institution effective version", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(
+      await screen.findByRole("button", { name: "恢复为新机构生效版本" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "导出离线交付文件" }));
+    await screen.findByText("离线交付文件已生成");
+    expect(screen.getByRole("button", { name: "恢复为新机构生效版本" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "校验离线交付文件" }));
+    await screen.findByText("导入预检通过");
+
+    fireEvent.click(screen.getByRole("button", { name: "恢复为新机构生效版本" }));
+
+    await waitFor(() =>
+      expect(restoreOfflineDeliveryAsync).toHaveBeenCalledWith({
+        hospitalId: "hospital-a",
+        request: {
+          evidenceId: "runtime-offline-runtime-H9-01",
+          expectedSourceReleaseId: "runtime-H9",
+          expectedHospitalId: "hospital-a",
+          expectedCurrentReleaseId: "runtime-H9",
+          confirmedFileDigest:
+            "sm3:1111111111111111111111111111111111111111111111111111111111111111",
+        },
+      }),
+    );
+    expect(await screen.findByText("已恢复为新机构生效版本")).toBeInTheDocument();
+    expect(screen.getByText("第 10 版")).toBeInTheDocument();
+  });
+
+  it("keeps a validated offline delivery available when the current runtime changes before restore", async () => {
+    const { rerender } = renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    fireEvent.click(await screen.findByRole("button", { name: "导出离线交付文件" }));
+    await screen.findByText("离线交付文件已生成");
+    fireEvent.click(screen.getByRole("button", { name: "校验离线交付文件" }));
+    await screen.findByText("导入预检通过");
+
+    currentHospitalReleaseId = "runtime-H10";
+    currentHospitalRevisionNo = 10;
+    rerender(
+      <ConfigProvider>
+        <AntdApp>
+          <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <ReleaseGovernance />
+          </MemoryRouter>
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(await screen.findByText("当前机构生效版本 第 10 版")).toBeInTheDocument();
+    const restoreButton = screen.getByRole("button", { name: "恢复为新机构生效版本" });
+    expect(restoreButton).toBeEnabled();
+    fireEvent.click(restoreButton);
+
+    await waitFor(() =>
+      expect(restoreOfflineDeliveryAsync).toHaveBeenCalledWith({
+        hospitalId: "hospital-a",
+        request: {
+          evidenceId: "runtime-offline-runtime-H9-01",
+          expectedSourceReleaseId: "runtime-H9",
+          expectedHospitalId: "hospital-a",
+          expectedCurrentReleaseId: "runtime-H10",
+          confirmedFileDigest:
+            "sm3:1111111111111111111111111111111111111111111111111111111111111111",
+        },
+      }),
+    );
   });
 
   it("loads hospitals through bounded server-side organization filtering", () => {

@@ -182,6 +182,7 @@ import {
   useSimulateReleaseImpact,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
+  useRestoreHospitalRuntimeOfflineDelivery,
   useValidateHospitalRuntimeOfflineImport,
   useTerminologyCandidates,
   useTerminologyConflicts,
@@ -3737,6 +3738,31 @@ describe("release governance api hooks", () => {
             message: "离线交付文件仅用于完整性校验和导入预检，不作为临床运行指针",
           },
         },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            status: "RESTORED",
+            runtimeMutation: true,
+            evidenceId: "runtime-offline-runtime-H9-01",
+            sourceReleaseId: "runtime-H9",
+            targetHospitalId: "hospital-A",
+            fileDigest: "sm3:" + "1".repeat(64),
+            manifestSha256: "b".repeat(64),
+            itemCount: 13,
+            restoredRelease: {
+              releaseId: "runtime-H10",
+              tenantId: "tenant-A",
+              hospitalId: "hospital-A",
+              revisionNo: 10,
+              platformBaselineReleaseId: "baseline-A8",
+              manifestSha256: "b".repeat(64),
+              rollbackFromReleaseId: "runtime-H9",
+              activatedAt: "2026-06-23T10:00:00Z",
+              activatedBy: "operator-a",
+            },
+          },
+        },
       });
 
     const delivery = await renderApiHook(() =>
@@ -3752,9 +3778,23 @@ describe("release governance api hooks", () => {
         expectedHospitalId: "hospital-A",
       },
     });
+    const restore = await renderApiHook(() =>
+      useRestoreHospitalRuntimeOfflineDelivery(),
+    ).result.current.mutateAsync({
+      hospitalId: "hospital-A",
+      request: {
+        evidenceId: delivery.evidenceId,
+        expectedSourceReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+        expectedCurrentReleaseId: "runtime-H10-before-restore",
+        confirmedFileDigest: delivery.fileDigest,
+      },
+    });
 
     expect(delivery.runtimeMutation).toBe(false);
     expect(preview.runtimeMutation).toBe(false);
+    expect(restore.runtimeMutation).toBe(true);
+    expect(restore.restoredRelease.revisionNo).toBe(10);
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
       "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery",
@@ -3766,6 +3806,17 @@ describe("release governance api hooks", () => {
         evidenceId: "runtime-offline-runtime-H9-01",
         expectedReleaseId: "runtime-H9",
         expectedHospitalId: "hospital-A",
+      },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery:restore",
+      {
+        evidenceId: "runtime-offline-runtime-H9-01",
+        expectedSourceReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+        expectedCurrentReleaseId: "runtime-H10-before-restore",
+        confirmedFileDigest: "sm3:" + "1".repeat(64),
       },
     );
   });

@@ -222,6 +222,25 @@ public class RuntimeReleaseController {
         return ApiResult.ok(offlineDelivery.validateImportPreview(tenantId(), request));
     }
 
+    /**
+     * 将已验签的机构生效版本离线交付文件恢复为新的不可变机构生效版本。
+     */
+    @PostMapping("/hospitals/{hospitalId}/runtime-releases/offline-delivery:restore")
+    @PreAuthorize("@perm.has('tenant.override')")
+    public ApiResult<RuntimeReleaseOfflineRestoreResponse> restoreHospitalRuntimeOfflineDelivery(
+            @PathVariable String hospitalId,
+            @Valid @RequestBody RuntimeReleaseOfflineRestoreRequest request) {
+        if (!hospitalId.equals(request.expectedHospitalId())) {
+            throw new ApiException(ErrorCode.CONFLICT, "路径医院与离线交付预期医院不一致");
+        }
+        return ApiResult.ok(offlineDelivery.restoreImport(
+            tenantId(),
+            request,
+            actor(),
+            RequestContext.currentTraceId()
+        ));
+    }
+
     private void requirePlatformContext() {
         if (!PlatformTenant.isPlatformTenant(tenantId())) {
             throw new ApiException(

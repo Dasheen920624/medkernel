@@ -40,6 +40,10 @@ const runtimeReleaseApiEvidence = {
   offlineDeliveryFileDownloaded: true,
   offlineDeliveryImportPreviewValidated: true,
   offlineDeliveryRuntimeUnchanged: true,
+  offlineDeliveryRestoreExecuted: true,
+  offlineDeliveryRestoreCreatedNewRevision: true,
+  offlineDeliveryRestoreReadbackMatched: true,
+  offlineDeliveryRestoreRuntimeConsumerMatched: true,
 };
 
 const runtimeReleaseScenarioEvidence = [
@@ -57,6 +61,8 @@ const runtimeReleaseScenarioEvidence = [
       "前台导出机构生效版本离线交付文件",
       "下载离线交付文件并校验完整快照",
       "离线交付导入预检验签且不改写当前机构生效版本",
+      "离线交付恢复执行生成新机构生效版本",
+      "恢复后后端和第三方运行契约读取同一机构生效版本",
       "前台从历史机构生效版本回滚",
       "回滚后后端和第三方运行契约读取同一修订",
     ],
@@ -150,6 +156,35 @@ const runtimeReleaseOfflineDelivery = {
     releaseId: "runtime-H9",
     revisionNo: 9,
     manifestSha256: "b".repeat(64),
+  },
+  runtimeBeforeRestore: {
+    releaseId: "runtime-H10-rollback",
+    revisionNo: 10,
+    manifestSha256: "c".repeat(64),
+  },
+  restore: {
+    status: "RESTORED",
+    runtimeMutation: true,
+    sourceReleaseId: "runtime-H9",
+    targetHospitalId: "hospital-A",
+    fileDigest: "sm3:" + "1".repeat(64),
+    manifestSha256: "b".repeat(64),
+    itemCount: runtimeReleaseVersionedAssets.length,
+    restoredReleaseId: "runtime-H11-restore",
+    restoredRevisionNo: 11,
+    rollbackFromReleaseId: "runtime-H9",
+  },
+  runtimeAfterRestore: {
+    releaseId: "runtime-H11-restore",
+    revisionNo: 11,
+    manifestSha256: "b".repeat(64),
+    selectedCandidatePresent: true,
+  },
+  runtimeConsumerAfterRestore: {
+    releaseId: "runtime-H11-restore",
+    revisionNo: 11,
+    manifestSha256: "b".repeat(64),
+    selectedCandidatePresent: true,
   },
 };
 
@@ -1012,6 +1047,103 @@ describe("browser E2E launch coverage evidence", () => {
       "RELEASE_GOVERNANCE",
     ]);
     expect(invalidSignature.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when offline delivery has no restore execution readback", () => {
+    const noRestore = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        offlineDelivery: {
+          ...runtimeReleaseOfflineDelivery,
+          restore: undefined,
+          runtimeBeforeRestore: undefined,
+          runtimeAfterRestore: undefined,
+          runtimeConsumerAfterRestore: undefined,
+        },
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          offlineDeliveryRestoreExecuted: false,
+          offlineDeliveryRestoreCreatedNewRevision: false,
+          offlineDeliveryRestoreReadbackMatched: false,
+          offlineDeliveryRestoreRuntimeConsumerMatched: false,
+        },
+      }),
+    );
+
+    expect(noRestore.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(noRestore.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when human-readable evidence omits offline restore stages", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        scenarioEvidence: [
+          {
+            observedStages: runtimeReleaseScenarioEvidence[0].observedStages.filter(
+              (stage) =>
+                stage !== "离线交付恢复执行生成新机构生效版本" &&
+                stage !== "恢复后后端和第三方运行契约读取同一机构生效版本",
+            ),
+          },
+        ],
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when offline restore reuses the source release id", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        offlineDelivery: {
+          ...runtimeReleaseOfflineDelivery,
+          restore: {
+            ...runtimeReleaseOfflineDelivery.restore,
+            restoredReleaseId: "runtime-H9",
+          },
+          runtimeAfterRestore: {
+            ...runtimeReleaseOfflineDelivery.runtimeAfterRestore,
+            releaseId: "runtime-H9",
+          },
+          runtimeConsumerAfterRestore: {
+            ...runtimeReleaseOfflineDelivery.runtimeConsumerAfterRestore,
+            releaseId: "runtime-H9",
+          },
+        },
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when offline restore lacks third-party runtime readback", () => {
+    const missingConsumer = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        offlineDelivery: {
+          ...runtimeReleaseOfflineDelivery,
+          runtimeConsumerAfterRestore: {
+            ...runtimeReleaseOfflineDelivery.runtimeConsumerAfterRestore,
+            selectedCandidatePresent: false,
+          },
+        },
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          offlineDeliveryRestoreRuntimeConsumerMatched: false,
+        },
+      }),
+    );
+
+    expect(missingConsumer.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(missingConsumer.launchCoverage.scenarios).toBeUndefined();
   });
 
   it("declares system operations coverage only when service providers rehearsal attaches readonly operations evidence", () => {

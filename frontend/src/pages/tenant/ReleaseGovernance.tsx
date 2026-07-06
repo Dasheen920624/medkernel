@@ -36,6 +36,7 @@ import {
   usePlatformReleaseCandidates,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
+  useRestoreHospitalRuntimeOfflineDelivery,
   useSimulateReleaseImpact,
   useValidateHospitalRuntimeOfflineImport,
   useSecurityProfile,
@@ -47,6 +48,7 @@ import {
   type ReleaseAssetRef,
   type RuntimeReleaseOfflineDelivery,
   type RuntimeReleaseOfflineImportPreview,
+  type RuntimeReleaseOfflineRestore,
   type PlatformUpgradeAnalysis,
   type RuntimeAssetType,
 } from "@/shared/api/hooks";
@@ -198,6 +200,7 @@ export default function ReleaseGovernance() {
   const [offlineDelivery, setOfflineDelivery] = useState<RuntimeReleaseOfflineDelivery>();
   const [offlineImportPreview, setOfflineImportPreview] =
     useState<RuntimeReleaseOfflineImportPreview>();
+  const [offlineRestoreResult, setOfflineRestoreResult] = useState<RuntimeReleaseOfflineRestore>();
   const initializedHospitalRevision = useRef<string>();
   const isPlatformTenant = security.data?.dataScope.tenantId === platformTenantId;
 
@@ -249,6 +252,7 @@ export default function ReleaseGovernance() {
   const simulateReleaseImpact = useSimulateReleaseImpact();
   const exportOfflineDelivery = useExportHospitalRuntimeOfflineDelivery();
   const validateOfflineImport = useValidateHospitalRuntimeOfflineImport();
+  const restoreOfflineDelivery = useRestoreHospitalRuntimeOfflineDelivery();
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const platformCandidates = platformCandidatesQuery.data?.items ?? [];
@@ -344,7 +348,12 @@ export default function ReleaseGovernance() {
   useEffect(() => {
     setOfflineDelivery(undefined);
     setOfflineImportPreview(undefined);
-  }, [hospitalId, currentRuntime?.release.releaseId]);
+    setOfflineRestoreResult(undefined);
+  }, [hospitalId]);
+
+  useEffect(() => {
+    setOfflineRestoreResult(undefined);
+  }, [currentRuntime?.release.releaseId]);
 
   function togglePlatformCandidate(candidate: ReleaseCandidateAsset, checked: boolean) {
     setPlatformPublishIds((current) =>
@@ -551,6 +560,7 @@ export default function ReleaseGovernance() {
       const result = await exportOfflineDelivery.mutateAsync({ hospitalId });
       setOfflineDelivery(result);
       setOfflineImportPreview(undefined);
+      setOfflineRestoreResult(undefined);
       message.success("已生成离线交付文件");
     } catch (error) {
       message.error(getApiErrorMessage(error, "离线交付文件生成失败"));
@@ -572,9 +582,39 @@ export default function ReleaseGovernance() {
         },
       });
       setOfflineImportPreview(result);
+      setOfflineRestoreResult(undefined);
       message.success("离线交付导入预检已通过");
     } catch (error) {
       message.error(getApiErrorMessage(error, "离线交付文件校验失败"));
+    }
+  }
+
+  async function restoreCurrentOfflineDelivery() {
+    if (
+      !hospitalId ||
+      !currentRuntime?.release.releaseId ||
+      !offlineDelivery?.evidenceId ||
+      !offlineImportPreview?.signatureValid ||
+      !offlineImportPreview.manifestMatched
+    ) {
+      message.warning("请先完成离线交付文件导入预检");
+      return;
+    }
+    try {
+      const result = await restoreOfflineDelivery.mutateAsync({
+        hospitalId,
+        request: {
+          evidenceId: offlineDelivery.evidenceId,
+          expectedSourceReleaseId: offlineImportPreview.releaseId,
+          expectedHospitalId: hospitalId,
+          expectedCurrentReleaseId: currentRuntime.release.releaseId,
+          confirmedFileDigest: offlineDelivery.fileDigest,
+        },
+      });
+      setOfflineRestoreResult(result);
+      message.success(`已恢复为新机构生效版本 ${revision("H", result.restoredRelease.revisionNo)}`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "离线交付文件恢复失败"));
     }
   }
 
@@ -624,8 +664,19 @@ export default function ReleaseGovernance() {
             >
               校验离线交付文件
             </Button>
+            <Button
+              aria-label="恢复为新机构生效版本"
+              icon={<ReloadOutlined />}
+              disabled={
+                !offlineImportPreview?.signatureValid || !offlineImportPreview.manifestMatched
+              }
+              loading={restoreOfflineDelivery.isPending}
+              onClick={() => void restoreCurrentOfflineDelivery()}
+            >
+              恢复为新机构生效版本
+            </Button>
           </Space>
-          {(offlineDelivery || offlineImportPreview) && (
+          {(offlineDelivery || offlineImportPreview || offlineRestoreResult) && (
             <Descriptions size="small" column={2} className={styles.runtimeToolStatus}>
               {offlineDelivery && (
                 <>
@@ -637,6 +688,26 @@ export default function ReleaseGovernance() {
                 <>
                   <Descriptions.Item label="导入预检">导入预检通过</Descriptions.Item>
                   <Descriptions.Item label="运行版本">不会改写当前机构生效版本</Descriptions.Item>
+                </>
+              )}
+              {offlineRestoreResult && (
+                <>
+                  <Descriptions.Item label="恢复执行">已恢复为新机构生效版本</Descriptions.Item>
+                  <Descriptions.Item label="新机构生效版本">
+                    {revision("H", offlineRestoreResult.restoredRelease.revisionNo)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="恢复来源">
+                    {evidenceText(
+                      offlineRestoreResult.sourceReleaseId,
+                      evidenceDetailsEnabled,
+                      "来自已验签离线交付文件",
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="写入结果">
+                    {offlineRestoreResult.runtimeMutation
+                      ? "已追加新的不可变机构生效版本"
+                      : "未写入机构生效版本"}
+                  </Descriptions.Item>
                 </>
               )}
               {evidenceDetailsEnabled && offlineDelivery && (

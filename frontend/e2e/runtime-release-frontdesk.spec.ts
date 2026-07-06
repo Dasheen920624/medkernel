@@ -163,6 +163,25 @@ type RuntimeReleaseOfflineDeliveryEvidence = {
   };
   runtimeBefore: RuntimeReleaseSnapshotIdentity;
   runtimeAfter: RuntimeReleaseSnapshotIdentity;
+  runtimeBeforeRestore?: RuntimeReleaseSnapshotIdentity;
+  restore?: {
+    status: string;
+    runtimeMutation: boolean;
+    sourceReleaseId: string;
+    targetHospitalId: string;
+    fileDigest: string;
+    manifestSha256: string;
+    itemCount: number;
+    restoredReleaseId: string;
+    restoredRevisionNo: number;
+    rollbackFromReleaseId?: string | null;
+  };
+  runtimeAfterRestore?: RuntimeReleaseSnapshotIdentity & {
+    selectedCandidatePresent?: boolean;
+  };
+  runtimeConsumerAfterRestore?: RuntimeReleaseSnapshotIdentity & {
+    selectedCandidatePresent?: boolean;
+  };
 };
 type RuntimeReleaseSnapshotIdentity = {
   releaseId: string;
@@ -558,6 +577,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         primaryHospitalName,
         primaryHospitalId,
         activated.data?.revisionNo,
+        localCandidate,
       );
       coverageEvidence.offlineDelivery = offlineDelivery;
       coverageEvidence.apiEvidence.offlineDeliveryExported = true;
@@ -567,6 +587,28 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         offlineDelivery.runtimeBefore.releaseId === offlineDelivery.runtimeAfter.releaseId &&
         offlineDelivery.runtimeBefore.revisionNo === offlineDelivery.runtimeAfter.revisionNo &&
         offlineDelivery.runtimeBefore.manifestSha256 === offlineDelivery.runtimeAfter.manifestSha256;
+      coverageEvidence.apiEvidence.offlineDeliveryRestoreExecuted =
+        offlineDelivery.restore?.status === "RESTORED" &&
+        offlineDelivery.restore.runtimeMutation === true;
+      coverageEvidence.apiEvidence.offlineDeliveryRestoreCreatedNewRevision =
+        Boolean(offlineDelivery.runtimeBeforeRestore) &&
+        Boolean(offlineDelivery.runtimeAfterRestore) &&
+        (offlineDelivery.runtimeAfterRestore?.revisionNo ?? 0) >
+          (offlineDelivery.runtimeBeforeRestore?.revisionNo ?? 0) &&
+        offlineDelivery.runtimeAfterRestore?.releaseId ===
+          offlineDelivery.restore?.restoredReleaseId;
+      coverageEvidence.apiEvidence.offlineDeliveryRestoreReadbackMatched =
+        offlineDelivery.runtimeAfterRestore?.manifestSha256 ===
+          offlineDelivery.restore?.manifestSha256 &&
+        offlineDelivery.runtimeAfterRestore?.selectedCandidatePresent === true;
+      coverageEvidence.apiEvidence.offlineDeliveryRestoreRuntimeConsumerMatched =
+        offlineDelivery.runtimeConsumerAfterRestore?.releaseId ===
+          offlineDelivery.runtimeAfterRestore?.releaseId &&
+        offlineDelivery.runtimeConsumerAfterRestore?.revisionNo ===
+          offlineDelivery.runtimeAfterRestore?.revisionNo &&
+        offlineDelivery.runtimeConsumerAfterRestore?.manifestSha256 ===
+          offlineDelivery.runtimeAfterRestore?.manifestSha256 &&
+        offlineDelivery.runtimeConsumerAfterRestore?.selectedCandidatePresent === true;
       recordRuntimeReleaseStage(
         coverageEvidence,
         "前台导出机构生效版本离线交付文件",
@@ -575,6 +617,14 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       recordRuntimeReleaseStage(
         coverageEvidence,
         "离线交付导入预检验签且不改写当前机构生效版本",
+      );
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "离线交付恢复执行生成新机构生效版本",
+      );
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "恢复后后端和第三方运行契约读取同一机构生效版本",
       );
       recordCleanRuntime(page, "前台导出并预检机构生效版本离线交付文件", runtime, records);
 
@@ -1115,7 +1165,9 @@ async function assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
   const parsed = JSON.parse(text) as {
     data?: {
       contractVersion?: string;
+      releaseId?: string;
       revisionNo?: number;
+      manifestSha256?: string;
       assetCount?: number;
       assets?: RuntimeReleaseItem[];
     };
@@ -1128,6 +1180,10 @@ async function assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
   }
   expect(parsed.data?.assetCount, `${label} 后运行消费者必须返回资产数`).toBe(
     parsed.data?.assets?.length,
+  );
+  expect(parsed.data?.releaseId, `${label} 后运行消费者必须返回机构生效版本 ID`).toBeTruthy();
+  expect(parsed.data?.manifestSha256, `${label} 后运行消费者必须返回清单摘要`).toMatch(
+    /^[0-9a-f]{64}$/i,
   );
   assertRuntimeDetailCarriesRequiredAssets({ items: parsed.data?.assets ?? [] }, label);
   return parsed.data ?? { assets: [] };
@@ -1236,6 +1292,7 @@ async function exerciseOfflineDelivery(
   hospitalName: string,
   hospitalId: string,
   expectedRevision: number | undefined,
+  selectedCandidate: RuntimeReleaseLocalCandidate,
 ): Promise<RuntimeReleaseOfflineDeliveryEvidence> {
   const runtimeBefore = await assertCurrentRuntimeAssetsReady(
     page,
@@ -1357,6 +1414,129 @@ async function exerciseOfflineDelivery(
     beforeIdentity,
   );
 
+  const rollbackButton = page
+    .getByRole("button", { name: `回滚到 第 ${beforeIdentity.revisionNo - 1} 版` })
+    .first();
+  await expect(rollbackButton, "恢复演练前应能回滚制造当前版本变化").toBeVisible({
+    timeout: 20_000,
+  });
+  const preRestoreRollbackResponsePromise = waitForPost(
+    page,
+    "/engine/releases/hospitals/",
+    "/runtime-releases:rollback",
+  );
+  await rollbackButton.click();
+  await page.getByRole("button", { name: "确认回滚" }).click();
+  const preRestoreRollbackResponse = await preRestoreRollbackResponsePromise;
+  const preRestoreRollbackBody = await preRestoreRollbackResponse.text();
+  expect(
+    preRestoreRollbackResponse.ok(),
+    `恢复前制造当前版本变化的回滚应成功 status=${preRestoreRollbackResponse.status()} body=${preRestoreRollbackBody}`,
+  ).toBe(true);
+  const preRestoreRollback = JSON.parse(preRestoreRollbackBody) as {
+    data?: { revisionNo?: number };
+  };
+  await expect(
+    page.getByText(`当前机构生效版本 第 ${preRestoreRollback.data?.revisionNo} 版`),
+  ).toBeVisible({ timeout: 20_000 });
+  const runtimeBeforeRestore = await assertCurrentRuntimeAssetsReady(
+    page,
+    hospitalName,
+    preRestoreRollback.data?.revisionNo,
+    "离线交付恢复执行前",
+  );
+  const beforeRestoreIdentity = runtimeSnapshotIdentity(
+    runtimeBeforeRestore,
+    "离线交付恢复执行前",
+  );
+  expect(
+    beforeRestoreIdentity.releaseId,
+    "恢复执行前应已通过回滚制造当前机构生效版本变化",
+  ).not.toBe(beforeIdentity.releaseId);
+
+  const restoreResponsePromise = waitForPost(
+    page,
+    "/engine/releases/hospitals/",
+    "/runtime-releases/offline-delivery:restore",
+  );
+  await page.getByRole("button", { name: "恢复为新机构生效版本" }).click();
+  const restoreResponse = await restoreResponsePromise;
+  const restoreBody = await restoreResponse.text();
+  expect(
+    restoreResponse.ok(),
+    `离线交付恢复执行应生成新机构生效版本 status=${restoreResponse.status()} body=${restoreBody}`,
+  ).toBe(true);
+  const restore = (JSON.parse(restoreBody) as {
+    data?: {
+      status?: string;
+      runtimeMutation?: boolean;
+      sourceReleaseId?: string;
+      targetHospitalId?: string;
+      fileDigest?: string;
+      manifestSha256?: string;
+      itemCount?: number;
+      restoredRelease?: {
+        releaseId?: string;
+        revisionNo?: number;
+        rollbackFromReleaseId?: string | null;
+      };
+    };
+  }).data;
+  expect(restore?.status, "离线交付恢复状态必须成功").toBe("RESTORED");
+  expect(restore?.runtimeMutation, "离线交付恢复必须生成新的机构生效版本").toBe(true);
+  expect(restore?.sourceReleaseId, "恢复来源 releaseId 必须来自离线文件").toBe(
+    beforeIdentity.releaseId,
+  );
+  expect(restore?.targetHospitalId, "恢复目标医院必须保持当前医院").toBe(hospitalId);
+  expect(restore?.fileDigest, "恢复必须确认同一离线文件摘要").toBe(delivery?.fileDigest);
+  expect(restore?.manifestSha256, "恢复清单摘要必须来自离线文件").toBe(
+    beforeIdentity.manifestSha256,
+  );
+  expect(restore?.itemCount, "恢复必须复制完整离线资产条目").toBe(delivery?.items?.length);
+  expect(
+    restore?.restoredRelease?.revisionNo,
+    "离线恢复应在变化后的当前版本之上生成更高修订",
+  ).toBeGreaterThan(beforeRestoreIdentity.revisionNo);
+  await expect(page.getByText("已恢复为新机构生效版本")).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByText(`当前机构生效版本 第 ${restore?.restoredRelease?.revisionNo} 版`),
+  ).toBeVisible({ timeout: 20_000 });
+
+  const runtimeAfterRestore = await assertCurrentRuntimeAssetsReady(
+    page,
+    hospitalName,
+    restore?.restoredRelease?.revisionNo,
+    "离线交付恢复执行后",
+  );
+  const afterRestoreIdentity = runtimeSnapshotIdentity(
+    runtimeAfterRestore,
+    "离线交付恢复执行后",
+  );
+  expect(afterRestoreIdentity.releaseId, "恢复后后端读回必须指向新机构生效版本").toBe(
+    restore?.restoredRelease?.releaseId,
+  );
+  expect(afterRestoreIdentity.manifestSha256, "恢复后后端读回清单摘要必须匹配离线文件").toBe(
+    beforeIdentity.manifestSha256,
+  );
+  const restoredSelectedCandidate = assertRuntimeAssetsContainLocalCandidate(
+    runtimeAfterRestore.items ?? [],
+    selectedCandidate,
+    "离线交付恢复执行后端读回",
+    { requireActive: true },
+  );
+  const runtimeConsumerAfterRestore =
+    await assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
+      page,
+      restore?.restoredRelease?.revisionNo,
+      "离线交付恢复执行后",
+    );
+  const consumerSelectedCandidate = assertRuntimeAssetsContainLocalCandidate(
+    runtimeConsumerAfterRestore.assets ?? [],
+    selectedCandidate,
+    "离线交付恢复执行第三方运行契约",
+    { requireActive: true },
+  );
+
   return {
     delivery: {
       deliveryKind: delivery?.deliveryKind ?? "",
@@ -1386,6 +1566,29 @@ async function exerciseOfflineDelivery(
     },
     runtimeBefore: beforeIdentity,
     runtimeAfter: afterIdentity,
+    runtimeBeforeRestore: beforeRestoreIdentity,
+    restore: {
+      status: restore?.status ?? "",
+      runtimeMutation: restore?.runtimeMutation ?? false,
+      sourceReleaseId: restore?.sourceReleaseId ?? "",
+      targetHospitalId: restore?.targetHospitalId ?? "",
+      fileDigest: restore?.fileDigest ?? "",
+      manifestSha256: restore?.manifestSha256 ?? "",
+      itemCount: restore?.itemCount ?? 0,
+      restoredReleaseId: restore?.restoredRelease?.releaseId ?? "",
+      restoredRevisionNo: restore?.restoredRelease?.revisionNo ?? 0,
+      rollbackFromReleaseId: restore?.restoredRelease?.rollbackFromReleaseId ?? null,
+    },
+    runtimeAfterRestore: {
+      ...afterRestoreIdentity,
+      selectedCandidatePresent: Boolean(restoredSelectedCandidate.versionId),
+    },
+    runtimeConsumerAfterRestore: {
+      releaseId: runtimeConsumerAfterRestore.releaseId ?? "",
+      revisionNo: runtimeConsumerAfterRestore.revisionNo ?? 0,
+      manifestSha256: runtimeConsumerAfterRestore.manifestSha256 ?? "",
+      selectedCandidatePresent: Boolean(consumerSelectedCandidate.versionId),
+    },
   };
 }
 

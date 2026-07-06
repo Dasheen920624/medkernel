@@ -241,6 +241,8 @@ const requiredRuntimeReleasePartialSelectionScenarioEvidence = [
   "前台导出机构生效版本离线交付文件",
   "下载离线交付文件并校验完整快照",
   "离线交付导入预检验签且不改写当前机构生效版本",
+  "离线交付恢复执行生成新机构生效版本",
+  "恢复后后端和第三方运行契约读取同一机构生效版本",
 ];
 
 const requiredSourceLineageScenarioEvidence: Record<string, string[]> = {
@@ -971,7 +973,11 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
     apiEvidence.offlineDeliveryExported !== true ||
     apiEvidence.offlineDeliveryFileDownloaded !== true ||
     apiEvidence.offlineDeliveryImportPreviewValidated !== true ||
-    apiEvidence.offlineDeliveryRuntimeUnchanged !== true
+    apiEvidence.offlineDeliveryRuntimeUnchanged !== true ||
+    apiEvidence.offlineDeliveryRestoreExecuted !== true ||
+    apiEvidence.offlineDeliveryRestoreCreatedNewRevision !== true ||
+    apiEvidence.offlineDeliveryRestoreReadbackMatched !== true ||
+    apiEvidence.offlineDeliveryRestoreRuntimeConsumerMatched !== true
   ) {
     return false;
   }
@@ -981,13 +987,24 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
   const evidence = value.offlineDelivery as Record<string, unknown>;
   const delivery = parseRuntimeReleaseOfflineDelivery(evidence.delivery);
   const preview = parseRuntimeReleaseOfflineImportPreview(evidence.importPreview);
+  const restore = parseRuntimeReleaseOfflineRestore(evidence.restore);
   const file = evidence.downloadedFile;
-  if (!delivery || !preview || !file || typeof file !== "object" || Array.isArray(file)) {
+  if (!delivery || !preview || !restore || !file || typeof file !== "object" || Array.isArray(file)) {
     return false;
   }
   const downloaded = file as Record<string, unknown>;
   const runtimeBefore = parseRuntimeReleaseOfflineRuntimeSnapshot(evidence.runtimeBefore);
   const runtimeAfter = parseRuntimeReleaseOfflineRuntimeSnapshot(evidence.runtimeAfter);
+  const runtimeBeforeRestore = parseRuntimeReleaseOfflineRuntimeSnapshot(
+    evidence.runtimeBeforeRestore,
+  );
+  const runtimeAfterRestore = parseRuntimeReleaseOfflineRuntimeSnapshotWithSelection(
+    evidence.runtimeAfterRestore,
+  );
+  const runtimeConsumerAfterRestore =
+    parseRuntimeReleaseOfflineRuntimeSnapshotWithSelection(
+      evidence.runtimeConsumerAfterRestore,
+    );
   return (
     delivery.deliveryKind === "CLINICAL_RUNTIME_RELEASE" &&
     delivery.runtimeMutation === false &&
@@ -1010,10 +1027,33 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
     downloaded.containsReleaseId === true &&
     Boolean(runtimeBefore) &&
     Boolean(runtimeAfter) &&
+    Boolean(runtimeBeforeRestore) &&
+    Boolean(runtimeAfterRestore) &&
+    Boolean(runtimeConsumerAfterRestore) &&
     runtimeBefore?.releaseId === delivery.releaseId &&
     runtimeAfter?.releaseId === delivery.releaseId &&
     runtimeBefore?.revisionNo === runtimeAfter?.revisionNo &&
-    runtimeBefore?.manifestSha256 === runtimeAfter?.manifestSha256
+    runtimeBefore?.manifestSha256 === runtimeAfter?.manifestSha256 &&
+    restore.status === "RESTORED" &&
+    restore.runtimeMutation === true &&
+    restore.sourceReleaseId === delivery.releaseId &&
+    restore.targetHospitalId === delivery.hospitalId &&
+    restore.fileDigest === delivery.fileDigest &&
+    restore.manifestSha256 === runtimeBefore?.manifestSha256 &&
+    restore.itemCount === delivery.itemCount &&
+    restore.restoredReleaseId.length > 0 &&
+    restore.restoredReleaseId !== delivery.releaseId &&
+    restore.restoredReleaseId !== restore.sourceReleaseId &&
+    restore.restoredRevisionNo > (runtimeBeforeRestore?.revisionNo ?? 0) &&
+    runtimeBeforeRestore?.releaseId !== runtimeBefore?.releaseId &&
+    runtimeAfterRestore?.releaseId === restore.restoredReleaseId &&
+    runtimeAfterRestore?.revisionNo === restore.restoredRevisionNo &&
+    runtimeAfterRestore?.manifestSha256 === restore.manifestSha256 &&
+    runtimeAfterRestore?.selectedCandidatePresent === true &&
+    runtimeConsumerAfterRestore?.releaseId === runtimeAfterRestore?.releaseId &&
+    runtimeConsumerAfterRestore?.revisionNo === runtimeAfterRestore?.revisionNo &&
+    runtimeConsumerAfterRestore?.manifestSha256 === runtimeAfterRestore?.manifestSha256 &&
+    runtimeConsumerAfterRestore?.selectedCandidatePresent === true
   );
 }
 
@@ -1071,6 +1111,35 @@ function parseRuntimeReleaseOfflineImportPreview(value: unknown) {
   };
 }
 
+function parseRuntimeReleaseOfflineRestore(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const restore = value as Record<string, unknown>;
+  if (
+    typeof restore.status !== "string" ||
+    typeof restore.runtimeMutation !== "boolean" ||
+    typeof restore.sourceReleaseId !== "string" ||
+    typeof restore.targetHospitalId !== "string" ||
+    typeof restore.fileDigest !== "string" ||
+    typeof restore.manifestSha256 !== "string" ||
+    typeof restore.itemCount !== "number" ||
+    typeof restore.restoredReleaseId !== "string" ||
+    typeof restore.restoredRevisionNo !== "number"
+  ) {
+    return null;
+  }
+  return {
+    status: restore.status,
+    runtimeMutation: restore.runtimeMutation,
+    sourceReleaseId: restore.sourceReleaseId,
+    targetHospitalId: restore.targetHospitalId,
+    fileDigest: restore.fileDigest,
+    manifestSha256: restore.manifestSha256,
+    itemCount: restore.itemCount,
+    restoredReleaseId: restore.restoredReleaseId,
+    restoredRevisionNo: restore.restoredRevisionNo,
+  };
+}
+
 function parseRuntimeReleaseOfflineRuntimeSnapshot(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const snapshot = value as Record<string, unknown>;
@@ -1085,6 +1154,17 @@ function parseRuntimeReleaseOfflineRuntimeSnapshot(value: unknown) {
     releaseId: snapshot.releaseId,
     revisionNo: snapshot.revisionNo,
     manifestSha256: snapshot.manifestSha256,
+  };
+}
+
+function parseRuntimeReleaseOfflineRuntimeSnapshotWithSelection(value: unknown) {
+  const snapshot = parseRuntimeReleaseOfflineRuntimeSnapshot(value);
+  if (!snapshot || !value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.selectedCandidatePresent !== "boolean") return null;
+  return {
+    ...snapshot,
+    selectedCandidatePresent: record.selectedCandidatePresent,
   };
 }
 

@@ -10,6 +10,71 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S13、完整跨环境离线恢复、全角色全功能、完整上线验收或 134
+  清库部署收口，而是在第一百四十三至一百四十六批 S13 部分选择、两机构差异化、离线交付预检和平台升级分析基础上，把
+  `runtime-release-frontdesk.spec.ts` 继续补成可证明“已验签机构生效版本离线交付文件在当前 runtime 已变化后，经真实前台确认恢复为新的不可变机构生效版本，并被后端 current runtime 与第三方 runtime contract 共同读回”的真实证据切片。`launchCoverageEvidence`
+  现在只有在既有 runtime-release coverage 继续满足发布、回滚、部分选择、两机构差异、平台升级分析、离线交付导出下载预检等门槛，并额外证明
+  `offlineDeliveryRestoreExecuted/offlineDeliveryRestoreCreatedNewRevision/
+  offlineDeliveryRestoreReadbackMatched/offlineDeliveryRestoreRuntimeConsumerMatched` 均为 true，且附件含恢复前 current
+  runtime identity、restore 响应、恢复后后端 current runtime identity、恢复后第三方 runtime contract identity
+  四方对账时，才额外声明 `scenarios:S13`。
+- 第一百四十七批真实链路说明：后端新增受控恢复端点
+  `POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases/offline-delivery:restore`，
+  权限为 `tenant.override`。`RuntimeReleaseOfflineDeliveryService.restoreImport(...)` 先执行合规证据验签、SM3 文件摘要确认、
+  存证元数据必须为 `evidenceType=RUNTIME_RELEASE_OFFLINE_DELIVERY/action=EXPORT/
+  subjectType=clinical_runtime_release/subjectId=sourceReleaseId`、`deliveryKind=CLINICAL_RUNTIME_RELEASE`、
+  `runtimeMutation=false`、认证租户、来源 release、目标医院和离线 items 重算 `manifestSha256` 校验；随后回查来源
+  `ClinicalRuntimeRelease` 账本并确认医院、平台 baseline、修订号和清单摘要与离线快照一致，再调用
+  `ClinicalRuntimeReleaseService.restoreOfflineSnapshot(...)` 生成新的 `runtime-*` 不可变机构生效版本，
+  `revisionNo=current+1`，完整复制离线快照 items，并把来源 release 记录到 `rollbackFromReleaseId`。
+  `ClinicalRuntimeReleaseService` 写账本前也会再次校验来源 release 账本，防止未来其他调用方绕过恢复入口。
+  `validate-import` 仍保持只读预检语义，不写 runtime；离线文件仍不是临床运行指针。
+- 第一百四十七批前台与 E2E 说明：`/config/releases` 在“当前机构生效版本”卡片新增“恢复为新机构生效版本”按钮；
+  只有导出并完成导入预检后才启用。预检完成后即使当前机构生效版本因回滚等动作变化，前台仍保留已验签离线交付文件，
+  恢复请求使用离线文件来源 `releaseId/fileDigest` 和当下 `currentRuntime.releaseId` 作为丢失更新保护，成功后展示新 H
+  修订、恢复来源和“已追加新的不可变机构生效版本”。目标 E2E 真实前台先导出、下载、预检并断言 runtime 不变；
+  再通过真实回滚按钮制造当前 runtime 变化；随后点击恢复按钮，捕获真实 restore API 响应；最后分别读取
+  `/runtime-releases/current` 和
+  `/engine/integration/knowledge-runtime/runtime-release/current`，断言两者均指向恢复生成的新
+  `releaseId/revisionNo/manifestSha256` 且包含本轮 selected 本院候选。
+- 第一百四十七批边界说明：本批 coverage 只是 S13 的“离线交付恢复执行 + 新不可变机构生效版本 + 后端与第三方读回一致”
+  证据切片；不声明完整 S13、完整跨环境离线恢复、真实备份 / 隔离恢复 / 重启恢复、S2/S4 真实接入与字典映射、完整
+  S0-S40、完整语义族 / 专业域 / 全知识、13 类 runtime 资产逐类业务消费者、全角色全功能真实操作或 134
+  清库复演。恢复实现当前按同环境可信证据校验认证租户；跨环境导入恢复需要独立信任根、租户映射和现场运维流程，后续不能把本切片外推为已完成。
+- 第一百四十七批验证证据：TDD 红灯
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseOfflineDeliveryServiceTest,RuntimeReleaseControllerTest test`
+  曾失败于 `RuntimeReleaseOfflineRestoreRequest/Response`、restore controller / service / runtime 写账本方法不存在；实现后相关后端测试转绿。
+  只读 code review 子代理发现一个 Important：签名有效的同租户非离线交付存证可伪装为恢复文件；已按评审复核后新增红灯
+  `RuntimeReleaseOfflineDeliveryServiceTest` / `ClinicalRuntimeReleaseServiceTest`，失败点覆盖非离线交付存证元数据、
+  来源 runtime 账本不存在和账本不匹配；实现后同命令转绿。`launchCoverageEvidence` 也加固为缺少恢复阶段文字证据、
+  或 `restoredReleaseId` 复用来源 release 时不得声明 `S13`，红灯后转绿。
+  目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-release-offline-restore npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  在安全门修复后重新通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=20953ms）；附件记录
+  `offlineDelivery.delivery.evidenceId=runtime-offline-1122301e1eec-01KWWBD9RQ2B0M10NT4N8B544R`、
+  `fileDigest=sm3:10b11f614a4b6709f9ee242bbb487e9e85490440263871a2153b33f39ded047d`、
+  预检前后 runtime identity 均为
+  `releaseId=runtime-01KWWBD52XD1DW2Y3XZP86K2ZZ/revisionNo=2/
+  manifestSha256=ceb176274735d83470210d89dbaaeca9c7610e10ae61852794ea4cc1bf8fe11b`；
+  恢复前先回滚制造 current 变化为
+  `releaseId=runtime-01KWWBDAYS3HJ07R9WE0RCPRWY/revisionNo=3/
+  manifestSha256=4d7c28a5acbd0ce47cdededa84a1228f8cc55b17a69dee51013671cf2d126414`；
+  restore 响应 `status=RESTORED/runtimeMutation=true/sourceReleaseId=runtime-01KWWBD52XD1DW2Y3XZP86K2ZZ/
+  restoredReleaseId=runtime-01KWWBDBNSTMFR8QBWJFMVMGNS/restoredRevisionNo=4/
+  rollbackFromReleaseId=runtime-01KWWBD52XD1DW2Y3XZP86K2ZZ`；恢复后后端 current runtime 与第三方 runtime
+  contract 均读回 `releaseId=runtime-01KWWBDBNSTMFR8QBWJFMVMGNS/revisionNo=4/
+  manifestSha256=ceb176274735d83470210d89dbaaeca9c7610e10ae61852794ea4cc1bf8fe11b` 且
+  `selectedCandidatePresent=true`。其他新鲜门禁：
+  `npm --prefix frontend run test -- ReleaseGovernance hooks e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（213 tests）；`npm --prefix frontend run typecheck` 通过；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseOfflineDeliveryServiceTest,RuntimeReleaseControllerTest,ClinicalRuntimeReleaseServiceTest test`
+  通过（39 tests）；`git diff --check` 通过。本地 18080 演练后端服务已在收尾时停止。
+- 第一百四十七批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把离线交付恢复执行证据切片等同于完整
+  上线验收。后续继续补真实覆盖缺口：S2/S4 真实接入与字典映射、完整 S0-S40、完整语义族 / 专业域 / 全知识、
+  13 类 runtime 资产逐类业务消费者、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持全角色真实前台和真实服务链路，
+  发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S13、完整离线导入恢复、全角色全功能、完整上线验收或 134
   清库部署收口，而是在第一百四十三至一百四十五批 S13 部分选择、两机构差异化和离线交付预检基础上，把
