@@ -285,6 +285,14 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain("/engine/integration/knowledge-runtime/runtime-release/current");
   });
 
+  it("keeps third-party family evidence API readback on the real backend API base", () => {
+    const source = readFileSync("e2e/third-party-system-families-rehearsal.spec.ts", "utf8");
+
+    expect(source).toContain('import { apiBase, ensureReadySession } from "./support/auth"');
+    expect(source).toContain("page.request.get(`${apiBase}/engine/integration/onboardings`");
+    expect(source).not.toContain('page.request.get("/api/v1/engine/integration/onboardings"');
+  });
+
   it("detects missing platform runtime candidates before publishing the baseline", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;

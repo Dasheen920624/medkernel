@@ -19392,6 +19392,15 @@
           "comment": "FHIR 版本：R4/R5"
         },
         {
+          "name": "system_family_code",
+          "type": "string",
+          "length": 64,
+          "nullable": false,
+          "default": null,
+          "identity": false,
+          "comment": "第三方系统族代码，限定为产品范围 13 类系统族"
+        },
+        {
           "name": "source_system",
           "type": "string",
           "length": 128,
@@ -19514,12 +19523,42 @@
           "expression": "access_mode IN('ADAPTER', 'FHIR')"
         },
         {
+          "name": "ck_integ_onboarding_system_family",
+          "expression": "system_family_code IN('HIS_EMR_CDR', 'LIS_MONITORING_CRITICAL', 'PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG', 'PHARMACY_REVIEW', 'NURSING_ANESTHESIA_TRANSFUSION_ICU', 'MEDICAL_RECORD_INSURANCE_PAYMENT', 'PUBLIC_HEALTH_INFECTION_REGULATORY', 'FOLLOWUP_PATIENT_SERVICE', 'CA_OIDC_SSO_HR', 'REGIONAL_REMOTE', 'SPD_UDI_DEVICE', 'RESEARCH_ETHICS_DATA', 'MODEL_DIFY_AGENT')"
+        },
+        {
           "name": "ck_integ_onboarding_status",
           "expression": "status IN('REQUESTED', 'AUTH_CONFIGURED', 'MAPPING_CONFIGURED', 'ONLINE', 'OFFLINE')"
         }
       ],
       "foreignKeys": [],
       "indexes": [
+        {
+          "name": "idx_integ_onb_family_status",
+          "unique": false,
+          "columns": [
+            {
+              "name": "tenant_id",
+              "order": "ASC"
+            },
+            {
+              "name": "system_family_code",
+              "order": "ASC"
+            },
+            {
+              "name": "source_system",
+              "order": "ASC"
+            },
+            {
+              "name": "status",
+              "order": "ASC"
+            },
+            {
+              "name": "updated_at",
+              "order": "ASC"
+            }
+          ]
+        },
         {
           "name": "idx_integ_onb_adapter",
           "unique": false,

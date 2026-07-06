@@ -255,7 +255,7 @@ class IntegrationServiceTest {
     }
 
     @Test
-    void adapterHubStatusIncludesRequiredHisEmrLisChecklistWithoutFakingMissingConnections() {
+    void adapterHubStatusIncludesAllRequiredSystemFamiliesWithoutFakingMissingConnections() {
         service.createAdapter(tenantId, new AdapterCreateDto("his-required", "一院 HIS 主数据", "Webhook", """
             {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
             """));
@@ -265,6 +265,7 @@ class IntegrationServiceTest {
             "ADAPTER",
             "his-required",
             null,
+            "HIS_EMR_CDR",
             "HIS",
             "S2 院内系统接入",
             "/t-1/group-a/hospital-a",
@@ -274,21 +275,40 @@ class IntegrationServiceTest {
 
         AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
 
-        assertEquals(List.of("HIS", "EMR", "LIS"),
-            status.requiredSources().stream().map(AdapterHubRequiredSourceStatus::sourceSystem).toList());
+        assertEquals(List.of(
+                "HIS_EMR_CDR",
+                "LIS_MONITORING_CRITICAL",
+                "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+                "PHARMACY_REVIEW",
+                "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                "MEDICAL_RECORD_INSURANCE_PAYMENT",
+                "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                "FOLLOWUP_PATIENT_SERVICE",
+                "CA_OIDC_SSO_HR",
+                "REGIONAL_REMOTE",
+                "SPD_UDI_DEVICE",
+                "RESEARCH_ETHICS_DATA",
+                "MODEL_DIFY_AGENT"
+            ),
+            status.requiredSources().stream().map(AdapterHubRequiredSourceStatus::systemFamilyCode).toList());
         AdapterHubRequiredSourceStatus his = status.requiredSources().stream()
-            .filter(item -> "HIS".equals(item.sourceSystem()))
-            .findFirst()
-            .orElseThrow();
-        AdapterHubRequiredSourceStatus emr = status.requiredSources().stream()
-            .filter(item -> "EMR".equals(item.sourceSystem()))
+            .filter(item -> "HIS_EMR_CDR".equals(item.systemFamilyCode()))
             .findFirst()
             .orElseThrow();
         AdapterHubRequiredSourceStatus lis = status.requiredSources().stream()
-            .filter(item -> "LIS".equals(item.sourceSystem()))
+            .filter(item -> "LIS_MONITORING_CRITICAL".equals(item.systemFamilyCode()))
+            .findFirst()
+            .orElseThrow();
+        AdapterHubRequiredSourceStatus pacs = status.requiredSources().stream()
+            .filter(item -> "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG".equals(item.systemFamilyCode()))
+            .findFirst()
+            .orElseThrow();
+        AdapterHubRequiredSourceStatus model = status.requiredSources().stream()
+            .filter(item -> "MODEL_DIFY_AGENT".equals(item.systemFamilyCode()))
             .findFirst()
             .orElseThrow();
 
+        assertEquals("HIS", his.sourceSystem());
         assertEquals("his-required", his.adapterId());
         assertEquals("BOUND", his.status());
         assertEquals("NOT_CONNECTED", his.healthStatus());
@@ -296,21 +316,21 @@ class IntegrationServiceTest {
         assertFalse(his.ready());
         assertTrue(his.gaps().contains("未连接真实外部系统"));
 
-        assertNull(emr.adapterId());
-        assertEquals("MISSING", emr.status());
-        assertEquals("NOT_CONNECTED", emr.healthStatus());
-        assertFalse(emr.ready());
-        assertTrue(emr.gaps().contains("缺少 EMR 适配器"));
-
         assertNull(lis.adapterId());
+        assertEquals("LIS_MONITORING_CRITICAL", lis.sourceSystem());
         assertEquals("MISSING", lis.status());
         assertEquals("NOT_CONNECTED", lis.healthStatus());
         assertFalse(lis.ready());
-        assertTrue(lis.gaps().contains("缺少 LIS 适配器"));
+        assertTrue(lis.gaps().stream().anyMatch(gap -> gap.contains("LIS、监护与危急值")));
+        assertEquals("PACS/RIS、超声、病理、内镜、心电", pacs.label());
+
+        assertNull(model.adapterId());
+        assertEquals("MISSING", model.status());
+        assertTrue(model.gaps().stream().anyMatch(gap -> gap.contains("模型服务、Dify 和 Agent")));
     }
 
     @Test
-    void requiredSourceFallbackDoesNotMatchUnrelatedSubstringInsideAdapterIdentifier() {
+    void requiredSystemFamilyChecklistDoesNotInferCoverageFromAdapterName() {
         service.createAdapter(tenantId, new AdapterCreateDto(
             "this-statistics",
             "院内统计系统",
@@ -321,12 +341,12 @@ class IntegrationServiceTest {
         AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
 
         AdapterHubRequiredSourceStatus his = status.requiredSources().stream()
-            .filter(item -> "HIS".equals(item.sourceSystem()))
+            .filter(item -> "HIS_EMR_CDR".equals(item.systemFamilyCode()))
             .findFirst()
             .orElseThrow();
         assertNull(his.adapterId());
         assertEquals("MISSING", his.status());
-        assertTrue(his.gaps().contains("缺少 HIS 适配器"));
+        assertTrue(his.gaps().stream().anyMatch(gap -> gap.contains("HIS、EMR、CDR")));
     }
 
     @Test
@@ -344,6 +364,7 @@ class IntegrationServiceTest {
                 "ADAPTER",
                 "his-business",
                 null,
+                "HIS_EMR_CDR",
                 "HIS",
                 "S2 院内系统接入",
                 "/t-1/group-a/hospital-a",
@@ -356,6 +377,7 @@ class IntegrationServiceTest {
                 "FHIR",
                 null,
                 "R4",
+                "REGIONAL_REMOTE",
                 "REGIONAL_FHIR",
                 "S40 区域共享",
                 "/t-1/group-a/hospital-a",
@@ -363,11 +385,15 @@ class IntegrationServiceTest {
             ));
 
         assertEquals("REQUESTED", adapterOnboarding.status());
+        assertEquals("HIS_EMR_CDR", adapterOnboarding.systemFamilyCode());
+        assertEquals("his-business", adapterOnboarding.adapterId());
         assertEquals("ADAPTER", adapterOnboarding.routeType());
         assertEquals("/api/v1/engine/integration/adapters/his-business", adapterOnboarding.routeReference());
         assertEquals("NOT_CONNECTED", adapterOnboarding.healthStatus());
         assertTrue(adapterOnboarding.blockers().contains("未完成鉴权配置"));
         assertEquals("FHIR", fhirOnboarding.routeType());
+        assertNull(fhirOnboarding.adapterId());
+        assertEquals("REGIONAL_REMOTE", fhirOnboarding.systemFamilyCode());
         assertEquals("/api/v1/engine/integration/fhir/R4", fhirOnboarding.routeReference());
 
         service.advanceIntegrationOnboarding(tenantId, "onb-adapter-1",
@@ -378,11 +404,55 @@ class IntegrationServiceTest {
             new IntegrationOnboardingAdvanceRequest("ONLINE", "联调完成后上线业务接口"));
 
         assertEquals("ONLINE", online.status());
+        assertEquals("his-business", online.adapterId());
         assertEquals("NOT_CONNECTED", online.healthStatus(), "上线状态不应伪造外部连接成功");
         assertTrue(online.blockers().stream().anyMatch(item -> item.contains("NOT_CONNECTED")));
         assertTrue(online.blockers().stream().anyMatch(item -> item.contains("外部连接器待配置或外部不可达")));
         assertTrue(online.blockers().stream().noneMatch(item -> item.contains("未接入真实外部连接器")));
-        assertEquals(2, onboardingRepository.findAllByTenantId(tenantId).size());
+        PageResponse<IntegrationOnboardingResponse> onboardings =
+            service.listIntegrationOnboardings(tenantId, PageRequest.defaults());
+        assertEquals(2, onboardings.total());
+        assertTrue(onboardings.items().stream().anyMatch(item ->
+            "onb-adapter-1".equals(item.onboardingId()) && "his-business".equals(item.adapterId())));
+    }
+
+    @Test
+    void onboardingRequiresCanonicalThirdPartySystemFamily() {
+        service.createAdapter(tenantId, new AdapterCreateDto("custom-business", "未归类院内接口", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+
+        ApiException missing = assertThrows(ApiException.class, () ->
+            service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+                "onb-missing-family",
+                "未归类业务接口接入",
+                "ADAPTER",
+                "custom-business",
+                null,
+                "",
+                "CUSTOM",
+                "S2 院内系统接入",
+                "/t-1/group-a/hospital-a",
+                null
+            )));
+        assertEquals("ENG-INTEG-001", missing.errorCode().code());
+        assertTrue(missing.getMessage().contains("第三方系统族"));
+
+        ApiException unknown = assertThrows(ApiException.class, () ->
+            service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+                "onb-unknown-family",
+                "未知业务接口接入",
+                "ADAPTER",
+                "custom-business",
+                null,
+                "CUSTOM_OTHER",
+                "CUSTOM",
+                "S2 院内系统接入",
+                "/t-1/group-a/hospital-a",
+                null
+            )));
+        assertEquals("ENG-INTEG-001", unknown.errorCode().code());
+        assertTrue(unknown.getMessage().contains("第三方系统族"));
     }
 
     @Test
@@ -394,6 +464,7 @@ class IntegrationServiceTest {
             "ADAPTER",
             "lis-without-mapping",
             null,
+            "LIS_MONITORING_CRITICAL",
             "LIS",
             "S2 院内系统接入",
             "/t-1/group-a/hospital-a",
@@ -475,6 +546,7 @@ class IntegrationServiceTest {
             "ADAPTER",
             "his-business",
             null,
+            "HIS_EMR_CDR",
             "HIS",
             "S2 院内系统接入",
             "/t-1/group-a/hospital-a",
@@ -486,6 +558,7 @@ class IntegrationServiceTest {
             "FHIR",
             null,
             "R4",
+            "REGIONAL_REMOTE",
             "REGIONAL_FHIR",
             "S40 区域共享",
             "/t-1/group-a/hospital-a",

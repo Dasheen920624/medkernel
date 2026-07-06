@@ -8796,6 +8796,7 @@ export interface AdapterHubSourceStatus {
 }
 
 export interface AdapterHubRequiredSourceStatus {
+  systemFamilyCode: string;
   sourceSystem: "HIS" | "EMR" | "LIS" | string;
   label: string;
   adapterId: string | null;
@@ -8965,10 +8966,12 @@ export interface IntegrationOnboarding {
   name: string;
   status: "REQUESTED" | "AUTH_CONFIGURED" | "MAPPING_CONFIGURED" | "ONLINE" | "OFFLINE" | string;
   routeType: "ADAPTER" | "FHIR" | string;
+  adapterId: string | null;
   routeReference: string;
   healthStatus: IntegrationAdapter["healthStatus"];
   mappedFieldCount: number;
   blockers: string[];
+  systemFamilyCode: string;
   sourceSystem: string;
   businessScenario: string;
   orgPath: string;
@@ -9021,6 +9024,7 @@ export interface IntegrationOnboardingCreatePayload {
   accessMode: "ADAPTER" | "FHIR";
   adapterId?: string;
   fhirVersion?: string;
+  systemFamilyCode: string;
   sourceSystem: string;
   businessScenario: string;
   orgPath: string;

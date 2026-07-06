@@ -1776,6 +1776,7 @@ CREATE TABLE mk_integration_onboarding (
     access_mode VARCHAR2(16) NOT NULL,
     adapter_id VARCHAR2(64),
     fhir_version VARCHAR2(16),
+    system_family_code VARCHAR2(64) NOT NULL,
     source_system VARCHAR2(128) NOT NULL,
     business_scenario VARCHAR2(256) NOT NULL,
     org_path VARCHAR2(512) NOT NULL,
@@ -4321,6 +4322,7 @@ ALTER TABLE mk_integration_onboarding ADD CONSTRAINT pk_mk_integration_onboardin
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT uk_integ_onboarding_tenant_id UNIQUE (tenant_id, onboarding_id);
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_fhir CHECK ((fhir_version IN('R4', 'R5')) OR (fhir_version IS NULL));
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_mode CHECK (access_mode IN('ADAPTER', 'FHIR'));
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_system_family CHECK (system_family_code IN('HIS_EMR_CDR', 'LIS_MONITORING_CRITICAL', 'PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG', 'PHARMACY_REVIEW', 'NURSING_ANESTHESIA_TRANSFUSION_ICU', 'MEDICAL_RECORD_INSURANCE_PAYMENT', 'PUBLIC_HEALTH_INFECTION_REGULATORY', 'FOLLOWUP_PATIENT_SERVICE', 'CA_OIDC_SSO_HR', 'REGIONAL_REMOTE', 'SPD_UDI_DEVICE', 'RESEARCH_ETHICS_DATA', 'MODEL_DIFY_AGENT'));
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_status CHECK (status IN('REQUESTED', 'AUTH_CONFIGURED', 'MAPPING_CONFIGURED', 'ONLINE', 'OFFLINE'));
 ALTER TABLE mk_integration_regional_source ADD CONSTRAINT pk_mk_integration_regional_source PRIMARY KEY (id);
 ALTER TABLE mk_integration_regional_source ADD CONSTRAINT uk_integ_regional_source_id UNIQUE (tenant_id, source_id);
@@ -5045,6 +5047,7 @@ CREATE INDEX idx_person_import_row_job ON mk_identity_person_import_row (tenant_
 CREATE INDEX idx_dqr_tenant_generated ON mk_integration_data_quality_report (tenant_id, generated_at DESC);
 CREATE INDEX idx_mk_integration_master_data_sync_batch_latest ON mk_integration_master_data_sync_batch (tenant_id, source_system, status, processed_at);
 CREATE INDEX idx_mk_integration_master_data_sync_record_status ON mk_integration_master_data_sync_record (tenant_id, source_system, resource_type, status);
+CREATE INDEX idx_integ_onb_family_status ON mk_integration_onboarding (tenant_id, system_family_code, source_system, status, updated_at);
 CREATE INDEX idx_integ_onb_adapter ON mk_integration_onboarding (tenant_id, adapter_id);
 CREATE INDEX idx_integ_onb_tenant_status ON mk_integration_onboarding (tenant_id, status, updated_at);
 CREATE INDEX idx_integ_regional_org ON mk_integration_regional_source (tenant_id, source_organization_id);
@@ -6829,6 +6832,7 @@ COMMENT ON COLUMN mk_integration_onboarding.name IS '接入申请中文名称';
 COMMENT ON COLUMN mk_integration_onboarding.access_mode IS '接入路线：适配器或 FHIR 门面';
 COMMENT ON COLUMN mk_integration_onboarding.adapter_id IS '绑定适配器 ID';
 COMMENT ON COLUMN mk_integration_onboarding.fhir_version IS 'FHIR 版本：R4/R5';
+COMMENT ON COLUMN mk_integration_onboarding.system_family_code IS '第三方系统族代码，限定为产品范围 13 类系统族';
 COMMENT ON COLUMN mk_integration_onboarding.source_system IS '第三方来源系统';
 COMMENT ON COLUMN mk_integration_onboarding.business_scenario IS '业务接入场景';
 COMMENT ON COLUMN mk_integration_onboarding.org_path IS '组织作用域路径';

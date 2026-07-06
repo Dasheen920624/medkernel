@@ -14,6 +14,13 @@ export type BrowserE2eTestResult = {
   title: string;
   status: "passed" | "failed" | "timedOut" | "skipped" | "interrupted";
   outcome?: "skipped" | "expected" | "unexpected" | "flaky";
+  attachments?: BrowserE2eAttachment[];
+};
+
+export type BrowserE2eAttachment = {
+  name: string;
+  contentType?: string;
+  body?: string;
 };
 
 export type LaunchCoverageRow = {
@@ -37,6 +44,7 @@ type CoverageProof = {
   file: string;
   titleIncludes?: string;
   claims: string[];
+  requiresSystemFamilyAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -75,6 +83,29 @@ const runtimeReleaseClaims = [
   "serviceCombinations:THIRD_PARTY_INTERFACE",
 ];
 
+const thirdPartySystemFamilyClaims = [
+  "productLayers:DATA_INTEROPERABILITY",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "thirdPartySystemFamilies:HIS_EMR_CDR",
+  "thirdPartySystemFamilies:LIS_MONITORING_CRITICAL",
+  "thirdPartySystemFamilies:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+  "thirdPartySystemFamilies:PHARMACY_REVIEW",
+  "thirdPartySystemFamilies:NURSING_ANESTHESIA_TRANSFUSION_ICU",
+  "thirdPartySystemFamilies:MEDICAL_RECORD_INSURANCE_PAYMENT",
+  "thirdPartySystemFamilies:PUBLIC_HEALTH_INFECTION_REGULATORY",
+  "thirdPartySystemFamilies:FOLLOWUP_PATIENT_SERVICE",
+  "thirdPartySystemFamilies:CA_OIDC_SSO_HR",
+  "thirdPartySystemFamilies:REGIONAL_REMOTE",
+  "thirdPartySystemFamilies:SPD_UDI_DEVICE",
+  "thirdPartySystemFamilies:RESEARCH_ETHICS_DATA",
+  "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
+];
+
+const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
+  .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
+  .map((claim) => claim.split(":")[1]);
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
@@ -85,6 +116,12 @@ const coverageProofs: CoverageProof[] = [
     file: "runtime-release-frontdesk.spec.ts",
     titleIncludes: "生成新生效版本并从历史版本回滚",
     claims: runtimeReleaseClaims,
+  },
+  {
+    file: "third-party-system-families-rehearsal.spec.ts",
+    titleIncludes: "逐类登记第三方系统族接入并验证断连诚实降级",
+    claims: thirdPartySystemFamilyClaims,
+    requiresSystemFamilyAttachment: true,
   },
 ];
 
@@ -120,9 +157,27 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       fileName === proof.file &&
       test.status === "passed" &&
       (test.outcome ?? "expected") === "expected" &&
-      (!proof.titleIncludes || test.title.includes(proof.titleIncludes))
+      (!proof.titleIncludes || test.title.includes(proof.titleIncludes)) &&
+      (!proof.requiresSystemFamilyAttachment || hasRequiredSystemFamilyAttachment(test))
     );
   });
+}
+
+function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "third-party-system-family-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as { systemFamilyCodes?: unknown };
+    if (!Array.isArray(parsed.systemFamilyCodes)) return false;
+    const observed = parsed.systemFamilyCodes
+      .filter((code): code is string => typeof code === "string")
+      .sort();
+    return JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort());
+  } catch {
+    return false;
+  }
 }
 
 function mergeClaims(

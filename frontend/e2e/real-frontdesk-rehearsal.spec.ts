@@ -244,6 +244,8 @@ async function createIntegrationOnboardingFromUi(
   const adapterOption = page.getByText(`真实演练 HIS ${suffix} · REST`, { exact: true });
   await expect(adapterOption).toBeVisible({ timeout: 20_000 });
   await adapterOption.click();
+  await dialog.getByLabel("系统族").click();
+  await page.getByText("HIS、EMR、CDR、医嘱与费用", { exact: true }).click();
   await dialog.getByLabel("来源系统").fill("HIS");
   await dialog.getByLabel("业务场景").fill("门诊患者主数据");
   await dialog.getByLabel("组织范围").click();

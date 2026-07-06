@@ -107,6 +107,26 @@ const signaturePreviewEventOptions = [
   { value: "mpi.patient.updated", label: "患者主数据变更" },
 ];
 
+const THIRD_PARTY_SYSTEM_FAMILY_OPTIONS = [
+  { value: "HIS_EMR_CDR", label: "HIS、EMR、CDR、医嘱与费用" },
+  { value: "LIS_MONITORING_CRITICAL", label: "LIS、监护与危急值" },
+  { value: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG", label: "PACS/RIS、超声、病理、内镜、心电" },
+  { value: "PHARMACY_REVIEW", label: "药房、审方和药事平台" },
+  { value: "NURSING_ANESTHESIA_TRANSFUSION_ICU", label: "护理、手麻、手术室、输血和 ICU" },
+  { value: "MEDICAL_RECORD_INSURANCE_PAYMENT", label: "病案、医保和支付" },
+  { value: "PUBLIC_HEALTH_INFECTION_REGULATORY", label: "公卫、院感、不良事件和监管" },
+  { value: "FOLLOWUP_PATIENT_SERVICE", label: "随访、消息和患者服务" },
+  { value: "CA_OIDC_SSO_HR", label: "CA、OIDC、SSO、HR/OA" },
+  { value: "REGIONAL_REMOTE", label: "区域平台、医联体和远程协同" },
+  { value: "SPD_UDI_DEVICE", label: "SPD、UDI、器械耗材" },
+  { value: "RESEARCH_ETHICS_DATA", label: "科研、伦理和数据平台" },
+  { value: "MODEL_DIFY_AGENT", label: "模型服务、Dify 和 Agent" },
+] as const;
+
+function systemFamilyLabel(code: string) {
+  return THIRD_PARTY_SYSTEM_FAMILY_OPTIONS.find((option) => option.value === code)?.label ?? code;
+}
+
 interface AdapterFieldMappingFormValue {
   sourcePath: string;
   targetPath: string;
@@ -863,7 +883,16 @@ export default function AdapterHub() {
         </Space>
       ),
     },
-    { title: "来源系统", dataIndex: "sourceSystem", key: "sourceSystem" },
+    {
+      title: "系统族 / 来源系统",
+      key: "systemFamily",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{systemFamilyLabel(record.systemFamilyCode)}</Text>
+          <Text type="secondary">{record.sourceSystem}</Text>
+        </Space>
+      ),
+    },
     { title: "业务场景", dataIndex: "businessScenario", key: "businessScenario" },
     {
       title: "最近更新",
@@ -1824,6 +1853,14 @@ export default function AdapterHub() {
               ]}
             />
           </Form.Item>
+          <Form.Item name="systemFamilyCode" label="系统族" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="选择产品范围内的第三方系统族"
+              options={THIRD_PARTY_SYSTEM_FAMILY_OPTIONS}
+            />
+          </Form.Item>
           <Form.Item name="sourceSystem" label="来源系统" rules={[{ required: true }]}>
             <Input placeholder="例如 HIS / EMR / LIS" />
           </Form.Item>
@@ -1944,7 +1981,7 @@ function RequiredSourcesPanel({ items }: { items: AdapterHubRequiredSourceStatus
       ) : (
         <div className={styles.requiredSourceGrid}>
           {items.map((item) => (
-            <div key={item.sourceSystem} className={styles.requiredSourceItem}>
+            <div key={item.systemFamilyCode} className={styles.requiredSourceItem}>
               <Space direction="vertical" size="small" className="mk-full-width">
                 <Space wrap>
                   <Text strong>{item.label}</Text>

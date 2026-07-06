@@ -6,11 +6,12 @@ import type {
   TestCase,
   TestResult,
 } from "@playwright/test/reporter";
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import {
   buildBrowserE2eLaunchEvidence,
+  type BrowserE2eAttachment,
   type BrowserE2eRunStats,
   type BrowserE2eTestResult,
 } from "./launchCoverageEvidence";
@@ -30,6 +31,7 @@ class LaunchCoverageReporter implements Reporter {
       title: test.title,
       status: result.status,
       outcome: test.outcome(),
+      attachments: this.attachments(result),
     });
   }
 
@@ -66,6 +68,23 @@ class LaunchCoverageReporter implements Reporter {
       flaky,
       skipped,
     };
+  }
+
+  private attachments(result: TestResult): BrowserE2eAttachment[] {
+    return result.attachments.map((attachment) => ({
+      name: attachment.name,
+      contentType: attachment.contentType,
+      body: attachment.body?.toString("utf8") ?? this.readAttachmentBody(attachment.path),
+    }));
+  }
+
+  private readAttachmentBody(attachmentPath: string | undefined) {
+    if (!attachmentPath) return undefined;
+    try {
+      return readFileSync(attachmentPath, "utf8");
+    } catch {
+      return undefined;
+    }
   }
 }
 

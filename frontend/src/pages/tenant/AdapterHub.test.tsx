@@ -133,6 +133,35 @@ const hisAdapter: IntegrationAdapter = {
   updatedAt: "2026-06-03T08:00:00Z",
 };
 
+const requiredSystemFamilies = [
+  ["HIS_EMR_CDR", "HIS、EMR、CDR、医嘱与费用"],
+  ["LIS_MONITORING_CRITICAL", "LIS、监护与危急值"],
+  ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG", "PACS/RIS、超声、病理、内镜、心电"],
+  ["PHARMACY_REVIEW", "药房、审方和药事平台"],
+  ["NURSING_ANESTHESIA_TRANSFUSION_ICU", "护理、手麻、手术室、输血和 ICU"],
+  ["MEDICAL_RECORD_INSURANCE_PAYMENT", "病案、医保和支付"],
+  ["PUBLIC_HEALTH_INFECTION_REGULATORY", "公卫、院感、不良事件和监管"],
+  ["FOLLOWUP_PATIENT_SERVICE", "随访、消息和患者服务"],
+  ["CA_OIDC_SSO_HR", "CA、OIDC、SSO、HR/OA"],
+  ["REGIONAL_REMOTE", "区域平台、医联体和远程协同"],
+  ["SPD_UDI_DEVICE", "SPD、UDI、器械耗材"],
+  ["RESEARCH_ETHICS_DATA", "科研、伦理和数据平台"],
+  ["MODEL_DIFY_AGENT", "模型服务、Dify 和 Agent"],
+].map(([systemFamilyCode, label]) => ({
+  systemFamilyCode,
+  sourceSystem: systemFamilyCode,
+  label,
+  adapterId: null,
+  adapterName: null,
+  protocolType: null,
+  status: "MISSING",
+  healthStatus: "NOT_CONNECTED",
+  mappedFieldCount: 0,
+  lastHeartbeatAt: null,
+  ready: false,
+  gaps: [`缺少 ${label} 接入申请或适配器`],
+}));
+
 const status: AdapterHubStatus = {
   totalAdapters: 2,
   activeAdapters: 1,
@@ -154,47 +183,21 @@ const status: AdapterHubStatus = {
       gaps: ["缺少检查报告时间映射"],
     },
   ],
-  requiredSources: [
-    {
-      sourceSystem: "HIS",
-      label: "HIS 医院信息系统",
-      adapterId: "his-main",
-      adapterName: "HIS 主数据接入",
-      protocolType: "REST",
-      status: "BOUND",
-      healthStatus: "NOT_CONNECTED",
-      mappedFieldCount: 12,
-      lastHeartbeatAt: "2026-06-03T08:00:00Z",
-      ready: false,
-      gaps: ["未连接真实外部系统"],
-    },
-    {
-      sourceSystem: "EMR",
-      label: "EMR 电子病历系统",
-      adapterId: null,
-      adapterName: null,
-      protocolType: null,
-      status: "MISSING",
-      healthStatus: "NOT_CONNECTED",
-      mappedFieldCount: 0,
-      lastHeartbeatAt: null,
-      ready: false,
-      gaps: ["缺少 EMR 适配器"],
-    },
-    {
-      sourceSystem: "LIS",
-      label: "LIS 检验信息系统",
-      adapterId: null,
-      adapterName: null,
-      protocolType: null,
-      status: "MISSING",
-      healthStatus: "NOT_CONNECTED",
-      mappedFieldCount: 0,
-      lastHeartbeatAt: null,
-      ready: false,
-      gaps: ["缺少 LIS 适配器"],
-    },
-  ],
+  requiredSources: requiredSystemFamilies.map((item) =>
+    item.systemFamilyCode === "HIS_EMR_CDR"
+      ? {
+          ...item,
+          sourceSystem: "HIS",
+          adapterId: "his-main",
+          adapterName: "HIS 主数据接入",
+          protocolType: "REST",
+          status: "BOUND",
+          mappedFieldCount: 12,
+          lastHeartbeatAt: "2026-06-03T08:00:00Z",
+          gaps: ["未连接真实外部系统"],
+        }
+      : item,
+  ),
 };
 
 const masterDataReconciliation: MasterDataReconciliation = {
@@ -246,6 +249,7 @@ const onboarding: IntegrationOnboarding = {
   healthStatus: "NOT_CONNECTED",
   mappedFieldCount: 12,
   blockers: [],
+  systemFamilyCode: "HIS_EMR_CDR",
   sourceSystem: "HIS",
   businessScenario: "门诊患者主数据",
   orgPath: "集团/医院",
@@ -500,14 +504,14 @@ describe("AdapterHub", () => {
     expect(screen.getByText("回调通道")).toBeInTheDocument();
     expect(screen.getByText("区域来源")).toBeInTheDocument();
     expect(screen.getByText("必接系统清单")).toBeInTheDocument();
-    expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
-    expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
-    expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
+    expect(screen.getByText("HIS、EMR、CDR、医嘱与费用")).toBeInTheDocument();
+    expect(screen.getByText("LIS、监护与危急值")).toBeInTheDocument();
+    expect(screen.getByText("模型服务、Dify 和 Agent")).toBeInTheDocument();
     expect(screen.getAllByText("响应耗时").length).toBeGreaterThan(0);
     expect(screen.getAllByText("最近健康检查").length).toBeGreaterThan(0);
     expect(screen.queryByText("RTT")).not.toBeInTheDocument();
     expect(screen.queryByText("最近探活")).not.toBeInTheDocument();
-    expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
+    expect(screen.getByText("缺少 LIS、监护与危急值 接入申请或适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.getByText("选来源/导入")).toBeInTheDocument();
     expect(screen.getByText(/选来源\/导入 → 自动校验 → 看影响/)).toBeInTheDocument();
@@ -695,9 +699,9 @@ describe("AdapterHub", () => {
 
     expect(screen.getByRole("heading", { name: "系统接入" })).toBeInTheDocument();
     expect(screen.getByText("必接系统清单")).toBeInTheDocument();
-    expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
-    expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
-    expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
+    expect(screen.getByText("HIS、EMR、CDR、医嘱与费用")).toBeInTheDocument();
+    expect(screen.getByText("LIS、监护与危急值")).toBeInTheDocument();
+    expect(screen.getByText("模型服务、Dify 和 Agent")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
   });
@@ -810,8 +814,47 @@ describe("AdapterHub", () => {
     expect(screen.queryByPlaceholderText("输入真实接入申请标识")).not.toBeInTheDocument();
     expect(screen.getByLabelText("绑定适配器")).toBeInTheDocument();
     expect(screen.queryByLabelText("绑定适配器标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("系统族")).toBeInTheDocument();
+    expect(screen.queryByLabelText("第三方系统族代码")).not.toBeInTheDocument();
     expect(screen.getByLabelText("回调通道")).toBeInTheDocument();
     expect(screen.queryByLabelText("回调通道标识")).not.toBeInTheDocument();
+  });
+
+  it("submits onboarding with a canonical third-party system family code", async () => {
+    const user = userEvent.setup();
+    const createOnboarding = mutation(onboarding);
+    vi.mocked(useCreateIntegrationOnboarding).mockReturnValue(createOnboarding as never);
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    await user.type(screen.getByLabelText("稳定接入申请身份"), "onb-family-his");
+    await user.type(screen.getByLabelText("接入申请名称"), "HIS EMR CDR 接入申请");
+    await user.click(screen.getByLabelText("系统族"));
+    await user.click(
+      await screen.findByText("HIS、EMR、CDR、医嘱与费用", {
+        selector: ".ant-select-item-option-content",
+      }),
+    );
+    await user.type(screen.getByLabelText("来源系统"), "HIS");
+    await user.type(screen.getByLabelText("业务场景"), "患者上下文、医嘱费用和质控反馈接入");
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
+
+    await user.click(screen.getByRole("button", { name: "提交申请" }));
+
+    await waitFor(() =>
+      expect(createOnboarding.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          onboardingId: "onb-family-his",
+          name: "HIS EMR CDR 接入申请",
+          systemFamilyCode: "HIS_EMR_CDR",
+          sourceSystem: "HIS",
+          businessScenario: "患者上下文、医嘱费用和质控反馈接入",
+        }),
+      ),
+    );
   });
 
   it("points empty organization scope setup to 服务机构 instead of abstract org maintenance", async () => {

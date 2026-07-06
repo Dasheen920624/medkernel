@@ -10,6 +10,51 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把第三方系统族从旧 `sourceSystem`/名称推断收敛为一等
+  `systemFamilyCode` 合同，并用真实 Playwright 前台操作生成浏览器上线覆盖证据。本批新增
+  `third-party-system-families-rehearsal.spec.ts`：平台管理员真实登录 `/adapter/hub`，逐类创建 13 类
+  第三方系统族适配器和接入申请，断言创建响应回传 `adapterId`、`systemFamilyCode`、`sourceSystem`、
+  `NOT_CONNECTED`，再通过真实后端 API 回读 13 个 `systemFamilyCode` 附件，执行一次健康诊断和数据质量报告，
+  继续要求断连/缺口诚实暴露。`launchCoverageEvidence` 只有在该 spec 通过、非 flaky、且附件完整回读 13 个
+  code 时才声明 `productLayers:DATA_INTEROPERABILITY`、`deliveryShapes:API_EVENT`、
+  `serviceCombinations:THIRD_PARTY_INTERFACE` 和 13 个 `thirdPartySystemFamilies`；失败、flaky、
+  缺附件或 code 不全都不得声明覆盖。
+- 第一百三十二批修复范围：后端 `IntegrationOnboarding`、五方言 V1 baseline、schema JSON、
+  创建请求 / 响应 DTO、AdapterHub 必接清单均新增并持久化 `system_family_code`；`IntegrationService`
+  用产品范围 13 类系统族作为权威清单，不再通过适配器 ID、名称或 `sourceSystem` substring 推断覆盖。
+  `IntegrationOnboardingResponse` 新增 `adapterId`，ADAPTER 路线响应和列表回读必须暴露绑定适配器身份，
+  FHIR 路线为 `null`。前端 `AdapterHub` 表单、列表、API 类型和测试同步 `systemFamilyCode` / `adapterId`，
+  并修正 PACS/RIS 文案包含“超声”、护理族包含“手术室”。`e2eAuthCredentialContract` 锁住第三方系统族证据回读
+  必须走真实 `apiBase` 后端，不得退回前端相对 `/api/v1`；E2E 按真实按钮文案“健康诊断”触发后端健康检查。
+- 第一百三十二批红点根因与定位修复：目标真实 E2E 最初红于接入申请 POST 响应没有 `adapterId`，
+  根因是 DTO 未暴露绑定适配器身份，已用后端红灯合同锁住 ADAPTER 返回 ID、FHIR 返回 `null`、列表可回读。
+  随后红于 `page.request.get("/api/v1/engine/integration/onboardings")` 解析到前端 HTML `<!doctype...`，
+  根因是 Playwright APIRequestContext 相对 URL 命中前端而非后端，已改为 `${apiBase}/engine/integration/onboardings`。
+  再后红于等待健康检查响应超时，根因是前台按钮真实文案为“健康诊断”而测试找“健康检查”，已按真实前台操作修复。
+  每次 Maven 重编译后均重启本地 18080 dev/H2 后端，避免运行时类与 `target/classes` 不一致。
+- 第一百三十二批验证证据：TDD 红灯
+  `mvn -f medkernel-backend/pom.xml -Dtest=IntegrationServiceTest#onboardingLifecycleComposesAdapterAndFhirRoutesWithoutFakingConnectivity test`
+  曾失败于 `IntegrationOnboardingResponse` 缺 `adapterId()`，补 DTO/service 后通过。源码合同
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "third-party family evidence API readback"`
+  曾失败于 E2E 未导入 `apiBase` 且使用前端相对 `/api/v1`，修复后通过。目标真实前台 E2E 在重启后的本地
+  18080 H2 空库通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-third-party-families-coverage npm --prefix frontend run e2e -- --project=chromium third-party-system-families-rehearsal.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，`coverageKeys` 为
+  `productLayers/deliveryShapes/serviceCombinations/thirdPartySystemFamilies`，附件和覆盖均含完整 13 个 code。
+  其他门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（6 tests）；
+  `npm --prefix frontend run test -- AdapterHub -t "loads adapter hub maintenance|canonical third-party system family|stable business identity labels for onboarding"`
+  通过（3 tests）；`npm --prefix frontend run test -- hooks -t "integration adapter api helpers"` 通过（7 tests）；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+  `node scripts/db/generate-migrations.mjs --check` 通过；
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/third-party-system-families-rehearsal.spec.ts`
+  通过；后端目标窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=IntegrationServiceTest#adapterHubStatusIncludesAllRequiredSystemFamiliesWithoutFakingMissingConnections,IntegrationServiceTest#onboardingRequiresCanonicalThirdPartySystemFamily,IntegrationServiceTest#requiredSystemFamilyChecklistDoesNotInferCoverageFromAdapterName,IntegrationServiceTest#onboardingLifecycleComposesAdapterAndFhirRoutesWithoutFakingConnectivity,MigrationBaselineContractTest#integrationOnboardingPersistsCanonicalThirdPartySystemFamily test`
+  通过（5 tests）；`git diff --check` 通过。
+- 第一百三十二批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把第三方系统族前台接入、
+  断连降级和覆盖附件切片等同于总目标完成。后续继续补 S0-S40、专病十阶段、完整语义族、专业域、全知识、
+  13 类 runtime 资产逐类业务消费者、真实备份 / 隔离恢复 / 重启恢复、两家机构差异化发布 / 回滚，以及全角色
+  真实前台体验复演；发现红点继续先复现、定根因，再修复，不做片面优化或假覆盖。
 - 第一百三十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把已经真实通过的浏览器前台发布回滚演练纳入上线覆盖证据聚合，并继续防止
   “单一浏览器切片包装成全量覆盖”。`frontend/e2e/support/launchCoverageEvidence.ts` 新增

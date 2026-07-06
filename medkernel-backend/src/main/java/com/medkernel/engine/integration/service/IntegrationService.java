@@ -12,7 +12,6 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -78,7 +77,21 @@ public class IntegrationService {
     private static final String DIRECTION_OUTBOUND = "OUTBOUND";
     private static final String PROTOCOL_WEBHOOK = "Webhook";
     private static final long WEBHOOK_SIGNATURE_MAX_SKEW_SECONDS = 300L;
-    private static final List<String> REQUIRED_SOURCE_SYSTEMS = List.of("HIS", "EMR", "LIS");
+    private static final List<String> THIRD_PARTY_SYSTEM_FAMILIES = List.of(
+        "HIS_EMR_CDR",
+        "LIS_MONITORING_CRITICAL",
+        "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+        "PHARMACY_REVIEW",
+        "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+        "MEDICAL_RECORD_INSURANCE_PAYMENT",
+        "PUBLIC_HEALTH_INFECTION_REGULATORY",
+        "FOLLOWUP_PATIENT_SERVICE",
+        "CA_OIDC_SSO_HR",
+        "REGIONAL_REMOTE",
+        "SPD_UDI_DEVICE",
+        "RESEARCH_ETHICS_DATA",
+        "MODEL_DIFY_AGENT"
+    );
 
     private final IntegrationAdapterRepository adapterRepository;
     private final IntegrationWebhookConfigRepository webhookRepository;
@@ -286,8 +299,8 @@ public class IntegrationService {
         for (IntegrationAdapter adapter : adapters) {
             adapterById.put(adapter.adapterId(), adapter);
         }
-        List<AdapterHubRequiredSourceStatus> requiredSources = REQUIRED_SOURCE_SYSTEMS.stream()
-            .map(sourceSystem -> toRequiredSourceStatus(sourceSystem, adapters, adapterById, onboardings, generatedAt))
+        List<AdapterHubRequiredSourceStatus> requiredSources = THIRD_PARTY_SYSTEM_FAMILIES.stream()
+            .map(systemFamilyCode -> toRequiredSourceStatus(systemFamilyCode, adapterById, onboardings, generatedAt))
             .toList();
 
         return new AdapterHubStatus(
@@ -316,6 +329,7 @@ public class IntegrationService {
         String accessMode = normalizeAccessMode(request.accessMode());
         String adapterId = blankToNull(request.adapterId());
         String fhirVersion = blankToNull(request.fhirVersion());
+        String systemFamilyCode = normalizeThirdPartySystemFamily(request.systemFamilyCode());
         String webhookId = blankToNull(request.callbackWebhookId());
 
         if (ACCESS_MODE_ADAPTER.equals(accessMode)) {
@@ -340,6 +354,7 @@ public class IntegrationService {
             accessMode,
             adapterId,
             fhirVersion,
+            systemFamilyCode,
             request.sourceSystem(),
             request.businessScenario(),
             request.orgPath(),
@@ -949,10 +964,12 @@ public class IntegrationService {
             onboarding.name(),
             onboarding.status(),
             onboarding.accessMode(),
+            onboarding.adapterId(),
             routeReference,
             healthStatus,
             mappedFieldCount,
             blockers,
+            onboarding.systemFamilyCode(),
             onboarding.sourceSystem(),
             onboarding.businessScenario(),
             onboarding.orgPath(),
@@ -1049,6 +1066,15 @@ public class IntegrationService {
             ONBOARDING_OFFLINE
         ).contains(normalized)) {
             throw new ApiException(ErrorCode.ENG_INTEG_001, "接入阶段不合法: " + status);
+        }
+        return normalized;
+    }
+
+    private String normalizeThirdPartySystemFamily(String systemFamilyCode) {
+        String normalized = normalizeUpper(systemFamilyCode);
+        if (!THIRD_PARTY_SYSTEM_FAMILIES.contains(normalized)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001,
+                "第三方系统族必须来自产品范围 13 类系统族: " + systemFamilyCode);
         }
         return normalized;
     }
@@ -1330,17 +1356,20 @@ public class IntegrationService {
     }
 
     private AdapterHubRequiredSourceStatus toRequiredSourceStatus(
-        String sourceSystem,
-        List<IntegrationAdapter> adapters,
+        String systemFamilyCode,
         Map<String, IntegrationAdapter> adapterById,
         List<IntegrationOnboarding> onboardings,
         Instant generatedAt
     ) {
-        IntegrationAdapter adapter = findRequiredSourceAdapter(sourceSystem, adapters, adapterById, onboardings);
+        IntegrationOnboarding onboarding = findRequiredSystemFamilyOnboarding(
+            systemFamilyCode, adapterById, onboardings);
+        IntegrationAdapter adapter = onboarding == null ? null : adapterById.get(onboarding.adapterId());
+        String sourceSystem = onboarding == null ? systemFamilyCode : onboarding.sourceSystem();
         if (adapter == null) {
             return new AdapterHubRequiredSourceStatus(
+                systemFamilyCode,
                 sourceSystem,
-                requiredSourceLabel(sourceSystem),
+                requiredSystemFamilyLabel(systemFamilyCode),
                 null,
                 null,
                 null,
@@ -1349,7 +1378,7 @@ public class IntegrationService {
                 0,
                 null,
                 false,
-                List.of("缺少 " + sourceSystem + " 适配器")
+                List.of("缺少 " + requiredSystemFamilyLabel(systemFamilyCode) + " 接入申请或适配器")
             );
         }
         AdapterHubSourceStatus sourceStatus = toAdapterHubSourceStatus(adapter, generatedAt);
@@ -1357,8 +1386,9 @@ public class IntegrationService {
             && sourceStatus.mappedFieldCount() > 0
             && sourceStatus.gaps().isEmpty();
         return new AdapterHubRequiredSourceStatus(
+            systemFamilyCode,
             sourceSystem,
-            requiredSourceLabel(sourceSystem),
+            requiredSystemFamilyLabel(systemFamilyCode),
             adapter.adapterId(),
             adapter.name(),
             adapter.protocolType(),
@@ -1371,54 +1401,39 @@ public class IntegrationService {
         );
     }
 
-    private IntegrationAdapter findRequiredSourceAdapter(
-        String sourceSystem,
-        List<IntegrationAdapter> adapters,
+    private IntegrationOnboarding findRequiredSystemFamilyOnboarding(
+        String systemFamilyCode,
         Map<String, IntegrationAdapter> adapterById,
         List<IntegrationOnboarding> onboardings
     ) {
-        String normalizedSource = normalizeRequiredSource(sourceSystem);
+        String normalizedFamily = normalizeUpper(systemFamilyCode);
         for (IntegrationOnboarding onboarding : onboardings) {
-            if (normalizedSource.equals(normalizeRequiredSource(onboarding.sourceSystem()))
+            if (normalizedFamily.equals(normalizeUpper(onboarding.systemFamilyCode()))
                 && onboarding.adapterId() != null
                 && adapterById.containsKey(onboarding.adapterId())) {
-                return adapterById.get(onboarding.adapterId());
+                return onboarding;
             }
         }
-        return adapters.stream()
-            .filter(adapter -> adapterMatchesRequiredSource(adapter, normalizedSource))
-            .findFirst()
-            .orElse(null);
+        return null;
     }
 
-    private boolean adapterMatchesRequiredSource(IntegrationAdapter adapter, String normalizedSource) {
-        return requiredSourceTokens(adapter.adapterId()).contains(normalizedSource)
-            || requiredSourceTokens(adapter.name()).contains(normalizedSource);
-    }
-
-    private String requiredSourceLabel(String sourceSystem) {
-        return switch (sourceSystem) {
-            case "HIS" -> "HIS 医院信息系统";
-            case "EMR" -> "EMR 电子病历系统";
-            case "LIS" -> "LIS 检验信息系统";
-            default -> sourceSystem;
+    private String requiredSystemFamilyLabel(String systemFamilyCode) {
+        return switch (systemFamilyCode) {
+            case "HIS_EMR_CDR" -> "HIS、EMR、CDR、医嘱与费用";
+            case "LIS_MONITORING_CRITICAL" -> "LIS、监护与危急值";
+            case "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG" -> "PACS/RIS、超声、病理、内镜、心电";
+            case "PHARMACY_REVIEW" -> "药房、审方和药事平台";
+            case "NURSING_ANESTHESIA_TRANSFUSION_ICU" -> "护理、手麻、手术室、输血和 ICU";
+            case "MEDICAL_RECORD_INSURANCE_PAYMENT" -> "病案、医保和支付";
+            case "PUBLIC_HEALTH_INFECTION_REGULATORY" -> "公卫、院感、不良事件和监管";
+            case "FOLLOWUP_PATIENT_SERVICE" -> "随访、消息和患者服务";
+            case "CA_OIDC_SSO_HR" -> "CA、OIDC、SSO、HR/OA";
+            case "REGIONAL_REMOTE" -> "区域平台、医联体和远程协同";
+            case "SPD_UDI_DEVICE" -> "SPD、UDI、器械耗材";
+            case "RESEARCH_ETHICS_DATA" -> "科研、伦理和数据平台";
+            case "MODEL_DIFY_AGENT" -> "模型服务、Dify 和 Agent";
+            default -> systemFamilyCode;
         };
-    }
-
-    private String normalizeRequiredSource(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
-    }
-
-    private List<String> requiredSourceTokens(String value) {
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
-        return Arrays.stream(value.trim().toUpperCase(Locale.ROOT).split("[^A-Z0-9]+"))
-            .filter(token -> !token.isBlank())
-            .toList();
     }
 
     private IntegrationHealthProbeItemDto toHealthProbeItem(IntegrationAdapter adapter) {
