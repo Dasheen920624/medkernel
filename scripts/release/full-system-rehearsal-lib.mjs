@@ -4,9 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { writeJsonAtomic } from "./launch-account-bootstrap-lib.mjs";
+import { launchCoverageClaims } from "./stage-launch-coverage-lib.mjs";
 import { FULL_KNOWLEDGE_DOMAINS } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   productLayers: {
     label: "六层产品能力",
@@ -231,7 +235,11 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     throw new Error("完整上线演练禁止忽略 HTTPS 证书错误");
   }
 
-  const runtimeRoot = outsideRepo(env.MEDKERNEL_RUNTIME_ROOT, repoRoot, "运行时根目录");
+  const runtimeRoot = outsideRepo(
+    env.MEDKERNEL_RUNTIME_ROOT,
+    repoRoot,
+    "运行时根目录",
+  );
   const evidenceRoot = outsideRepo(
     env.FULL_SYSTEM_EVIDENCE_ROOT?.trim() ||
       path.join(runtimeRoot, "evidence/current-launch"),
@@ -268,21 +276,39 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     provider: {
       code: requireText(env.LAUNCH_MODEL_PROVIDER_CODE, "Provider 编码"),
       type: requireText(env.LAUNCH_MODEL_PROVIDER_TYPE, "Provider 类型"),
-      endpoint: requireText(env.LAUNCH_MODEL_PROVIDER_ENDPOINT, "Provider 端点"),
+      endpoint: requireText(
+        env.LAUNCH_MODEL_PROVIDER_ENDPOINT,
+        "Provider 端点",
+      ),
       modelVersion: requireText(env.LAUNCH_MODEL_VERSION, "模型版本"),
     },
   };
 }
 
 export function buildFullSystemStagePlan(config) {
-  const accountEvidence = path.join(config.evidenceRoot, "account-bootstrap.json");
+  const accountEvidence = path.join(
+    config.evidenceRoot,
+    "account-bootstrap.json",
+  );
   const modelEvidence = path.join(config.evidenceRoot, "model-provider.json");
-  const platformBaselineEvidence = path.join(config.evidenceRoot, "platform-baseline.json");
+  const platformBaselineEvidence = path.join(
+    config.evidenceRoot,
+    "platform-baseline.json",
+  );
   const sandboxRoot = path.join(config.evidenceRoot, "sandbox");
-  const knowledgeEvidence = path.join(config.evidenceRoot, "full-knowledge.json");
-  const resilienceEvidence = path.join(config.evidenceRoot, "runtime-resilience.json");
+  const knowledgeEvidence = path.join(
+    config.evidenceRoot,
+    "full-knowledge.json",
+  );
+  const resilienceEvidence = path.join(
+    config.evidenceRoot,
+    "runtime-resilience.json",
+  );
   const browserRoot = path.join(config.evidenceRoot, "e2e");
-  const launchCoverageEvidence = path.join(config.evidenceRoot, "launch-coverage.json");
+  const launchCoverageEvidence = path.join(
+    config.evidenceRoot,
+    "launch-coverage.json",
+  );
   const common = {
     MEDKERNEL_RUNTIME_ROOT: config.runtimeRoot,
   };
@@ -469,7 +495,9 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
         exitCode: commandResult?.exitCode ?? "unknown",
         evidencePath: stage.evidencePath,
       });
-      throw new Error(`${stage.id} 阶段失败（exit=${commandResult?.exitCode ?? "unknown"}）`);
+      throw new Error(
+        `${stage.id} 阶段失败（exit=${commandResult?.exitCode ?? "unknown"}）`,
+      );
     }
     const evidence = readJson(stage.evidencePath, stage);
     const summary = validateStageEvidence(stage.id, evidence);
@@ -565,7 +593,8 @@ export function validateStageEvidence(stageId, evidence) {
         evidence.operator?.tenantId !== "t-1" ||
         evidence.operator?.role !== "engine-operator" ||
         evidence.fieldCatalog?.assetType !== "FIELD_CATALOG" ||
-        evidence.fieldCatalog?.assetIdentity !== "FIELD.CATALOG.CLINICAL_CONTEXT" ||
+        evidence.fieldCatalog?.assetIdentity !==
+          "FIELD.CATALOG.CLINICAL_CONTEXT" ||
         evidence.fieldCatalog?.entryState !== "ACTIVE" ||
         typeof evidence.fieldCatalog?.versionId !== "string" ||
         !evidence.fieldCatalog.versionId.trim() ||
@@ -579,13 +608,15 @@ export function validateStageEvidence(stageId, evidence) {
         evidence.knowledge?.activeCount !== 11 ||
         !Array.isArray(evidence.knowledgeAssets) ||
         evidence.knowledgeAssets.length !== 11 ||
-        evidence.knowledgeAssets.some((item) =>
-          item?.assetType !== "KNOWLEDGE" ||
-          item.entryState !== "ACTIVE" ||
-          typeof item.versionId !== "string" ||
-          !item.versionId.trim() ||
-          typeof item.assetIdentity !== "string" ||
-          !item.assetIdentity.trim())
+        evidence.knowledgeAssets.some(
+          (item) =>
+            item?.assetType !== "KNOWLEDGE" ||
+            item.entryState !== "ACTIVE" ||
+            typeof item.versionId !== "string" ||
+            !item.versionId.trim() ||
+            typeof item.assetIdentity !== "string" ||
+            !item.assetIdentity.trim(),
+        )
       ) {
         throw new Error("全知识平台基线未完整发布为当前平台标准版本");
       }
@@ -605,7 +636,9 @@ export function validateStageEvidence(stageId, evidence) {
         evidence.runtimeBinding?.ready !== true ||
         evidence.runtimeBinding?.externalSideEffects !== false
       ) {
-        throw new Error("演练机构十规则、四十用例或 CURRENT 运行绑定未完整通过");
+        throw new Error(
+          "演练机构十规则、四十用例或 CURRENT 运行绑定未完整通过",
+        );
       }
       return { ruleCount: 10, caseCount: 40, runtimeReady: true };
     case "full-knowledge": {
@@ -623,12 +656,18 @@ export function validateStageEvidence(stageId, evidence) {
         evidence.status !== "PASSED" ||
         declared.size !== 11 ||
         published.size !== 11 ||
-        [...expected].some((domain) => !declared.has(domain) || !published.has(domain)) ||
+        [...expected].some(
+          (domain) => !declared.has(domain) || !published.has(domain),
+        ) ||
         !lifecycleValid
       ) {
         throw new Error("正式全知识没有完整覆盖 11 个知识域及 V1/V2 回滚恢复");
       }
-      return { knowledgeDomainCount: 11, finalVersion: "V2", finalStatus: "ACTIVE" };
+      return {
+        knowledgeDomainCount: 11,
+        finalVersion: "V2",
+        finalStatus: "ACTIVE",
+      };
     }
     case "runtime-resilience":
       if (
@@ -683,9 +722,76 @@ export function buildRequiredLaunchCoverage() {
       key,
       requirement.codes.map((code) => ({
         code,
-        status: "PASSED",
-        evidenceStage: "launch-coverage",
+        status: "UNKNOWN",
+        evidenceStage: null,
+        evidencePath: null,
+        evidenceKey: null,
+        observedCode: null,
+        observedStatus: null,
+        observedAt: null,
       })),
+    ]),
+  );
+}
+
+export { launchCoverageClaims };
+
+export function buildLaunchCoverageFromStageEvidence(stageEvidence) {
+  const claims = new Map();
+  for (const item of stageEvidence ?? []) {
+    const stageId = item?.stageId;
+    if (!hasText(stageId) || stageId === "launch-coverage") continue;
+    const launchCoverage = item?.evidence?.launchCoverage;
+    if (
+      !launchCoverage ||
+      typeof launchCoverage !== "object" ||
+      Array.isArray(launchCoverage)
+    ) {
+      continue;
+    }
+    for (const key of Object.keys(launchCoverage)) {
+      if (!REQUIRED_LAUNCH_COVERAGE[key]) {
+        throw new Error(`${stageId} 阶段声明了未知覆盖矩阵 ${key}`);
+      }
+    }
+    for (const [key, requirement] of Object.entries(REQUIRED_LAUNCH_COVERAGE)) {
+      const rows = launchCoverage[key];
+      if (!Array.isArray(rows)) continue;
+      const expectedCodes = new Set(requirement.codes);
+      for (const row of rows) {
+        const normalized = normalizeCoverageClaim(row, {
+          key,
+          stageId,
+          evidencePath: item.evidencePath,
+          evidence: item.evidence,
+        });
+        if (!expectedCodes.has(normalized.code)) {
+          throw new Error(
+            `${stageId} 阶段声明了无效${requirement.label}覆盖项 ${normalized.code}`,
+          );
+        }
+        const claimKey = `${key}:${normalized.code}`;
+        if (!claims.has(claimKey)) claims.set(claimKey, normalized);
+      }
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(REQUIRED_LAUNCH_COVERAGE).map(([key, requirement]) => [
+      key,
+      requirement.codes.map((code) => {
+        const row = claims.get(`${key}:${code}`);
+        if (row) return row;
+        return {
+          code,
+          status: "UNKNOWN",
+          evidenceStage: null,
+          evidencePath: null,
+          evidenceKey: null,
+          observedCode: null,
+          observedStatus: null,
+          observedAt: null,
+        };
+      }),
     ]),
   );
 }
@@ -711,11 +817,39 @@ export function assertCompleteLaunchCoverage(evidence) {
       if (!row || typeof row !== "object") {
         throw new Error(`${requirement.label} 覆盖行无效`);
       }
-      if (row.status === "SKIPPED" || row.status === "UNKNOWN") {
-        throw new Error(`${requirement.label} ${row.code} 不得为 ${row.status}`);
+      if (row.status === "UNKNOWN") {
+        throw new Error(`${requirement.label} ${row.code} 缺少前置阶段证据`);
+      }
+      if (row.status === "SKIPPED") {
+        throw new Error(
+          `${requirement.label} ${row.code} 不得为 ${row.status}`,
+        );
       }
       if (row.status !== "PASSED") {
         throw new Error(`${requirement.label} ${row.code} 未通过覆盖审计`);
+      }
+      if (
+        !hasText(row.evidenceStage) ||
+        row.evidenceStage === "launch-coverage"
+      ) {
+        throw new Error(
+          `${requirement.label} ${row.code} 不能由覆盖审计阶段自证`,
+        );
+      }
+      if (!hasText(row.evidencePath) || !hasText(row.evidenceKey)) {
+        throw new Error(
+          `${requirement.label} ${row.code} 缺少前置阶段证据引用`,
+        );
+      }
+      if (row.observedCode !== row.code || row.observedStatus !== "PASSED") {
+        throw new Error(
+          `${requirement.label} ${row.code} 前置阶段观测结果不匹配`,
+        );
+      }
+      if (!hasText(row.observedAt)) {
+        throw new Error(
+          `${requirement.label} ${row.code} 缺少前置阶段观测时间`,
+        );
       }
       actual.add(row.code);
     }
@@ -727,6 +861,35 @@ export function assertCompleteLaunchCoverage(evidence) {
     }
   }
   return true;
+}
+
+function normalizeCoverageClaim(row, context) {
+  const code = typeof row === "string" ? row : row?.code;
+  const observedStatus =
+    typeof row === "string" ? "PASSED" : (row.observedStatus ?? row.status);
+  const observedAt =
+    typeof row === "string"
+      ? (context.evidence.finishedAt ??
+        context.evidence.generatedAt ??
+        context.evidence.startedAt)
+      : (row.observedAt ??
+        context.evidence.finishedAt ??
+        context.evidence.generatedAt ??
+        context.evidence.startedAt);
+  return {
+    code,
+    status: observedStatus === "PASSED" ? "PASSED" : observedStatus,
+    evidenceStage: context.stageId,
+    evidencePath: context.evidencePath,
+    evidenceKey:
+      typeof row === "string"
+        ? `launchCoverage.${context.key}.${row}`
+        : row.evidenceKey,
+    observedCode:
+      typeof row === "string" ? row : (row.observedCode ?? row.code),
+    observedStatus,
+    observedAt,
+  };
 }
 
 function spawnStage(stage) {
@@ -769,7 +932,13 @@ function normalizeApiBaseUrl(value) {
 function normalizeHttpsUrl(value, label) {
   const normalized = requireText(value, label).replace(/\/+$/u, "");
   const parsed = new URL(normalized);
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) {
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  ) {
     throw new Error(`${label}必须使用不含凭据、查询和片段的 HTTPS 地址`);
   }
   return normalized;
@@ -786,7 +955,10 @@ function normalizeSource(value) {
 function outsideRepo(value, repoRoot, label) {
   const target = path.resolve(requireText(value, label));
   const relative = path.relative(repoRoot, target);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error(`${label}必须位于代码仓库之外`);
   }
   return target;
@@ -794,7 +966,9 @@ function outsideRepo(value, repoRoot, label) {
 
 function now(clock) {
   const value = clock ? clock() : new Date();
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function createProgressReporter(onProgress, clock) {

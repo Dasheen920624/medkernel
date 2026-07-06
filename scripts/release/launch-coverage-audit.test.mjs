@@ -9,29 +9,44 @@ import {
 } from "./launch-coverage-audit.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
-  new URL("../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json", import.meta.url),
+  new URL(
+    "../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json",
+    import.meta.url,
+  ),
 );
 const SOURCE = "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17";
 
 test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () => {
   const env = baseEnv();
-  const config = readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" });
+  const config = readLaunchCoverageAuditConfig(env, {
+    repoRoot: "/workspace/medkernel",
+  });
 
-  assert.equal(config.evidenceRoot, "/var/lib/medkernel/evidence/current-launch");
-  assert.equal(config.outputPath, "/var/lib/medkernel/evidence/current-launch/launch-coverage.json");
+  assert.equal(
+    config.evidenceRoot,
+    "/var/lib/medkernel/evidence/current-launch",
+  );
+  assert.equal(
+    config.outputPath,
+    "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
+  );
   assert.equal(config.manifestPath, MANIFEST_PATH);
   assert.equal(config.source, SOURCE);
 
-  env.LAUNCH_COVERAGE_EVIDENCE_PATH = "/workspace/medkernel/tmp/launch-coverage.json";
+  env.LAUNCH_COVERAGE_EVIDENCE_PATH =
+    "/workspace/medkernel/tmp/launch-coverage.json";
   assert.throws(
-    () => readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
+    () =>
+      readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
     /完整覆盖审计证据路径必须位于代码仓库之外/u,
   );
 
-  env.LAUNCH_COVERAGE_EVIDENCE_PATH = "/var/lib/medkernel/evidence/current-launch/launch-coverage.json";
+  env.LAUNCH_COVERAGE_EVIDENCE_PATH =
+    "/var/lib/medkernel/evidence/current-launch/launch-coverage.json";
   env.LAUNCH_SOURCE = "1603b5a7";
   assert.throws(
-    () => readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
+    () =>
+      readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
     /40 位提交哈希/u,
   );
 });
@@ -43,12 +58,26 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   });
 
   assert.equal(evidence.status, "PASSED");
-  assert.deepEqual(Object.values(evidence.stageStatus), Array(7).fill("PASSED"));
+  assert.deepEqual(
+    Object.values(evidence.stageStatus),
+    Array(7).fill("PASSED"),
+  );
   assert.equal(evidence.coverage.standardPatientResources.length, 13);
   assert.equal(evidence.coverage.versionedAssets.length, 13);
   assert.equal(evidence.coverage.knowledgeDomains.length, 11);
   assert.equal(evidence.coverage.scenarios.length, 41);
   assert.equal(evidence.coverage.stakeholderViews.length, 12);
+  assert.equal(evidence.coverage.scenarios.at(-1).evidenceStage, "browser-e2e");
+  assert.equal(
+    evidence.coverage.scenarios
+      .at(-1)
+      .evidencePath.endsWith("/e2e/report/results.json"),
+    true,
+  );
+  assert.equal(
+    evidence.coverage.scenarios.at(-1).evidenceKey,
+    "launchCoverage.scenarios.S40",
+  );
   assert.deepEqual(
     evidence.coverage.stakeholderViews.map((item) => item.code),
     [
@@ -68,9 +97,65 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   );
 });
 
+test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", () => {
+  const stageEvidence = completeStageEvidence({ includeLaunchCoverage: false });
+
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(stageEvidence),
+      }),
+    /缺少前置阶段证据/u,
+  );
+});
+
+test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项证据", () => {
+  const missingS40 = completeStageEvidence();
+  missingS40["browser-e2e"].launchCoverage.scenarios = missingS40[
+    "browser-e2e"
+  ].launchCoverage.scenarios.filter((item) => item.code !== "S40");
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingS40),
+      }),
+    /S0–S40 业务场景.*S40.*缺少前置阶段证据/u,
+  );
+
+  const missingClaim = completeStageEvidence();
+  missingClaim.sandbox.launchCoverage.standardPatientResources =
+    missingClaim.sandbox.launchCoverage.standardPatientResources.filter(
+      (item) => item.code !== "Claim",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingClaim),
+      }),
+    /13 类标准患者资源.*Claim.*缺少前置阶段证据/u,
+  );
+
+  const missingThirdParty = completeStageEvidence();
+  missingThirdParty["browser-e2e"].launchCoverage.thirdPartySystemFamilies =
+    missingThirdParty[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilies.filter(
+      (item) => item.code !== "MODEL_DIFY_AGENT",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingThirdParty),
+      }),
+    /全部第三方系统族.*MODEL_DIFY_AGENT.*缺少前置阶段证据/u,
+  );
+});
+
 test("完整覆盖审计遇到任一前置阶段失败时拒绝生成 PASSED 证据", () => {
   const stageEvidence = completeStageEvidence();
-  stageEvidence["browser-e2e"] = { stats: { expected: 82, unexpected: 1, flaky: 0 } };
+  stageEvidence["browser-e2e"] = {
+    stats: { expected: 82, unexpected: 1, flaky: 0 },
+  };
 
   assert.throws(
     () =>
@@ -84,7 +169,8 @@ test("完整覆盖审计遇到任一前置阶段失败时拒绝生成 PASSED 证
 function auditConfig() {
   return {
     evidenceRoot: "/var/lib/medkernel/evidence/current-launch",
-    outputPath: "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
+    outputPath:
+      "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
     manifestPath: MANIFEST_PATH,
     source: SOURCE,
   };
@@ -109,13 +195,19 @@ function readKnownEvidence(stageEvidence) {
   };
 }
 
-function completeStageEvidence() {
-  return {
+function completeStageEvidence(options = {}) {
+  const includeLaunchCoverage = options.includeLaunchCoverage !== false;
+  const evidence = {
     "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
     "model-provider": {
       status: "PASSED",
       provider: { enabled: true, status: "HEALTHY", code: "ollama-launch" },
-      evaluation: { totalCases: 3, passedCases: 3, failedCases: 0, status: "PASSED" },
+      evaluation: {
+        totalCases: 3,
+        passedCases: 3,
+        failedCases: 0,
+        status: "PASSED",
+      },
     },
     "platform-baseline": {
       status: "PASSED",
@@ -145,7 +237,10 @@ function completeStageEvidence() {
       })),
     },
     sandbox: {
-      results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
+      results: Array.from({ length: 10 }, (_, index) => ({
+        ruleCode: `R${index}`,
+        result: "PASS",
+      })),
       failures: [],
       runtimeBinding: { ready: true, externalSideEffects: false },
     },
@@ -153,12 +248,30 @@ function completeStageEvidence() {
       status: "PASSED",
       coverage: {
         expectedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+          "GUIDELINE",
+          "DRUG",
+          "PATHWAY_KNOWLEDGE",
+          "NURSING",
+          "DIAGNOSTIC_ITEM",
+          "TCM",
+          "PROTOCOL",
+          "POLICY",
+          "LITERATURE",
+          "OTHER",
+          "DIAGNOSIS",
         ],
         publishedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+          "GUIDELINE",
+          "DRUG",
+          "PATHWAY_KNOWLEDGE",
+          "NURSING",
+          "DIAGNOSTIC_ITEM",
+          "TCM",
+          "PROTOCOL",
+          "POLICY",
+          "LITERATURE",
+          "OTHER",
+          "DIAGNOSIS",
         ],
       },
       versionLifecycle: {
@@ -187,11 +300,184 @@ function completeStageEvidence() {
     },
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
   };
+  if (!includeLaunchCoverage) return evidence;
+  evidence["account-bootstrap"].launchCoverage = launchCoverageClaims([
+    "productLayers:FOUNDATION_GOVERNANCE",
+    "organizationLevels:PLATFORM",
+    "organizationLevels:GROUP",
+    "organizationLevels:HOSPITAL",
+    "organizationLevels:CAMPUS_OR_MEMBER",
+    "organizationLevels:DEPARTMENT",
+    "organizationLevels:WARD",
+    "organizationLevels:CARE_TEAM",
+    "organizationLevels:SPECIALTY_CENTER",
+    "organizationLevels:SHARED_CENTER",
+  ]);
+  evidence["model-provider"].launchCoverage = launchCoverageClaims([
+    "modelEnablementSurfaces:SOURCE_DISCOVERY",
+    "modelEnablementSurfaces:DOCUMENT_EXTRACT",
+    "modelEnablementSurfaces:TERMINOLOGY_MAPPING",
+    "modelEnablementSurfaces:RULE_QUALITY",
+    "modelEnablementSurfaces:PATHWAY_CONTINUITY",
+    "modelEnablementSurfaces:DIAGNOSIS_CDSS",
+    "modelEnablementSurfaces:NURSING_COLLABORATION",
+    "modelEnablementSurfaces:REPORT_INTERPRETATION",
+    "modelEnablementSurfaces:EVALUATION_INSURANCE_RECORD",
+    "modelEnablementSurfaces:FOLLOWUP_EDUCATION",
+    "modelEnablementSurfaces:OPERATIONS_TESTING",
+    "modelEnablementSurfaces:NATURAL_LANGUAGE_ACCESS",
+  ]);
+  evidence["platform-baseline"].launchCoverage = launchCoverageClaims([
+    "versionedAssets:KNOWLEDGE",
+    "versionedAssets:TERMINOLOGY",
+    "versionedAssets:RULE",
+    "versionedAssets:PATHWAY",
+    "versionedAssets:EVALUATION",
+    "versionedAssets:FOLLOWUP",
+    "versionedAssets:FIELD_CATALOG",
+    "versionedAssets:SAFETY",
+    "versionedAssets:CDSS_RISK",
+    "versionedAssets:VALUE_SET",
+    "versionedAssets:FORMULA",
+    "versionedAssets:ORDER_SET",
+    "versionedAssets:ACTION_CARD",
+  ]);
+  evidence["full-knowledge"].launchCoverage = launchCoverageClaims(
+    knowledgeDomains().map((code) => `knowledgeDomains:${code}`),
+  );
+  evidence.sandbox.launchCoverage = launchCoverageClaims([
+    "standardPatientResources:Patient",
+    "standardPatientResources:AllergyIntolerance",
+    "standardPatientResources:Encounter",
+    "standardPatientResources:Condition",
+    "standardPatientResources:NursingAssessment",
+    "standardPatientResources:Observation",
+    "standardPatientResources:DiagnosticReport",
+    "standardPatientResources:Medication",
+    "standardPatientResources:Procedure",
+    "standardPatientResources:Document",
+    "standardPatientResources:CarePlan",
+    "standardPatientResources:FollowUp",
+    "standardPatientResources:Claim",
+    "serviceCombinations:CLINICAL_RUNTIME",
+    "serviceCombinations:SPECIAL_DISEASE_PATHWAY",
+  ]);
+  evidence["runtime-resilience"].launchCoverage = launchCoverageClaims([
+    "deliveryShapes:ENGINE_CORE",
+    "serviceCombinations:QUALITY_IMPROVEMENT",
+    "serviceCombinations:COMPLIANCE_OPERATIONS",
+  ]);
+  evidence["browser-e2e"].launchCoverage = launchCoverageClaims([
+    "productLayers:DATA_INTEROPERABILITY",
+    "productLayers:MEDICAL_ASSET",
+    "productLayers:RELEASE_GOVERNANCE",
+    "productLayers:CLINICAL_EXECUTION",
+    "productLayers:DELIVERY_FEEDBACK",
+    "semanticFamilies:DISEASE_DIAGNOSIS",
+    "semanticFamilies:SYMPTOM_RISK",
+    "semanticFamilies:DIAGNOSTIC_REPORT",
+    "semanticFamilies:MEDICATION_THERAPY",
+    "semanticFamilies:SURGERY_TECHNOLOGY",
+    "semanticFamilies:DEVICE_CONSUMABLE",
+    "semanticFamilies:GUIDELINE_EVIDENCE",
+    "semanticFamilies:SCALE_FORMULA",
+    "semanticFamilies:NURSING",
+    "semanticFamilies:PATHWAY_CONTINUITY",
+    "semanticFamilies:MEDICAL_RECORD_INSURANCE",
+    "semanticFamilies:INFECTION_PUBLIC_HEALTH",
+    "semanticFamilies:COMPREHENSIVE_CARE",
+    "semanticFamilies:TCM",
+    "semanticFamilies:QUALITY_REGULATION",
+    "semanticFamilies:SOURCE_VALIDITY",
+    "specialtyDomains:CLINICAL_SPECIALTIES",
+    "specialtyDomains:NURSING",
+    "specialtyDomains:MEDICAL_TECHNOLOGY",
+    "specialtyDomains:PHARMACY",
+    "specialtyDomains:SURGERY_ANESTHESIA_TRANSFUSION",
+    "specialtyDomains:EMERGENCY_CRITICAL_CARE",
+    "specialtyDomains:SPECIAL_POPULATIONS",
+    "specialtyDomains:ONCOLOGY_DIALYSIS_TRANSPLANT",
+    "specialtyDomains:REHAB_NUTRITION_PAIN_PALLIATIVE",
+    "specialtyDomains:INFECTION_PUBLIC_HEALTH",
+    "specialtyDomains:TCM_INTEGRATIVE",
+    "specialtyDomains:DENTAL_ENT_DERMATOLOGY",
+    "specialtyDomains:INSURANCE_RECORD_QUALITY",
+    "specialtyDomains:RWD_RESEARCH",
+    "specialtyDomains:PRIMARY_REGIONAL_REMOTE",
+    ...Array.from({ length: 41 }, (_, index) => `scenarios:S${index}`),
+    "deliveryShapes:MANAGEMENT_WORKSPACE",
+    "deliveryShapes:EMBEDDED_COMPONENT",
+    "deliveryShapes:API_EVENT",
+    "deliveryShapes:OFFLINE_DELIVERY",
+    "serviceCombinations:ONBOARDING_INTEGRATION",
+    "serviceCombinations:THIRD_PARTY_INTERFACE",
+    "serviceCombinations:PROFESSIONAL_COLLABORATION",
+    "stakeholderViews:PHYSICIAN",
+    "stakeholderViews:NURSE",
+    "stakeholderViews:PHARMACIST",
+    "stakeholderViews:MEDICAL_TECHNICIAN",
+    "stakeholderViews:QUALITY_CONTROLLER",
+    "stakeholderViews:PATIENT_PROXY",
+    "stakeholderViews:PLATFORM_ADMIN",
+    "stakeholderViews:ENGINE_OPERATOR",
+    "stakeholderViews:AUDITOR",
+    "stakeholderViews:IT_MANAGER",
+    "stakeholderViews:IMPLEMENTATION_ENGINEER",
+    "stakeholderViews:HOSPITAL_EXECUTIVE",
+    "thirdPartySystemFamilies:HIS_EMR_CDR",
+    "thirdPartySystemFamilies:LIS_MONITORING_CRITICAL",
+    "thirdPartySystemFamilies:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    "thirdPartySystemFamilies:PHARMACY_REVIEW",
+    "thirdPartySystemFamilies:NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    "thirdPartySystemFamilies:MEDICAL_RECORD_INSURANCE_PAYMENT",
+    "thirdPartySystemFamilies:PUBLIC_HEALTH_INFECTION_REGULATORY",
+    "thirdPartySystemFamilies:FOLLOWUP_PATIENT_SERVICE",
+    "thirdPartySystemFamilies:CA_OIDC_SSO_HR",
+    "thirdPartySystemFamilies:REGIONAL_REMOTE",
+    "thirdPartySystemFamilies:SPD_UDI_DEVICE",
+    "thirdPartySystemFamilies:RESEARCH_ETHICS_DATA",
+    "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
+    "specialDiseaseStages:SCREENING_TRIAGE",
+    "specialDiseaseStages:DIAGNOSIS_DIFFERENTIAL",
+    "specialDiseaseStages:RISK_STRATIFICATION",
+    "specialDiseaseStages:TREATMENT_DECISION",
+    "specialDiseaseStages:EXECUTION_CANDIDATE",
+    "specialDiseaseStages:MONITORING_WARNING",
+    "specialDiseaseStages:DISCHARGE_REFERRAL",
+    "specialDiseaseStages:REHAB_EDUCATION_FOLLOWUP",
+    "specialDiseaseStages:OUTCOME_EVALUATION",
+    "specialDiseaseStages:QUALITY_ITERATION",
+  ]);
+  return evidence;
+}
+
+function launchCoverageClaims(entries) {
+  const claims = {};
+  for (const entry of entries) {
+    const [key, code] = entry.split(":");
+    claims[key] ??= [];
+    claims[key].push({
+      code,
+      status: "PASSED",
+      evidenceKey: `launchCoverage.${key}.${code}`,
+      observedAt: "2026-06-22T09:00:00.000Z",
+    });
+  }
+  return claims;
 }
 
 function knowledgeDomains() {
   return [
-    "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-    "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+    "GUIDELINE",
+    "DRUG",
+    "PATHWAY_KNOWLEDGE",
+    "NURSING",
+    "DIAGNOSTIC_ITEM",
+    "TCM",
+    "PROTOCOL",
+    "POLICY",
+    "LITERATURE",
+    "OTHER",
+    "DIAGNOSIS",
   ];
 }

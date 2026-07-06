@@ -5,13 +5,16 @@ import { fileURLToPath } from "node:url";
 
 import {
   assertCompleteLaunchCoverage,
-  buildRequiredLaunchCoverage,
+  buildLaunchCoverageFromStageEvidence,
   validateStageEvidence,
 } from "./full-system-rehearsal-lib.mjs";
 import { writeJsonAtomic } from "./launch-account-bootstrap-lib.mjs";
 import { validateFullKnowledgeManifest } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 export function readLaunchCoverageAuditConfig(env, options = {}) {
   const repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
@@ -25,7 +28,9 @@ export function readLaunchCoverageAuditConfig(env, options = {}) {
     repoRoot,
     "完整覆盖审计证据路径",
   );
-  const manifestPath = path.resolve(requireText(env.FULL_KNOWLEDGE_MANIFEST_PATH, "全知识清单路径"));
+  const manifestPath = path.resolve(
+    requireText(env.FULL_KNOWLEDGE_MANIFEST_PATH, "全知识清单路径"),
+  );
   const source = normalizeSource(env.LAUNCH_SOURCE);
   return {
     evidenceRoot,
@@ -39,21 +44,36 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
   const readJson = options.readJson ?? readJsonFile;
   const now = options.now ?? (() => new Date().toISOString());
   const stageFiles = {
-    "account-bootstrap": path.join(config.evidenceRoot, "account-bootstrap.json"),
+    "account-bootstrap": path.join(
+      config.evidenceRoot,
+      "account-bootstrap.json",
+    ),
     "model-provider": path.join(config.evidenceRoot, "model-provider.json"),
-    "platform-baseline": path.join(config.evidenceRoot, "platform-baseline.json"),
+    "platform-baseline": path.join(
+      config.evidenceRoot,
+      "platform-baseline.json",
+    ),
     sandbox: path.join(config.evidenceRoot, "sandbox/seed-summary.json"),
     "full-knowledge": path.join(config.evidenceRoot, "full-knowledge.json"),
-    "runtime-resilience": path.join(config.evidenceRoot, "runtime-resilience.json"),
+    "runtime-resilience": path.join(
+      config.evidenceRoot,
+      "runtime-resilience.json",
+    ),
     "browser-e2e": path.join(config.evidenceRoot, "e2e/report/results.json"),
   };
   const stageStatus = {};
   const failedStages = [];
+  const stageEvidence = [];
   for (const [stage, file] of Object.entries(stageFiles)) {
     const evidence = readJson(file, stage);
     try {
       validateStageEvidence(stage, evidence);
       stageStatus[stage] = "PASSED";
+      stageEvidence.push({
+        stageId: stage,
+        evidencePath: file,
+        evidence,
+      });
     } catch (error) {
       stageStatus[stage] = "FAILED";
       failedStages.push({ stage, detail: error.message });
@@ -69,7 +89,7 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
   const manifest = readJson(config.manifestPath, "全知识演练清单");
   validateFullKnowledgeManifest(manifest);
 
-  const coverage = buildRequiredLaunchCoverage();
+  const coverage = buildLaunchCoverageFromStageEvidence(stageEvidence);
   const evidence = {
     schemaVersion: "1.0.0",
     status: "PASSED",
@@ -92,7 +112,10 @@ function readJsonFile(file, label) {
 function outsideRepo(value, repoRoot, label) {
   const target = path.resolve(requireText(value, label));
   const relative = path.relative(repoRoot, target);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error(`${label}必须位于代码仓库之外`);
   }
   return target;

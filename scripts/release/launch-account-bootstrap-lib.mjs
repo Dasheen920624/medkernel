@@ -10,6 +10,8 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { launchCoverageClaims } from "./stage-launch-coverage-lib.mjs";
+
 export const ASSIGNABLE_ROLES = Object.freeze([
   "platform-admin",
   "engine-operator",
@@ -146,8 +148,12 @@ export function readLaunchBootstrapConfig(env, options = {}) {
     repoRoot,
     "接管证据路径",
   );
-  const bootstrapToken = requireText(readFile(tokenPath), "bootstrap init token");
-  if (bootstrapToken.length < 32) throw new Error("bootstrap init token 长度不足 32 位");
+  const bootstrapToken = requireText(
+    readFile(tokenPath),
+    "bootstrap init token",
+  );
+  if (bootstrapToken.length < 32)
+    throw new Error("bootstrap init token 长度不足 32 位");
   return {
     apiBaseUrl: normalizeBaseUrl(env.LAUNCH_API_BASE_URL),
     tokenPath,
@@ -157,7 +163,10 @@ export function readLaunchBootstrapConfig(env, options = {}) {
   };
 }
 
-export function assertLaunchOutputPathsAvailable(config, pathExists = existsSync) {
+export function assertLaunchOutputPathsAvailable(
+  config,
+  pathExists = existsSync,
+) {
   if (pathExists(config.credentialsPath)) {
     throw new Error(`全新接管拒绝覆盖既有上线凭据：${config.credentialsPath}`);
   }
@@ -170,7 +179,8 @@ export async function runLaunchAccountBootstrap(options) {
   const apiBaseUrl = normalizeBaseUrl(options?.apiBaseUrl);
   const bootstrapToken = requireText(options?.bootstrapToken, "bootstrapToken");
   const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("当前 Node.js 运行时不支持 fetch");
+  if (typeof fetchImpl !== "function")
+    throw new Error("当前 Node.js 运行时不支持 fetch");
   const plan = structuredClone(options?.plan ?? buildLaunchCredentialPlan());
   const requests = [];
   const startedAt = now(options?.now);
@@ -289,7 +299,9 @@ export async function runLaunchAccountBootstrap(options) {
     },
   });
 
-  for (const role of ASSIGNABLE_ROLES.filter((value) => value !== "platform-admin")) {
+  for (const role of ASSIGNABLE_ROLES.filter(
+    (value) => value !== "platform-admin",
+  )) {
     const target = plan.rehearsal.accounts[role];
     await createMember({
       apiBaseUrl,
@@ -334,6 +346,14 @@ export async function runLaunchAccountBootstrap(options) {
       verifiedRoles: [...ASSIGNABLE_ROLES],
       verifiedAccountCount: 9,
       mfaRequired: false,
+      launchCoverage: launchCoverageClaims(
+        [
+          ["productLayers", "FOUNDATION_GOVERNANCE"],
+          ["organizationLevels", "PLATFORM"],
+          ["organizationLevels", "HOSPITAL"],
+        ],
+        now(options?.now),
+      ),
       requests,
     },
   };
@@ -466,7 +486,11 @@ function login(context, password) {
 }
 
 function assertLogin(data, accountValue, expectedRole, mustChangePwd) {
-  if (!data || data.tenantId !== accountValue.tenantId || data.userId !== accountValue.userId) {
+  if (
+    !data ||
+    data.tenantId !== accountValue.tenantId ||
+    data.userId !== accountValue.userId
+  ) {
     throw new Error(`${accountValue.username} 登录身份与目标账号不一致`);
   }
   if (data.mustChangePwd !== mustChangePwd) {
@@ -475,27 +499,51 @@ function assertLogin(data, accountValue, expectedRole, mustChangePwd) {
   if (data.mfaRequired !== false || data.mfaBound !== false) {
     throw new Error(`${accountValue.username} 上线默认 MFA 必须关闭且未绑定`);
   }
-  if (!Array.isArray(data.roles) || data.roles.length !== 1 || data.roles[0] !== expectedRole) {
-    throw new Error(`${accountValue.username} 必须且只能拥有职责 ${expectedRole}`);
+  if (
+    !Array.isArray(data.roles) ||
+    data.roles.length !== 1 ||
+    data.roles[0] !== expectedRole
+  ) {
+    throw new Error(
+      `${accountValue.username} 必须且只能拥有职责 ${expectedRole}`,
+    );
   }
 }
 
 function assertProfile(data, expectedRole, expectedScope) {
-  const roles = Array.isArray(data?.roles) ? data.roles.map((item) => item?.code) : [];
+  const roles = Array.isArray(data?.roles)
+    ? data.roles.map((item) => item?.code)
+    : [];
   if (roles.length !== 1 || roles[0] !== expectedRole) {
     throw new Error(`权限画像必须且只能包含职责 ${expectedRole}`);
   }
-  if (data.mustChangePwd !== false || data.mfaRequired !== false || data.mfaBound !== false) {
-    throw new Error(`${expectedRole} 权限画像的改密或 MFA 状态不符合上线默认值`);
+  if (
+    data.mustChangePwd !== false ||
+    data.mfaRequired !== false ||
+    data.mfaBound !== false
+  ) {
+    throw new Error(
+      `${expectedRole} 权限画像的改密或 MFA 状态不符合上线默认值`,
+    );
   }
   if (!Array.isArray(data.menuKeys) || !data.menuKeys.includes("workbench")) {
     throw new Error(`${expectedRole} 权限画像缺少工作台入口`);
   }
-  if (expectedScope?.tenantId && data?.dataScope?.tenantId !== expectedScope.tenantId) {
-    throw new Error(`${expectedRole} 权限画像缺少租户范围 ${expectedScope.tenantId}`);
+  if (
+    expectedScope?.tenantId &&
+    data?.dataScope?.tenantId !== expectedScope.tenantId
+  ) {
+    throw new Error(
+      `${expectedRole} 权限画像缺少租户范围 ${expectedScope.tenantId}`,
+    );
   }
-  if (expectedScope?.hospitalId && data?.dataScope?.hospitalId !== expectedScope.hospitalId) {
-    throw new Error(`${expectedRole} 权限画像缺少医院范围 ${expectedScope.hospitalId}`);
+  if (
+    expectedScope?.hospitalId &&
+    data?.dataScope?.hospitalId !== expectedScope.hospitalId
+  ) {
+    throw new Error(
+      `${expectedRole} 权限画像缺少医院范围 ${expectedScope.hospitalId}`,
+    );
   }
 }
 
@@ -510,17 +558,23 @@ async function requestJson(options) {
     headers.Cookie = options.session.cookie;
     headers["X-XSRF-TOKEN"] = options.session.xsrf;
   }
-  const response = await options.fetchImpl(`${options.apiBaseUrl}${options.path}`, {
-    method: options.method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const response = await options.fetchImpl(
+    `${options.apiBaseUrl}${options.path}`,
+    {
+      method: options.method,
+      headers,
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
+    },
+  );
   const text = await response.text();
   let payload;
   try {
     payload = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(`${options.label} 返回的不是合法 JSON（HTTP ${response.status}）`);
+    throw new Error(
+      `${options.label} 返回的不是合法 JSON（HTTP ${response.status}）`,
+    );
   }
   options.requests.push({
     method: options.method,
@@ -545,7 +599,8 @@ function authenticatedSession(headers) {
     .filter(Boolean);
   const access = cookiePairs.find((item) => item.startsWith("mk_access="));
   const xsrf = cookiePairs.find((item) => item.startsWith("XSRF-TOKEN="));
-  if (!access || !xsrf) throw new Error("登录响应未返回 mk_access 与 XSRF-TOKEN");
+  if (!access || !xsrf)
+    throw new Error("登录响应未返回 mk_access 与 XSRF-TOKEN");
   return {
     cookie: cookiePairs.join("; "),
     xsrf: decodeURIComponent(xsrf.slice("XSRF-TOKEN=".length)),
@@ -597,7 +652,8 @@ function account(options) {
 function stripTransientSecrets(plan) {
   delete plan.platform.takeover.initialPassword;
   for (const scope of [plan.platform, plan.rehearsal]) {
-    for (const value of Object.values(scope.accounts)) delete value.initialPassword;
+    for (const value of Object.values(scope.accounts))
+      delete value.initialPassword;
   }
   return plan;
 }
@@ -616,7 +672,12 @@ function validateScope(scope, name, expectedTenantId) {
     throw new Error(`${name}.accounts 必须恰好包含四职责`);
   }
   for (const role of ASSIGNABLE_ROLES) {
-    validateAccount(scope.accounts[role], `${name}.accounts.${role}`, expectedTenantId, role);
+    validateAccount(
+      scope.accounts[role],
+      `${name}.accounts.${role}`,
+      expectedTenantId,
+      role,
+    );
   }
 }
 
@@ -631,7 +692,14 @@ function validateRehearsalHospital(value) {
 
 function validateAccount(value, label, tenantId, role) {
   requireObject(value, label);
-  for (const field of ["tenantId", "userId", "username", "displayName", "role", "password"]) {
+  for (const field of [
+    "tenantId",
+    "userId",
+    "username",
+    "displayName",
+    "role",
+    "password",
+  ]) {
     requireText(value[field], `${label}.${field}`);
   }
   if (value.tenantId !== tenantId || value.role !== role) {
@@ -651,7 +719,12 @@ function rejectInitialPassword(value) {
 }
 
 function assertAllowedPath(method, requestPath) {
-  if (!ALLOWED_PATHS.some(([allowedMethod, pattern]) => allowedMethod === method && pattern.test(requestPath))) {
+  if (
+    !ALLOWED_PATHS.some(
+      ([allowedMethod, pattern]) =>
+        allowedMethod === method && pattern.test(requestPath),
+    )
+  ) {
     throw new Error(`接管脚本拒绝未列入白名单的接口 ${method} ${requestPath}`);
   }
 }
@@ -659,7 +732,10 @@ function assertAllowedPath(method, requestPath) {
 function outsideRepo(value, repoRoot, label) {
   const target = path.resolve(requireText(value, label));
   const relative = path.relative(repoRoot, target);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error(`${label}必须位于代码仓库之外`);
   }
   return target;
@@ -668,7 +744,10 @@ function outsideRepo(value, repoRoot, label) {
 function normalizeBaseUrl(value) {
   const normalized = requireText(value, "apiBaseUrl").replace(/\/+$/u, "");
   const parsed = new URL(normalized);
-  if (!/^https?:$/u.test(parsed.protocol) || !parsed.pathname.endsWith("/api/v1")) {
+  if (
+    !/^https?:$/u.test(parsed.protocol) ||
+    !parsed.pathname.endsWith("/api/v1")
+  ) {
     throw new Error("上线 API 地址必须是以 /api/v1 结尾的 HTTP(S) 地址");
   }
   return normalized;
@@ -679,7 +758,9 @@ function securePassword(label) {
 }
 
 function toIso(value) {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function now(clock) {

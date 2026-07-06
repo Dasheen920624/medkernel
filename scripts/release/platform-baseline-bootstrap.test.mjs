@@ -10,7 +10,10 @@ import {
 } from "./platform-baseline-bootstrap-lib.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
-  new URL("../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json", import.meta.url),
+  new URL(
+    "../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json",
+    import.meta.url,
+  ),
 );
 
 test("平台基线启动配置复用平台 engine-operator 且证据固定在仓库外", () => {
@@ -18,7 +21,8 @@ test("平台基线启动配置复用平台 engine-operator 且证据固定在仓
   const config = readPlatformBaselineBootstrapConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
     },
     {
@@ -48,9 +52,16 @@ test("清库时先固化字段目录草稿再发布平台标准版本并回读�
   assert.equal(evidence.stage, "PLATFORM_BASELINE_BOOTSTRAP");
   assert.equal(evidence.reused, false);
   assert.equal(evidence.fieldCatalog.assetType, "FIELD_CATALOG");
-  assert.equal(evidence.fieldCatalog.assetIdentity, "FIELD.CATALOG.CLINICAL_CONTEXT");
+  assert.equal(
+    evidence.fieldCatalog.assetIdentity,
+    "FIELD.CATALOG.CLINICAL_CONTEXT",
+  );
   assert.equal(evidence.fieldCatalog.entryState, "ACTIVE");
   assert.equal(evidence.baseline.revisionNo, 1);
+  assert.deepEqual(
+    evidence.launchCoverage.versionedAssets.map((item) => item.code),
+    ["FIELD_CATALOG"],
+  );
   assert.deepEqual(
     requests.map((item) => `${item.method} ${item.path}`),
     [
@@ -105,7 +116,9 @@ test("已存在含字段目录的当前平台标准版本时只复用并写证�
   const evidence = await runPlatformBaselineBootstrap({
     apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
     operator: readyCredentials().platform.accounts["engine-operator"],
-    fetchImpl: createPlatformBaselineFetch(requests, { currentInitiallyExists: true }),
+    fetchImpl: createPlatformBaselineFetch(requests, {
+      currentInitiallyExists: true,
+    }),
     now: () => "2026-06-22T08:40:00.000Z",
   });
 
@@ -113,10 +126,7 @@ test("已存在含字段目录的当前平台标准版本时只复用并写证�
   assert.equal(evidence.reused, true);
   assert.deepEqual(
     requests.map((item) => `${item.method} ${item.path}`),
-    [
-      "POST /auth/login",
-      "GET /engine/releases/platform-baselines/current",
-    ],
+    ["POST /auth/login", "GET /engine/releases/platform-baselines/current"],
   );
 });
 
@@ -139,7 +149,8 @@ function readyCredentials() {
   });
   delete credentials.platform.takeover.initialPassword;
   for (const scope of [credentials.platform, credentials.rehearsal]) {
-    for (const account of Object.values(scope.accounts)) delete account.initialPassword;
+    for (const account of Object.values(scope.accounts))
+      delete account.initialPassword;
   }
   return credentials;
 }
@@ -169,14 +180,25 @@ function createPlatformBaselineFetch(requests, options = {}) {
         "mk_access=session; Path=/; HttpOnly, XSRF-TOKEN=xsrf; Path=/",
       );
     }
-    if (method === "GET" && path === "/engine/releases/platform-baselines/current") {
+    if (
+      method === "GET" &&
+      path === "/engine/releases/platform-baselines/current"
+    ) {
       return published
-        ? response({ data: platformBaselineDetail({ includeKnowledge: baselineHasKnowledge }) })
-        : response({ code: "ENG-API-005", detail: "平台尚未发布标准版本" }, 404);
+        ? response({
+            data: platformBaselineDetail({
+              includeKnowledge: baselineHasKnowledge,
+            }),
+          })
+        : response(
+            { code: "ENG-API-005", detail: "平台尚未发布标准版本" },
+            404,
+          );
     }
     if (
       method === "GET" &&
-      path === "/engine/releases/platform-baselines/candidates?assetType=KNOWLEDGE&page=1&size=200"
+      path ===
+        "/engine/releases/platform-baselines/candidates?assetType=KNOWLEDGE&page=1&size=200"
     ) {
       if (!options.knowledgeCandidates) {
         return response({ data: { items: [], page: 1, size: 200, total: 0 } });
@@ -203,9 +225,10 @@ function createPlatformBaselineFetch(requests, options = {}) {
     }
     if (method === "POST" && path === "/engine/releases/platform-baselines") {
       published = true;
-      baselineHasKnowledge = body.publishVersionIds?.some((value) =>
-        String(value).startsWith("knowledge-"),
-      ) === true;
+      baselineHasKnowledge =
+        body.publishVersionIds?.some((value) =>
+          String(value).startsWith("knowledge-"),
+        ) === true;
       return response({
         data: {
           baselineReleaseId: "baseline-1",
@@ -275,7 +298,9 @@ function response(payload, status = 200, setCookie = "") {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null) },
+    headers: {
+      get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null),
+    },
     text: async () => text,
   };
 }

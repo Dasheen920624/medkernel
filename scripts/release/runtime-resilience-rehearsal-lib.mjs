@@ -6,10 +6,14 @@ import {
   selectLaunchAccount,
   validateLaunchCredentials,
 } from "./launch-account-bootstrap-lib.mjs";
+import { launchCoverageClaims } from "./stage-launch-coverage-lib.mjs";
 
 const CAPABILITY = "knowledge.production.knowledge";
 const EXPECTED_B0_EVIDENCE_COUNT = 17;
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 const API_ALLOWLIST = Object.freeze([
   ["POST", /^\/auth\/login$/u],
   ["GET", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}$/u],
@@ -61,7 +65,8 @@ export async function runRuntimeResilienceRehearsal(options) {
   const operator = requireOperator(options?.operator);
   const providerCode = normalizeProviderCode(options?.providerCode);
   const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("当前 Node.js 运行时不支持 fetch");
+  if (typeof fetchImpl !== "function")
+    throw new Error("当前 Node.js 运行时不支持 fetch");
 
   const requests = [];
   const startedAt = now(options?.now);
@@ -101,14 +106,19 @@ export async function runRuntimeResilienceRehearsal(options) {
     path: `/model-providers/${providerCode}/disable`,
     body: {
       capabilityCode: null,
-      reason: "134 完整上线韧性演练：确认模型关闭期间诚实降级且 B0 核心继续运行",
+      reason:
+        "134 完整上线韧性演练：确认模型关闭期间诚实降级且 B0 核心继续运行",
       expectedVersion: initial.data.version,
       confirmedHighRisk: true,
     },
     label: "当前操作者确认停用 Provider",
   });
   assertProviderSnapshot(disabled.data, providerCode, false, "HEALTHY");
-  assertVersionAdvanced(initial.data.version, disabled.data.version, "停用 Provider");
+  assertVersionAdvanced(
+    initial.data.version,
+    disabled.data.version,
+    "停用 Provider",
+  );
 
   let disabledReadiness;
   let b0Summary;
@@ -151,7 +161,11 @@ export async function runRuntimeResilienceRehearsal(options) {
       label: "恢复前执行 Provider 真实探活",
     });
     assertProviderSnapshot(health.data, providerCode, false, "HEALTHY");
-    assertVersionAdvanced(disabled.data.version, health.data.version, "Provider 真实探活");
+    assertVersionAdvanced(
+      disabled.data.version,
+      health.data.version,
+      "Provider 真实探活",
+    );
 
     restored = await requestJson({
       apiBaseUrl,
@@ -169,7 +183,11 @@ export async function runRuntimeResilienceRehearsal(options) {
       label: "当前操作者确认恢复 Provider",
     });
     assertProviderSnapshot(restored.data, providerCode, true, "HEALTHY");
-    assertVersionAdvanced(health.data.version, restored.data.version, "恢复 Provider");
+    assertVersionAdvanced(
+      health.data.version,
+      restored.data.version,
+      "恢复 Provider",
+    );
 
     restoredReadiness = await requestReadiness({
       apiBaseUrl,
@@ -216,6 +234,14 @@ export async function runRuntimeResilienceRehearsal(options) {
       readinessReady: restoredReadiness.data.ready,
       modelInvocationAllowed: restoredReadiness.data.modelInvocationAllowed,
     },
+    launchCoverage: launchCoverageClaims(
+      [
+        ["deliveryShapes", "ENGINE_CORE"],
+        ["serviceCombinations", "QUALITY_IMPROVEMENT"],
+        ["serviceCombinations", "COMPLIANCE_OPERATIONS"],
+      ],
+      now(options?.now),
+    ),
     requests,
   };
 }
@@ -288,7 +314,8 @@ function assertB0Evidence(data) {
   return {
     evidenceCount: data.length,
     passedCount: passed.length,
-    modelRequiredCount: data.filter((item) => item?.modelRequired === true).length,
+    modelRequiredCount: data.filter((item) => item?.modelRequired === true)
+      .length,
   };
 }
 
@@ -308,19 +335,35 @@ function assertProviderSnapshot(data, providerCode, enabled, status) {
 }
 
 function assertVersionAdvanced(previous, current, label) {
-  if (!Number.isInteger(previous) || !Number.isInteger(current) || current <= previous) {
+  if (
+    !Number.isInteger(previous) ||
+    !Number.isInteger(current) ||
+    current <= previous
+  ) {
     throw new Error(`${label} 后关系库版本没有递增`);
   }
 }
 
 function assertOperatorLogin(data, operator) {
-  if (!data || data.tenantId !== operator.tenantId || data.userId !== operator.userId) {
+  if (
+    !data ||
+    data.tenantId !== operator.tenantId ||
+    data.userId !== operator.userId
+  ) {
     throw new Error("运行韧性演练登录身份与统一凭据不一致");
   }
-  if (data.mustChangePwd !== false || data.mfaRequired !== false || data.mfaBound !== false) {
+  if (
+    data.mustChangePwd !== false ||
+    data.mfaRequired !== false ||
+    data.mfaBound !== false
+  ) {
     throw new Error("运行韧性演练账号必须完成改密且默认 MFA 关闭");
   }
-  if (!Array.isArray(data.roles) || data.roles.length !== 1 || data.roles[0] !== "engine-operator") {
+  if (
+    !Array.isArray(data.roles) ||
+    data.roles.length !== 1 ||
+    data.roles[0] !== "engine-operator"
+  ) {
     throw new Error("运行韧性演练必须由且仅由医疗引擎运营员执行");
   }
 }
@@ -337,17 +380,23 @@ async function requestJson(options) {
     headers.Cookie = options.session.cookie;
     headers["X-XSRF-TOKEN"] = options.session.xsrf;
   }
-  const response = await options.fetchImpl(`${options.apiBaseUrl}${options.path}`, {
-    method: options.method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const response = await options.fetchImpl(
+    `${options.apiBaseUrl}${options.path}`,
+    {
+      method: options.method,
+      headers,
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
+    },
+  );
   const raw = await response.text();
   let payload;
   try {
     payload = raw ? JSON.parse(raw) : {};
   } catch {
-    throw new Error(`${options.label} 返回的不是合法 JSON（HTTP ${response.status}）`);
+    throw new Error(
+      `${options.label} 返回的不是合法 JSON（HTTP ${response.status}）`,
+    );
   }
   options.requests.push({
     method: options.method,
@@ -373,7 +422,8 @@ function authenticatedSession(headers) {
     .filter(Boolean);
   const access = pairs.find((item) => item.startsWith("mk_access="));
   const xsrf = pairs.find((item) => item.startsWith("XSRF-TOKEN="));
-  if (!access || !xsrf) throw new Error("登录响应未返回 mk_access 与 XSRF-TOKEN");
+  if (!access || !xsrf)
+    throw new Error("登录响应未返回 mk_access 与 XSRF-TOKEN");
   return {
     cookie: pairs.join("; "),
     xsrf: decodeURIComponent(xsrf.slice("XSRF-TOKEN=".length)),
@@ -382,9 +432,13 @@ function authenticatedSession(headers) {
 
 function assertAllowedPath(method, requestPath) {
   const allowed = API_ALLOWLIST.some(
-    ([allowedMethod, pattern]) => allowedMethod === method && pattern.test(requestPath),
+    ([allowedMethod, pattern]) =>
+      allowedMethod === method && pattern.test(requestPath),
   );
-  if (!allowed) throw new Error(`运行韧性脚本拒绝未列入白名单的接口 ${method} ${requestPath}`);
+  if (!allowed)
+    throw new Error(
+      `运行韧性脚本拒绝未列入白名单的接口 ${method} ${requestPath}`,
+    );
 }
 
 function requireOperator(operator) {
@@ -403,13 +457,18 @@ function requireOperator(operator) {
 function normalizeProviderCode(value) {
   const code = requireText(value, "Provider 编码").toLowerCase();
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(code)) {
-    throw new Error("Provider 编码只能包含小写字母、数字、点、下划线和连字符，最长 64 位");
+    throw new Error(
+      "Provider 编码只能包含小写字母、数字、点、下划线和连字符，最长 64 位",
+    );
   }
   return code;
 }
 
 function normalizeApiBaseUrl(value) {
-  const normalized = requireText(value, "LAUNCH_API_BASE_URL").replace(/\/+$/u, "");
+  const normalized = requireText(value, "LAUNCH_API_BASE_URL").replace(
+    /\/+$/u,
+    "",
+  );
   const parsed = new URL(normalized);
   const loopback = ["127.0.0.1", "localhost", "::1"].includes(parsed.hostname);
   if (
@@ -417,7 +476,9 @@ function normalizeApiBaseUrl(value) {
     !parsed.pathname.endsWith("/api/v1") ||
     (parsed.protocol !== "https:" && !loopback)
   ) {
-    throw new Error("上线 API 必须使用 HTTPS，或仅在回环地址使用 HTTP，并以 /api/v1 结尾");
+    throw new Error(
+      "上线 API 必须使用 HTTPS，或仅在回环地址使用 HTTP，并以 /api/v1 结尾",
+    );
   }
   return normalized;
 }
@@ -425,7 +486,10 @@ function normalizeApiBaseUrl(value) {
 function outsideRepo(value, repoRoot, label) {
   const target = path.resolve(requireText(value, label));
   const relative = path.relative(repoRoot, target);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error(`${label}必须位于代码仓库之外`);
   }
   return target;
@@ -441,7 +505,9 @@ function parseJson(raw, label) {
 
 function now(clock) {
   const value = clock ? clock() : new Date();
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function errorMessage(error) {

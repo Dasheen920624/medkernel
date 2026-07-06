@@ -14,6 +14,7 @@ import {
   selectLaunchAccount,
   validateLaunchCredentials,
 } from "../release/launch-account-bootstrap-lib.mjs";
+import { launchCoverageClaims } from "../release/stage-launch-coverage-lib.mjs";
 
 export const FULL_KNOWLEDGE_DOMAINS = Object.freeze([
   "GUIDELINE",
@@ -75,16 +76,28 @@ const API_ALLOWLIST = Object.freeze([
   ["GET", /^\/engine\/knowledge-production\/readiness\?/u],
   ["POST", /^\/engine\/knowledge-production\/jobs$/u],
   ["POST", /^\/engine\/knowledge-production\/jobs\/[^/?]+\/model-candidates$/u],
-  ["POST", /^\/engine\/knowledge-production\/jobs\/[^/?]+\/publication-quality-records$/u],
-  ["GET", /^\/engine\/knowledge-production\/jobs\/[^/?]+\/(gate-results|triage-results|shadow-runs)$/u],
+  [
+    "POST",
+    /^\/engine\/knowledge-production\/jobs\/[^/?]+\/publication-quality-records$/u,
+  ],
+  [
+    "GET",
+    /^\/engine\/knowledge-production\/jobs\/[^/?]+\/(gate-results|triage-results|shadow-runs)$/u,
+  ],
   ["POST", /^\/engine\/knowledge-production\/jobs\/[^/?]+\/complete$/u],
   ["POST", /^\/engine\/knowledge\/sources$/u],
   ["POST", /^\/engine\/knowledge\/sources\/\d+\/versions$/u],
   ["POST", /^\/engine\/knowledge\/sources\/fragments$/u],
   ["POST", /^\/engine\/knowledge\/citations$/u],
   ["GET", /^\/engine\/knowledge\/identities\/by-code\/[^/?]+$/u],
-  ["GET", /^\/engine\/knowledge\/identities\/\d+\/(candidates|versions)(\?|$)/u],
-  ["GET", /^\/engine\/knowledge\/identities\/\d+\/(active|provenance|citations|source-evidence)$/u],
+  [
+    "GET",
+    /^\/engine\/knowledge\/identities\/\d+\/(candidates|versions)(\?|$)/u,
+  ],
+  [
+    "GET",
+    /^\/engine\/knowledge\/identities\/\d+\/(active|provenance|citations|source-evidence)$/u,
+  ],
   ["POST", /^\/engine\/knowledge\/candidates\/\d+\/review$/u],
   ["POST", /^\/engine\/knowledge\/identities\/\d+\/versions\/\d+\/activate$/u],
 ]);
@@ -113,7 +126,10 @@ export function validateFullKnowledgeManifest(manifest) {
   if (manifest.capabilityCode !== CAPABILITY) {
     throw new Error(`正式知识能力码必须为 ${CAPABILITY}`);
   }
-  if (!Array.isArray(manifest.entries) || manifest.entries.length !== DOMAIN_SET.size) {
+  if (
+    !Array.isArray(manifest.entries) ||
+    manifest.entries.length !== DOMAIN_SET.size
+  ) {
     throw new Error("全知识演练必须恰好包含 11 个知识域条目");
   }
 
@@ -138,7 +154,11 @@ export function validateFullKnowledgeManifest(manifest) {
   return manifest;
 }
 
-export function buildModelPrompt(entry, template, revisionNote = "V1 初始候选") {
+export function buildModelPrompt(
+  entry,
+  template,
+  revisionNote = "V1 初始候选",
+) {
   validateTemplate(template, entry.domain);
   const sections = template.sections.map((section) => ({
     key: section.key,
@@ -214,7 +234,8 @@ export function buildPublicationQualityRecordRequest({
 
 export function isAcceptableShadowRun(shadowRun) {
   return (
-    (shadowRun?.status === "PASSED" || shadowRun?.status === "PENDING_REVIEW") &&
+    (shadowRun?.status === "PASSED" ||
+      shadowRun?.status === "PENDING_REVIEW") &&
     shadowRun.readyForReview === true &&
     shadowRun.degradationDetected !== true
   );
@@ -243,7 +264,11 @@ export function readRehearsalConfig(env, options = {}) {
   );
   validateLaunchCredentials(credentials);
   const tenantId = credentials.platform.tenantId;
-  const account = selectLaunchAccount(credentials, "platform", "engine-operator");
+  const account = selectLaunchAccount(
+    credentials,
+    "platform",
+    "engine-operator",
+  );
   if (account.role !== "engine-operator") {
     throw new Error("正式全知识演练必须使用 engine-operator 职责");
   }
@@ -292,7 +317,8 @@ export function writeEvidenceAtomic(outputPath, evidence) {
 }
 
 export function formatFullKnowledgeProgress(event) {
-  if (!event || typeof event !== "object") return "[full-knowledge] 进度事件无效";
+  if (!event || typeof event !== "object")
+    return "[full-knowledge] 进度事件无效";
   switch (event.type) {
     case "stage-start":
       return `[full-knowledge] 开始全知识演练：${event.total} 个知识域，Provider=${event.providerCode}`;
@@ -325,11 +351,16 @@ export function formatFullKnowledgeProgress(event) {
 export async function verifyOfficialSource(entry, options = {}) {
   const source = entry?.source;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("当前 Node.js 运行时不支持 fetch");
-  const sourceUrl = new URL(requireText(source?.url, `${entry?.domain ?? "知识"}.source.url`));
-  if (sourceUrl.protocol !== "https:") throw new Error("正式知识来源必须使用 HTTPS");
-  const allowedHosts = requireArray(source?.allowedHosts, "来源允许主机")
-    .map((host) => requireText(host, "来源允许主机"));
+  if (typeof fetchImpl !== "function")
+    throw new Error("当前 Node.js 运行时不支持 fetch");
+  const sourceUrl = new URL(
+    requireText(source?.url, `${entry?.domain ?? "知识"}.source.url`),
+  );
+  if (sourceUrl.protocol !== "https:")
+    throw new Error("正式知识来源必须使用 HTTPS");
+  const allowedHosts = requireArray(source?.allowedHosts, "来源允许主机").map(
+    (host) => requireText(host, "来源允许主机"),
+  );
   if (!allowedHosts.includes(sourceUrl.hostname)) {
     throw new Error(`来源主机不在允许主机：${sourceUrl.hostname}`);
   }
@@ -350,20 +381,28 @@ export async function verifyOfficialSource(entry, options = {}) {
   if (!response.ok) {
     throw new Error(`${entry.domain} 官方来源返回 HTTP ${response.status}`);
   }
-  const effectiveUrl = new URL(options.effectiveUrl ?? response.url ?? source.url);
+  const effectiveUrl = new URL(
+    options.effectiveUrl ?? response.url ?? source.url,
+  );
   if (!allowedHosts.includes(effectiveUrl.hostname)) {
     throw new Error(`来源重定向主机不在允许主机：${effectiveUrl.hostname}`);
   }
   const body = await response.text();
   const normalizedBody = body.toLocaleLowerCase("en-US");
-  const verificationTerms = requireArray(source.verificationTerms, "来源核验词")
-    .map((term) => requireText(term, "来源核验词"));
+  const verificationTerms = requireArray(
+    source.verificationTerms,
+    "来源核验词",
+  ).map((term) => requireText(term, "来源核验词"));
   const matchedTerms = verificationTerms.filter((term) =>
     normalizedBody.includes(term.toLocaleLowerCase("en-US")),
   );
   if (matchedTerms.length !== verificationTerms.length) {
-    const missing = verificationTerms.filter((term) => !matchedTerms.includes(term));
-    throw new Error(`${entry.domain} 官方来源缺少核验词：${missing.join("、")}`);
+    const missing = verificationTerms.filter(
+      (term) => !matchedTerms.includes(term),
+    );
+    throw new Error(
+      `${entry.domain} 官方来源缺少核验词：${missing.join("、")}`,
+    );
   }
   return {
     domain: entry.domain,
@@ -381,7 +420,8 @@ export async function verifyOfficialSource(entry, options = {}) {
 export async function runFullKnowledgeRehearsal(options) {
   const manifest = validateFullKnowledgeManifest(options?.manifest);
   const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("当前 Node.js 运行时不支持 fetch");
+  if (typeof fetchImpl !== "function")
+    throw new Error("当前 Node.js 运行时不支持 fetch");
   const config = {
     apiBaseUrl: normalizeBaseUrl(options?.apiBaseUrl),
     tenantId: requireText(options?.tenantId, "tenantId"),
@@ -549,7 +589,9 @@ export async function runFullKnowledgeRehearsal(options) {
     evidence.coverage.publishedDomains.push(entry.domain);
     evidence.observability.completedDomains = completedDomains;
     evidence.observability.remainingDomains = totalDomains - completedDomains;
-    evidence.observability.modelTasks.push(modelTaskProgress(entry.domain, "V1", result.evidence));
+    evidence.observability.modelTasks.push(
+      modelTaskProgress(entry.domain, "V1", result.evidence),
+    );
     progress({
       type: "domain-complete",
       phase: "V1",
@@ -587,7 +629,9 @@ export async function runFullKnowledgeRehearsal(options) {
     revisionNote: "V2 演练：补强来源版本、适用边界和不可推断说明",
     now: options?.now,
   });
-  evidence.observability.modelTasks.push(modelTaskProgress(rollbackEntry.domain, "V2", v2.evidence));
+  evidence.observability.modelTasks.push(
+    modelTaskProgress(rollbackEntry.domain, "V2", v2.evidence),
+  );
   progress({
     type: "version-refresh-complete",
     phase: "V2",
@@ -632,12 +676,20 @@ export async function runFullKnowledgeRehearsal(options) {
   };
 
   if (
-    new Set(evidence.coverage.publishedDomains).size !== FULL_KNOWLEDGE_DOMAINS.length
+    new Set(evidence.coverage.publishedDomains).size !==
+    FULL_KNOWLEDGE_DOMAINS.length
   ) {
     throw new Error("正式知识发布结果没有唯一覆盖全部 11 个知识域");
   }
   evidence.status = "PASSED";
   evidence.finishedAt = now(options?.now);
+  evidence.launchCoverage = launchCoverageClaims(
+    evidence.coverage.publishedDomains.map((domain) => [
+      "knowledgeDomains",
+      domain,
+    ]),
+    evidence.finishedAt,
+  );
   progress({
     type: "stage-complete",
     status: evidence.status,
@@ -671,7 +723,10 @@ async function prepareSource(args) {
       label: `${entry.domain} 登记官方来源`,
     })
   ).data;
-  if (!sourceDocument?.id || sourceDocument.sourceCode !== entry.source.sourceCode) {
+  if (
+    !sourceDocument?.id ||
+    sourceDocument.sourceCode !== entry.source.sourceCode
+  ) {
     throw new Error(`${entry.domain} 来源登记结果不一致`);
   }
   const content = stableJson({
@@ -791,7 +846,10 @@ async function produceAndPublish(args) {
     })
   ).data;
   const modelTaskFinishedAt = now(args.now);
-  const modelTaskDurationMs = elapsedMs(modelTaskStartedAt, modelTaskFinishedAt);
+  const modelTaskDurationMs = elapsedMs(
+    modelTaskStartedAt,
+    modelTaskFinishedAt,
+  );
   const candidate = assertModelGeneration(generated, entry.domain);
   const parsedRef = parseCandidateRef(candidate.candidateRef);
 
@@ -820,9 +878,10 @@ async function produceAndPublish(args) {
       label: `${entry.domain} 读取候选审核项`,
     })
   ).data;
-  const version = requireArray(candidateView?.candidates?.items, "候选版本列表").find(
-    (item) => item?.versionNo === parsedRef.versionNo,
-  );
+  const version = requireArray(
+    candidateView?.candidates?.items,
+    "候选版本列表",
+  ).find((item) => item?.versionNo === parsedRef.versionNo);
   const classification = requireArray(
     candidateView?.classifications,
     "候选分类列表",
@@ -875,14 +934,21 @@ async function produceAndPublish(args) {
       body: {
         ...apiContext(args),
         decision: "APPROVE",
-        reason: "低风险上线演练知识：来源、结构、引用、安全门和影响评估均已核对",
+        reason:
+          "低风险上线演练知识：来源、结构、引用、安全门和影响评估均已核对",
         qualityGateRecordId: qualityRecord.id,
       },
       label: `${entry.domain} 当前责任操作者确认并发布`,
     })
   ).data;
-  const activeVersion = requireArray(reviewed?.candidates?.items, "发布版本列表")[0];
-  if (reviewed?.reasonCode !== "APPROVED" || activeVersion?.status !== "ACTIVE") {
+  const activeVersion = requireArray(
+    reviewed?.candidates?.items,
+    "发布版本列表",
+  )[0];
+  if (
+    reviewed?.reasonCode !== "APPROVED" ||
+    activeVersion?.status !== "ACTIVE"
+  ) {
     throw new Error(`${entry.domain} 候选未原子激活为 ACTIVE`);
   }
   await requestJson({
@@ -891,7 +957,11 @@ async function produceAndPublish(args) {
     path: `/engine/knowledge-production/jobs/${encodeURIComponent(job.jobCode)}/complete`,
     label: `${entry.domain} 完成正式生产任务`,
   });
-  const runtimeEvidence = await assertRuntimeEvidence(args, identity.id, activeVersion.id);
+  const runtimeEvidence = await assertRuntimeEvidence(
+    args,
+    identity.id,
+    activeVersion.id,
+  );
   return {
     identityId: identity.id,
     versionId: activeVersion.id,
@@ -934,14 +1004,26 @@ async function assertTechnicalEvidence(args, jobCode) {
         label,
       })
     ).data;
-  const gates = requireArray(await read("gate-results", "读取候选安全门"), "安全门结果");
-  const triage = requireArray(await read("triage-results", "读取候选分流"), "分流结果");
-  const shadow = requireArray(await read("shadow-runs", "读取影子评测"), "影子评测结果");
+  const gates = requireArray(
+    await read("gate-results", "读取候选安全门"),
+    "安全门结果",
+  );
+  const triage = requireArray(
+    await read("triage-results", "读取候选分流"),
+    "分流结果",
+  );
+  const shadow = requireArray(
+    await read("shadow-runs", "读取影子评测"),
+    "影子评测结果",
+  );
   if (gates.length === 0 || gates.some((item) => item?.passed !== true)) {
     throw new Error("候选存在未通过或缺失的安全门结果");
   }
   const finalTriage = triage.at(-1);
-  if (!finalTriage?.action?.endsWith("REVIEW") || finalTriage.action === "SKIP_DUPLICATE") {
+  if (
+    !finalTriage?.action?.endsWith("REVIEW") ||
+    finalTriage.action === "SKIP_DUPLICATE"
+  ) {
     throw new Error("候选没有进入真实审核分流");
   }
   const finalShadow = shadow.at(-1);
@@ -968,7 +1050,10 @@ async function assertRuntimeEvidence(args, identityId, versionId) {
     ).data;
   const active = await read("active", "读取当前权威知识");
   const provenance = await read("provenance", "读取知识血缘");
-  const citations = requireArray(await read("citations", "读取知识引用"), "知识引用");
+  const citations = requireArray(
+    await read("citations", "读取知识引用"),
+    "知识引用",
+  );
   const sourceEvidence = requireArray(
     await read("source-evidence", "读取来源证据"),
     "来源证据",
@@ -1011,7 +1096,10 @@ async function exerciseRollback(args) {
     "回滚验证后恢复 V2 当前版本",
   );
   const restoredActive = await readActive(args);
-  if (rollbackActive.id !== args.v1VersionId || restoredActive.id !== args.v2VersionId) {
+  if (
+    rollbackActive.id !== args.v1VersionId ||
+    restoredActive.id !== args.v2VersionId
+  ) {
     throw new Error("知识版本回滚或恢复结果不一致");
   }
   return {
@@ -1042,7 +1130,10 @@ function assertModelGeneration(generated, domain) {
   ) {
     throw new Error(`${domain} 未使用真实非 B0 模型生成候选`);
   }
-  const candidates = requireArray(generated.summary?.candidates, "模型候选列表");
+  const candidates = requireArray(
+    generated.summary?.candidates,
+    "模型候选列表",
+  );
   const blocked = requireArray(generated.summary?.blocked, "模型阻断列表");
   const skipped = requireArray(generated.summary?.skipped, "模型跳过列表");
   if (candidates.length !== 1 || blocked.length !== 0 || skipped.length !== 0) {
@@ -1055,8 +1146,10 @@ function assertLaunchLogin(data, operator) {
   if (!data || data.tenantId !== operator.tenantId) {
     throw new Error("登录租户与受控账号不一致");
   }
-  if (data.mustChangePwd === true) throw new Error("演练账号仍要求修改初始密码");
-  if (data.mfaRequired === true) throw new Error("上线默认配置错误：MFA 应保持关闭");
+  if (data.mustChangePwd === true)
+    throw new Error("演练账号仍要求修改初始密码");
+  if (data.mfaRequired === true)
+    throw new Error("上线默认配置错误：MFA 应保持关闭");
   if (!Array.isArray(data.roles) || !data.roles.includes("engine-operator")) {
     throw new Error("登录账号未获得 engine-operator 职责");
   }
@@ -1065,7 +1158,9 @@ function assertLaunchLogin(data, operator) {
 function assertTemplateCoverage(value) {
   const templates = requireArray(value, "专业资产模板");
   const knowledge = templates.filter((item) => item?.assetType === "KNOWLEDGE");
-  const byDomain = new Map(knowledge.map((item) => [item.knowledgeDomain, item]));
+  const byDomain = new Map(
+    knowledge.map((item) => [item.knowledgeDomain, item]),
+  );
   if (
     knowledge.length !== FULL_KNOWLEDGE_DOMAINS.length ||
     FULL_KNOWLEDGE_DOMAINS.some((domain) => !byDomain.has(domain))
@@ -1074,7 +1169,8 @@ function assertTemplateCoverage(value) {
   }
   return {
     byDomain,
-    structuralCount: templates.filter((item) => item?.assetType !== "KNOWLEDGE").length,
+    structuralCount: templates.filter((item) => item?.assetType !== "KNOWLEDGE")
+      .length,
   };
 }
 
@@ -1102,7 +1198,8 @@ function assertReadiness(data, config) {
 
 function parseCandidateRef(value) {
   const match = /^kv:(\d+):(.+)$/u.exec(requireText(value, "candidateRef"));
-  if (!match) throw new Error("模型候选引用不是标准 kv:<identityId>:<versionNo>");
+  if (!match)
+    throw new Error("模型候选引用不是标准 kv:<identityId>:<versionNo>");
   return { identityId: Number(match[1]), versionNo: match[2] };
 }
 
@@ -1124,7 +1221,9 @@ async function requestJson({
         normalizedMethod === allowedMethod && pattern.test(normalizedPath),
     )
   ) {
-    throw new Error(`请求不在正式全知识演练白名单：${normalizedMethod} ${normalizedPath}`);
+    throw new Error(
+      `请求不在正式全知识演练白名单：${normalizedMethod} ${normalizedPath}`,
+    );
   }
   const headers = {
     Accept: "application/json",
@@ -1147,16 +1246,26 @@ async function requestJson({
   } catch (error) {
     throw new Error(`${label}请求失败：${safeMessage(error)}`);
   }
-  requests.push({ method: normalizedMethod, path: normalizedPath, status: response.status });
+  requests.push({
+    method: normalizedMethod,
+    path: normalizedPath,
+    status: response.status,
+  });
   const text = await response.text();
   const parsed = text ? parseJson(text, `${label}响应`) : null;
   if (response.status !== 200) {
-    throw new Error(`${label}返回 HTTP ${response.status}：${safeApiMessage(parsed)}`);
+    throw new Error(
+      `${label}返回 HTTP ${response.status}：${safeApiMessage(parsed)}`,
+    );
   }
   if (parsed?.success === false) {
     throw new Error(`${label}业务响应失败：${safeApiMessage(parsed)}`);
   }
-  return { data: parsed?.data ?? null, body: parsed, headers: response.headers };
+  return {
+    data: parsed?.data ?? null,
+    body: parsed,
+    headers: response.headers,
+  };
 }
 
 function authenticatedSession(headers) {
@@ -1209,7 +1318,8 @@ function validateEntry(entry, index, checkedAt) {
   ]) {
     requireText(entry[field], `entries[${index}].${field}`);
   }
-  if (!DOMAIN_SET.has(entry.domain)) throw new Error(`${entry.domain} 不是正式知识域`);
+  if (!DOMAIN_SET.has(entry.domain))
+    throw new Error(`${entry.domain} 不是正式知识域`);
   if (!PRODUCTION_DOMAINS.has(entry.productionDomain)) {
     throw new Error(`${entry.domain} 的生产责任域无效`);
   }
@@ -1221,7 +1331,8 @@ function validateEntry(entry, index, checkedAt) {
     throw new Error(`${entry.domain} 必须是模型生成的低风险 KNOWLEDGE 候选`);
   }
   const source = entry.source;
-  if (!source || typeof source !== "object") throw new Error(`${entry.domain} 缺少来源`);
+  if (!source || typeof source !== "object")
+    throw new Error(`${entry.domain} 缺少来源`);
   for (const field of [
     "sourceCode",
     "sourceType",
@@ -1243,20 +1354,28 @@ function validateEntry(entry, index, checkedAt) {
   ]) {
     requireText(source[field], `${entry.domain}.source.${field}`);
   }
-  if (!SOURCE_TYPES.has(source.sourceType)) throw new Error(`${entry.domain} 来源类型无效`);
+  if (!SOURCE_TYPES.has(source.sourceType))
+    throw new Error(`${entry.domain} 来源类型无效`);
   if (!AUTHORITY_LEVELS.has(source.authorityLevel)) {
     throw new Error(`${entry.domain} 来源权威级别无效`);
   }
   if (!source.url.startsWith("https://") || source.checkedAt !== checkedAt) {
     throw new Error(`${entry.domain} 官方来源 URL 或核查日期不合规`);
   }
-  if (!["OFFICIAL_PUBLICATION", "VERIFIED_SNAPSHOT"].includes(source.publishedAtBasis)) {
+  if (
+    !["OFFICIAL_PUBLICATION", "VERIFIED_SNAPSHOT"].includes(
+      source.publishedAtBasis,
+    )
+  ) {
     throw new Error(`${entry.domain} 发布日期依据无效`);
   }
   if (!Array.isArray(source.allowedHosts) || source.allowedHosts.length === 0) {
     throw new Error(`${entry.domain} 缺少来源允许主机`);
   }
-  if (!Array.isArray(source.verificationTerms) || source.verificationTerms.length === 0) {
+  if (
+    !Array.isArray(source.verificationTerms) ||
+    source.verificationTerms.length === 0
+  ) {
     throw new Error(`${entry.domain} 缺少来源核验词`);
   }
   const sourceHost = new URL(source.url).hostname;
@@ -1265,7 +1384,9 @@ function validateEntry(entry, index, checkedAt) {
   }
   if (
     source.publishedAtBasis === "OFFICIAL_PUBLICATION" &&
-    !/官方|official|publication|published|edition|release/iu.test(source.publishedAtEvidence)
+    !/官方|official|publication|published|edition|release/iu.test(
+      source.publishedAtEvidence,
+    )
   ) {
     throw new Error(`${entry.domain} 缺少官方发布日期证据`);
   }
@@ -1300,10 +1421,16 @@ function resolveEvidencePath(env, repoRoot) {
     const runtimeRoot = path.resolve(
       requireText(env.MEDKERNEL_RUNTIME_ROOT, "MEDKERNEL_RUNTIME_ROOT"),
     );
-    candidate = path.join(runtimeRoot, "evidence/current-launch/full-knowledge.json");
+    candidate = path.join(
+      runtimeRoot,
+      "evidence/current-launch/full-knowledge.json",
+    );
   }
   const relative = path.relative(repoRoot, candidate);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error("证据路径必须位于仓库之外");
   }
   return candidate;
@@ -1383,7 +1510,8 @@ function requirePositiveInteger(value, label) {
 }
 
 function requireText(value, label) {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`${label}不能为空`);
+  if (typeof value !== "string" || !value.trim())
+    throw new Error(`${label}不能为空`);
   return value.trim();
 }
 
@@ -1437,7 +1565,8 @@ function sha256(value) {
 }
 
 function now(clock) {
-  const value = typeof clock === "function" ? clock() : new Date().toISOString();
+  const value =
+    typeof clock === "function" ? clock() : new Date().toISOString();
   return typeof value === "string" ? value : new Date(value).toISOString();
 }
 

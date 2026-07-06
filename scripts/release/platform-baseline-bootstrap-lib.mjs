@@ -6,10 +6,14 @@ import {
   selectLaunchAccount,
   validateLaunchCredentials,
 } from "./launch-account-bootstrap-lib.mjs";
+import { launchCoverageClaims } from "./stage-launch-coverage-lib.mjs";
 import { validateFullKnowledgeManifest } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
 const FIELD_CATALOG_IDENTITY = "FIELD.CATALOG.CLINICAL_CONTEXT";
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 const API_ALLOWLIST = Object.freeze([
   ["POST", /^\/auth\/login$/u],
   ["GET", /^\/engine\/releases\/platform-baselines\/current$/u],
@@ -43,13 +47,12 @@ export function readPlatformBaselineBootstrapConfig(env, options = {}) {
   const knowledgeManifestPath = hasText(env.FULL_KNOWLEDGE_MANIFEST_PATH)
     ? path.resolve(env.FULL_KNOWLEDGE_MANIFEST_PATH)
     : hasText(env.LAUNCH_PLATFORM_BASELINE_KNOWLEDGE_MANIFEST_PATH)
-    ? path.resolve(env.LAUNCH_PLATFORM_BASELINE_KNOWLEDGE_MANIFEST_PATH)
-    : null;
+      ? path.resolve(env.LAUNCH_PLATFORM_BASELINE_KNOWLEDGE_MANIFEST_PATH)
+      : null;
   const knowledgeManifest = knowledgeManifestPath
-    ? validateFullKnowledgeManifest(parseJson(
-        readFile(knowledgeManifestPath),
-        "全知识演练清单",
-      ))
+    ? validateFullKnowledgeManifest(
+        parseJson(readFile(knowledgeManifestPath), "全知识演练清单"),
+      )
     : null;
   return {
     apiBaseUrl: normalizeApiBaseUrl(env.LAUNCH_API_BASE_URL),
@@ -65,7 +68,8 @@ export async function runPlatformBaselineBootstrap(options) {
   const apiBaseUrl = normalizeApiBaseUrl(options?.apiBaseUrl);
   const operator = requireOperator(options?.operator);
   const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
-  if (typeof fetchImpl !== "function") throw new Error("当前 Node.js 运行时不支持 fetch");
+  if (typeof fetchImpl !== "function")
+    throw new Error("当前 Node.js 运行时不支持 fetch");
 
   const requests = [];
   const startedAt = now(options?.now);
@@ -112,7 +116,10 @@ export async function runPlatformBaselineBootstrap(options) {
     });
   }
   if (current.status === 200) {
-    const fieldCatalog = requireFieldCatalogItem(current.data, "当前平台标准版本");
+    const fieldCatalog = requireFieldCatalogItem(
+      current.data,
+      "当前平台标准版本",
+    );
     const currentKnowledge = summarizeKnowledgeCoverage(
       current.data,
       requiredKnowledgeIdentities,
@@ -142,7 +149,9 @@ export async function runPlatformBaselineBootstrap(options) {
       body: {
         publishVersionIds: knowledgeCandidates
           .filter((candidate) =>
-            currentKnowledge.missingIdentities.includes(candidate.assetIdentity),
+            currentKnowledge.missingIdentities.includes(
+              candidate.assetIdentity,
+            ),
           )
           .map((candidate) => candidate.versionId),
         disabledAssets: [],
@@ -207,9 +216,10 @@ export async function runPlatformBaselineBootstrap(options) {
       ],
       disabledAssets: [],
     },
-    label: requiredKnowledgeIdentities.length > 0
-      ? "发布平台字段目录与全知识权威基线"
-      : "发布平台字段目录权威基线",
+    label:
+      requiredKnowledgeIdentities.length > 0
+        ? "发布平台字段目录与全知识权威基线"
+        : "发布平台字段目录权威基线",
   });
 
   const published = await requestJson({
@@ -219,11 +229,15 @@ export async function runPlatformBaselineBootstrap(options) {
     session,
     method: "GET",
     path: "/engine/releases/platform-baselines/current",
-    label: requiredKnowledgeIdentities.length > 0
-      ? "回读平台字段目录与全知识权威基线"
-      : "回读平台字段目录权威基线",
+    label:
+      requiredKnowledgeIdentities.length > 0
+        ? "回读平台字段目录与全知识权威基线"
+        : "回读平台字段目录权威基线",
   });
-  const fieldCatalog = requireFieldCatalogItem(published.data, "发布后的平台标准版本");
+  const fieldCatalog = requireFieldCatalogItem(
+    published.data,
+    "发布后的平台标准版本",
+  );
   if (fieldCatalog.versionId !== draftVersion.versionId) {
     throw new Error("字段目录平台基线未绑定刚发布的字段目录草稿");
   }
@@ -250,6 +264,10 @@ export async function runPlatformBaselineBootstrap(options) {
 
 function evidence(args) {
   const release = requireRelease(args.baselineDetail?.release);
+  const activeAssetTypes = new Set([
+    args.fieldCatalog.assetType,
+    ...args.knowledgeAssets.map((item) => item.assetType),
+  ]);
   return {
     status: "PASSED",
     stage: "PLATFORM_BASELINE_BOOTSTRAP",
@@ -295,6 +313,10 @@ function evidence(args) {
       versionNo: item.versionNo,
       contentHash: item.contentHash ?? null,
     })),
+    launchCoverage: launchCoverageClaims(
+      [...activeAssetTypes].map((assetType) => ["versionedAssets", assetType]),
+      args.finishedAt,
+    ),
     requests: args.requests,
   };
 }
@@ -309,7 +331,9 @@ async function fetchRequiredKnowledgeCandidates(args) {
     path: "/engine/releases/platform-baselines/candidates?assetType=KNOWLEDGE&page=1&size=200",
     label: "查询可进入平台标准版本的全知识资产",
   });
-  const candidates = Array.isArray(response.data?.items) ? response.data.items : [];
+  const candidates = Array.isArray(response.data?.items)
+    ? response.data.items
+    : [];
   const byIdentity = new Map();
   for (const candidate of candidates) {
     if (
@@ -337,7 +361,9 @@ async function fetchRequiredKnowledgeCandidates(args) {
   if (missing.length > 0) {
     throw new Error(`全知识平台基线缺少可发布候选版本：${missing.join(", ")}`);
   }
-  return args.requiredKnowledgeIdentities.map((identity) => byIdentity.get(identity));
+  return args.requiredKnowledgeIdentities.map((identity) =>
+    byIdentity.get(identity),
+  );
 }
 
 function summarizeKnowledgeCoverage(detail, requiredKnowledgeIdentities) {
@@ -345,9 +371,12 @@ function summarizeKnowledgeCoverage(detail, requiredKnowledgeIdentities) {
     return { activeAssets: [], missingIdentities: [] };
   }
   const required = new Set(requiredKnowledgeIdentities);
-  const activeAssets = extractActiveKnowledgeAssets(detail)
-    .filter((item) => required.has(item.assetIdentity));
-  const activeIdentities = new Set(activeAssets.map((item) => item.assetIdentity));
+  const activeAssets = extractActiveKnowledgeAssets(detail).filter((item) =>
+    required.has(item.assetIdentity),
+  );
+  const activeIdentities = new Set(
+    activeAssets.map((item) => item.assetIdentity),
+  );
   return {
     activeAssets,
     missingIdentities: requiredKnowledgeIdentities.filter(
@@ -357,21 +386,27 @@ function summarizeKnowledgeCoverage(detail, requiredKnowledgeIdentities) {
 }
 
 function requireKnowledgeCoverage(detail, requiredKnowledgeIdentities, label) {
-  const coverage = summarizeKnowledgeCoverage(detail, requiredKnowledgeIdentities);
+  const coverage = summarizeKnowledgeCoverage(
+    detail,
+    requiredKnowledgeIdentities,
+  );
   if (coverage.missingIdentities.length > 0) {
-    throw new Error(`${label}缺少 ACTIVE 全知识平台基线：${coverage.missingIdentities.join(", ")}`);
+    throw new Error(
+      `${label}缺少 ACTIVE 全知识平台基线：${coverage.missingIdentities.join(", ")}`,
+    );
   }
   return coverage;
 }
 
 function extractActiveKnowledgeAssets(detail) {
   return (Array.isArray(detail?.items) ? detail.items : [])
-    .filter((item) =>
-      item?.assetType === "KNOWLEDGE" &&
-      item.entryState === "ACTIVE" &&
-      hasText(item.assetIdentity) &&
-      hasText(item.versionId) &&
-      hasText(String(item.versionNo ?? "")),
+    .filter(
+      (item) =>
+        item?.assetType === "KNOWLEDGE" &&
+        item.entryState === "ACTIVE" &&
+        hasText(item.assetIdentity) &&
+        hasText(item.versionId) &&
+        hasText(String(item.versionNo ?? "")),
     )
     .map((item) => ({
       assetType: item.assetType,
@@ -450,17 +485,23 @@ async function requestJson(options) {
     headers.Cookie = options.session.cookie;
     headers["X-XSRF-TOKEN"] = options.session.xsrf;
   }
-  const response = await options.fetchImpl(`${options.apiBaseUrl}${options.path}`, {
-    method: options.method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const response = await options.fetchImpl(
+    `${options.apiBaseUrl}${options.path}`,
+    {
+      method: options.method,
+      headers,
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
+    },
+  );
   const raw = await response.text();
   let payload;
   try {
     payload = raw ? JSON.parse(raw) : {};
   } catch {
-    throw new Error(`${options.label} 返回的不是合法 JSON（HTTP ${response.status}）`);
+    throw new Error(
+      `${options.label} 返回的不是合法 JSON（HTTP ${response.status}）`,
+    );
   }
   const accepted = options.acceptedStatuses ?? [200, 201];
   const ok = accepted.includes(response.status);
@@ -477,7 +518,12 @@ async function requestJson(options) {
         `${payload?.detail ?? payload?.message ?? "无错误详情"}`,
     );
   }
-  return { data: payload?.data, payload, headers: response.headers, status: response.status };
+  return {
+    data: payload?.data,
+    payload,
+    headers: response.headers,
+    status: response.status,
+  };
 }
 
 function authenticatedSession(headers) {
@@ -488,7 +534,8 @@ function authenticatedSession(headers) {
     .filter(Boolean);
   const access = pairs.find((item) => item.startsWith("mk_access="));
   const xsrf = pairs.find((item) => item.startsWith("XSRF-TOKEN="));
-  if (!access || !xsrf) throw new Error("登录响应未返回 mk_access 与 XSRF-TOKEN");
+  if (!access || !xsrf)
+    throw new Error("登录响应未返回 mk_access 与 XSRF-TOKEN");
   return {
     cookie: pairs.join("; "),
     xsrf: decodeURIComponent(xsrf.slice("XSRF-TOKEN=".length)),
@@ -497,21 +544,36 @@ function authenticatedSession(headers) {
 
 function assertAllowedPath(method, requestPath) {
   const allowed = API_ALLOWLIST.some(
-    ([allowedMethod, pattern]) => allowedMethod === method && pattern.test(requestPath),
+    ([allowedMethod, pattern]) =>
+      allowedMethod === method && pattern.test(requestPath),
   );
   if (!allowed) {
-    throw new Error(`平台基线启动脚本拒绝未列入白名单的接口 ${method} ${requestPath}`);
+    throw new Error(
+      `平台基线启动脚本拒绝未列入白名单的接口 ${method} ${requestPath}`,
+    );
   }
 }
 
 function assertOperatorLogin(data, operator) {
-  if (!data || data.tenantId !== operator.tenantId || data.userId !== operator.userId) {
+  if (
+    !data ||
+    data.tenantId !== operator.tenantId ||
+    data.userId !== operator.userId
+  ) {
     throw new Error("平台基线启动登录身份与统一凭据不一致");
   }
-  if (data.mustChangePwd !== false || data.mfaRequired !== false || data.mfaBound !== false) {
+  if (
+    data.mustChangePwd !== false ||
+    data.mfaRequired !== false ||
+    data.mfaBound !== false
+  ) {
     throw new Error("平台基线启动账号必须完成改密且默认 MFA 关闭");
   }
-  if (!Array.isArray(data.roles) || data.roles.length !== 1 || data.roles[0] !== "engine-operator") {
+  if (
+    !Array.isArray(data.roles) ||
+    data.roles.length !== 1 ||
+    data.roles[0] !== "engine-operator"
+  ) {
     throw new Error("平台基线启动必须由且仅由医疗引擎运营员执行");
   }
 }
@@ -530,7 +592,10 @@ function requireOperator(operator) {
 }
 
 function normalizeApiBaseUrl(value) {
-  const normalized = requireText(value, "LAUNCH_API_BASE_URL").replace(/\/+$/u, "");
+  const normalized = requireText(value, "LAUNCH_API_BASE_URL").replace(
+    /\/+$/u,
+    "",
+  );
   const parsed = new URL(normalized);
   const loopback = ["127.0.0.1", "localhost", "::1"].includes(parsed.hostname);
   if (
@@ -538,7 +603,9 @@ function normalizeApiBaseUrl(value) {
     !parsed.pathname.endsWith("/api/v1") ||
     (parsed.protocol !== "https:" && !loopback)
   ) {
-    throw new Error("上线 API 必须使用 HTTPS，或仅在回环地址使用 HTTP，并以 /api/v1 结尾");
+    throw new Error(
+      "上线 API 必须使用 HTTPS，或仅在回环地址使用 HTTP，并以 /api/v1 结尾",
+    );
   }
   return normalized;
 }
@@ -546,7 +613,10 @@ function normalizeApiBaseUrl(value) {
 function outsideRepo(value, repoRoot, label) {
   const target = path.resolve(requireText(value, label));
   const relative = path.relative(repoRoot, target);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error(`${label}必须位于代码仓库之外`);
   }
   return target;
@@ -562,7 +632,9 @@ function parseJson(raw, label) {
 
 function now(clock) {
   const value = clock ? clock() : new Date();
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function requireText(value, label) {

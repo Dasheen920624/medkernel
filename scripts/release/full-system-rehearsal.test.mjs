@@ -12,7 +12,10 @@ import {
 } from "./full-system-rehearsal-lib.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
-  new URL("../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json", import.meta.url),
+  new URL(
+    "../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json",
+    import.meta.url,
+  ),
 );
 
 test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
@@ -37,7 +40,12 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
   assert.equal(plan[2].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
   assert.equal(plan[3].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
   assert.equal(plan[3].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
-  assert.equal(plan[3].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith("/platform-baseline.json"), true);
+  assert.equal(
+    plan[3].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith(
+      "/platform-baseline.json",
+    ),
+    true,
+  );
   assert.equal(plan[3].label, "平台字段目录与全知识权威基线");
   assert.equal(plan[4].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
   assert.equal(plan[4].label, "演练机构十规则四十用例与机构生效版本");
@@ -47,16 +55,25 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
   assert.equal(plan[6].env.E2E_EXTERNAL_DEPLOYMENT, "1");
   assert.equal(plan[6].env.E2E_EXPECT_MFA_DISABLED, "1");
   assert.equal(plan[6].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
-  assert.equal(plan[7].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"), true);
+  assert.equal(
+    plan[7].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"),
+    true,
+  );
   assert.equal(plan[7].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
 
   const requiredCoverage = buildRequiredLaunchCoverage();
+  assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
+  assert.equal(requiredCoverage.scenarios[0].evidenceStage, null);
   assert.equal(
-    requiredCoverage.deliveryShapes.some((item) => item.code === "MANAGEMENT_WORKSPACE"),
+    requiredCoverage.deliveryShapes.some(
+      (item) => item.code === "MANAGEMENT_WORKSPACE",
+    ),
     true,
   );
   assert.equal(
-    requiredCoverage.deliveryShapes.some((item) => item.code === "MANAGEMENT_CONSOLE"),
+    requiredCoverage.deliveryShapes.some(
+      (item) => item.code === "MANAGEMENT_CONSOLE",
+    ),
     false,
   );
 });
@@ -65,7 +82,8 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
   const env = baseEnv();
   env.E2E_IGNORE_HTTPS_ERRORS = "1";
   assert.throws(
-    () => readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
+    () =>
+      readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
     /禁止忽略 HTTPS 证书错误/u,
   );
 
@@ -73,18 +91,26 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
   const config = readFullSystemRehearsalConfig(env, {
     repoRoot: "/workspace/medkernel",
   });
-  assert.equal(config.evidenceRoot, "/var/lib/medkernel/evidence/current-launch");
-  assert.equal(config.indexPath, "/var/lib/medkernel/evidence/current-launch/full-system.json");
+  assert.equal(
+    config.evidenceRoot,
+    "/var/lib/medkernel/evidence/current-launch",
+  );
+  assert.equal(
+    config.indexPath,
+    "/var/lib/medkernel/evidence/current-launch/full-system.json",
+  );
   assert.equal(config.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
 
   delete env.LAUNCH_SOURCE;
   assert.throws(
-    () => readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
+    () =>
+      readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
     /LAUNCH_SOURCE/u,
   );
   env.LAUNCH_SOURCE = "1603b5a7";
   assert.throws(
-    () => readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
+    () =>
+      readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
     /40 位提交哈希/u,
   );
 });
@@ -102,7 +128,13 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
       }),
     /sandbox 阶段失败/u,
   );
-  assert.deepEqual(executed, ["account-bootstrap", "model-provider", "full-knowledge", "platform-baseline", "sandbox"]);
+  assert.deepEqual(executed, [
+    "account-bootstrap",
+    "model-provider",
+    "full-knowledge",
+    "platform-baseline",
+    "sandbox",
+  ]);
 });
 
 test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
@@ -112,11 +144,19 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
     "model-provider": {
       status: "PASSED",
       provider: { enabled: true, status: "HEALTHY" },
-      evaluation: { totalCases: 3, passedCases: 3, failedCases: 0, status: "PASSED" },
+      evaluation: {
+        totalCases: 3,
+        passedCases: 3,
+        failedCases: 0,
+        status: "PASSED",
+      },
     },
     "platform-baseline": platformBaselineEvidence(),
     sandbox: {
-      results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
+      results: Array.from({ length: 10 }, (_, index) => ({
+        ruleCode: `R${index}`,
+        result: "PASS",
+      })),
       failures: [],
       runtimeBinding: { ready: true, externalSideEffects: false },
     },
@@ -124,12 +164,30 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
       status: "PASSED",
       coverage: {
         expectedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+          "GUIDELINE",
+          "DRUG",
+          "PATHWAY_KNOWLEDGE",
+          "NURSING",
+          "DIAGNOSTIC_ITEM",
+          "TCM",
+          "PROTOCOL",
+          "POLICY",
+          "LITERATURE",
+          "OTHER",
+          "DIAGNOSIS",
         ],
         publishedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+          "GUIDELINE",
+          "DRUG",
+          "PATHWAY_KNOWLEDGE",
+          "NURSING",
+          "DIAGNOSTIC_ITEM",
+          "TCM",
+          "PROTOCOL",
+          "POLICY",
+          "LITERATURE",
+          "OTHER",
+          "DIAGNOSIS",
         ],
       },
       versionLifecycle: {
@@ -170,8 +228,14 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
   assert.equal(result.stages.length, 8);
-  assert.deepEqual(result.coverage.scenarios, coverageEvidence.coverage.scenarios);
-  assert.deepEqual(result.coverage.versionedAssets, coverageEvidence.coverage.versionedAssets);
+  assert.deepEqual(
+    result.coverage.scenarios,
+    coverageEvidence.coverage.scenarios,
+  );
+  assert.deepEqual(
+    result.coverage.versionedAssets,
+    coverageEvidence.coverage.versionedAssets,
+  );
   assert.equal(result.coverage.standardPatientResources.length, 13);
   assert.equal(result.coverage.deliveryShapes.length, 5);
   assert.equal(result.coverage.serviceCombinations.length, 7);
@@ -212,40 +276,58 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   assert.doesNotThrow(() => assertCompleteLaunchCoverage(complete));
 
   const missingScenario = structuredClone(complete);
-  missingScenario.coverage.scenarios = missingScenario.coverage.scenarios.filter((item) => item.code !== "S40");
+  missingScenario.coverage.scenarios =
+    missingScenario.coverage.scenarios.filter((item) => item.code !== "S40");
   assert.throws(() => assertCompleteLaunchCoverage(missingScenario), /S0–S40/u);
 
   const skippedAsset = structuredClone(complete);
   skippedAsset.coverage.versionedAssets[0].status = "SKIPPED";
   assert.throws(() => assertCompleteLaunchCoverage(skippedAsset), /SKIPPED/u);
 
+  const selfCertified = structuredClone(complete);
+  selfCertified.coverage.versionedAssets[0].evidenceStage = "launch-coverage";
   assert.throws(
-    () => validateStageEvidence("platform-baseline", {
-      status: "PASSED",
-      fieldCatalog: { assetType: "RULE", entryState: "ACTIVE" },
-      baseline: { revisionNo: 1 },
-    }),
+    () => assertCompleteLaunchCoverage(selfCertified),
+    /不能由覆盖审计阶段自证/u,
+  );
+
+  assert.throws(
+    () =>
+      validateStageEvidence("platform-baseline", {
+        status: "PASSED",
+        fieldCatalog: { assetType: "RULE", entryState: "ACTIVE" },
+        baseline: { revisionNo: 1 },
+      }),
     /字段目录平台基线/u,
   );
   assert.throws(
-    () => validateStageEvidence("platform-baseline", {
-      ...platformBaselineEvidence(),
-      knowledgeAssets: platformBaselineEvidence().knowledgeAssets.slice(0, 10),
-    }),
+    () =>
+      validateStageEvidence("platform-baseline", {
+        ...platformBaselineEvidence(),
+        knowledgeAssets: platformBaselineEvidence().knowledgeAssets.slice(
+          0,
+          10,
+        ),
+      }),
     /全知识平台基线/u,
   );
   assert.throws(
-    () => validateStageEvidence("full-knowledge", {
-      status: "PASSED",
-      coverage: { expectedDomains: Array(11).fill("X"), publishedDomains: [] },
-      versionLifecycle: {},
-    }),
+    () =>
+      validateStageEvidence("full-knowledge", {
+        status: "PASSED",
+        coverage: {
+          expectedDomains: Array(11).fill("X"),
+          publishedDomains: [],
+        },
+        versionLifecycle: {},
+      }),
     /11 个知识域/u,
   );
   assert.throws(
-    () => validateStageEvidence("browser-e2e", {
-      stats: { expected: 81, unexpected: 1, flaky: 0 },
-    }),
+    () =>
+      validateStageEvidence("browser-e2e", {
+        stats: { expected: 81, unexpected: 1, flaky: 0 },
+      }),
     /浏览器全量旅程存在失败/u,
   );
 });
@@ -253,8 +335,30 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
 function completeLaunchCoverageEvidence() {
   return {
     status: "PASSED",
-    coverage: buildRequiredLaunchCoverage(),
+    coverage: completeLaunchCoverageRows(),
   };
+}
+
+function completeLaunchCoverageRows() {
+  return Object.fromEntries(
+    Object.entries(buildRequiredLaunchCoverage()).map(([key, rows]) => [
+      key,
+      rows.map((row) => ({
+        ...row,
+        status: "PASSED",
+        evidenceStage:
+          key === "knowledgeDomains" ? "full-knowledge" : "browser-e2e",
+        evidencePath:
+          key === "knowledgeDomains"
+            ? "/var/lib/medkernel/evidence/current-launch/full-knowledge.json"
+            : "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+        evidenceKey: `launchCoverage.${key}.${row.code}`,
+        observedCode: row.code,
+        observedStatus: "PASSED",
+        observedAt: "2026-06-22T09:00:00.000Z",
+      })),
+    ]),
+  );
 }
 
 function completeStageEvidence() {
@@ -263,11 +367,19 @@ function completeStageEvidence() {
     "model-provider": {
       status: "PASSED",
       provider: { enabled: true, status: "HEALTHY" },
-      evaluation: { totalCases: 3, passedCases: 3, failedCases: 0, status: "PASSED" },
+      evaluation: {
+        totalCases: 3,
+        passedCases: 3,
+        failedCases: 0,
+        status: "PASSED",
+      },
     },
     "platform-baseline": platformBaselineEvidence(),
     sandbox: {
-      results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
+      results: Array.from({ length: 10 }, (_, index) => ({
+        ruleCode: `R${index}`,
+        result: "PASS",
+      })),
       failures: [],
       runtimeBinding: { ready: true, externalSideEffects: false },
     },
@@ -275,12 +387,30 @@ function completeStageEvidence() {
       status: "PASSED",
       coverage: {
         expectedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+          "GUIDELINE",
+          "DRUG",
+          "PATHWAY_KNOWLEDGE",
+          "NURSING",
+          "DIAGNOSTIC_ITEM",
+          "TCM",
+          "PROTOCOL",
+          "POLICY",
+          "LITERATURE",
+          "OTHER",
+          "DIAGNOSIS",
         ],
         publishedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+          "GUIDELINE",
+          "DRUG",
+          "PATHWAY_KNOWLEDGE",
+          "NURSING",
+          "DIAGNOSTIC_ITEM",
+          "TCM",
+          "PROTOCOL",
+          "POLICY",
+          "LITERATURE",
+          "OTHER",
+          "DIAGNOSIS",
         ],
       },
       versionLifecycle: {
@@ -345,8 +475,17 @@ function platformBaselineEvidence() {
       missingIdentities: [],
     },
     knowledgeAssets: [
-      "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
-      "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+      "GUIDELINE",
+      "DRUG",
+      "PATHWAY_KNOWLEDGE",
+      "NURSING",
+      "DIAGNOSTIC_ITEM",
+      "TCM",
+      "PROTOCOL",
+      "POLICY",
+      "LITERATURE",
+      "OTHER",
+      "DIAGNOSIS",
     ].map((domain) => ({
       assetType: "KNOWLEDGE",
       assetIdentity: `launch.${domain.toLowerCase()}.asset`,
@@ -368,8 +507,10 @@ function baseEnv() {
     MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
     LAUNCH_WEB_BASE_URL: "https://193.112.107.134/medkernel",
     LAUNCH_API_BASE_URL: "https://193.112.107.134/medkernel/api/v1",
-    LAUNCH_BOOTSTRAP_TOKEN_FILE: "/var/lib/medkernel/credentials/bootstrap-init-token",
-    LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+    LAUNCH_BOOTSTRAP_TOKEN_FILE:
+      "/var/lib/medkernel/credentials/bootstrap-init-token",
+    LAUNCH_CREDENTIALS_FILE:
+      "/var/lib/medkernel/credentials/current-launch.json",
     LAUNCH_MODEL_PROVIDER_CODE: "ollama-launch",
     LAUNCH_MODEL_PROVIDER_TYPE: "OLLAMA",
     LAUNCH_MODEL_PROVIDER_ENDPOINT: "http://127.0.0.1:11434",

@@ -11,7 +11,10 @@ import {
 import { buildLaunchCredentialPlan } from "./launch-account-bootstrap-lib.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
-  new URL("../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json", import.meta.url),
+  new URL(
+    "../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json",
+    import.meta.url,
+  ),
 );
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
 
@@ -25,15 +28,28 @@ test("正式 Provider 评测基线使用三条真实来源并只验证来源约�
     assert.equal(item.citationRequired, true);
     assert.equal(item.enabled, true);
     assert.match(item.sourceReference, /^https:\/\//u);
-    assert.match(item.caseInput, new RegExp(item.sourceReference.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    assert.match(
+      item.caseInput,
+      new RegExp(
+        item.sourceReference.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"),
+        "u",
+      ),
+    );
     assert.match(item.caseInput, /输出两行/u);
     assert.match(item.caseInput, /第一行必须完全等于：证据不足，不可推断。/u);
     assert.match(
       item.caseInput,
-      new RegExp(`第二行必须完全等于：来源：${item.sourceReference.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"),
+      new RegExp(
+        `第二行必须完全等于：来源：${item.sourceReference.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`,
+        "u",
+      ),
     );
     assert.match(item.caseInput, /禁止输出其他内容/u);
-    assert.deepEqual(item.forbiddenAssertions, ["自动开立医嘱", "已确诊", "推荐剂量"]);
+    assert.deepEqual(item.forbiddenAssertions, [
+      "自动开立医嘱",
+      "已确诊",
+      "推荐剂量",
+    ]);
   }
 });
 
@@ -42,7 +58,8 @@ test("Provider 上线配置复用统一平台四职责凭据且证据位于仓�
   const config = readModelProviderLaunchConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       LAUNCH_MODEL_PROVIDER_CODE: "ollama-launch",
       LAUNCH_MODEL_PROVIDER_TYPE: "OLLAMA",
       LAUNCH_MODEL_PROVIDER_ENDPOINT: "http://127.0.0.1:11434",
@@ -53,7 +70,9 @@ test("Provider 上线配置复用统一平台四职责凭据且证据位于仓�
     {
       repoRoot: "/workspace/medkernel",
       readFile: (file) =>
-        file === MANIFEST_PATH ? readFileSync(file, "utf8") : JSON.stringify(credentials),
+        file === MANIFEST_PATH
+          ? readFileSync(file, "utf8")
+          : JSON.stringify(credentials),
     },
   );
 
@@ -77,7 +96,8 @@ test("Provider 上线配置可读取服务器 mimoModel 三行配置且不把密
   const config = readModelProviderLaunchConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       LAUNCH_MODEL_PROVIDER_CODE: "mimo-public",
       LAUNCH_MODEL_PROFILE_FILE: "/zoesoft/mimoModel",
       FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
@@ -103,7 +123,10 @@ test("Provider 上线配置可读取服务器 mimoModel 三行配置且不把密
   assert.equal(config.provider.type, "OPENAI_COMPATIBLE");
   assert.equal(config.provider.endpoint, "https://model.example.com");
   assert.equal(config.provider.modelVersion, "qwen2.5:latest");
-  assert.equal(config.provider.credential, "sk-live-secret-token-with-colon:medical");
+  assert.equal(
+    config.provider.credential,
+    "sk-live-secret-token-with-colon:medical",
+  );
   assert.equal(config.providerProfilePath, "/zoesoft/mimoModel");
 });
 
@@ -112,7 +135,8 @@ test("Provider 上线配置兼容 mimoModel 键值冒号格式", () => {
   const config = readModelProviderLaunchConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       LAUNCH_MODEL_PROVIDER_CODE: "mimo-public",
       LAUNCH_MODEL_PROFILE_FILE: "/zoesoft/mimoModel",
       FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
@@ -136,7 +160,10 @@ test("Provider 上线配置兼容 mimoModel 键值冒号格式", () => {
 
   assert.equal(config.provider.endpoint, "https://model.example.com");
   assert.equal(config.provider.modelVersion, "qwen2.5:latest");
-  assert.equal(config.provider.credential, "sk-live-secret-token-with-colon:medical");
+  assert.equal(
+    config.provider.credential,
+    "sk-live-secret-token-with-colon:medical",
+  );
 });
 
 test("Provider 上线配置兼容 mimoModel 键值与裸凭据混合格式", () => {
@@ -144,7 +171,8 @@ test("Provider 上线配置兼容 mimoModel 键值与裸凭据混合格式", () 
   const config = readModelProviderLaunchConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       LAUNCH_MODEL_PROVIDER_CODE: "mimo-public",
       LAUNCH_MODEL_PROFILE_FILE: "/zoesoft/mimoModel",
       FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
@@ -168,7 +196,10 @@ test("Provider 上线配置兼容 mimoModel 键值与裸凭据混合格式", () 
 
   assert.equal(config.provider.endpoint, "https://token-plan-cn.example.com");
   assert.equal(config.provider.modelVersion, "qwen2.5:latest");
-  assert.equal(config.provider.credential, "sk-live-secret-token-with-colon:medical");
+  assert.equal(
+    config.provider.credential,
+    "sk-live-secret-token-with-colon:medical",
+  );
 });
 
 test("正式 Provider 上线按配置、探活、真实评测、当前操作者确认顺序启用", async () => {
@@ -194,11 +225,23 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   assert.equal(result.evaluation.totalCases, 3);
   assert.equal(result.evaluation.failedCases, 0);
   assert.equal(result.readiness.ready, true);
-  assert.equal(result.knowledgeGovernance.literatureRoot.value, "file:///var/lib/medkernel/platform-knowledge/t-1/literature-materials/");
-  assert.equal(result.knowledgeGovernance.policy.routeStrategy, "LOCAL_MODEL");
-  assert.equal(result.knowledgeGovernance.versionBundle.modelVersion, "medkernel-qwen25:1.5b-v1");
   assert.deepEqual(
-    requests.filter((item) => item.path !== "/auth/login").map((item) => `${item.method} ${item.path}`),
+    result.launchCoverage.modelEnablementSurfaces.map((item) => item.code),
+    ["SOURCE_DISCOVERY", "DOCUMENT_EXTRACT", "OPERATIONS_TESTING"],
+  );
+  assert.equal(
+    result.knowledgeGovernance.literatureRoot.value,
+    "file:///var/lib/medkernel/platform-knowledge/t-1/literature-materials/",
+  );
+  assert.equal(result.knowledgeGovernance.policy.routeStrategy, "LOCAL_MODEL");
+  assert.equal(
+    result.knowledgeGovernance.versionBundle.modelVersion,
+    "medkernel-qwen25:1.5b-v1",
+  );
+  assert.deepEqual(
+    requests
+      .filter((item) => item.path !== "/auth/login")
+      .map((item) => `${item.method} ${item.path}`),
     [
       "PATCH /system/configs/medkernel.knowledge.literature.material-root-uri",
       "GET /model-providers/ollama-launch",
@@ -212,16 +255,29 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
       "GET /engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=knowledge.production.knowledge&providerCode=ollama-launch",
     ],
   );
-  const literature = requests.find((item) => item.path === "/system/configs/medkernel.knowledge.literature.material-root-uri");
+  const literature = requests.find(
+    (item) =>
+      item.path ===
+      "/system/configs/medkernel.knowledge.literature.material-root-uri",
+  );
   assert.equal(literature.body.confirmedHighRisk, true);
   assert.match(literature.body.reason, /134 完整上线演练/u);
-  const providerConfig = requests.find((item) => item.path === "/model-providers/ollama-launch" && item.method === "PUT");
+  const providerConfig = requests.find(
+    (item) =>
+      item.path === "/model-providers/ollama-launch" && item.method === "PUT",
+  );
   assert.equal(providerConfig.body.expectedVersion, null);
-  const policy = requests.find((item) => item.path === "/model-capabilities/policies/knowledge.production.knowledge");
+  const policy = requests.find(
+    (item) =>
+      item.path ===
+      "/model-capabilities/policies/knowledge.production.knowledge",
+  );
   assert.deepEqual(policy.body.fallbackOrder, ["LOCAL_MODEL", "BASELINE"]);
   assert.equal(policy.body.desensitizeStrategy, "MASK_ALL");
   assert.equal(policy.body.timeoutMs, 120_000);
-  const bundle = requests.find((item) => item.path === "/model-versions/bundles");
+  const bundle = requests.find(
+    (item) => item.path === "/model-versions/bundles",
+  );
   assert.equal(bundle.body.capabilityCode, "knowledge.production.knowledge");
   assert.equal(bundle.body.modelVersion, "medkernel-qwen25:1.5b-v1");
 });
@@ -251,7 +307,9 @@ test("公网 Provider 上线先保存受管凭据并使用外部模型脱敏策�
   assert.equal(result.provider.credentialLast4, "ical");
   assert.equal(Object.hasOwn(result.provider, "credential"), false);
   assert.deepEqual(
-    requests.filter((item) => item.path !== "/auth/login").map((item) => `${item.method} ${item.path}`),
+    requests
+      .filter((item) => item.path !== "/auth/login")
+      .map((item) => `${item.method} ${item.path}`),
     [
       "PATCH /system/configs/medkernel.knowledge.literature.material-root-uri",
       "GET /model-providers/mimo-public",
@@ -266,14 +324,24 @@ test("公网 Provider 上线先保存受管凭据并使用外部模型脱敏策�
       "GET /engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=knowledge.production.knowledge&providerCode=mimo-public",
     ],
   );
-  const credential = requests.find((item) => item.path === "/model-providers/mimo-public/credential");
+  const credential = requests.find(
+    (item) => item.path === "/model-providers/mimo-public/credential",
+  );
   assert.equal(credential.body.credential, provider.credential);
   assert.equal(credential.body.expectedVersion, null);
   assert.equal(credential.body.confirmedHighRisk, true);
   assert.match(credential.body.reason, /134 完整上线演练/u);
-  const policy = requests.find((item) => item.path === "/model-capabilities/policies/knowledge.production.knowledge");
+  const policy = requests.find(
+    (item) =>
+      item.path ===
+      "/model-capabilities/policies/knowledge.production.knowledge",
+  );
   assert.equal(policy.body.routeStrategy, "EXTERNAL_MODEL");
-  assert.deepEqual(policy.body.fallbackOrder, ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"]);
+  assert.deepEqual(policy.body.fallbackOrder, [
+    "EXTERNAL_MODEL",
+    "LOCAL_MODEL",
+    "BASELINE",
+  ]);
   assert.equal(policy.body.desensitizeStrategy, "MASK_ALL");
 });
 
@@ -297,7 +365,10 @@ test("正式 Provider 重新上线时使用当前关系库版本避免恢复演�
   });
 
   assert.equal(result.status, "PASSED");
-  const providerConfig = requests.find((item) => item.path === "/model-providers/ollama-launch" && item.method === "PUT");
+  const providerConfig = requests.find(
+    (item) =>
+      item.path === "/model-providers/ollama-launch" && item.method === "PUT",
+  );
   assert.equal(providerConfig.body.expectedVersion, 7);
 });
 
@@ -329,7 +400,8 @@ function readyCredentials() {
   });
   delete credentials.platform.takeover.initialPassword;
   for (const scope of [credentials.platform, credentials.rehearsal]) {
-    for (const account of Object.values(scope.accounts)) delete account.initialPassword;
+    for (const account of Object.values(scope.accounts))
+      delete account.initialPassword;
   }
   return credentials;
 }
@@ -365,7 +437,11 @@ function createProviderFetch(requests, options = {}) {
         "mk_access=session; Path=/; HttpOnly, XSRF-TOKEN=xsrf; Path=/",
       );
     }
-    if (method === "PATCH" && cleanPath === "/system/configs/medkernel.knowledge.literature.material-root-uri") {
+    if (
+      method === "PATCH" &&
+      cleanPath ===
+        "/system/configs/medkernel.knowledge.literature.material-root-uri"
+    ) {
       return response({
         data: {
           key: "medkernel.knowledge.literature.material-root-uri",
@@ -385,27 +461,62 @@ function createProviderFetch(requests, options = {}) {
         );
       }
       return response({
-        data: providerView(false, "HEALTHY", options.existingProviderVersion, fixture, credentialConfigured),
+        data: providerView(
+          false,
+          "HEALTHY",
+          options.existingProviderVersion,
+          fixture,
+          credentialConfigured,
+        ),
       });
     }
     if (method === "PUT" && cleanPath === `/model-providers/${fixture.code}`) {
       if (options.existingProviderVersion !== undefined) {
         assert.equal(body.expectedVersion, options.existingProviderVersion);
         return response({
-          data: providerView(false, "HEALTHY", options.existingProviderVersion + 1, fixture, credentialConfigured),
+          data: providerView(
+            false,
+            "HEALTHY",
+            options.existingProviderVersion + 1,
+            fixture,
+            credentialConfigured,
+          ),
         });
       }
-      return response({ data: providerView(false, "NOT_CONNECTED", 0, fixture, credentialConfigured) });
+      return response({
+        data: providerView(
+          false,
+          "NOT_CONNECTED",
+          0,
+          fixture,
+          credentialConfigured,
+        ),
+      });
     }
-    if (method === "PUT" && cleanPath === `/model-providers/${fixture.code}/credential`) {
+    if (
+      method === "PUT" &&
+      cleanPath === `/model-providers/${fixture.code}/credential`
+    ) {
       credentialConfigured = true;
-      return response({ data: providerView(false, "NOT_CONNECTED", 1, fixture, credentialConfigured) });
+      return response({
+        data: providerView(
+          false,
+          "NOT_CONNECTED",
+          1,
+          fixture,
+          credentialConfigured,
+        ),
+      });
     }
     if (cleanPath.endsWith("/health-check")) {
-      return response({ data: providerView(false, "HEALTHY", 1, fixture, credentialConfigured) });
+      return response({
+        data: providerView(false, "HEALTHY", 1, fixture, credentialConfigured),
+      });
     }
     if (cleanPath.endsWith("regression-cases:bulk-import")) {
-      return response({ data: body.cases.map((item, index) => ({ ...item, id: index + 1 })) });
+      return response({
+        data: body.cases.map((item, index) => ({ ...item, id: index + 1 })),
+      });
     }
     if (cleanPath === "/model-evaluations") {
       const status = options.evaluationStatus ?? "PASSED";
@@ -422,7 +533,11 @@ function createProviderFetch(requests, options = {}) {
         },
       });
     }
-    if (method === "PUT" && cleanPath === "/model-capabilities/policies/knowledge.production.knowledge") {
+    if (
+      method === "PUT" &&
+      cleanPath ===
+        "/model-capabilities/policies/knowledge.production.knowledge"
+    ) {
       return response({
         data: {
           capabilityCode: "knowledge.production.knowledge",
@@ -451,9 +566,14 @@ function createProviderFetch(requests, options = {}) {
       });
     }
     if (cleanPath.endsWith("/enable")) {
-      return response({ data: providerView(true, "HEALTHY", 2, fixture, credentialConfigured) });
+      return response({
+        data: providerView(true, "HEALTHY", 2, fixture, credentialConfigured),
+      });
     }
-    if (method === "GET" && cleanPath === "/engine/knowledge-production/readiness") {
+    if (
+      method === "GET" &&
+      cleanPath === "/engine/knowledge-production/readiness"
+    ) {
       return response({
         data: {
           tenantId: "t-1",
@@ -474,12 +594,18 @@ function createProviderFetch(requests, options = {}) {
   };
 }
 
-function providerView(enabled, status, version, fixture = {
-  code: "ollama-launch",
-  type: "OLLAMA",
-  endpoint: "http://127.0.0.1:11434",
-  modelVersion: "medkernel-qwen25:1.5b-v1",
-}, credentialConfigured = false) {
+function providerView(
+  enabled,
+  status,
+  version,
+  fixture = {
+    code: "ollama-launch",
+    type: "OLLAMA",
+    endpoint: "http://127.0.0.1:11434",
+    modelVersion: "medkernel-qwen25:1.5b-v1",
+  },
+  credentialConfigured = false,
+) {
   return {
     providerCode: fixture.code,
     providerType: fixture.type,
@@ -499,7 +625,9 @@ function response(payload, setCookie = "", status = 200) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null) },
+    headers: {
+      get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null),
+    },
     text: async () => text,
   };
 }

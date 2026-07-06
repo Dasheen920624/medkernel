@@ -10,6 +10,32 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是修复上线覆盖审计“静态矩阵自证全量通过”的门禁漏洞。覆盖审计现在只能从
+  前置阶段实际输出的 `launchCoverage` 逐项聚合，覆盖行必须带 `evidenceStage`、`evidencePath`、
+  `evidenceKey`、`observedCode`、`observedStatus`、`observedAt`，且 `evidenceStage` 不得为
+  `launch-coverage`。本批未推送远程、不合并 `main`。
+- 第一百二十九批修复范围：新增 `scripts/release/stage-launch-coverage-lib.mjs` 统一生成阶段覆盖声明；
+  `full-system-rehearsal-lib.mjs` 的覆盖矩阵基线从静态 `PASSED` 改为 `UNKNOWN`，新增
+  `buildLaunchCoverageFromStageEvidence`，只接受 account-bootstrap、model-provider、platform-baseline、
+  sandbox、full-knowledge、runtime-resilience、browser-e2e 等前置阶段证据；`launch-coverage-audit.mjs`
+  改为读取各阶段真实 evidence 后聚合并再跑完整矩阵断言。各阶段脚本只声明自身能真实证明的覆盖项：
+  接管账号覆盖治理、平台、医院；Provider 覆盖来源发现、文档抽取、运行测试；平台基线覆盖字段目录和
+  已发布全知识；全知识覆盖 11 个知识域；运行韧性覆盖引擎核心、质量改进、合规运行；沙盘覆盖
+  13 类标准患者资源、临床运行和专病路径。`deploy/onprem/medkernel-post-rehearsal-verify.sh` 同步禁止
+  post-rehearsal 验证接受覆盖审计自证；`docs/DEPLOYMENT_AND_REHEARSAL.md` 写明逐项证据字段要求。
+- 第一百二十九批红点根因与定位修复：代码审查发现 `launch-coverage-audit` 原本先校验阶段 PASS，再调用
+  `buildRequiredLaunchCoverage()` 把全矩阵静态标成 `PASSED`，会在缺失浏览器 E2E、S0-S40、第三方系统族、
+  专病路径等真实证据时误放行上线覆盖审计。修复后，缺任一前置阶段逐项 coverage、覆盖行自称来自
+  `launch-coverage`、或观测码 / 状态 / 引用字段不匹配都会失败；因此当前真实全量覆盖在尚未补齐这些
+  evidence 前应继续失败，这是预期门禁，不是回归。
+- 第一百二十九批验证证据：`node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs scripts/release/launch-account-bootstrap.test.mjs scripts/release/model-provider-launch.test.mjs scripts/release/platform-baseline-bootstrap.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/knowledge/full-knowledge-rehearsal.test.mjs scripts/sandbox/seed-scenarios.test.mjs scripts/sandbox/scenario-rules.test.mjs`
+  通过（76 tests）；`bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；
+  触达文件 Prettier check 通过；`git diff --check` 退出码 0（仅保留 Git 对既有 CRLF→LF 的提示）。
+- 第一百二十九批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也未完成浏览器全量
+  E2E、全角色真实前台、S0-S40、第三方系统族、专病路径、真实备份/隔离恢复/重启恢复、两家机构差异化
+  发布 / 回滚等逐项 `launchCoverage` evidence。下一步继续补前置阶段真实证据和全角色真实操作复演；
+  发现红点继续先复现、定根因，再修复，不做片面优化或假覆盖。
 - 第一百二十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是补齐 13 类 runtime 闭包的真实运行消费者证据、SAFETY 红线运行时条件树执行、
   以及医技报告解读在普通临床权限下通过上下文快照消费 runtime 知识的前台证据。本批使用只读子代理

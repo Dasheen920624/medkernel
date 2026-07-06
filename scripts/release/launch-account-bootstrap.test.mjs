@@ -39,7 +39,10 @@ test("上线凭据只包含内置接管身份与平台、演练机构两组四�
   });
   assert.equal(plan.platform.takeover.role, "system-superadmin");
   assert.equal(plan.platform.takeover.assignable, false);
-  assert.equal(plan.platform.accounts["engine-operator"].username, "engine-operator");
+  assert.equal(
+    plan.platform.accounts["engine-operator"].username,
+    "engine-operator",
+  );
   assert.equal(plan.rehearsal.accounts.auditor.role, "auditor");
 });
 
@@ -78,7 +81,8 @@ test("接管配置只接受仓库外的令牌、凭据和证据路径", () => {
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
       LAUNCH_BOOTSTRAP_TOKEN_FILE: "/run/secrets/bootstrap-init-token.txt",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
     },
     {
@@ -87,7 +91,10 @@ test("接管配置只接受仓库外的令牌、凭据和证据路径", () => {
     },
   );
 
-  assert.equal(config.bootstrapToken, "bootstrap-token-at-least-thirty-two-bytes");
+  assert.equal(
+    config.bootstrapToken,
+    "bootstrap-token-at-least-thirty-two-bytes",
+  );
   assert.equal(
     config.evidencePath,
     "/var/lib/medkernel/evidence/current-launch/account-bootstrap.json",
@@ -112,14 +119,20 @@ test("接管配置只接受仓库外的令牌、凭据和证据路径", () => {
 test("全新接管拒绝覆盖既有凭据或证据", () => {
   assert.doesNotThrow(() =>
     assertLaunchOutputPathsAvailable(
-      { credentialsPath: "/runtime/accounts.json", evidencePath: "/runtime/evidence.json" },
+      {
+        credentialsPath: "/runtime/accounts.json",
+        evidencePath: "/runtime/evidence.json",
+      },
       () => false,
     ),
   );
   assert.throws(
     () =>
       assertLaunchOutputPathsAvailable(
-        { credentialsPath: "/runtime/accounts.json", evidencePath: "/runtime/evidence.json" },
+        {
+          credentialsPath: "/runtime/accounts.json",
+          evidencePath: "/runtime/evidence.json",
+        },
         (file) => file.endsWith("accounts.json"),
       ),
     /拒绝覆盖既有上线凭据/u,
@@ -146,9 +159,20 @@ test("全新接管真实完成首登改密、MFA 关闭、两租户四职责与�
   assert.equal(result.evidence.mfaRequired, false);
   assert.deepEqual(result.evidence.verifiedRoles, [...ASSIGNABLE_ROLES]);
   assert.doesNotThrow(() => validateLaunchCredentials(result.credentials));
-  assert.equal(calls.filter((call) => call.path === "/compliance/users").length, 7);
-  assert.equal(calls.filter((call) => call.path === "/admin/tenants").length, 1);
-  assert.equal(calls.filter((call) => call.path === "/engine/org/org-units/by-level?level=TENANT").length, 1);
+  assert.equal(
+    calls.filter((call) => call.path === "/compliance/users").length,
+    7,
+  );
+  assert.equal(
+    calls.filter((call) => call.path === "/admin/tenants").length,
+    1,
+  );
+  assert.equal(
+    calls.filter(
+      (call) => call.path === "/engine/org/org-units/by-level?level=TENANT",
+    ).length,
+    1,
+  );
   assert.deepEqual(
     calls.find((call) => call.path === "/engine/org/org-units")?.body,
     {
@@ -160,7 +184,9 @@ test("全新接管真实完成首登改密、MFA 关闭、两租户四职责与�
       status: "ACTIVE",
     },
   );
-  const facilityRoleCalls = calls.filter((call) => /\/compliance\/users\/[^/]+\/roles/u.test(call.path));
+  const facilityRoleCalls = calls.filter((call) =>
+    /\/compliance\/users\/[^/]+\/roles/u.test(call.path),
+  );
   assert.equal(facilityRoleCalls.length, 4);
   assert.deepEqual(
     facilityRoleCalls.map((call) => call.body),
@@ -171,6 +197,10 @@ test("全新接管真实完成首登改密、MFA 关闭、两租户四职责与�
     })),
   );
   assert.equal(result.evidence.rehearsalHospitalId, "org-rehearsal-hospital");
+  assert.deepEqual(
+    result.evidence.launchCoverage.organizationLevels.map((item) => item.code),
+    ["PLATFORM", "HOSPITAL"],
+  );
   assert.equal(calls.filter((call) => call.path === "/security/me").length, 10);
 });
 
@@ -236,7 +266,9 @@ function createSuccessfulBootstrapFetch(calls, plan) {
       return response({ data: { initialized: false } });
     }
     if (path === "/bootstrap/init-token") {
-      return response({ data: { valid: true, expiresAt: "2026-06-22T09:00:00Z" } });
+      return response({
+        data: { valid: true, expiresAt: "2026-06-22T09:00:00Z" },
+      });
     }
     if (path === "/bootstrap/password") {
       return response({ data: { userId: body.username, tenantId: "t-1" } });
@@ -262,13 +294,24 @@ function createSuccessfulBootstrapFetch(calls, plan) {
     }
     if (path === "/auth/change-password") return response({ data: null });
     if (path === "/compliance/users") {
-      return response({ data: { user: { userId: body.username }, tempPassword: null } });
+      return response({
+        data: { user: { userId: body.username }, tempPassword: null },
+      });
     }
     if (path === "/admin/tenants") {
-      return response({ data: { tenantId: body.tenantId, adminUsername: body.adminUsername } });
+      return response({
+        data: { tenantId: body.tenantId, adminUsername: body.adminUsername },
+      });
     }
-    if (method === "GET" && path === "/engine/org/org-units/by-level?level=TENANT") {
-      return response({ data: [{ id: "org-rehearsal-root", level: "TENANT", code: "t-rehearsal" }] });
+    if (
+      method === "GET" &&
+      path === "/engine/org/org-units/by-level?level=TENANT"
+    ) {
+      return response({
+        data: [
+          { id: "org-rehearsal-root", level: "TENANT", code: "t-rehearsal" },
+        ],
+      });
     }
     if (method === "POST" && path === "/engine/org/org-units") {
       return response({ data: { id: "org-rehearsal-hospital", ...body } });
@@ -279,14 +322,22 @@ function createSuccessfulBootstrapFetch(calls, plan) {
       return response({
         data: {
           userId: roleMatch[1],
-          roles: [{ code: body.roleCode, scopeLevel: body.scopeLevel, scopeCode: body.scopeCode }],
+          roles: [
+            {
+              code: body.roleCode,
+              scopeLevel: body.scopeLevel,
+              scopeCode: body.scopeCode,
+            },
+          ],
         },
       });
     }
     if (path === "/security/me") {
       const cookie = String(init.headers?.Cookie ?? "");
       assert.match(cookie, /mk_access=/u);
-      const lastLogin = [...calls].reverse().find((call) => call.path === "/auth/login");
+      const lastLogin = [...calls]
+        .reverse()
+        .find((call) => call.path === "/auth/login");
       const key = `${lastLogin.body.tenantId}/${lastLogin.body.username}`;
       const scoped = facilityScopedAccounts.has(key);
       return response({
@@ -312,7 +363,9 @@ function response(payload, setCookie = "") {
   return {
     ok: true,
     status: 200,
-    headers: { get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null) },
+    headers: {
+      get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null),
+    },
     text: async () => source,
   };
 }

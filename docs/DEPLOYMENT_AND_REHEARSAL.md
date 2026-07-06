@@ -242,7 +242,9 @@ node scripts/release/full-system-rehearsal.mjs
 - 输出 `launch-coverage.json`，汇总六层产品能力、13 类标准患者资源、13 类版本化资产、
   11 个知识内容分类、完整医疗语义族、全医疗专业领域、S0–S40、五种交付形态、七类业务组合、
   第三方系统族、组织层级、专病十阶段和模型赋能矩阵；
-- 汇总逐项覆盖矩阵，任何 `SKIPPED`、`UNKNOWN` 或未解释失败都不能判定上线通过。
+- 汇总逐项覆盖矩阵，每行必须包含前置阶段 `evidenceStage`、`evidencePath`、`evidenceKey`、
+  `observedCode`、`observedStatus` 和 `observedAt`；覆盖审计阶段不得自证覆盖，任何 `SKIPPED`、
+  `UNKNOWN` 或未解释失败都不能判定上线通过。
 
 ## 6. 发布后独立验收
 
