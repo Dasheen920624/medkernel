@@ -10,6 +10,56 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S13、两机构差异化发布、离线交付、13 类 runtime 资产逐类业务消费者、
+  全角色全功能或 134 清库部署收口，而是修复既有 `runtime-release-frontdesk.spec.ts` 被浏览器覆盖 reporter
+  消费时“只按文件名/标题/passed 即声明版本治理与 13 类版本化资产”的门槛偏松风险。`launchCoverageEvidence`
+  现在要求该 spec 通过、非 flaky，且附件 `runtime-release-coverage-codes` 完整包含
+  `productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、`deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`、
+  `serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`、八项 API evidence、同一本轮本院候选资产在
+  激活请求 / 后端当前版本读回 / 第三方运行契约读回中的一致证据、回滚后后端和第三方运行契约均不再包含该候选的
+  证据，以及七个真实阶段后，才声明上述 coverage；没有附件或附件缺发布影响评估、activeAssets 闭包、
+  当前版本读回、第三方运行契约读回、回滚读回或本院候选贯穿证据时不再声明 coverage。
+- 第一百四十批真实链路说明：`runtime-release-frontdesk.spec.ts` 现在先以本地上线演练医院职责的
+  `engine-operator` 通过真实后端服务创建本院 `ACTION_CARD` 候选资产（受控 `INFO` 提示卡，不含诊疗结论，
+  不自动开嘱）；随后真实前台进入 `/config/releases`，选择本地上线演练医院，打开证据详情，确认平台标准内容
+  13 类资产均展示且已勾选；在“集团与本院内容”中选择本轮本院候选；强制点击“评估发布影响”并断言真实
+  `/engine/versioning/releases/simulations` 返回 releasable；再由前台 POST 生成机构生效版本，断言请求
+  `activeAssets` 携带 13 类平台基线资产且均沿用平台标准版本，并携带本轮本院 `ACTION_CARD.RUNTIME.RELEASE.*`
+  候选的同一 `versionId`；后端回读当前医院 runtime release 并校验 13 类资产 ACTIVE，且本轮候选 ACTIVE；
+  第三方运行契约 `/engine/integration/knowledge-runtime/runtime-release/current` 回读同一修订和同一本轮候选；
+  最后前台从历史版本回滚，再次回读医院 runtime 和第三方运行契约同一修订，并断言两者均不再包含本轮本院候选。
+  附件记录本轮本院候选 `ACTION_CARD.RUNTIME.RELEASE.*`、激活修订号、回滚修订号、激活请求候选、激活后后端读回
+  候选、激活后第三方运行契约候选，以及回滚后后端 / 第三方运行契约候选缺席证据。
+- 第一百四十批边界说明：本批只收紧并补实既有 runtime-release coverage 的证据门槛，coverage 只含
+  `productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、`deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`、
+  `serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`；不新增 `scenarios:S13`，不声明离线交付、两家机构
+  差异化发布、完整 S0-S40、完整全资产消费者、完整临床运行、全角色真实操作或 134 清库复演。
+- 第一百四十批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "release governance"` 曾失败于没有附件也声明
+  `RELEASE_GOVERNANCE`（`expected [ Array(1) ] to be undefined`）；补强 reviewer P1 后，
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "local candidate"` 曾失败于完整布尔和阶段文案仍可在缺
+  本院候选读回事实时声明 coverage（`expected [ Array(1) ] to be undefined`）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "runtime release frontdesk"`
+  曾失败于目标 spec 缺 `createHospitalRuntimeReleaseCandidate` 和 `runtime-release-coverage-codes`。实现后上述红灯转绿。
+  E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/runtime-release-frontdesk.spec.ts`
+  通过。目标真实 E2E 在本地 18080 dev/H2 后端（PID 49326）上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-release-coverage npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky），附件中本轮
+  `ACTION_CARD.RUNTIME.RELEASE.*` 在激活请求、后端读回和第三方运行契约读回均为同一 `versionId`，回滚后后端和
+  第三方运行契约均记录 `localCandidateAbsent: true`；coverage 只含
+  `productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、`deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`、
+  `serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（51 tests）；
+  `npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。
+- 第一百四十批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 runtime-release
+  证据门槛收紧等同于完整 S13、完整 13 类资产逐类业务消费者、完整五种交付形态或总目标完成。后续优先继续
+  真实覆盖缺口：S13 两机构差异化发布 / 部分选择 / 离线交付 / 导入或校验闭环，S2/S4 真实接入与字典映射，
+  system-providers 备份恢复与诚实降级 coverage 附件门槛，identity-binding 身份来源 coverage 附件门槛，
+  S0-S40 其余场景、完整语义族 / 专业域 / 全知识、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；
+  继续坚持真实前台与真实服务链路，发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百三十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S7、全知识治理、全语义族、全角色、全功能或 134 清库部署收口，而是把
   既有 `d6-graph-explore.spec.ts` 从“图谱页面可见 + 存量投影兜底”补成可被浏览器覆盖 reporter 消费的

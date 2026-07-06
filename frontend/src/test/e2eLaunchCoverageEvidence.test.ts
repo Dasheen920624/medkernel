@@ -10,6 +10,47 @@ const passedStats = {
   skipped: 0,
 };
 
+const runtimeReleaseVersionedAssets = [
+  "KNOWLEDGE",
+  "TERMINOLOGY",
+  "RULE",
+  "PATHWAY",
+  "EVALUATION",
+  "FOLLOWUP",
+  "FIELD_CATALOG",
+  "SAFETY",
+  "CDSS_RISK",
+  "VALUE_SET",
+  "FORMULA",
+  "ORDER_SET",
+  "ACTION_CARD",
+];
+
+const runtimeReleaseApiEvidence = {
+  impactSimulationRun: true,
+  activationPosted: true,
+  activationRequestCarriesRequiredAssets: true,
+  currentReleaseReadback: true,
+  runtimeConsumerReadback: true,
+  rollbackPosted: true,
+  rollbackCurrentReleaseReadback: true,
+  rollbackRuntimeConsumerReadback: true,
+};
+
+const runtimeReleaseScenarioEvidence = [
+  {
+    observedStages: [
+      "前台展示并勾选 13 类平台标准资产",
+      "前台评估机构生效版本发布影响",
+      "前台生成携带 13 类资产闭包的机构生效版本",
+      "后端回读当前机构生效版本资产闭包",
+      "第三方运行契约读取同一机构生效版本",
+      "前台从历史机构生效版本回滚",
+      "回滚后后端和第三方运行契约读取同一修订",
+    ],
+  },
+];
+
 describe("browser E2E launch coverage evidence", () => {
   it("declares stakeholder views only when the real stakeholder rehearsal spec passes", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
@@ -50,6 +91,56 @@ describe("browser E2E launch coverage evidence", () => {
           file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
           title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
           status: "passed",
+          attachments: [
+            {
+              name: "runtime-release-coverage-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                productLayers: ["RELEASE_GOVERNANCE"],
+                versionedAssets: runtimeReleaseVersionedAssets,
+                deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
+                serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
+                apiEvidence: runtimeReleaseApiEvidence,
+                localCandidate: {
+                  assetType: "ACTION_CARD",
+                  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                  versionId: "local-version-1",
+                },
+                activationRequest: {
+                  activeAssets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                    },
+                  ],
+                },
+                activationReadback: {
+                  assets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                      entryState: "ACTIVE",
+                    },
+                  ],
+                },
+                runtimeConsumerReadback: {
+                  assets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                      entryState: "ACTIVE",
+                    },
+                  ],
+                },
+                rollbackReadback: { localCandidateAbsent: true, assets: [] },
+                rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
+                scenarioEvidence: runtimeReleaseScenarioEvidence,
+              }),
+            },
+          ],
         },
       ],
     });
@@ -82,6 +173,91 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare release governance coverage from a runtime release spec without complete runtime evidence", () => {
+    const missingAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+          title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+          status: "passed",
+        },
+      ],
+    });
+    const incompleteAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+          title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+          status: "passed",
+          attachments: [
+            {
+              name: "runtime-release-coverage-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                productLayers: ["RELEASE_GOVERNANCE"],
+                versionedAssets: ["KNOWLEDGE"],
+                deliveryShapes: ["MANAGEMENT_WORKSPACE"],
+                serviceCombinations: ["CLINICAL_RUNTIME"],
+                apiEvidence: {
+                  impactSimulationRun: true,
+                  activationPosted: true,
+                  activationRequestCarriesRequiredAssets: false,
+                  currentReleaseReadback: true,
+                  runtimeConsumerReadback: true,
+                  rollbackPosted: true,
+                  rollbackCurrentReleaseReadback: true,
+                  rollbackRuntimeConsumerReadback: false,
+                },
+                scenarioEvidence: [
+                  {
+                    observedStages: ["前台生成携带 13 类资产闭包的机构生效版本"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(missingAttachment.launchCoverage.productLayers).toBeUndefined();
+    expect(missingAttachment.launchCoverage.versionedAssets).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.productLayers).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.versionedAssets).toBeUndefined();
+  });
+
+  it("does not declare release governance coverage when runtime evidence omits local candidate readbacks", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+          title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+          status: "passed",
+          attachments: [
+            {
+              name: "runtime-release-coverage-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                productLayers: ["RELEASE_GOVERNANCE"],
+                versionedAssets: runtimeReleaseVersionedAssets,
+                deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
+                serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
+                apiEvidence: runtimeReleaseApiEvidence,
+                scenarioEvidence: runtimeReleaseScenarioEvidence,
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssets).toBeUndefined();
   });
 
   it("declares third-party system family coverage only when the real spec attaches all observed family codes", () => {

@@ -49,6 +49,7 @@ type CoverageProof = {
   requiresServiceOrganizationScenarioAttachment?: boolean;
   requiresMfaLoginScenarioAttachment?: boolean;
   requiresDiagnosisKnowledgeScenarioAttachment?: boolean;
+  requiresRuntimeReleaseAttachment?: boolean;
   requiresSourceLineageAttachment?: boolean;
   requiresEmbedBusinessHostAttachment?: boolean;
   requiresPathwayLifecycleAttachment?: boolean;
@@ -202,6 +203,20 @@ const requiredDiagnosisKnowledgeScenarioCodes = Object.keys(
   requiredDiagnosisKnowledgeScenarioEvidence,
 );
 
+const requiredRuntimeReleaseVersionedAssets = runtimeReleaseClaims
+  .filter((claim) => claim.startsWith("versionedAssets:"))
+  .map((claim) => claim.split(":")[1]);
+
+const requiredRuntimeReleaseScenarioEvidence = [
+  "前台展示并勾选 13 类平台标准资产",
+  "前台评估机构生效版本发布影响",
+  "前台生成携带 13 类资产闭包的机构生效版本",
+  "后端回读当前机构生效版本资产闭包",
+  "第三方运行契约读取同一机构生效版本",
+  "前台从历史机构生效版本回滚",
+  "回滚后后端和第三方运行契约读取同一修订",
+];
+
 const requiredSourceLineageScenarioEvidence: Record<string, string[]> = {
   S7: [
     "真实登记受控来源、版本和锚点",
@@ -272,6 +287,7 @@ const coverageProofs: CoverageProof[] = [
     file: "runtime-release-frontdesk.spec.ts",
     titleIncludes: "生成新生效版本并从历史版本回滚",
     claims: runtimeReleaseClaims,
+    requiresRuntimeReleaseAttachment: true,
   },
   {
     file: "third-party-system-families-rehearsal.spec.ts",
@@ -365,6 +381,7 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresMfaLoginScenarioAttachment || hasRequiredMfaLoginScenarioAttachment(test)) &&
       (!proof.requiresDiagnosisKnowledgeScenarioAttachment ||
         hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) &&
+      (!proof.requiresRuntimeReleaseAttachment || hasRequiredRuntimeReleaseAttachment(test)) &&
       (!proof.requiresSourceLineageAttachment || hasRequiredSourceLineageAttachment(test)) &&
       (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
       (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test))
@@ -564,6 +581,137 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
   }
 }
 
+function hasRequiredRuntimeReleaseAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "runtime-release-coverage-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      apiEvidence?: unknown;
+      localCandidate?: unknown;
+      activationRequest?: unknown;
+      activationReadback?: unknown;
+      runtimeConsumerReadback?: unknown;
+      rollbackReadback?: unknown;
+      rollbackRuntimeConsumerReadback?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.productLayers, ["RELEASE_GOVERNANCE"]) ||
+      !arrayEquals(parsed.versionedAssets, requiredRuntimeReleaseVersionedAssets) ||
+      !arrayEquals(parsed.deliveryShapes, ["MANAGEMENT_WORKSPACE", "API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"]) ||
+      !hasCompleteRuntimeReleaseApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteRuntimeReleaseLocalCandidateEvidence(parsed) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const observedStages = parsed.scenarioEvidence.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      return Array.isArray(stages)
+        ? stages.filter((stage): stage is string => typeof stage === "string")
+        : [];
+    });
+    return requiredRuntimeReleaseScenarioEvidence.every((stage) => observedStages.includes(stage));
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteRuntimeReleaseLocalCandidateEvidence(value: {
+  localCandidate?: unknown;
+  activationRequest?: unknown;
+  activationReadback?: unknown;
+  runtimeConsumerReadback?: unknown;
+  rollbackReadback?: unknown;
+  rollbackRuntimeConsumerReadback?: unknown;
+}) {
+  const candidate = parseRuntimeReleaseCandidate(value.localCandidate);
+  if (!candidate) return false;
+  return (
+    runtimeReleasePayloadContainsCandidate(value.activationRequest, "activeAssets", candidate) &&
+    runtimeReleasePayloadContainsCandidate(value.activationReadback, "assets", candidate, {
+      requireActive: true,
+    }) &&
+    runtimeReleasePayloadContainsCandidate(value.runtimeConsumerReadback, "assets", candidate, {
+      requireActive: true,
+    }) &&
+    runtimeReleasePayloadExcludesCandidate(value.rollbackReadback, candidate) &&
+    runtimeReleasePayloadExcludesCandidate(value.rollbackRuntimeConsumerReadback, candidate)
+  );
+}
+
+function parseRuntimeReleaseCandidate(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.assetType !== "string" ||
+    candidate.assetType.length === 0 ||
+    typeof candidate.assetIdentity !== "string" ||
+    candidate.assetIdentity.length === 0 ||
+    typeof candidate.versionId !== "string" ||
+    candidate.versionId.length === 0
+  ) {
+    return null;
+  }
+  return {
+    assetType: candidate.assetType,
+    assetIdentity: candidate.assetIdentity,
+    versionId: candidate.versionId,
+  };
+}
+
+function runtimeReleasePayloadContainsCandidate(
+  value: unknown,
+  assetField: "activeAssets" | "assets",
+  candidate: { assetType: string; assetIdentity: string; versionId: string },
+  options: { requireActive?: boolean } = {},
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const assets = (value as Record<string, unknown>)[assetField];
+  if (!Array.isArray(assets)) return false;
+  return assets.some((item) => runtimeReleaseAssetMatchesCandidate(item, candidate, options));
+}
+
+function runtimeReleasePayloadExcludesCandidate(
+  value: unknown,
+  candidate: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const payload = value as Record<string, unknown>;
+  if (payload.localCandidateAbsent !== true || !Array.isArray(payload.assets)) return false;
+  return !payload.assets.some((item) => runtimeReleaseAssetMatchesIdentity(item, candidate));
+}
+
+function runtimeReleaseAssetMatchesCandidate(
+  value: unknown,
+  candidate: { assetType: string; assetIdentity: string; versionId: string },
+  options: { requireActive?: boolean } = {},
+) {
+  if (!runtimeReleaseAssetMatchesIdentity(value, candidate)) return false;
+  const asset = value as Record<string, unknown>;
+  return (
+    asset.versionId === candidate.versionId &&
+    (!options.requireActive || asset.entryState === "ACTIVE")
+  );
+}
+
+function runtimeReleaseAssetMatchesIdentity(
+  value: unknown,
+  candidate: { assetType: string; assetIdentity: string },
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const asset = value as Record<string, unknown>;
+  return asset.assetType === candidate.assetType && asset.assetIdentity === candidate.assetIdentity;
+}
+
 function hasRequiredSourceLineageAttachment(test: BrowserE2eTestResult) {
   const attachment = test.attachments?.find(
     (item) => item.name === "source-lineage-scenario-codes",
@@ -694,6 +842,21 @@ function hasRequiredPathwayLifecycleAttachment(test: BrowserE2eTestResult) {
   } catch {
     return false;
   }
+}
+
+function hasCompleteRuntimeReleaseApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "impactSimulationRun",
+    "activationPosted",
+    "activationRequestCarriesRequiredAssets",
+    "currentReleaseReadback",
+    "runtimeConsumerReadback",
+    "rollbackPosted",
+    "rollbackCurrentReleaseReadback",
+    "rollbackRuntimeConsumerReadback",
+  ].every((key) => evidence[key] === true);
 }
 
 function hasCompleteEmbedApiEvidence(value: unknown) {
