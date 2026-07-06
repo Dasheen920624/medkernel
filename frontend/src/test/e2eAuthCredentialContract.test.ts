@@ -524,6 +524,21 @@ describe("E2E credential contract", () => {
     expect(source).toContain("disableMfaAdminAccount");
     expect(source).toContain("/compliance/users/${encodeURIComponent(userId)}/status");
     expect(source).toContain('status: "DISABLED"');
+    expect(source).toContain("recordMfaLoginStage");
+    expect(source).toContain("attachMfaLoginScenarioEvidence");
+    expect(source).toContain("mfa-login-scenario-codes");
+    expect(source).toContain('code: "S14"');
+    expect(source).toContain("配置中心读取上线默认 MFA 关闭");
+    expect(source).toContain("创建 MFA 临时平台管理员账号");
+    expect(source).toContain("临时账号完成首次改密并绑定 TOTP");
+    expect(source).toContain("配置中心临时开启 MFA");
+    expect(source).toContain("登录页要求已绑定账号完成 MFA 验证");
+    expect(source).toContain("前台提交真实 TOTP 验证并进入工作台");
+    expect(source).toContain("验证后回读权限画像与 MFA 状态");
+    expect(source).toContain("恢复 MFA 上线默认关闭状态");
+    expect(source).toContain("停用 MFA 演练临时管理员账号");
+    expect(source).toContain("FOUNDATION_GOVERNANCE");
+    expect(source).toContain("COMPLIANCE_OPERATIONS");
   });
 
   it("requires service organization rehearsal to cover first-login organization tree setup", () => {

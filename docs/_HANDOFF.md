@@ -10,6 +10,37 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是登录页文案或
+  片面 MFA 优化，而是把既有 `mfa-login-frontdesk.spec.ts` 从“真实前台 E2E + 截图”补成可被浏览器覆盖
+  reporter 消费的认证安全证据。该 spec 现在先由平台管理员真实创建 MFA 临时平台管理员账号，临时账号完成
+  首次改密并绑定真实 TOTP；随后通过配置中心真实读取“上线默认 MFA 关闭”、临时开启 MFA，在登录页验证已绑定
+  账号必须进入 MFA 步骤，提交真实动态验证码并进入工作台，再回读 `/security/me` 确认
+  `mfaRequired/mfaBound/mfaVerified` 均为 true；finally 中恢复 MFA 默认关闭并停用临时管理员账号。
+  `launchCoverageEvidence` 只有在 spec 通过、非 flaky，且附件 `mfa-login-scenario-codes` 完整包含
+  九个阶段时才声明 `scenarios:S14`、`productLayers:FOUNDATION_GOVERNANCE` 和
+  `serviceCombinations:COMPLIANCE_OPERATIONS`。本批明确不声明完整 S14、组织层级、全合规运维、全角色全功能
+  或总目标完成。只读子代理 Mencius 核查确认 `pathway-graph-editor.spec.ts` 仅证明路径画布交互和真实页面读链路，
+  未真实保存 / 发布 / 仿真 / 入径 / 变异 / 随访接续，不适合声明 S6、专病十阶段或
+  `SPECIAL_DISEASE_PATHWAY`。
+- 第一百三十七批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "MFA login"` 曾失败于
+  `expected undefined to deeply equal [ 'S14' ]`；`npm --prefix frontend run test -- e2eAuthCredentialContract -t "requires MFA frontdesk rehearsal"`
+  曾失败于 `mfa-login-frontdesk.spec.ts` 缺 `recordMfaLoginStage`。实现后两者转绿。新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（44 tests）；
+  `npm --prefix frontend run typecheck` 通过；E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/mfa-login-frontdesk.spec.ts`
+  通过；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；`git diff --check` 通过。
+  本地重新打包后端 `mvn -f medkernel-backend/pom.xml -DskipTests package` 通过，并在 2026-07-06 20:10 后启动
+  当前分支 JAR 的 18080 dev/H2 空库后端（PID 51036）。目标真实前台 E2E 通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-mfa-login-coverage npm --prefix frontend run e2e -- --project=chromium mfa-login-frontdesk.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，
+  `coverageKeys=["scenarios","productLayers","serviceCombinations"]`，只含 `scenarios:S14`、
+  `productLayers:FOUNDATION_GOVERNANCE` 和 `serviceCombinations:COMPLIANCE_OPERATIONS`，附件九个阶段完整。
+- 第一百三十七批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 MFA 认证安全切片
+  等同于完整 S14、全基础治理或总目标完成。后续优先补真实前台 S6 临床路径端到端证据：前台完整创建路径草稿、
+  真实 POST 保存、后端回读节点 / 边 / 时钟配置、发布 / 仿真 / 入径候选 / 推进 / 变异 / 随访接续，并以附件
+  严格声明 S6、专病十阶段和 `SPECIAL_DISEASE_PATHWAY`；继续补 S0-S40 其余缺口、完整语义族 / 专业域、
+  五种交付形态未覆盖项、两家机构差异化发布 / 回滚、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演。
 - 第一百三十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把旧 `embed-business-host.spec.ts` 的 `page.route` mock 嵌入演示补成可被浏览器
   覆盖 reporter 消费的真实嵌入式交付和反馈闭环证据。该 spec 现在先以 `clinical-user` 真实登录前台

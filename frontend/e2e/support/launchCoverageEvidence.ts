@@ -47,6 +47,7 @@ type CoverageProof = {
   requiresSystemFamilyAttachment?: boolean;
   requiresRealFrontdeskScenarioAttachment?: boolean;
   requiresServiceOrganizationScenarioAttachment?: boolean;
+  requiresMfaLoginScenarioAttachment?: boolean;
   requiresDiagnosisKnowledgeScenarioAttachment?: boolean;
   requiresEmbedBusinessHostAttachment?: boolean;
 };
@@ -117,6 +118,12 @@ const serviceOrganizationClaims = [
   "serviceCombinations:COMPLIANCE_OPERATIONS",
 ];
 
+const mfaLoginClaims = [
+  "scenarios:S14",
+  "productLayers:FOUNDATION_GOVERNANCE",
+  "serviceCombinations:COMPLIANCE_OPERATIONS",
+];
+
 const diagnosisKnowledgeClaims = [
   "scenarios:S3",
   "productLayers:MEDICAL_ASSET",
@@ -155,6 +162,22 @@ const requiredServiceOrganizationScenarioEvidence: Record<string, string[]> = {
 const requiredServiceOrganizationScenarioCodes = Object.keys(
   requiredServiceOrganizationScenarioEvidence,
 );
+
+const requiredMfaLoginScenarioEvidence: Record<string, string[]> = {
+  S14: [
+    "配置中心读取上线默认 MFA 关闭",
+    "创建 MFA 临时平台管理员账号",
+    "临时账号完成首次改密并绑定 TOTP",
+    "配置中心临时开启 MFA",
+    "登录页要求已绑定账号完成 MFA 验证",
+    "前台提交真实 TOTP 验证并进入工作台",
+    "验证后回读权限画像与 MFA 状态",
+    "恢复 MFA 上线默认关闭状态",
+    "停用 MFA 演练临时管理员账号",
+  ],
+};
+
+const requiredMfaLoginScenarioCodes = Object.keys(requiredMfaLoginScenarioEvidence);
 
 const requiredDiagnosisKnowledgeScenarioEvidence: Record<string, string[]> = {
   S3: [
@@ -215,6 +238,12 @@ const coverageProofs: CoverageProof[] = [
     requiresServiceOrganizationScenarioAttachment: true,
   },
   {
+    file: "mfa-login-frontdesk.spec.ts",
+    titleIncludes: "开启 MFA 后已绑定账号必须在登录页完成真实 TOTP 验证",
+    claims: mfaLoginClaims,
+    requiresMfaLoginScenarioAttachment: true,
+  },
+  {
     file: "diagnosis-knowledge-maintenance.spec.ts",
     titleIncludes: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
     claims: diagnosisKnowledgeClaims,
@@ -266,6 +295,7 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredRealFrontdeskScenarioAttachment(test)) &&
       (!proof.requiresServiceOrganizationScenarioAttachment ||
         hasRequiredServiceOrganizationScenarioAttachment(test)) &&
+      (!proof.requiresMfaLoginScenarioAttachment || hasRequiredMfaLoginScenarioAttachment(test)) &&
       (!proof.requiresDiagnosisKnowledgeScenarioAttachment ||
         hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) &&
       (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test))
@@ -373,6 +403,46 @@ function hasRequiredServiceOrganizationScenarioAttachment(test: BrowserE2eTestRe
     return requiredServiceOrganizationScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredServiceOrganizationScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredMfaLoginScenarioAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find((item) => item.name === "mfa-login-scenario-codes");
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      serviceCombinations?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredMfaLoginScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["FOUNDATION_GOVERNANCE"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["COMPLIANCE_OPERATIONS"]) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredMfaLoginScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredMfaLoginScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });

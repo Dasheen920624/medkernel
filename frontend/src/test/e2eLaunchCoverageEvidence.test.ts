@@ -262,6 +262,89 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares MFA login coverage only when the passed spec attaches complete authentication-safety evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/mfa-login-frontdesk.spec.ts",
+          title: "开启 MFA 后已绑定账号必须在登录页完成真实 TOTP 验证",
+          status: "passed",
+          attachments: [
+            {
+              name: "mfa-login-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S14"],
+                productLayers: ["FOUNDATION_GOVERNANCE"],
+                serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+                scenarioEvidence: [
+                  {
+                    code: "S14",
+                    observedStages: [
+                      "配置中心读取上线默认 MFA 关闭",
+                      "创建 MFA 临时平台管理员账号",
+                      "临时账号完成首次改密并绑定 TOTP",
+                      "配置中心临时开启 MFA",
+                      "登录页要求已绑定账号完成 MFA 验证",
+                      "前台提交真实 TOTP 验证并进入工作台",
+                      "验证后回读权限画像与 MFA 状态",
+                      "恢复 MFA 上线默认关闭状态",
+                      "停用 MFA 演练临时管理员账号",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S14"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "FOUNDATION_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "COMPLIANCE_OPERATIONS",
+    ]);
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
+  it("does not declare MFA login coverage from a passed spec without complete authentication-safety evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/mfa-login-frontdesk.spec.ts",
+          title: "开启 MFA 后已绑定账号必须在登录页完成真实 TOTP 验证",
+          status: "passed",
+          attachments: [
+            {
+              name: "mfa-login-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S14"],
+                productLayers: ["FOUNDATION_GOVERNANCE"],
+                serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+                scenarioEvidence: [
+                  {
+                    code: "S14",
+                    observedStages: ["配置中心读取上线默认 MFA 关闭"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
   it("does not declare service organization coverage from a passed spec without complete scenario附件", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
       stats: passedStats,
