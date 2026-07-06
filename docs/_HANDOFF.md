@@ -10,6 +10,40 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是让浏览器 E2E 阶段在真实 Playwright 运行结束后输出可被
+  `launch-coverage-audit` 消费的仓库外上线覆盖证据摘要。`frontend/playwright.config.ts` 保留 HTML 和
+  原生 Playwright JSON 报告，但原生报告改写到 `playwright-results.json`；新增
+  `frontend/e2e/support/launchCoverageReporter.ts` 写出审计消费的 `report/results.json`，新增
+  `frontend/e2e/support/launchCoverageEvidence.ts` 只从真实通过且非 flaky 的 spec 派生
+  `launchCoverage`。本批未推送远程、不合并 `main`。
+- 第一百三十批修复范围：当前浏览器证据只声明 `stakeholder-view-rehearsal.spec.ts` 实际证明的
+  12 类业务视角 `stakeholderViews`，不会静态声明 S0-S40、第三方系统族、专病十阶段或其他未由本轮
+  spec 证明的覆盖项；spec 失败、运行结果 unexpected、或 Playwright `outcome()` 为 `flaky` 时不声明覆盖。
+  `e2eLaunchCoverageEvidence.test.ts` 锁住缺证、失败、flaky 不得声明覆盖；`productRoleJourneys.test.ts`
+  不再依赖默认代理 URL 的单引号表现；`e2eAuthCredentialContract.test.ts` 修复禁用资产测试数据的字面量
+  类型过窄；`e2e/support/auth.ts` 删除未使用派生常量。`docs/audit/product-function-catalog.md` 由生成器同步
+  当前安全红线草稿入口 `POST /api/v1/engine/safety/redlines`。
+- 第一百三十批红点根因与定位修复：Playwright 原生 JSON 只有 `stats/suites`，不含上线覆盖矩阵的
+  `launchCoverage`，导致 `browser-e2e` 作为前置阶段无法向收紧后的覆盖审计提供逐项证据。实现时避免把
+  局部 E2E 通过包装成全量覆盖：真实验证只跑 `stakeholder-view-rehearsal.spec.ts` 后，仓库外
+  `/tmp/medkernel-e2e-launch-evidence/report/results.json` 仅包含 `coverageKeys=["stakeholderViews"]` 和
+  12 类业务视角，不包含 `scenarios` 或 `thirdPartySystemFamilies`。前端重门禁首次红于产品目录可复现检查和
+  单引号 URL 断言；根因分别是安全红线草稿 POST 入口已新增但目录未同步、以及测试对格式化引号过窄，已按
+  生成器事实和更稳健断言修复。
+- 第一百三十批验证证据：`npm --prefix frontend run verify` 通过（116 files，1014 tests，仅保留既有
+  AntD Timeline warning）；`npm --prefix frontend run test -- productCatalog productRoleJourneys
+e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（42 tests）；`npm --prefix frontend run typecheck`
+  通过；`node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  通过（11 tests）；`bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；目标真实前台
+  E2E 在本地 18080 H2 后端和 Playwright 启动的 Vite 前端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-launch-evidence npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过，并生成仓库外 `results.json`/`playwright-results.json` 分离证据；`node scripts/audit/export-product-capabilities.mjs --check`
+  通过；`git diff --check` 退出码 0。
+- 第一百三十批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也未补齐 S0-S40、
+  第三方系统族、专病十阶段、全交付形态、真实备份/隔离恢复/重启恢复、两家机构差异化发布 / 回滚等
+  `browser-e2e` 逐项 `launchCoverage`。下一步应继续把真实浏览器 spec 与覆盖项建立一一对应证据，而不是
+  扩大 reporter 静态声明；发现红点继续先复现、定根因，再修复。
 - 第一百二十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是修复上线覆盖审计“静态矩阵自证全量通过”的门禁漏洞。覆盖审计现在只能从
   前置阶段实际输出的 `launchCoverage` 逐项聚合，覆盖行必须带 `evidenceStage`、`evidencePath`、

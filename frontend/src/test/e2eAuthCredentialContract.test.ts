@@ -172,23 +172,28 @@ describe("E2E credential contract", () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
 
+    const baselineItems: Array<{
+      assetType: string;
+      assetIdentity: string;
+      versionId: string;
+      entryState: string;
+    }> = [
+      ...runtimeAssetTypes.map((assetType) => ({
+        assetType,
+        assetIdentity: runtimeAssetIdentities[assetType],
+        versionId: `${assetType.toLowerCase()}-v1`,
+        entryState: "ACTIVE",
+      })),
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.DISABLED",
+        versionId: "rule-disabled",
+        entryState: "DISABLED",
+      },
+    ];
     const baseline = auth.resolveBaselineRuntimeAssets({
       release: { baselineReleaseId: "baseline-1" },
-      items: runtimeAssetTypes
-        .map((assetType) => ({
-          assetType,
-          assetIdentity: runtimeAssetIdentities[assetType],
-          versionId: `${assetType.toLowerCase()}-v1`,
-          entryState: "ACTIVE",
-        }))
-        .concat([
-          {
-            assetType: "RULE",
-            assetIdentity: "RULE.DISABLED",
-            versionId: "rule-disabled",
-            entryState: "DISABLED",
-          },
-        ]),
+      items: baselineItems,
     });
 
     expect(baseline).toEqual({

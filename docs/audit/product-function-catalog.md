@@ -529,7 +529,7 @@
 <!-- capability:controller:controller@RuntimeDiagnosticsController decision=KEEP -->
 | `RuntimeDiagnosticsController` | GET /api/v1/system/runtime-diagnostics/api-contracts | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ClinicalRedlineController decision=KEEP -->
-| `ClinicalRedlineController` | GET /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines:dry-run<br>POST /api/v1/engine/safety/redlines:promote | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `ClinicalRedlineController` | GET /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines:dry-run<br>POST /api/v1/engine/safety/redlines:promote | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@SafetyWithdrawalController decision=MERGE -->
 | `SafetyWithdrawalController` | POST /api/v1/engine/safety/withdrawals<br>GET /api/v1/engine/safety/withdrawals/{withdrawalId}/impact<br>GET /api/v1/engine/safety/withdrawals/{withdrawalId}/impact/export | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@SandboxScenarioController decision=KEEP -->

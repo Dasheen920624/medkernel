@@ -46,7 +46,6 @@ export const requiredRuntimeAssetsForRehearsal = [
   { assetType: "ACTION_CARD", assetIdentity: "ACTION_CARD.LOCAL.REHEARSAL.BASELINE" },
 ] as const;
 const requiredRuntimeAssets = requiredRuntimeAssetsForRehearsal;
-const requiredRuntimeAssetTypes = requiredRuntimeAssets.map((asset) => asset.assetType);
 
 export type RoleAccount = RoleAccountCode;
 type RuntimeAssetSelection = {
