@@ -59,6 +59,7 @@ type CoverageProof = {
   requiresCdssDeclarativeRuntimeAssetAttachment?: boolean;
   requiresMedicationSafetyFrontdeskAttachment?: boolean;
   requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
+  requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -161,6 +162,14 @@ const diagnosticCriticalValueFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
 ];
 
+const nursingContinuityFrontdeskClaims = [
+  "scenarios:S20",
+  "scenarios:S35",
+  "productLayers:CLINICAL_EXECUTION",
+  "versionedAssets:FOLLOWUP",
+  "serviceCombinations:CLINICAL_RUNTIME",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -219,6 +228,7 @@ const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
+const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -272,6 +282,20 @@ const requiredDiagnosticCriticalValueFrontdeskScenarioEvidence: Record<string, s
     "临床用户从真实前台生成医技报告解读",
     "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
     "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
+  ],
+};
+
+const requiredNursingContinuityFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S20: [
+    "运营员发布 FOLLOWUP 随访方案并激活到当前机构生效版本",
+    "临床用户从真实前台基于护理上下文生成随访计划",
+    "临床用户提交随访问卷并登记异常回院",
+    "随访结果回流生成 FollowUp 标准资源并绑定同一机构生效版本",
+  ],
+  S35: [
+    "临床用户从患者 360 建立护理高风险评估标准上下文",
+    "标准上下文回读 NursingAssessment 与 CarePlan 护理事实",
+    "随访计划解释消费 NursingAssessment 风险等级与护理计划节点",
   ],
 };
 
@@ -489,6 +513,12 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosticCriticalValueFrontdeskAttachment: true,
   },
   {
+    file: "nursing-continuity-frontdesk.spec.ts",
+    titleIncludes: "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
+    claims: nursingContinuityFrontdeskClaims,
+    requiresNursingContinuityFrontdeskAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -600,6 +630,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredMedicationSafetyFrontdeskAttachment(test)) &&
       (!proof.requiresDiagnosticCriticalValueFrontdeskAttachment ||
         hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) &&
+      (!proof.requiresNursingContinuityFrontdeskAttachment ||
+        hasRequiredNursingContinuityFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -925,6 +957,81 @@ function hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test: BrowserE2eT
     return requiredDiagnosticCriticalValueFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredDiagnosticCriticalValueFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredNursingContinuityFrontdeskAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "nursing-continuity-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      followupPlan?: unknown;
+      questionnaire?: unknown;
+      abnormalReport?: unknown;
+      resultBackflow?: unknown;
+      backflowContext?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseNursingContinuityRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredNursingContinuityFrontdeskScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
+      !arrayEquals(parsed.versionedAssets, ["FOLLOWUP"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["CLINICAL_RUNTIME"]) ||
+      !hasText(parsed.scopeStatement) ||
+      !String(parsed.scopeStatement).includes("代表切片") ||
+      !String(parsed.scopeStatement).includes("不代表完整") ||
+      !hasCompleteNursingContinuityApiEvidence(parsed.apiEvidence) ||
+      !runtime ||
+      !hasCompleteNursingContinuityActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompleteNursingContinuityClinicalContext(parsed.clinicalContext, runtime.releaseId) ||
+      !hasCompleteNursingContinuityFollowupPlan(
+        parsed.followupPlan,
+        runtime,
+        parsed.clinicalContext,
+      ) ||
+      !hasCompleteNursingContinuityQuestionnaire(parsed.questionnaire, parsed.followupPlan) ||
+      !hasCompleteNursingContinuityAbnormalReport(parsed.abnormalReport, parsed.followupPlan) ||
+      !hasCompleteNursingContinuityBackflow(
+        parsed.resultBackflow,
+        parsed.backflowContext,
+        runtime.releaseId,
+        parsed.questionnaire,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const stages = Array.isArray(row?.observedStages) ? row.observedStages : [];
+      if (!code) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredNursingContinuityFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredNursingContinuityFrontdeskScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -2430,6 +2537,296 @@ function hasCompleteDiagnosticCriticalValueWorkflowTodo(value: unknown, recommen
     String(todo.completionReason).includes("不改写") &&
     todo.noAutoOrder === true
   );
+}
+
+type NursingContinuityRuntimeAsset = {
+  assetType: "FOLLOWUP";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+function hasCompleteNursingContinuityApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "contextSnapshotCreatedFromFrontdesk",
+    "nursingAssessmentReadback",
+    "carePlanReadback",
+    "followupTemplatePublished",
+    "runtimeActivatedWithFollowupAsset",
+    "followupPlanGeneratedFromFrontdesk",
+    "questionnaireSubmitted",
+    "abnormalReported",
+    "resultBackflowPosted",
+    "backflowContextContainsFollowUp",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function parseNursingContinuityRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const followupAsset = parseNursingContinuityRuntimeAsset(runtime.followupAsset);
+  if (!followupAsset) return null;
+  const runtimeAssets = runtime.assets;
+  if (
+    !runtimeAssets.some((item) =>
+      nursingContinuityRuntimeAssetMatches(item, followupAsset, { requireActive: true }),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    followupAsset,
+  };
+}
+
+function parseNursingContinuityRuntimeAsset(value: unknown): NursingContinuityRuntimeAsset | null {
+  const asset = recordValue(value);
+  if (
+    !asset ||
+    asset.assetType !== "FOLLOWUP" ||
+    !hasText(asset.assetIdentity) ||
+    !hasText(asset.versionId) ||
+    !hasText(asset.versionNo) ||
+    !isSha256(asset.contentHash) ||
+    asset.entryState !== "ACTIVE"
+  ) {
+    return null;
+  }
+  return {
+    assetType: "FOLLOWUP",
+    assetIdentity: String(asset.assetIdentity),
+    versionId: String(asset.versionId),
+    versionNo: String(asset.versionNo),
+    contentHash: String(asset.contentHash),
+  };
+}
+
+function nursingContinuityRuntimeAssetMatches(
+  value: unknown,
+  asset: NursingContinuityRuntimeAsset,
+  options: { requireActive?: boolean } = {},
+) {
+  const candidate = recordValue(value);
+  return (
+    candidate?.assetType === asset.assetType &&
+    candidate.assetIdentity === asset.assetIdentity &&
+    candidate.versionId === asset.versionId &&
+    candidate.versionNo === asset.versionNo &&
+    candidate.contentHash === asset.contentHash &&
+    (!options.requireActive || candidate.entryState === "ACTIVE")
+  );
+}
+
+function hasCompleteNursingContinuityActivationRequest(
+  value: unknown,
+  runtime: { followupAsset: NursingContinuityRuntimeAsset },
+) {
+  return runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+    assetType: runtime.followupAsset.assetType,
+    assetIdentity: runtime.followupAsset.assetIdentity,
+    versionId: runtime.followupAsset.versionId,
+  });
+}
+
+function hasCompleteNursingContinuityClinicalContext(
+  value: unknown,
+  runtimeReleaseId: string,
+) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const nursingAssessments = Array.isArray(resources?.nursingAssessments)
+    ? resources.nursingAssessments
+    : [];
+  const carePlans = Array.isArray(resources?.carePlans) ? resources.carePlans : [];
+  return (
+    hasText(context?.patientId) &&
+    hasText(context?.encounterId) &&
+    hasText(context?.contextSnapshotId) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    nursingAssessments.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        hasText(row.assessmentId) &&
+        hasText(row.assessmentType) &&
+        hasText(row.riskLevel) &&
+        hasText(row.status) &&
+        hasText(row.sourceSystem)
+      );
+    }) &&
+    carePlans.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        hasText(row.planId) &&
+        hasText(row.pathwayId) &&
+        hasText(row.currentNodeId) &&
+        hasText(row.sourceSystem)
+      );
+    })
+  );
+}
+
+function hasCompleteNursingContinuityFollowupPlan(
+  value: unknown,
+  runtime: { releaseId: string; followupAsset: NursingContinuityRuntimeAsset },
+  contextValue: unknown,
+) {
+  const plan = recordValue(value);
+  const context = recordValue(contextValue);
+  if (!plan || !context) return false;
+  const explanation = parseExplanationObject(plan?.generationExplanation);
+  const nursingEvidence = Array.isArray(explanation?.nursingAssessmentEvidence)
+    ? explanation.nursingAssessmentEvidence
+    : [];
+  const carePlanEvidence = Array.isArray(explanation?.carePlanEvidence)
+    ? explanation.carePlanEvidence
+    : [];
+  const runtimeAssetEvidence = Array.isArray(explanation?.runtimeAssetEvidence)
+    ? explanation.runtimeAssetEvidence
+    : [];
+  const tasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+  return (
+    hasText(plan?.planId) &&
+    plan.patientId === context?.patientId &&
+    plan.encounterId === context?.encounterId &&
+    plan.runtimeReleaseId === runtime.releaseId &&
+    hasText(plan.templateId) &&
+    typeof plan.templateVersion === "number" &&
+    plan.modelStatus === "MODEL_DISABLED" &&
+    hasText(plan.generationRuleCode) &&
+    explanation?.runtimeReleaseId === runtime.releaseId &&
+    nursingEvidence.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return hasText(row.assessmentId) && hasText(row.riskLevel) && hasText(row.status);
+    }) &&
+    carePlanEvidence.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return hasText(row.planId) && hasText(row.pathwayId) && hasText(row.currentNodeId);
+    }) &&
+    runtimeAssetEvidence.some((item) => {
+      const row = recordValue(item);
+      return (
+        row?.assetType === "FOLLOWUP" &&
+        row.assetIdentity === runtime.followupAsset.assetIdentity &&
+        row.assetVersionId === runtime.followupAsset.versionId &&
+        row.assetVersionNo === runtime.followupAsset.versionNo &&
+        (!hasText(row.contentHash) || row.contentHash === runtime.followupAsset.contentHash)
+      );
+    }) &&
+    tasks.some((item) => {
+      const row = recordValue(item);
+      return row?.taskType === "QUESTIONNAIRE" && row.status === "COMPLETED";
+    })
+  );
+}
+
+function hasCompleteNursingContinuityQuestionnaire(
+  value: unknown,
+  planValue: unknown,
+) {
+  const questionnaire = recordValue(value);
+  const plan = recordValue(planValue);
+  if (!questionnaire) return false;
+  const tasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+  return (
+    hasText(questionnaire?.questionnaireId) &&
+    hasText(questionnaire.taskId) &&
+    hasText(questionnaire.questionnaireTemplateId) &&
+    questionnaire.status === "COMPLETED" &&
+    tasks.some((item) => {
+      const task = recordValue(item);
+      if (!task) return false;
+      return (
+        task.taskId === questionnaire.taskId &&
+        task.taskType === "QUESTIONNAIRE" &&
+        task.status === "COMPLETED"
+      );
+    })
+  );
+}
+
+function hasCompleteNursingContinuityAbnormalReport(
+  value: unknown,
+  planValue: unknown,
+) {
+  const abnormal = recordValue(value);
+  const plan = recordValue(planValue);
+  if (!abnormal) return false;
+  const tasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+  return (
+    hasText(abnormal?.eventId) &&
+    hasText(abnormal.returnTaskId) &&
+    hasText(abnormal.notificationEventId) &&
+    tasks.some((item) => {
+      const task = recordValue(item);
+      if (!task) return false;
+      return task.taskId === abnormal.returnTaskId && task.taskType === "RETURN_VISIT";
+    })
+  );
+}
+
+function hasCompleteNursingContinuityBackflow(
+  resultValue: unknown,
+  contextValue: unknown,
+  runtimeReleaseId: string,
+  questionnaireValue: unknown,
+) {
+  const result = recordValue(resultValue);
+  const context = recordValue(contextValue);
+  const questionnaire = recordValue(questionnaireValue);
+  if (!result || !context || !questionnaire) return false;
+  const resources = recordValue(context?.resources);
+  const followUps = Array.isArray(resources?.followUps) ? resources.followUps : [];
+  return (
+    hasText(result?.eventId) &&
+    hasText(result.contextSnapshotId) &&
+    result.contextSnapshotId === context?.contextSnapshotId &&
+    result.sourceQuestionnaireId === questionnaire?.questionnaireId &&
+    hasText(result.abnormalFlag) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    followUps.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        row.followUpId === questionnaire.questionnaireId &&
+        hasText(row.planType) &&
+        hasText(row.questionnaireId) &&
+        row.abnormalFlag === result.abnormalFlag &&
+        row.sourceSystem === "FOLLOWUP" &&
+        row.mappedVersion === "FOLLOWUP_RESULT" &&
+        hasText(row.sourceRecordId)
+      );
+    })
+  );
+}
+
+function parseExplanationObject(value: unknown) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    return recordValue(JSON.parse(value));
+  } catch {
+    return null;
+  }
 }
 
 function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {

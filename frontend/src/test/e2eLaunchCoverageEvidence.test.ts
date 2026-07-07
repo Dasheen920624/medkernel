@@ -1313,6 +1313,233 @@ function expectNoDiagnosticCriticalValueCoverage(body: Record<string, unknown>) 
   expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S36");
 }
 
+const nursingContinuityEvidence = {
+  scenarioCodes: ["S20", "S35"],
+  productLayers: ["CLINICAL_EXECUTION"],
+  versionedAssets: ["FOLLOWUP"],
+  serviceCombinations: ["CLINICAL_RUNTIME"],
+  scopeStatement:
+    "护理连续照护代表切片：护理高风险评估、护理计划、随访问卷、异常回院和结果回流闭环，不代表完整护理专业智能、完整护理计划执行或第三方护理系统族。",
+  apiEvidence: {
+    contextSnapshotCreatedFromFrontdesk: true,
+    nursingAssessmentReadback: true,
+    carePlanReadback: true,
+    followupTemplatePublished: true,
+    runtimeActivatedWithFollowupAsset: true,
+    followupPlanGeneratedFromFrontdesk: true,
+    questionnaireSubmitted: true,
+    abnormalReported: true,
+    resultBackflowPosted: true,
+    backflowContextContainsFollowUp: true,
+  },
+  runtime: {
+    releaseId: "runtime-nursing-continuity",
+    revisionNo: 20,
+    manifestSha256: "4".repeat(64),
+    assets: [
+      {
+        assetType: "FOLLOWUP",
+        assetIdentity: "FOLLOWUP.NURSING.CONTINUITY",
+        versionId: "av-followup-nursing",
+        versionNo: "V1",
+        contentHash: "5".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    followupAsset: {
+      assetType: "FOLLOWUP",
+      assetIdentity: "FOLLOWUP.NURSING.CONTINUITY",
+      versionId: "av-followup-nursing",
+      versionNo: "V1",
+      contentHash: "5".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      {
+        assetType: "FOLLOWUP",
+        assetIdentity: "FOLLOWUP.NURSING.CONTINUITY",
+        versionId: "av-followup-nursing",
+      },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-nursing-continuity",
+    encounterId: "enc-nursing-continuity",
+    contextSnapshotId: "ctx-nursing-continuity",
+    runtimeReleaseId: "runtime-nursing-continuity",
+    resources: {
+      nursingAssessments: [
+        {
+          assessmentId: "na-nursing-continuity",
+          assessmentType: "跌倒风险评估",
+          riskLevel: "HIGH",
+          status: "CONFIRMED",
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+          mappedVersion: "FRONTDESK_CONTEXT_V1",
+          qualityStatus: "VALID",
+        },
+      ],
+      carePlans: [
+        {
+          planId: "care-nursing-continuity",
+          pathwayId: "PATHWAY.NURSING.FALL",
+          currentNodeId: "NURSING_REHAB_EDUCATION",
+          varianceCode: null,
+          plannedFinishAt: "2026-07-20T08:00:00.000Z",
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+          mappedVersion: "FRONTDESK_CONTEXT_V1",
+          qualityStatus: "VALID",
+        },
+      ],
+    },
+  },
+  followupPlan: {
+    planId: "fp-nursing-continuity",
+    patientId: "mpi-nursing-continuity",
+    encounterId: "enc-nursing-continuity",
+    runtimeReleaseId: "runtime-nursing-continuity",
+    templateId: "tpl-nursing-continuity",
+    templateVersion: 1,
+    templateCode: "FOLLOWUP.NURSING.CONTINUITY",
+    modelStatus: "MODEL_DISABLED",
+    sourceFactType: "DIAGNOSIS",
+    sourceFactId: "NURSING_CONTINUITY",
+    generationRuleCode: "FOLLOWUP_TEMPLATE_FOLLOWUP.NURSING.CONTINUITY_V1",
+    generationExplanation: {
+      runtimeReleaseId: "runtime-nursing-continuity",
+      sourceFactType: "DIAGNOSIS",
+      sourceFactId: "NURSING_CONTINUITY",
+      modelStatus: "MODEL_DISABLED",
+      nursingAssessmentEvidence: [
+        {
+          assessmentId: "na-nursing-continuity",
+          assessmentType: "跌倒风险评估",
+          riskLevel: "HIGH",
+          status: "CONFIRMED",
+        },
+      ],
+      carePlanEvidence: [
+        {
+          planId: "care-nursing-continuity",
+          pathwayId: "PATHWAY.NURSING.FALL",
+          currentNodeId: "NURSING_REHAB_EDUCATION",
+          plannedFinishAt: "2026-07-20T08:00:00.000Z",
+        },
+      ],
+      runtimeAssetEvidence: [
+        {
+          assetType: "FOLLOWUP",
+          assetIdentity: "FOLLOWUP.NURSING.CONTINUITY",
+          assetVersionId: "av-followup-nursing",
+          assetVersionNo: "V1",
+          contentHash: "5".repeat(64),
+        },
+      ],
+      generatedTaskTypes: ["QUESTIONNAIRE", "RETURN_VISIT"],
+    },
+    tasks: [
+      {
+        taskId: "ft-nursing-questionnaire",
+        taskType: "QUESTIONNAIRE",
+        status: "COMPLETED",
+        questionnaireTemplateId: "Q-NURSING-FALL",
+      },
+      {
+        taskId: "ft-nursing-return",
+        taskType: "RETURN_VISIT",
+        status: "ABNORMAL_RETURN",
+      },
+    ],
+  },
+  questionnaire: {
+    questionnaireId: "fq-nursing-continuity",
+    taskId: "ft-nursing-questionnaire",
+    questionnaireTemplateId: "Q-NURSING-FALL",
+    status: "COMPLETED",
+  },
+  abnormalReport: {
+    eventId: "fe-nursing-abnormal",
+    returnTaskId: "ft-nursing-return",
+    notificationEventId: "fe-nursing-notice",
+  },
+  resultBackflow: {
+    eventId: "fe-nursing-result",
+    contextSnapshotId: "ctx-nursing-backflow",
+    sourceQuestionnaireId: "fq-nursing-continuity",
+    abnormalFlag: "Y",
+  },
+  backflowContext: {
+    contextSnapshotId: "ctx-nursing-backflow",
+    runtimeReleaseId: "runtime-nursing-continuity",
+    resources: {
+      followUps: [
+        {
+          followUpId: "fq-nursing-continuity",
+          planType: "NURSING_CONTINUITY",
+          plannedAt: "2026-07-20T08:00:00.000Z",
+          questionnaireId: "Q-NURSING-FALL",
+          abnormalFlag: "Y",
+          sourceSystem: "FOLLOWUP",
+          sourceRecordId: "fq-nursing-continuity",
+          mappedVersion: "FOLLOWUP_RESULT",
+          qualityStatus: "VALID",
+        },
+      ],
+    },
+  },
+  scenarioEvidence: [
+    {
+      code: "S35",
+      observedStages: [
+        "临床用户从患者 360 建立护理高风险评估标准上下文",
+        "标准上下文回读 NursingAssessment 与 CarePlan 护理事实",
+        "随访计划解释消费 NursingAssessment 风险等级与护理计划节点",
+      ],
+    },
+    {
+      code: "S20",
+      observedStages: [
+        "运营员发布 FOLLOWUP 随访方案并激活到当前机构生效版本",
+        "临床用户从真实前台基于护理上下文生成随访计划",
+        "临床用户提交随访问卷并登记异常回院",
+        "随访结果回流生成 FollowUp 标准资源并绑定同一机构生效版本",
+      ],
+    },
+  ],
+};
+
+function nursingContinuityEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/nursing-continuity-frontdesk.spec.ts",
+        title: "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "nursing-continuity-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoNursingContinuityCoverage(body: Record<string, unknown>) {
+  const evidence = nursingContinuityEvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["S20", "S35"]),
+  );
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toContain(
+    "FOLLOWUP",
+  );
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -3048,6 +3275,161 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare diagnostic critical-value coverage when $name", ({ body }) => {
     expectNoDiagnosticCriticalValueCoverage(body);
+  });
+
+  it("declares S20/S35 nursing continuity coverage only with nursing facts, followup asset and backflow", () => {
+    const evidence = nursingContinuityEvidenceResult(nursingContinuityEvidence);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S20", "S35"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "FOLLOWUP",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "CLINICAL_RUNTIME",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少 NursingAssessment 护理评估事实",
+      body: {
+        ...nursingContinuityEvidence,
+        clinicalContext: {
+          ...nursingContinuityEvidence.clinicalContext,
+          resources: {
+            ...nursingContinuityEvidence.clinicalContext.resources,
+            nursingAssessments: [],
+          },
+        },
+      },
+    },
+    {
+      name: "缺少 CarePlan 护理计划事实",
+      body: {
+        ...nursingContinuityEvidence,
+        clinicalContext: {
+          ...nursingContinuityEvidence.clinicalContext,
+          resources: {
+            ...nursingContinuityEvidence.clinicalContext.resources,
+            carePlans: [],
+          },
+        },
+      },
+    },
+    {
+      name: "当前机构生效版本未包含 FOLLOWUP 资产",
+      body: {
+        ...nursingContinuityEvidence,
+        runtime: {
+          ...nursingContinuityEvidence.runtime,
+          followupAsset: {
+            ...nursingContinuityEvidence.runtime.followupAsset,
+            entryState: "DISABLED",
+          },
+        },
+      },
+    },
+    {
+      name: "激活请求未选择本轮 FOLLOWUP 资产",
+      body: {
+        ...nursingContinuityEvidence,
+        activationRequest: {
+          activeAssets: [],
+        },
+      },
+    },
+    {
+      name: "随访计划解释未消费 NursingAssessment 风险等级",
+      body: {
+        ...nursingContinuityEvidence,
+        followupPlan: {
+          ...nursingContinuityEvidence.followupPlan,
+          generationExplanation: {
+            ...nursingContinuityEvidence.followupPlan.generationExplanation,
+            nursingAssessmentEvidence: [],
+          },
+        },
+      },
+    },
+    {
+      name: "随访计划解释未消费 CarePlan 节点",
+      body: {
+        ...nursingContinuityEvidence,
+        followupPlan: {
+          ...nursingContinuityEvidence.followupPlan,
+          generationExplanation: {
+            ...nursingContinuityEvidence.followupPlan.generationExplanation,
+            carePlanEvidence: [],
+          },
+        },
+      },
+    },
+    {
+      name: "随访计划解释缺少 FOLLOWUP 运行资产证据",
+      body: {
+        ...nursingContinuityEvidence,
+        followupPlan: {
+          ...nursingContinuityEvidence.followupPlan,
+          generationExplanation: {
+            ...nursingContinuityEvidence.followupPlan.generationExplanation,
+            runtimeAssetEvidence: [],
+          },
+        },
+      },
+    },
+    {
+      name: "没有问卷完成证据",
+      body: {
+        ...nursingContinuityEvidence,
+        questionnaire: {
+          ...nursingContinuityEvidence.questionnaire,
+          status: "DISPATCHED",
+        },
+      },
+    },
+    {
+      name: "没有异常回院证据",
+      body: {
+        ...nursingContinuityEvidence,
+        abnormalReport: undefined,
+      },
+    },
+    {
+      name: "结果回流未生成上下文",
+      body: {
+        ...nursingContinuityEvidence,
+        resultBackflow: {
+          ...nursingContinuityEvidence.resultBackflow,
+          contextSnapshotId: "",
+        },
+      },
+    },
+    {
+      name: "回流上下文未回读 FollowUp 标准资源",
+      body: {
+        ...nursingContinuityEvidence,
+        backflowContext: {
+          ...nursingContinuityEvidence.backflowContext,
+          resources: {
+            followUps: [],
+          },
+        },
+      },
+    },
+    {
+      name: "scopeStatement 没有限定代表切片边界",
+      body: {
+        ...nursingContinuityEvidence,
+        scopeStatement: "护理连续照护已完整上线",
+      },
+    },
+  ])("does not declare nursing continuity coverage when $name", ({ body }) => {
+    expectNoNursingContinuityCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

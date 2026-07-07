@@ -43,12 +43,15 @@ import {
   usePublishFollowupTemplate,
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
+  useBackflowFollowupResult,
   useSecurityProfile,
   useCurrentHospitalRuntime,
 } from "@/shared/api/hooks";
 import type {
   FollowupAbnormalReportResponse,
   FollowupPlanDetailResponse,
+  FollowupQuestionnaireResponse,
+  FollowupResultBackflowResponse,
   FollowupPlanStatus,
   FollowupTemplateResponse,
   SecurityProfile,
@@ -207,6 +210,10 @@ export default function Followup() {
   const [abnormalEvidence, setAbnormalEvidence] = useState<FollowupAbnormalReportResponse | null>(
     null,
   );
+  const [backflowEvidence, setBackflowEvidence] =
+    useState<FollowupResultBackflowResponse | null>(null);
+  const [questionnaireEvidence, setQuestionnaireEvidence] =
+    useState<FollowupQuestionnaireResponse | null>(null);
 
   const [generateForm] = Form.useForm();
   const [templateForm] = Form.useForm();
@@ -237,6 +244,7 @@ export default function Followup() {
   const publishTemplateMutation = usePublishFollowupTemplate();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
+  const backflowResultMutation = useBackflowFollowupResult();
   const canReadRuntimeRelease = hasPermission(security.data, "asset.read");
   const currentHospitalRuntimeQuery = useCurrentHospitalRuntime(
     canReadRuntimeRelease && generateModalVisible && selectedSnapshotId
@@ -311,6 +319,12 @@ export default function Followup() {
   const selectedPlanDetail = displayPlans.find((plan) => plan.planId === selectedPlanId);
   const selectedTask =
     selectedPlanDetail?.tasks.find((task) => task.taskId === selectedTaskId) ?? null;
+  const completedQuestionnaireTask = selectedPlanDetail?.tasks.find(
+    (task) =>
+      task.taskType === "QUESTIONNAIRE" &&
+      task.status === "COMPLETED" &&
+      Boolean(task.questionnaireTemplateId),
+  );
   const followupHandlingDrawerOpen = Boolean(selectedPlanId && selectedPlanDetail);
 
   const stats = statsData ?? {
@@ -439,7 +453,7 @@ export default function Followup() {
         content: values.content,
         submittedAt: new Date().toISOString(),
       });
-      await submitQuestionnaireMutation.mutateAsync({
+      const response = await submitQuestionnaireMutation.mutateAsync({
         taskId: selectedTask.taskId,
         questionnaireTemplateId: selectedTask.questionnaireTemplateId,
         formData: JSON.stringify({
@@ -451,6 +465,8 @@ export default function Followup() {
         executorType: values.executorType,
       });
 
+      setQuestionnaireEvidence(response);
+      setBackflowEvidence(null);
       messageApi.success("随访问卷内容已提交，请以刷新后的任务状态为准");
       questionnaireForm.resetFields();
       setSelectedTaskId(null);
@@ -483,6 +499,35 @@ export default function Followup() {
     } catch (error: unknown) {
       if (applyApiFieldErrors(abnormalForm, error)) return;
       messageApi.error(getApiErrorMessage(error, "异常回院登记失败"));
+    }
+  };
+
+  const handleBackflowResult = async () => {
+    if (!selectedPlanDetail || !completedQuestionnaireTask || !questionnaireEvidence) {
+      messageApi.error("请先完成随访问卷，再回流随访结果。");
+      return;
+    }
+    try {
+      const response = await backflowResultMutation.mutateAsync({
+        planId: selectedPlanDetail.planId,
+        taskId: completedQuestionnaireTask.taskId,
+        questionnaireId: questionnaireEvidence.questionnaireId,
+        resultPayload: JSON.stringify({
+          planId: selectedPlanDetail.planId,
+          taskId: completedQuestionnaireTask.taskId,
+          patientId: selectedPlanDetail.patientId,
+          diseaseCode: selectedPlanDetail.diseaseCode,
+          abnormalReported: Boolean(abnormalEvidence?.eventId),
+          backflowAt: new Date().toISOString(),
+        }),
+        abnormalFlag: abnormalEvidence?.eventId ? "Y" : "N",
+        idempotencyKey: `followup-result-${selectedPlanDetail.planId}-${completedQuestionnaireTask.taskId}`,
+      });
+      setBackflowEvidence(response);
+      messageApi.success("随访结果已回流为标准 FollowUp 上下文资源");
+      await refreshFollowupData();
+    } catch (error: unknown) {
+      messageApi.error(getApiErrorMessage(error, "随访结果回流失败"));
     }
   };
 
@@ -1203,6 +1248,54 @@ export default function Followup() {
                 </Form>
               ) : (
                 <Alert type="info" showIcon message="请选择一个待办随访任务后提交问卷回收内容" />
+              )}
+            </Card>
+
+            <Card title="随访结果回流">
+              <Alert
+                type="info"
+                showIcon
+                className={styles.sectionGap}
+                message="随访结果回流会生成新的标准 FollowUp 上下文资源"
+                description="本操作只记录随访结果事实，不替代护理记录、病历归档、回院安排或医嘱执行。"
+              />
+              <div role="group" aria-label="随访结果回流操作" className={styles.drawerActionBar}>
+                <Button
+                  type="primary"
+                  icon={<FileTextOutlined />}
+                  loading={backflowResultMutation.isPending}
+                  disabled={!completedQuestionnaireTask || !questionnaireEvidence}
+                  onClick={handleBackflowResult}
+                >
+                  回流随访结果
+                </Button>
+              </div>
+              {backflowEvidence && (
+                <Alert
+                  type="success"
+                  showIcon
+                  className={styles.formGap}
+                  message="随访结果回流已完成"
+                  description={
+                    <Space wrap>
+                      <FollowupEvidenceTag color="green">
+                        {evidenceDetailsEnabled
+                          ? `回流事件 ${backflowEvidence.eventId}`
+                          : "回流事件已记录"}
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag color="blue">
+                        {evidenceDetailsEnabled
+                          ? `回流上下文 ${backflowEvidence.contextSnapshotId}`
+                          : "回流上下文已生成"}
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag>
+                        {evidenceDetailsEnabled
+                          ? `追踪号 ${backflowEvidence.traceId}`
+                          : "追踪已记录"}
+                      </FollowupEvidenceTag>
+                    </Space>
+                  }
+                />
               )}
             </Card>
 

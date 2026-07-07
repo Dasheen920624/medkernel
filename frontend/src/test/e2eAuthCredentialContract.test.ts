@@ -959,6 +959,48 @@ describe("E2E credential contract", () => {
     );
   });
 
+  it("requires nursing continuity rehearsal to use real nursing resources, followup backflow and strict evidence", () => {
+    const mpiSource = readFileSync("src/pages/clinical/Mpi.tsx", "utf8");
+    const hooksSource = readFileSync("src/shared/api/hooks.ts", "utf8");
+    const followupSource = readFileSync("src/pages/clinical/Followup.tsx", "utf8");
+    const e2eSource = readFileSync("e2e/nursing-continuity-frontdesk.spec.ts", "utf8");
+
+    expect(mpiSource).toContain("护理高风险评估");
+    expect(mpiSource).toContain('aria-label="护理评估类型"');
+    expect(mpiSource).toContain('aria-label="护理风险等级"');
+    expect(mpiSource).toContain('aria-label="护理计划路径"');
+    expect(hooksSource).toContain("buildFrontdeskNursingAssessmentResources");
+    expect(hooksSource).toContain("buildFrontdeskCarePlanResources");
+    expect(hooksSource).toContain("nursingAssessments: nursingAssessments");
+    expect(hooksSource).toContain("carePlans: carePlans");
+    expect(hooksSource).not.toContain("nursingAssessments: []");
+    expect(hooksSource).not.toContain("carePlans: []");
+    expect(hooksSource).toContain("nursingAssessmentCount");
+    expect(hooksSource).toContain("carePlanCount");
+    expect(hooksSource).toContain("FollowupResultBackflowRequest");
+    expect(hooksSource).toContain("/engine/followup/results");
+    expect(followupSource).toContain("handleBackflowResult");
+    expect(followupSource).toContain("随访结果回流");
+    expect(followupSource).toContain("回流上下文");
+    expect(e2eSource).toContain("nursing-continuity-frontdesk-codes");
+    expect(e2eSource).toContain("attachNursingContinuityEvidence");
+    expect(e2eSource).toContain('"S20"');
+    expect(e2eSource).toContain('"S35"');
+    expect(e2eSource).toContain('"FOLLOWUP"');
+    expect(e2eSource).toContain("NursingAssessment");
+    expect(e2eSource).toContain("CarePlan");
+    expect(e2eSource).toContain("FollowUp");
+    expect(e2eSource).toContain('getByLabel("护理评估类型")');
+    expect(e2eSource).toContain('getByLabel("护理风险等级")');
+    expect(e2eSource).toContain('getByLabel("护理计划路径")');
+    expect(e2eSource).toContain("/engine/followup/results");
+    expect(e2eSource).toContain("contextSnapshotId");
+    expect(e2eSource).toContain("generationExplanation");
+    expect(e2eSource).not.toContain("page.route(");
+    expect(e2eSource).not.toContain("page.waitForTimeout");
+    expect(e2eSource).not.toContain("third-party-system-family-codes");
+  });
+
   it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

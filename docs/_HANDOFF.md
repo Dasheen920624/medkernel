@@ -10,6 +10,66 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整上线、134 清库部署复演、完整护理专业智能、完整护理计划执行、
+  完整第三方护理系统族、完整 S20/S35 或完整 S0-S40 收口，而是完成 **P1 护理连续照护代表切片 S20/S35**：
+  `NursingAssessment / CarePlan / FollowUp + FOLLOWUP + CLINICAL_RUNTIME`。当前 coverage 只声明
+  `scenarios:S20/S35`、`productLayers:CLINICAL_EXECUTION`、`versionedAssets:FOLLOWUP`、
+  `serviceCombinations:CLINICAL_RUNTIME`；不声明 `API_EVENT`、`THIRD_PARTY_INTERFACE`、完整护理系统族、
+  完整护理计划执行、完整连续照护上线或完整上线验收。
+- 第一百五十六批真实链路说明：新增目标真实 E2E `nursing-continuity-frontdesk.spec.ts`。医疗引擎运营员从真实
+  `/clinical/followup` 前台创建并发布本轮 `FOLLOWUP.NURSING.CONTINUITY.*` 随访方案，读取本地演练平台
+  baseline 的 active 资产版本，并把平台 baseline 资产与本轮 `FOLLOWUP` 一起激活到本地上线演练医院当前机构
+  生效版本。临床用户从真实 `/mpi` 创建脱敏患者，建立当前就诊上下文时录入 NursingAssessment 护理高风险评估
+  与 CarePlan 护理计划事实；上下文回读证明 `riskLevel=HIGH`、`status=CONFIRMED`、`sourceSystem=MEDKERNEL_FRONTDESK`，
+  且 CarePlan 当前节点为 `NURSING_CONTINUITY_EDUCATION`。随后临床用户从真实 `/clinical/followup`
+  选择本轮上下文与本轮随访方案生成随访计划；后端在 `generationExplanation` 中输出
+  `nursingAssessmentEvidence`、`carePlanEvidence` 和 `runtimeAssetEvidence`，并在无模型条件下返回
+  `modelStatus=MODEL_DISABLED`。同一办理抽屉完成随访问卷提交、异常回院登记，再通过真实前台按钮回流随访结果；
+  后端生成新的 FollowUp 标准资源上下文，且回流上下文继续绑定随访计划的同一 `runtimeReleaseId`。
+- 第一百五十六批代码修复与护栏：`frontend/src/shared/api/hooks.ts` 为患者 360 当前上下文补齐
+  `buildFrontdeskNursingAssessmentResources`、`buildFrontdeskCarePlanResources` 与随访结果回流 API 类型 /
+  hook；`frontend/src/pages/clinical/Mpi.tsx` 暴露护理评估和护理计划可选输入，并要求评估类型 / 风险等级、
+  护理计划路径 / 当前节点成对填写；`frontend/src/pages/clinical/Followup.tsx` 保留本轮问卷证据并新增
+  “随访结果回流”操作卡，明确本操作只记录 FollowUp 事实，不替代护理记录、病历归档、回院安排或医嘱执行。
+  后端 `FollowupPlanCommand` 携带 `ContextSnapshotResources`，`FollowupEngineService` 生成计划时纳入
+  NursingAssessment / CarePlan 证据和 FOLLOWUP 运行资产证据；随访结果回流在计划已有 `runtimeReleaseId`
+  时使用 `contextSnapshotService.createBound`，避免回流上下文脱离当前机构生效版本。`launchCoverageEvidence`
+  对 S20/S35 附件加严：必须同时证明真实前台上下文、护理评估、护理计划、FOLLOWUP 发布与 runtime 激活、
+  随访计划解释、问卷完成、异常回院、结果回流和 FollowUp 标准资源回读；缺任一环节、scope 未限定代表切片、
+  或 runtime / 激活请求未包含本轮 FOLLOWUP，均不声明覆盖。`e2eAuthCredentialContract` 固化真实护理资源、
+  回流接口、无 `page.route` / `waitForTimeout` 和不声明第三方系统族的合同。
+- 第一百五十六批验证证据：
+  - 静态与单测：`npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence`
+    通过（2 files，138 tests）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+    `mvn -f medkernel-backend/pom.xml -Dtest=FollowupEngineServiceTest#generatePlanExplanationConsumesNursingAssessmentAndCarePlanFacts,FollowupEngineServiceTest#backflowResultCreatesFollowupContextSnapshot test`
+    通过（2 tests，0 failures，0 errors）；`git diff --check` 通过。
+  - 构建：`npm --prefix frontend run build` 通过；`mvn -f medkernel-backend/pom.xml -DskipTests package`
+    通过。随后重启本地 18080 到最新 jar，后端 PID `80788`，profile `dev`，H2 空库执行 V1 baseline 后启动。
+  - 目标真实 E2E：`E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-nursing-continuity-frontdesk-20260707-r5 npm --prefix frontend run e2e -- --project=chromium nursing-continuity-frontdesk.spec.ts`
+    通过；`/tmp/medkernel-e2e-nursing-continuity-frontdesk-20260707-r5/report/results.json` 为 `PASSED`
+    （1 expected，0 unexpected，0 flaky，duration=19385ms）。`launchCoverage` 只含 `S20/S35`、
+    `CLINICAL_EXECUTION`、`FOLLOWUP`、`CLINICAL_RUNTIME`。附件记录 runtime
+    `releaseId=runtime-01KWY0D0SDY814WEQ1GMDSX88W/revisionNo=3/manifestSha256=7c300f3c1816370ca86fe85225096f2e17c0e3a0454649e5d0f4753aff7dd1a5`；
+    FOLLOWUP 资产
+    `assetIdentity=FOLLOWUP.NURSING.CONTINUITY.MRAHBDY8-0/versionId=av-01KWY0D09X706EA0TSYNKNT9M5/versionNo=V1/contentHash=d61efc7c659484137bad2250273a541a5d2fad370709f4919a274333ddd6055f`；
+    护理上下文 `contextSnapshotId=ctx-d6505653-9b5a-484c-91ab-564b95a9c205/patientId=mpi-01KWY0D3HMHJ95X9B3DWQG3WTC/encounterId=enc-c574c153-2f10-48f3-9608-a3521dc6d025`；
+    随访计划 `planId=fp-eb4327f6-9c86-4f90-8d46-7d962e1bea1a/modelStatus=MODEL_DISABLED`；
+    问卷 `questionnaireId=fq-a214ec88-c28d-42bb-a21c-f4978fa56a78/status=COMPLETED`；
+    异常回院 `eventId=fe-ecebeeb9-457b-4db4-89a9-2cc34e1e9a06/returnTaskId=ft-2133f67a-a0e2-4071-91c0-aa85c7a1aedc`；
+    回流 `eventId=fe-d3985ea9-30af-4a4d-ace6-8da159d3ddc9/contextSnapshotId=ctx-f9d65b3c-951f-4f8b-9760-366bba74ff51`，
+    回流 FollowUp 资源 `followUpId=fq-a214ec88-c28d-42bb-a21c-f4978fa56a78/sourceSystem=FOLLOWUP/mappedVersion=FOLLOWUP_RESULT/abnormalFlag=Y`，
+    回流上下文 `runtimeReleaseId` 与随访计划一致。回流上下文不含 encounter 是当前结果事实回流 DTO 只创建
+    FollowUp 事实的预期边界，初始护理上下文仍要求存在 encounter。
+- 第一百五十六批只读复核与下一步：用户已允许使用子代理；本批使用只读复核子代理确认现有代表 E2E 覆盖不能外推为
+  完整上线，`runtime-release` 只能证明 13 类资产治理，不等于逐类业务消费者，第三方系统族登记 / 断连降级也不等于
+  各系统族真实业务闭环。下一批建议优先补 **药房 / 审方系统双向闭环 + 抗菌药物治理 S18/S31**，同时覆盖平台管理员
+  登记 `PHARMACY_REVIEW` 适配器、医疗引擎运营员发布 `TERMINOLOGY/SAFETY/CDSS_RISK/RULE/ACTION_CARD`、
+  临床使用者以医生 / 药师业务任职完成处方触发、审方回传、人工确认和整改任务，并至少消费
+  `Medication / AllergyIntolerance / Observation / Condition` 等标准资源，覆盖
+  `THIRD_PARTY_INTERFACE / CLINICAL_RUNTIME / PROFESSIONAL_COLLABORATION`，必要时联动
+  `QUALITY_IMPROVEMENT`。仍未完成 134 fresh deploy / 清库 / 重启 / 全功能全知识复演；仍不得把本批护理连续照护
+  代表切片包装成完整上线。
 - 第一百五十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整 LIS/PACS/RIS/超声/病理/内镜/心电链路、
   完整 S0-S40、完整危急值制度或完整医技闭环收口，而是完成 **P1 医技报告解读与危急值代表切片 S36**：

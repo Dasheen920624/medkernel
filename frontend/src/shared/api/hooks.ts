@@ -6751,6 +6751,13 @@ export interface ContextSnapshotCreatePayload {
   diagnosticReportType?: string;
   diagnosticReportConclusion?: string;
   diagnosticReportKeyFindingsText?: string;
+  nursingAssessmentType?: string;
+  nursingRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  nursingAssessmentStatus?: string;
+  carePlanPathwayId?: string;
+  carePlanCurrentNodeId?: string;
+  carePlanVarianceCode?: string;
+  carePlanPlannedFinishAt?: string;
   insuranceClaimDrgCode?: string;
   insuranceClaimTotalCost?: number;
   insuranceClaimPaidAmount?: number;
@@ -6934,6 +6941,61 @@ function buildFrontdeskDiagnosticReportResources(
   ];
 }
 
+function buildFrontdeskNursingAssessmentResources(
+  payload: ContextSnapshotCreatePayload,
+  patientId: string,
+  now: string,
+) {
+  const assessmentType = payload.nursingAssessmentType?.trim();
+  const riskLevel = payload.nursingRiskLevel?.trim();
+  if (!assessmentType || !riskLevel) {
+    return [];
+  }
+  const assessmentId = `nurse-assessment-${crypto.randomUUID()}`;
+  return [
+    {
+      assessmentId,
+      assessmentType,
+      riskLevel,
+      status: payload.nursingAssessmentStatus?.trim() || "CONFIRMED",
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: `${patientId}:${assessmentId}`,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
+function buildFrontdeskCarePlanResources(
+  payload: ContextSnapshotCreatePayload,
+  patientId: string,
+  now: string,
+) {
+  const pathwayId = payload.carePlanPathwayId?.trim();
+  const currentNodeId = payload.carePlanCurrentNodeId?.trim();
+  if (!pathwayId || !currentNodeId) {
+    return [];
+  }
+  const planId = `care-plan-${crypto.randomUUID()}`;
+  return [
+    {
+      planId,
+      pathwayId,
+      currentNodeId,
+      varianceCode: payload.carePlanVarianceCode?.trim() || null,
+      plannedFinishAt: payload.carePlanPlannedFinishAt?.trim() || null,
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: `${patientId}:${planId}`,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
 function frontdeskClaimAmount(value: number | undefined) {
   if (value === undefined || !Number.isFinite(value) || value <= 0) return null;
   return Math.round(value * 100) / 100;
@@ -6984,6 +7046,12 @@ function frontdeskSnapshotRequest(
     now,
   );
   const diagnosticReports = buildFrontdeskDiagnosticReportResources(payload, profile, now);
+  const nursingAssessments = buildFrontdeskNursingAssessmentResources(
+    payload,
+    payload.patient.mpiId,
+    now,
+  );
+  const carePlans = buildFrontdeskCarePlanResources(payload, payload.patient.mpiId, now);
   const claims = buildFrontdeskClaimResources(payload, now);
   const request = withStandardApiContext(
     {
@@ -7039,13 +7107,13 @@ function frontdeskSnapshotRequest(
             qualityStatus: "VALID",
           },
         ],
-        nursingAssessments: [],
+        nursingAssessments: nursingAssessments,
         observations: [],
         diagnosticReports,
         medications,
         procedures: [],
         documents: [],
-        carePlans: [],
+        carePlans: carePlans,
         followUps: [],
         claims,
         extensions: {
@@ -7059,6 +7127,8 @@ function frontdeskSnapshotRequest(
               ...(payload.heightCm !== undefined ? { heightCm: payload.heightCm } : {}),
               ...(payload.weightKg !== undefined ? { weightKg: payload.weightKg } : {}),
               diagnosticReportCount: diagnosticReports.length,
+              nursingAssessmentCount: nursingAssessments.length,
+              carePlanCount: carePlans.length,
               claimCount: claims.length,
             },
           },
@@ -7117,8 +7187,14 @@ export interface FollowupPlanDetailResponse {
   patientId: string;
   encounterId: string;
   diseaseCode: string;
+  runtimeReleaseId?: string | null;
   status: FollowupPlanStatus;
   tasks: FollowupTaskDetailResponse[];
+  modelStatus?: "MODEL_DISABLED" | string;
+  sourceFactType?: string | null;
+  sourceFactId?: string | null;
+  generationRuleCode?: string | null;
+  generationExplanation?: string | null;
   templateId?: string | null;
   templateVersion?: number | null;
   templateCode?: string | null;
@@ -7208,6 +7284,21 @@ export interface FollowupAbnormalReportResponse {
   eventId: string;
   returnTaskId: string;
   notificationEventId: string;
+  traceId: string;
+}
+
+export interface FollowupResultBackflowRequest {
+  planId: string;
+  taskId: string;
+  questionnaireId: string;
+  resultPayload: string;
+  abnormalFlag?: string;
+  idempotencyKey: string;
+}
+
+export interface FollowupResultBackflowResponse {
+  eventId: string;
+  contextSnapshotId: string;
   traceId: string;
 }
 
@@ -7369,6 +7460,24 @@ export function useReportFollowupAbnormal() {
         payload,
       );
       return data.data;
+    },
+  });
+}
+
+// 7. 随访结果回流为标准 FollowUp 上下文资源
+export function useBackflowFollowupResult() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: FollowupResultBackflowRequest) => {
+      const { data } = await apiClient.post<{ data: FollowupResultBackflowResponse }>(
+        "/engine/followup/results",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["followup", "plans"] });
+      queryClient.invalidateQueries({ queryKey: ["context", "snapshots"] });
     },
   });
 }

@@ -17,7 +17,9 @@ import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalFollowUp;
+import com.medkernel.engine.context.canonical.CanonicalNursingAssessment;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.pathway.ClinicalClock;
 import com.medkernel.engine.pathway.ClinicalClockRepository;
@@ -112,7 +114,8 @@ public class FollowupEngineService {
             request.taskTypes(),
             request.idempotencyKey(),
             request.modelEnabled(),
-            request.templateId()));
+            request.templateId(),
+            resources));
     }
 
     @Transactional
@@ -153,6 +156,7 @@ public class FollowupEngineService {
             taskTypes,
             idempotencyKey,
             modelEnabled,
+            null,
             null));
     }
 
@@ -176,6 +180,7 @@ public class FollowupEngineService {
             taskTypes,
             idempotencyKey,
             modelEnabled,
+            null,
             null));
     }
 
@@ -483,10 +488,12 @@ public class FollowupEngineService {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访结果引用关系不一致");
         }
 
-        ContextSnapshotResponse snapshot = contextSnapshotService.create(
-            contextBackflowRequest(plan, task, questionnaire, request, ctx),
-            request.idempotencyKey()
-        );
+        ContextSnapshotRequest backflowRequest = contextBackflowRequest(
+            plan, task, questionnaire, request, ctx);
+        ContextSnapshotResponse snapshot = hasText(plan.runtimeReleaseId())
+            ? contextSnapshotService.createBound(
+                backflowRequest, request.idempotencyKey(), plan.runtimeReleaseId())
+            : contextSnapshotService.create(backflowRequest, request.idempotencyKey());
         Instant now = Instant.now();
         FollowupEvent event = eventRepository.save(new FollowupEvent(
             null,
@@ -790,12 +797,55 @@ public class FollowupEngineService {
             explanation.put("templateId", template.templateId());
             explanation.put("templateVersion", template.versionNo());
             explanation.put("templateCode", template.templateCode());
+            if (hasText(template.assetVersionId())) {
+                explanation.put("runtimeAssetEvidence", List.of(Map.of(
+                    "assetType", "FOLLOWUP",
+                    "assetIdentity", template.templateCode(),
+                    "assetVersionId", template.assetVersionId(),
+                    "assetVersionNo", "V" + template.versionNo()
+                )));
+            }
+        }
+        ContextSnapshotResources resources = request.contextResources();
+        if (resources != null && !resources.nursingAssessments().isEmpty()) {
+            explanation.put("nursingAssessmentEvidence", resources.nursingAssessments().stream()
+                .map(FollowupEngineService::nursingEvidence)
+                .toList());
+        }
+        if (resources != null && !resources.carePlans().isEmpty()) {
+            explanation.put("carePlanEvidence", resources.carePlans().stream()
+                .map(FollowupEngineService::carePlanEvidence)
+                .toList());
         }
         clock.ifPresent(value -> {
             explanation.put("clinicalClockId", value.clockId());
             explanation.put("clinicalClockDueAt", value.dueAt().toString());
         });
         return writeJson(explanation);
+    }
+
+    private static Map<String, Object> nursingEvidence(CanonicalNursingAssessment assessment) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("assessmentId", assessment.assessmentId());
+        evidence.put("assessmentType", assessment.assessmentType());
+        evidence.put("riskLevel", assessment.riskLevel());
+        evidence.put("status", assessment.status());
+        evidence.put("sourceSystem", assessment.sourceSystem());
+        evidence.put("mappedVersion", assessment.mappedVersion());
+        return evidence;
+    }
+
+    private static Map<String, Object> carePlanEvidence(CanonicalCarePlan carePlan) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("planId", carePlan.planId());
+        evidence.put("pathwayId", carePlan.pathwayId());
+        evidence.put("currentNodeId", carePlan.currentNodeId());
+        evidence.put("varianceCode", carePlan.varianceCode());
+        evidence.put("plannedFinishAt",
+            carePlan.plannedFinishAt() == null ? null : carePlan.plannedFinishAt().toString());
+        evidence.put("sourceSystem", carePlan.sourceSystem());
+        evidence.put("mappedVersion", carePlan.mappedVersion());
+        return evidence;
     }
 
     private FollowupPlanDetailResponse toDetailResponse(FollowupPlan plan) {

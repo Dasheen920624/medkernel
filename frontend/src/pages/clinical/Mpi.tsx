@@ -94,6 +94,13 @@ type ContextSnapshotFormValues = {
   diagnosticReportType?: string;
   diagnosticReportConclusion?: string;
   diagnosticReportKeyFindingsText?: string;
+  nursingAssessmentType?: string;
+  nursingRiskLevel?: ContextSnapshotCreatePayload["riskLevel"];
+  nursingAssessmentStatus?: string;
+  carePlanPathwayId?: string;
+  carePlanCurrentNodeId?: string;
+  carePlanVarianceCode?: string;
+  carePlanPlannedFinishAt?: string;
   insuranceClaimDrgCode?: string;
   insuranceClaimTotalCost?: number | null;
   insuranceClaimPaidAmount?: number | null;
@@ -421,6 +428,11 @@ export default function Mpi() {
       const diagnosticReportType = values.diagnosticReportType?.trim();
       const diagnosticReportConclusion = values.diagnosticReportConclusion?.trim();
       const diagnosticReportKeyFindingsText = values.diagnosticReportKeyFindingsText?.trim();
+      const nursingAssessmentType = values.nursingAssessmentType?.trim();
+      const nursingAssessmentStatus = values.nursingAssessmentStatus?.trim();
+      const carePlanPathwayId = values.carePlanPathwayId?.trim();
+      const carePlanCurrentNodeId = values.carePlanCurrentNodeId?.trim();
+      const carePlanVarianceCode = values.carePlanVarianceCode?.trim();
       const hasDiagnosticReportInput = !!(
         diagnosticReportType ||
         diagnosticReportConclusion ||
@@ -428,6 +440,21 @@ export default function Mpi() {
       );
       if (hasDiagnosticReportInput && (!diagnosticReportType || !diagnosticReportConclusion)) {
         messageApi.error("请同时填写医技报告项目和报告结论，或清空报告字段");
+        return;
+      }
+      const hasNursingAssessmentInput = !!(nursingAssessmentType || values.nursingRiskLevel);
+      if (hasNursingAssessmentInput && (!nursingAssessmentType || !values.nursingRiskLevel)) {
+        messageApi.error("请同时填写护理评估类型和护理风险等级，或清空护理评估字段");
+        return;
+      }
+      const hasCarePlanInput = !!(
+        carePlanPathwayId ||
+        carePlanCurrentNodeId ||
+        carePlanVarianceCode ||
+        values.carePlanPlannedFinishAt
+      );
+      if (hasCarePlanInput && (!carePlanPathwayId || !carePlanCurrentNodeId)) {
+        messageApi.error("请同时填写护理计划路径和当前护理节点，或清空护理计划字段");
         return;
       }
       const insuranceClaimDrgCode = values.insuranceClaimDrgCode?.trim();
@@ -471,6 +498,23 @@ export default function Mpi() {
         ...(diagnosticReportType ? { diagnosticReportType } : {}),
         ...(diagnosticReportConclusion ? { diagnosticReportConclusion } : {}),
         ...(diagnosticReportKeyFindingsText ? { diagnosticReportKeyFindingsText } : {}),
+        ...(nursingAssessmentType && values.nursingRiskLevel
+          ? {
+              nursingAssessmentType,
+              nursingRiskLevel: values.nursingRiskLevel,
+              ...(nursingAssessmentStatus ? { nursingAssessmentStatus } : {}),
+            }
+          : {}),
+        ...(carePlanPathwayId && carePlanCurrentNodeId
+          ? {
+              carePlanPathwayId,
+              carePlanCurrentNodeId,
+              ...(carePlanVarianceCode ? { carePlanVarianceCode } : {}),
+              ...(values.carePlanPlannedFinishAt
+                ? { carePlanPlannedFinishAt: values.carePlanPlannedFinishAt }
+                : {}),
+            }
+          : {}),
         ...(insuranceClaimDrgCode && insuranceClaimTotalCost !== undefined
           ? {
               insuranceClaimDrgCode,
@@ -1062,8 +1106,8 @@ export default function Mpi() {
           destroyOnClose
         >
           <Alert
-            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层、必要用药、已签发报告与医保结算事实"
-            description="本操作用于生成随访、路径、CDSS、药师复核和报告解读共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
+            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层、必要用药、护理、已签发报告与医保结算事实"
+            description="本操作用于生成随访、路径、CDSS、药师复核、护理连续照护和报告解读共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
             type="info"
             showIcon
             className={styles.modalFormItem}
@@ -1102,6 +1146,52 @@ export default function Mpi() {
                 aria-label="过敏/不良反应"
                 placeholder="可选，填写药物或物质及反应，例如：青霉素：皮疹；头孢菌素：呼吸困难"
                 rows={2}
+              />
+            </Form.Item>
+            <Text strong>护理高风险评估（可选）</Text>
+            <Form.Item name="nursingAssessmentType" label="护理评估类型">
+              <Input
+                aria-label="护理评估类型"
+                placeholder="可选，例如 跌倒风险评估、压疮风险评估"
+              />
+            </Form.Item>
+            <Form.Item name="nursingRiskLevel" label="护理风险等级">
+              <Select
+                aria-label="护理风险等级"
+                allowClear
+                placeholder="可选，选择护理评估风险等级"
+                options={contextRiskLevelOptions}
+              />
+            </Form.Item>
+            <Form.Item name="nursingAssessmentStatus" label="护理评估状态">
+              <Input
+                aria-label="护理评估状态"
+                placeholder="可选，默认 CONFIRMED，表示已由有资质人员确认"
+              />
+            </Form.Item>
+            <Text strong>护理计划事实（可选）</Text>
+            <Form.Item name="carePlanPathwayId" label="护理计划路径">
+              <Input
+                aria-label="护理计划路径"
+                placeholder="可选，填写护理/康复/宣教路径或计划身份"
+              />
+            </Form.Item>
+            <Form.Item name="carePlanCurrentNodeId" label="当前护理节点">
+              <Input
+                aria-label="当前护理节点"
+                placeholder="可选，填写当前护理计划节点，例如 REHAB_EDUCATION"
+              />
+            </Form.Item>
+            <Form.Item name="carePlanVarianceCode" label="护理计划变异">
+              <Input
+                aria-label="护理计划变异"
+                placeholder="可选，填写变异编码或人工复评说明"
+              />
+            </Form.Item>
+            <Form.Item name="carePlanPlannedFinishAt" label="计划完成时间">
+              <Input
+                aria-label="计划完成时间"
+                placeholder="可选，ISO 时间，例如 2026-07-20T08:00:00.000Z"
               />
             </Form.Item>
             <Space wrap className="mk-full-width">
