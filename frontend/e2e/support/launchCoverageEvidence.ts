@@ -60,6 +60,7 @@ type CoverageProof = {
   requiresMedicationSafetyFrontdeskAttachment?: boolean;
   requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
   requiresNursingContinuityFrontdeskAttachment?: boolean;
+  requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -170,6 +171,24 @@ const nursingContinuityFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
 ];
 
+const pharmacyReviewAntimicrobialFrontdeskClaims = [
+  "scenarios:S18",
+  "scenarios:S31",
+  "productLayers:CLINICAL_EXECUTION",
+  "productLayers:DATA_INTEROPERABILITY",
+  "productLayers:QUALITY_IMPROVEMENT",
+  "versionedAssets:TERMINOLOGY",
+  "versionedAssets:SAFETY",
+  "versionedAssets:CDSS_RISK",
+  "versionedAssets:RULE",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:PROFESSIONAL_COLLABORATION",
+  "serviceCombinations:QUALITY_IMPROVEMENT",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -229,6 +248,7 @@ const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
 const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
+const requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes = ["S18", "S31"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -296,6 +316,25 @@ const requiredNursingContinuityFrontdeskScenarioEvidence: Record<string, string[
     "临床用户从患者 360 建立护理高风险评估标准上下文",
     "标准上下文回读 NursingAssessment 与 CarePlan 护理事实",
     "随访计划解释消费 NursingAssessment 风险等级与护理计划节点",
+  ],
+};
+
+const requiredPharmacyReviewAntimicrobialFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S18: [
+    "运营员发布抗菌药物术语、红线、风险矩阵、规则和动作卡资产",
+    "当前机构生效版本包含抗菌药物五类运行资产",
+    "临床用户从患者 360 建立 Medication、AllergyIntolerance、Condition 与 Observation 上下文",
+    "临床用户从真实前台触发 medication-prescribe 推荐评估",
+    "推荐卡证明抗菌药物红线、规则和动作卡按当前机构生效版本消费",
+    "药师登记审方复核且不关闭医生确认链路",
+    "医生逐条确认采纳，系统不自动开嘱",
+  ],
+  S31: [
+    "平台管理员访问真实前台并经真实服务创建 PHARMACY_REVIEW 适配器、回调通道和签名预览",
+    "系统向 PHARMACY_REVIEW 发出审方请求并诚实断连降级",
+    "PHARMACY_REVIEW 签名回传审方结果并生成标准临床事件",
+    "药事治理问题形成整改任务",
+    "固定四职责账号提交并复核关闭本轮整改任务",
   ],
 };
 
@@ -519,6 +558,13 @@ const coverageProofs: CoverageProof[] = [
     requiresNursingContinuityFrontdeskAttachment: true,
   },
   {
+    file: "pharmacy-review-antimicrobial-frontdesk.spec.ts",
+    titleIncludes:
+      "临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环",
+    claims: pharmacyReviewAntimicrobialFrontdeskClaims,
+    requiresPharmacyReviewAntimicrobialFrontdeskAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -632,6 +678,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) &&
       (!proof.requiresNursingContinuityFrontdeskAttachment ||
         hasRequiredNursingContinuityFrontdeskAttachment(test)) &&
+      (!proof.requiresPharmacyReviewAntimicrobialFrontdeskAttachment ||
+        hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -1032,6 +1080,140 @@ function hasRequiredNursingContinuityFrontdeskAttachment(test: BrowserE2eTestRes
     return requiredNursingContinuityFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredNursingContinuityFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "pharmacy-review-antimicrobial-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      adapter?: unknown;
+      webhookSignature?: unknown;
+      terminologyGate?: unknown;
+      riskMatrix?: unknown;
+      safetyRedline?: unknown;
+      actionCard?: unknown;
+      ruleAsset?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      outboundReview?: unknown;
+      inboundReview?: unknown;
+      clinicalTrigger?: unknown;
+      recommendation?: unknown;
+      ruleRecommendation?: unknown;
+      feedback?: unknown;
+      qualityRectification?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parsePharmacyReviewRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, [
+        "CLINICAL_EXECUTION",
+        "DATA_INTEROPERABILITY",
+        "QUALITY_IMPROVEMENT",
+      ]) ||
+      !arrayEquals(parsed.versionedAssets, [
+        "TERMINOLOGY",
+        "SAFETY",
+        "CDSS_RISK",
+        "RULE",
+        "ACTION_CARD",
+      ]) ||
+      !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "THIRD_PARTY_INTERFACE",
+        "CLINICAL_RUNTIME",
+        "PROFESSIONAL_COLLABORATION",
+        "QUALITY_IMPROVEMENT",
+      ]) ||
+      !hasText(parsed.scopeStatement) ||
+      !hasPharmacyReviewAntimicrobialScopeBoundary(parsed.scopeStatement) ||
+      !hasCompletePharmacyReviewApiEvidence(parsed.apiEvidence) ||
+      !hasCompletePharmacyReviewAdapterEvidence(parsed.adapter) ||
+      !hasCompletePharmacyReviewWebhookEvidence(parsed.webhookSignature, parsed.adapter) ||
+      !runtime ||
+      !pharmacyReviewRuntimeAssetMatches(parsed.terminologyGate, runtime.terminologyAsset) ||
+      !pharmacyReviewRuntimeAssetMatches(parsed.riskMatrix, runtime.cdssRiskAsset) ||
+      !pharmacyReviewRuntimeAssetMatches(parsed.safetyRedline, runtime.safetyAsset) ||
+      !pharmacyReviewRuntimeAssetMatches(parsed.ruleAsset, runtime.ruleAsset) ||
+      !pharmacyReviewRuntimeAssetMatches(parsed.actionCard, runtime.actionCardAsset) ||
+      !hasCompletePharmacyReviewRiskMatrix(parsed.riskMatrix) ||
+      !hasCompletePharmacyReviewSafetyRedline(parsed.safetyRedline, parsed.riskMatrix) ||
+      !hasCompletePharmacyReviewActionCard(parsed.actionCard) ||
+      !hasCompletePharmacyReviewRuleAsset(parsed.ruleAsset) ||
+      !hasCompletePharmacyReviewActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompletePharmacyReviewTerminologyGate(
+        parsed.terminologyGate,
+        parsed.runtime,
+        parsed.activationRequest,
+      ) ||
+      !hasCompletePharmacyReviewClinicalContext(parsed.clinicalContext, runtime.releaseId) ||
+      !hasCompletePharmacyReviewOutbound(
+        parsed.outboundReview,
+        parsed.adapter,
+        parsed.clinicalContext,
+      ) ||
+      !hasCompletePharmacyReviewInbound(
+        parsed.inboundReview,
+        parsed.adapter,
+        parsed.webhookSignature,
+        parsed.outboundReview,
+        runtime.releaseId,
+      ) ||
+      !hasCompletePharmacyReviewTrigger(parsed.clinicalTrigger, runtime.releaseId) ||
+      !hasCompletePharmacyReviewRecommendation(
+        parsed.recommendation,
+        runtime,
+        parsed.clinicalTrigger,
+        parsed.riskMatrix,
+        parsed.safetyRedline,
+      ) ||
+      !hasCompletePharmacyReviewRuleRecommendation(
+        parsed.ruleRecommendation,
+        runtime,
+        parsed.clinicalTrigger,
+        parsed.ruleAsset,
+      ) ||
+      !hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback) ||
+      !hasCompletePharmacyReviewRectification(
+        parsed.qualityRectification,
+        parsed.recommendation,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const stages = Array.isArray(row?.observedStages) ? row.observedStages : [];
+      if (!code) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredPharmacyReviewAntimicrobialFrontdeskScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -2180,16 +2362,29 @@ function hasCompleteMedicationSafetyFeedbackEvidence(value: unknown) {
   const feedback = recordValue(value);
   const pharmacist = recordValue(feedback?.pharmacist);
   const physician = recordValue(feedback?.physician);
+  const pharmacistPersisted = recordValue(pharmacist?.persisted);
+  const physicianPersisted = recordValue(physician?.persisted);
   return (
-    pharmacist?.operatorRole === "PHARMACIST" &&
-    pharmacist.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
-    pharmacist.reasonCode === "PHARMACIST_REVIEWED" &&
-    pharmacist.cardStatus === "PENDING" &&
+    pharmacist !== null &&
     hasText(pharmacist.feedbackId) &&
-    physician?.operatorRole === "DOCTOR" &&
-    physician.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
-    physician.reasonCode === "CONFIRMED" &&
+    pharmacist.cardStatus === "PENDING" &&
+    pharmacist.canonicalSessionRole === "clinical-user" &&
+    pharmacist.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
+    pharmacistPersisted !== null &&
+    pharmacistPersisted.feedbackId === pharmacist.feedbackId &&
+    pharmacistPersisted.feedbackType === "VIEW_SOURCE" &&
+    pharmacistPersisted.operatorRole === "PHARMACIST" &&
+    pharmacistPersisted.reasonCode === "PHARMACIST_REVIEWED" &&
+    physician !== null &&
+    hasText(physician.feedbackId) &&
     physician.cardStatus === "ACCEPTED" &&
+    physician.canonicalSessionRole === "clinical-user" &&
+    physician.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
+    physicianPersisted !== null &&
+    physicianPersisted.feedbackId === physician.feedbackId &&
+    physicianPersisted.feedbackType === "ACCEPT" &&
+    physicianPersisted.operatorRole === "DOCTOR" &&
+    physicianPersisted.reasonCode === "CONFIRMED" &&
     hasText(physician.feedbackId) &&
     feedback?.noAutoOrder === true
   );
@@ -2814,6 +3009,669 @@ function hasCompleteNursingContinuityBackflow(
         hasText(row.sourceRecordId)
       );
     })
+  );
+}
+
+type PharmacyReviewRuntimeAsset = {
+  assetType: "TERMINOLOGY" | "SAFETY" | "CDSS_RISK" | "RULE" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+function hasCompletePharmacyReviewApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "pharmacyReviewAdapterCreatedThroughRealService",
+    "pharmacyReviewWebhookCreatedThroughRealService",
+    "webhookSignaturePreviewGenerated",
+    "antimicrobialTerminologyActivated",
+    "antimicrobialRiskMatrixCreated",
+    "antimicrobialSafetyAssetPromoted",
+    "antimicrobialActionCardPublished",
+    "antimicrobialRuleCreated",
+    "runtimeActivatedWithAntimicrobialAssets",
+    "contextSnapshotCreatedFromFrontdesk",
+    "outboundReviewRequested",
+    "inboundReviewAccepted",
+    "clinicalEvaluationTriggeredFromFrontdesk",
+    "pharmacistReviewRecordedWithoutClosingPhysicianConfirmation",
+    "physicianConfirmationRecorded",
+    "qualityRectificationSubmittedAndReviewed",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function parsePharmacyReviewRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const terminologyAsset = parsePharmacyReviewRuntimeAsset(
+    runtime.terminologyAsset,
+    "TERMINOLOGY",
+  );
+  const safetyAsset = parsePharmacyReviewRuntimeAsset(runtime.safetyAsset, "SAFETY");
+  const cdssRiskAsset = parsePharmacyReviewRuntimeAsset(runtime.cdssRiskAsset, "CDSS_RISK");
+  const ruleAsset = parsePharmacyReviewRuntimeAsset(runtime.ruleAsset, "RULE");
+  const actionCardAsset = parsePharmacyReviewRuntimeAsset(
+    runtime.actionCardAsset,
+    "ACTION_CARD",
+  );
+  const runtimeAssets = runtime.assets;
+  const assets = [terminologyAsset, safetyAsset, cdssRiskAsset, ruleAsset, actionCardAsset];
+  if (
+    assets.some((asset) => asset === null) ||
+    !assets.every((asset) =>
+      runtimeAssets.some((item) =>
+        pharmacyReviewRuntimeAssetMatches(item, asset as PharmacyReviewRuntimeAsset, {
+          requireActive: true,
+        }),
+      ),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    terminologyAsset: terminologyAsset as PharmacyReviewRuntimeAsset,
+    safetyAsset: safetyAsset as PharmacyReviewRuntimeAsset,
+    cdssRiskAsset: cdssRiskAsset as PharmacyReviewRuntimeAsset,
+    ruleAsset: ruleAsset as PharmacyReviewRuntimeAsset,
+    actionCardAsset: actionCardAsset as PharmacyReviewRuntimeAsset,
+  };
+}
+
+function parsePharmacyReviewRuntimeAsset(
+  value: unknown,
+  assetType: PharmacyReviewRuntimeAsset["assetType"],
+): PharmacyReviewRuntimeAsset | null {
+  const asset = recordValue(value);
+  if (
+    !asset ||
+    asset.assetType !== assetType ||
+    !hasText(asset.assetIdentity) ||
+    !hasText(asset.versionId) ||
+    !hasText(asset.versionNo) ||
+    !isSha256(asset.contentHash) ||
+    asset.entryState !== "ACTIVE"
+  ) {
+    return null;
+  }
+  return {
+    assetType,
+    assetIdentity: String(asset.assetIdentity),
+    versionId: String(asset.versionId),
+    versionNo: String(asset.versionNo),
+    contentHash: String(asset.contentHash),
+  };
+}
+
+function pharmacyReviewRuntimeAssetMatches(
+  value: unknown,
+  asset: PharmacyReviewRuntimeAsset,
+  options: { requireActive?: boolean } = {},
+) {
+  const candidate = recordValue(value);
+  return (
+    candidate?.assetType === asset.assetType &&
+    candidate.assetIdentity === asset.assetIdentity &&
+    candidate.versionId === asset.versionId &&
+    candidate.versionNo === asset.versionNo &&
+    candidate.contentHash === asset.contentHash &&
+    (!options.requireActive || candidate.entryState === "ACTIVE")
+  );
+}
+
+function hasCompletePharmacyReviewAdapterEvidence(value: unknown) {
+  const adapter = recordValue(value);
+  const mappings = Array.isArray(adapter?.fieldMappings) ? adapter.fieldMappings : [];
+  return (
+    hasText(adapter?.adapterId) &&
+    adapter?.systemFamilyCode === "PHARMACY_REVIEW" &&
+    adapter.sourceSystem === "PHARMACY_REVIEW" &&
+    adapter.targetSystem === "PHARMACY_REVIEW" &&
+    adapter.protocolType === "Webhook" &&
+    pharmacyReviewMappingTargets(mappings, "/medications/0", "ATC") &&
+    pharmacyReviewMappingTargets(mappings, "/conditions/0") &&
+    pharmacyReviewMappingTargets(mappings, "/observations/0/code") &&
+    pharmacyReviewMappingTargets(mappings, "/observations/0/valueNumeric") &&
+    pharmacyReviewMappingTargets(mappings, "/pharmacyReview/reviewResult") &&
+    pharmacyReviewMappingTargets(mappings, "/pharmacyReview/pharmacistOpinion")
+  );
+}
+
+function pharmacyReviewMappingTargets(
+  mappings: unknown[],
+  targetPath: string,
+  targetDictionaryKey?: string,
+) {
+  return mappings.some((item) => {
+    const mapping = recordValue(item);
+    return (
+      mapping?.targetPath === targetPath &&
+      (!targetDictionaryKey || mapping.targetDictionaryKey === targetDictionaryKey)
+    );
+  });
+}
+
+function hasCompletePharmacyReviewWebhookEvidence(webhookValue: unknown, adapterValue: unknown) {
+  const webhook = recordValue(webhookValue);
+  const adapter = recordValue(adapterValue);
+  return (
+    webhook !== null &&
+    hasText(webhook.webhookId) &&
+    webhook.adapterId === adapter?.adapterId &&
+    webhook.signatureAlgorithm === "HMAC-SHA256" &&
+    webhook.canonicalPayloadIncludesTraceId === true &&
+    webhook.previewGenerated === true
+  );
+}
+
+function hasCompletePharmacyReviewRiskMatrix(value: unknown) {
+  const risk = recordValue(value);
+  return (
+    risk?.assetType === "CDSS_RISK" &&
+    risk.assetIdentity === "CDSS.RISK.MATRIX" &&
+    hasText(risk.matrixId) &&
+    hasText(risk.matrixVersion) &&
+    risk.triggerPoint === "medication-prescribe" &&
+    risk.severityLevel === "CRITICAL" &&
+    risk.automationLevel === "INFORM_ONLY" &&
+    risk.riskLevel === "CRITICAL" &&
+    risk.reviewRequirement === "PHYSICIAN_CONFIRMATION" &&
+    typeof risk.silentRunHours === "number" &&
+    risk.silentRunHours >= 168 &&
+    String(risk.releaseGate ?? "").includes("ANTIMICROBIAL") &&
+    risk.autoExecutionAllowed === false
+  );
+}
+
+function hasCompletePharmacyReviewSafetyRedline(value: unknown, riskMatrixValue: unknown) {
+  const redline = recordValue(value);
+  const risk = recordValue(riskMatrixValue);
+  return (
+    redline?.assetType === "SAFETY" &&
+    hasText(redline.assetIdentity) &&
+    String(redline.assetIdentity).startsWith("SAFETY.RDL-ANTIMICROBIAL") &&
+    hasText(redline.redlineId) &&
+    hasText(redline.redlineKey) &&
+    hasText(redline.redlineVersion) &&
+    redline.category === "ANTIMICROBIAL_RESTRICTION" &&
+    redline.hazardSeverity === "CRITICAL" &&
+    redline.reviewRequirement === "PHYSICIAN_CONFIRMATION" &&
+    redline.lowerTenantOverrideAllowed === false &&
+    redline.riskMatrixId === risk?.matrixId &&
+    redline.riskMatrixVersion === risk?.matrixVersion &&
+    hasText(redline.releaseGate) &&
+    String(redline.releaseGate).includes("ANTIMICROBIAL") &&
+    hasText(redline.conditionDsl) &&
+    String(redline.conditionDsl).includes("medications[].code") &&
+    String(redline.conditionDsl).includes("observations[].valueNumeric") &&
+    hasText(redline.trialId)
+  );
+}
+
+function hasCompletePharmacyReviewActionCard(value: unknown) {
+  const actionCard = recordValue(value);
+  return (
+    actionCard?.assetType === "ACTION_CARD" &&
+    hasText(actionCard.assetIdentity) &&
+    String(actionCard.assetIdentity).startsWith("ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL") &&
+    actionCard.requiresPhysicianConfirmation === true &&
+    actionCard.noAutoOrder === true
+  );
+}
+
+function hasCompletePharmacyReviewRuleAsset(value: unknown) {
+  const rule = recordValue(value);
+  return (
+    rule?.assetType === "RULE" &&
+    hasText(rule.assetIdentity) &&
+    String(rule.assetIdentity).startsWith("RULE.MEDICATION.PHARMACY_REVIEW.") &&
+    hasText(rule.ruleId) &&
+    hasText(rule.ruleVersionId)
+  );
+}
+
+function hasCompletePharmacyReviewActivationRequest(
+  value: unknown,
+  runtime: {
+    terminologyAsset: PharmacyReviewRuntimeAsset;
+    safetyAsset: PharmacyReviewRuntimeAsset;
+    cdssRiskAsset: PharmacyReviewRuntimeAsset;
+    ruleAsset: PharmacyReviewRuntimeAsset;
+    actionCardAsset: PharmacyReviewRuntimeAsset;
+  },
+) {
+  return [
+    runtime.terminologyAsset,
+    runtime.safetyAsset,
+    runtime.cdssRiskAsset,
+    runtime.ruleAsset,
+    runtime.actionCardAsset,
+  ].every((asset) =>
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: asset.versionId,
+    }),
+  );
+}
+
+function hasCompletePharmacyReviewTerminologyGate(
+  value: unknown,
+  runtimeValue: unknown,
+  activationRequestValue: unknown,
+) {
+  const terminology = recordValue(value);
+  const runtime = recordValue(runtimeValue);
+  if (
+    !terminology ||
+    terminology.assetType !== "TERMINOLOGY" ||
+    !hasText(terminology.assetIdentity) ||
+    !hasText(terminology.versionId) ||
+    !hasText(terminology.versionNo) ||
+    !isSha256(terminology.contentHash) ||
+    terminology.standardSystem !== "ATC" ||
+    terminology.standardCode !== "J01C" ||
+    !hasText(terminology.localCode) ||
+    !hasText(terminology.sourceSystem) ||
+    terminology.category !== "DRUG" ||
+    typeof terminology.mappingId !== "number" ||
+    terminology.mappingId <= 0
+  ) {
+    return false;
+  }
+  const diagnosis = recordValue(terminology.diagnosis);
+  const pharmacyReview = recordValue(terminology.pharmacyReview);
+  const pharmacyReviewDiagnosis = recordValue(terminology.pharmacyReviewDiagnosis);
+  if (
+    diagnosis?.standardSystem !== "ICD-10" ||
+    diagnosis.standardCode !== "J18.900" ||
+    !hasText(diagnosis.localCode) ||
+    diagnosis.sourceSystem !== terminology.sourceSystem ||
+    diagnosis.category !== "DIAGNOSIS" ||
+    typeof diagnosis.mappingId !== "number" ||
+    diagnosis.mappingId <= 0
+  ) {
+    return false;
+  }
+  if (
+    pharmacyReview?.standardSystem !== "ATC" ||
+    pharmacyReview.standardCode !== "J01C" ||
+    pharmacyReview.localCode !== "J01C" ||
+    pharmacyReview.sourceSystem !== "PHARMACY_REVIEW" ||
+    pharmacyReview.category !== "DRUG" ||
+    typeof pharmacyReview.mappingId !== "number" ||
+    pharmacyReview.mappingId <= 0 ||
+    pharmacyReviewDiagnosis?.standardSystem !== "ICD-10" ||
+    pharmacyReviewDiagnosis.standardCode !== "J18.900" ||
+    pharmacyReviewDiagnosis.localCode !== "J18.900" ||
+    pharmacyReviewDiagnosis.sourceSystem !== "PHARMACY_REVIEW" ||
+    pharmacyReviewDiagnosis.category !== "DIAGNOSIS" ||
+    typeof pharmacyReviewDiagnosis.mappingId !== "number" ||
+    pharmacyReviewDiagnosis.mappingId <= 0
+  ) {
+    return false;
+  }
+  const candidate = {
+    assetType: "TERMINOLOGY",
+    assetIdentity: String(terminology.assetIdentity),
+    versionId: String(terminology.versionId),
+  };
+  const runtimeAssets = Array.isArray(runtime?.assets) ? runtime.assets : [];
+  return (
+    runtimeAssets.some((item) => {
+      const asset = recordValue(item);
+      return (
+        asset?.assetType === "TERMINOLOGY" &&
+        asset.assetIdentity === terminology.assetIdentity &&
+        asset.versionId === terminology.versionId &&
+        asset.versionNo === terminology.versionNo &&
+        asset.contentHash === terminology.contentHash &&
+        asset.entryState === "ACTIVE"
+      );
+    }) &&
+    runtimeReleasePayloadContainsCandidate(activationRequestValue, "activeAssets", candidate)
+  );
+}
+
+function hasCompletePharmacyReviewClinicalContext(value: unknown, runtimeReleaseId: string) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const medications = Array.isArray(resources?.medications) ? resources.medications : [];
+  const allergies = Array.isArray(resources?.allergyIntolerances)
+    ? resources.allergyIntolerances
+    : [];
+  const conditions = Array.isArray(resources?.conditions) ? resources.conditions : [];
+  const observations = Array.isArray(resources?.observations) ? resources.observations : [];
+  return (
+    hasText(context?.patientId) &&
+    hasText(context?.encounterId) &&
+    hasText(context?.contextSnapshotId) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    medications.some((item) => recordValue(item)?.code === "J01C") &&
+    allergies.some((item) => {
+      const allergy = recordValue(item);
+      return (
+        allergy?.code === "J01C" &&
+        allergy.category === "medication" &&
+        allergy.verificationStatus === "CONFIRMED"
+      );
+    }) &&
+    conditions.some((item) => {
+      const condition = recordValue(item);
+      return condition?.code === "J18.900" && condition.codeSystem === "ICD-10";
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return (
+        observation !== null &&
+        hasText(observation.code) &&
+        typeof observation.valueNumeric === "number" &&
+        hasText(observation.unit) &&
+        hasText(observation.sourceSystem)
+      );
+    })
+  );
+}
+
+function hasCompletePharmacyReviewOutbound(
+  value: unknown,
+  adapterValue: unknown,
+  contextValue: unknown,
+) {
+  const outbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const context = recordValue(contextValue);
+  const payload = recordValue(outbound?.payload);
+  return (
+    outbound !== null &&
+    payload !== null &&
+    hasText(outbound.messageId) &&
+    hasText(outbound.traceId) &&
+    outbound.adapterId === adapter?.adapterId &&
+    outbound.targetSystem === "PHARMACY_REVIEW" &&
+    outbound.protocolType === "Webhook" &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(outbound.status)) &&
+    outbound.compensationStatus === "NOT_CONNECTED" &&
+    hasText(outbound.compensationMessageId) &&
+    outbound.blocksMainFlow === false &&
+    outbound.compensationRequired === true &&
+    payload?.patientId === context?.patientId &&
+    payload.contextSnapshotId === context?.contextSnapshotId &&
+    payload.medicationCode === "J01C" &&
+    payload.infectionCode === "J18.900" &&
+    payload.observationCode === "PCT" &&
+    typeof payload.pct === "number"
+  );
+}
+
+function hasCompletePharmacyReviewInbound(
+  value: unknown,
+  adapterValue: unknown,
+  webhookValue: unknown,
+  outboundValue: unknown,
+  runtimeReleaseId: string,
+) {
+  const inbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const webhook = recordValue(webhookValue);
+  const outbound = recordValue(outboundValue);
+  const outboundPayload = recordValue(outbound?.payload);
+  const mappedPayload = recordValue(inbound?.mappedPayload);
+  const signedPayload = recordValue(inbound?.signedPayload);
+  const review = recordValue(mappedPayload?.pharmacyReview);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  const medications = Array.isArray(mappedPayload?.medications) ? mappedPayload.medications : [];
+  const conditions = Array.isArray(mappedPayload?.conditions) ? mappedPayload.conditions : [];
+  const observations = Array.isArray(mappedPayload?.observations) ? mappedPayload.observations : [];
+  return (
+    inbound !== null &&
+    review !== null &&
+    hasText(inbound.messageId) &&
+    inbound.traceId === outbound?.traceId &&
+    inbound.adapterId === adapter?.adapterId &&
+    inbound.webhookId === webhook?.webhookId &&
+    inbound.patientId === outboundPayload?.patientId &&
+    hasText(inbound.encounterId) &&
+    inbound.contextSnapshotId === outboundPayload?.contextSnapshotId &&
+    inbound.sourceSystem === "PHARMACY_REVIEW" &&
+    inbound.status === "SUCCESS" &&
+    inbound.clinicalEventStatus === "RECEIVED" &&
+    hasProcessedPharmacyReviewClinicalEvent(clinicalEvent, runtimeReleaseId) &&
+    typeof inbound.mappedFieldCount === "number" &&
+    inbound.mappedFieldCount >= 7 &&
+    signedPayload?.medicationCode === "J01C" &&
+    signedPayload.infectionCode === "J18.900" &&
+    signedPayload.observationCode === "PCT" &&
+    typeof signedPayload.pct === "number" &&
+    hasText(review?.reviewResult) &&
+    hasText(review.pharmacistOpinion) &&
+    medications.some((item) => {
+      const medication = recordValue(item);
+      return medication?.standardCode === "J01C" && medication.runtimeReleaseId === runtimeReleaseId;
+    }) &&
+    conditions.some((item) => {
+      const condition = recordValue(item);
+      return (
+        condition?.standardCode === "J18.900" &&
+        condition.codeSystem === "ICD-10" &&
+        condition.sourceSystem === "PHARMACY_REVIEW" &&
+        condition.runtimeReleaseId === runtimeReleaseId
+      );
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "PCT" && typeof observation.valueNumeric === "number";
+    })
+  );
+}
+
+function hasProcessedPharmacyReviewClinicalEvent(
+  clinicalEvent: Record<string, unknown> | null,
+  runtimeReleaseId: string,
+) {
+  return (
+    clinicalEvent !== null &&
+    hasText(clinicalEvent.eventId) &&
+    clinicalEvent.status === "PROCESSED" &&
+    clinicalEvent.runtimeReleaseId === runtimeReleaseId &&
+    (clinicalEvent.errorCode === null || clinicalEvent.errorCode === undefined) &&
+    (clinicalEvent.errorClass === null || clinicalEvent.errorClass === undefined)
+  );
+}
+
+function hasPharmacyReviewAntimicrobialScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    hasNegatedScopeTerm(statement, "完整药事治理") &&
+    hasNegatedScopeTerm(statement, "完整抗菌药物分级管理") &&
+    hasNegatedScopeTerm(statement, "第三方药房审方系统族完整覆盖")
+  );
+}
+
+function hasNegatedScopeTerm(statement: string, term: string) {
+  const segments = statement
+    .split(/[。；;.!?！？\n]/u)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const matchingSegments = segments.filter((segment) => segment.includes(term));
+  return (
+    matchingSegments.length > 0 &&
+    matchingSegments.every((segment) => {
+      const termIndex = segment.indexOf(term);
+      const prefix = segment.slice(0, termIndex);
+      const suffix = segment.slice(termIndex + term.length);
+      return (
+        /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix) &&
+        !/(?:已上线|完整上线|完成上线|已完成|完整覆盖|全面覆盖)/u.test(
+          suffix.slice(0, 12),
+        )
+      );
+    })
+  );
+}
+
+function hasCompletePharmacyReviewTrigger(value: unknown, runtimeReleaseId: string) {
+  return hasCompleteMedicationSafetyTriggerEvidence(value, runtimeReleaseId);
+}
+
+function hasCompletePharmacyReviewRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    actionCardAsset: PharmacyReviewRuntimeAsset;
+  },
+  triggerValue: unknown,
+  riskMatrixValue: unknown,
+  redlineValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const trigger = recordValue(triggerValue);
+  const risk = recordValue(riskMatrixValue);
+  const redline = recordValue(redlineValue);
+  if (
+    !recommendation ||
+    !trigger ||
+    !hasText(recommendation.cardId) ||
+    recommendation.cardId !== trigger.cardId ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardStatus !== "PENDING" ||
+    recommendation.requiresPhysicianConfirmation !== true ||
+    recommendation.aiGenerated !== false
+  ) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const redlineExplanation = recordValue(explanation?.redlineExplanation);
+  const conditionEvidence = Array.isArray(redlineExplanation?.conditionEvidence)
+    ? redlineExplanation.conditionEvidence
+    : [];
+  return (
+    explanation?.matchType === "CLINICAL_REDLINE" &&
+    explanation.redlineId === redline?.redlineId &&
+    explanation.redlineKey === redline?.redlineKey &&
+    explanation.riskMatrixId === risk?.matrixId &&
+    explanation.riskMatrixVersion === risk?.matrixVersion &&
+    pharmacyReviewConditionMatched(conditionEvidence, "medications[].code") &&
+    pharmacyReviewConditionMatched(conditionEvidence, "observations[].valueNumeric") &&
+    hasText(recommendation.riskMatrixExplanation) &&
+    String(recommendation.riskMatrixExplanation).includes("医师") &&
+    String(recommendation.riskMatrixExplanation).includes("确认")
+  );
+}
+
+function hasCompletePharmacyReviewRuleRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    ruleAsset: PharmacyReviewRuntimeAsset;
+    actionCardAsset: PharmacyReviewRuntimeAsset;
+  },
+  triggerValue: unknown,
+  ruleValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const trigger = recordValue(triggerValue);
+  const rule = recordValue(ruleValue);
+  if (
+    !recommendation ||
+    !trigger ||
+    !rule ||
+    !hasText(recommendation.cardId) ||
+    recommendation.cardId === trigger.cardId ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardStatus !== "PENDING"
+  ) {
+    return false;
+  }
+  const relatedCardIds = Array.isArray(trigger.relatedCardIds)
+    ? trigger.relatedCardIds.filter((cardId): cardId is string => hasText(cardId))
+    : [];
+  if (!relatedCardIds.includes(String(recommendation.cardId))) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const runtimeRelease = recordValue(explanation?.runtimeRelease);
+  const ruleExplanation = recordValue(explanation?.ruleExplanation);
+  const conditionEvidence = Array.isArray(ruleExplanation?.conditionEvidence)
+    ? ruleExplanation.conditionEvidence
+    : [];
+  const runtimeAssetEvidence = Array.isArray(ruleExplanation?.runtimeAssetEvidence)
+    ? ruleExplanation.runtimeAssetEvidence
+    : [];
+  return (
+    explanation?.matchType === "RULE" &&
+    explanation.ruleId === rule.ruleId &&
+    explanation.ruleCode === rule.assetIdentity &&
+    explanation.ruleVersionId === rule.ruleVersionId &&
+    runtimeRelease?.runtimeReleaseId === runtime.releaseId &&
+    runtimeRelease.assetVersionId === runtime.ruleAsset.versionId &&
+    runtimeRelease.assetVersionNo === runtime.ruleAsset.versionNo &&
+    runtimeRelease.contentHash === runtime.ruleAsset.contentHash &&
+    hasText(ruleExplanation?.title) &&
+    hasText(ruleExplanation?.reason) &&
+    pharmacyReviewConditionMatched(conditionEvidence, "medications[].code") &&
+    pharmacyReviewConditionMatched(conditionEvidence, "conditions[].code") &&
+    pharmacyReviewConditionMatched(conditionEvidence, "observations[].valueNumeric") &&
+    hasCompletePharmacyReviewActionCardEvidence(runtimeAssetEvidence, runtime.actionCardAsset)
+  );
+}
+
+function pharmacyReviewConditionMatched(values: unknown[], fact: string) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    return evidence?.fact === fact && evidence.matched === true;
+  });
+}
+
+function hasCompletePharmacyReviewActionCardEvidence(
+  values: unknown[],
+  asset: PharmacyReviewRuntimeAsset,
+) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    return (
+      evidence?.assetType === "ACTION_CARD" &&
+      evidence.assetIdentity === asset.assetIdentity &&
+      evidence.assetVersion === asset.versionNo &&
+      evidence.contentHash === asset.contentHash &&
+      evidence.requiresPhysicianConfirmation === true
+    );
+  });
+}
+
+function hasCompletePharmacyReviewRectification(value: unknown, recommendationValue: unknown) {
+  const rectification = recordValue(value);
+  const recommendation = recordValue(recommendationValue);
+  return (
+    rectification !== null &&
+    hasText(rectification.findingId) &&
+    rectification.sourceType === "PHARMACY_REVIEW" &&
+    recommendation !== null &&
+    rectification.sourceId === recommendation.cardId &&
+    ["P0", "P1"].includes(String(rectification.severity)) &&
+    rectification.findingStatus === "CLOSED" &&
+    hasText(rectification.taskId) &&
+    rectification.taskStatus === "CLOSED" &&
+    rectification.submittedByRole === "engine-operator" &&
+    rectification.reviewedByRole === "engine-operator" &&
+    rectification.roleEvidence === "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW" &&
+    hasText(rectification.submittedEvidenceRef) &&
+    rectification.reviewDecision === "APPROVED"
   );
 }
 

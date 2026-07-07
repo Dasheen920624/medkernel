@@ -110,7 +110,7 @@ public class ClinicalEventContextFactory {
             List.<CanonicalCarePlan>of(),
             followUps(event, payload),
             List.<CanonicalClaim>of(),
-            payload.path("extensions")
+            extensions(payload)
         );
     }
 
@@ -320,6 +320,21 @@ public class ClinicalEventContextFactory {
         addPayloadAnchors(anchors, CanonicalResourceType.OBSERVATION, "code", "TERM.LAB",
             event, array(payload, "results", "observations"), "observationId", "resultId", "id");
         return List.copyOf(anchors);
+    }
+
+    private JsonNode extensions(JsonNode payload) {
+        ObjectNode extensions = payload.path("extensions").isObject()
+            ? (ObjectNode) payload.path("extensions").deepCopy()
+            : json.createObjectNode();
+        JsonNode pharmacyReview = payload.path("pharmacyReview");
+        if (pharmacyReview.isObject()) {
+            ObjectNode local = extensions.path("local").isObject()
+                ? (ObjectNode) extensions.path("local")
+                : json.createObjectNode();
+            local.set("pharmacyReview", pharmacyReview.deepCopy());
+            extensions.set("local", local);
+        }
+        return extensions;
     }
 
     private void addPayloadAnchors(List<ClinicalCodeMappingAnchor> anchors,

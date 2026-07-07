@@ -516,6 +516,7 @@ describe("Mpi", () => {
       const medicationInput = screen.getByLabelText("当前用药");
       await user.type(medicationInput, "华法林、阿司匹林");
       await user.type(screen.getByLabelText("过敏/不良反应"), "青霉素：皮疹、头孢菌素：呼吸困难");
+      await user.type(screen.getByLabelText("监测指标"), "CRP=128 mg/L；PCT=2.4 ng/mL");
       await user.clear(screen.getByLabelText("身高 cm"));
       await user.type(screen.getByLabelText("身高 cm"), "170");
       await user.clear(screen.getByLabelText("体重 kg"));
@@ -549,6 +550,7 @@ describe("Mpi", () => {
           riskLevel: "MEDIUM",
           currentMedicationText: "华法林、阿司匹林",
           allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难",
+          observationText: "CRP=128 mg/L；PCT=2.4 ng/mL",
           heightCm: 170,
           weightKg: 82,
           diagnosticReportType: "血钾检验",

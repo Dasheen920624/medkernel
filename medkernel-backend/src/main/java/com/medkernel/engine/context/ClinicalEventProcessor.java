@@ -70,33 +70,7 @@ public class ClinicalEventProcessor {
         }
 
         ClinicalEventContext context = contextFactory.from(event, payload);
-        String snapshotId = ensureContextSnapshot(context);
-        context = context.withContextSnapshotId(snapshotId);
-        ClinicalEvent mapped = withStatusAndSnapshot(event, ClinicalEventStatus.MAPPED, snapshotId);
-        events.save(mapped);
-        transitions.record(ENTITY_TYPE, eventId,
-            event.processingStatus().name(), ClinicalEventStatus.MAPPED.name(),
-            "TERMINOLOGY_OK", null);
-
-        List<ClinicalEventEngineDispatchResult> dispatchResults = engineDispatcher.dispatch(context);
-        java.util.Optional<ClinicalEventEngineDispatchResult> unavailable = dispatchResults.stream()
-            .filter(result -> result.status() == ClinicalEventEngineDispatchStatus.UNAVAILABLE)
-            .findFirst();
-        if (unavailable.isPresent()) {
-            return markEnginesUnavailable(mapped, unavailable.get());
-        }
-
-        ClinicalEvent processed = withStatus(mapped, ClinicalEventStatus.PROCESSED);
-        events.save(processed);
-        transitions.record(ENTITY_TYPE, eventId,
-            ClinicalEventStatus.MAPPED.name(), ClinicalEventStatus.PROCESSED.name(),
-            "ENGINES_OK", null);
-
-        auditRecorder.record(AuditAction.EXECUTE, ENTITY_TYPE, eventId,
-            successAuditMessage(event, dispatchResults));
-        applicationEvents.publishEvent(new ClinicalEventProcessedEvent(
-            eventId, tenantId, event.traceId(), context));
-        return ClinicalEventStatus.PROCESSED;
+        return processWithEventScope(event, context);
     }
 
     @Transactional
@@ -136,6 +110,53 @@ public class ClinicalEventProcessor {
             source.sourceSystem(), source.runtimeReleaseId(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), snapshotId,
             status, null, null, source.retryCount(), source.rootEventId(), source.traceId());
+    }
+
+    private ClinicalEventStatus processWithEventScope(ClinicalEvent event, ClinicalEventContext context) {
+        RequestContext.Snapshot snapshot = new RequestContext.Snapshot(
+            context.traceId(),
+            context.orgScope(),
+            RequestContext.currentUserId().orElse(null)
+        );
+        try {
+            return RequestContext.callWith(snapshot, () -> processMappedAndDispatch(event, context));
+        } catch (ApiException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.ENG_EVENT_005, "临床事件处理失败", exception);
+        }
+    }
+
+    private ClinicalEventStatus processMappedAndDispatch(ClinicalEvent event, ClinicalEventContext context) {
+        String snapshotId = ensureContextSnapshot(context);
+        context = context.withContextSnapshotId(snapshotId);
+        ClinicalEvent mapped = withStatusAndSnapshot(event, ClinicalEventStatus.MAPPED, snapshotId);
+        events.save(mapped);
+        transitions.record(ENTITY_TYPE, event.eventId(),
+            event.processingStatus().name(), ClinicalEventStatus.MAPPED.name(),
+            "TERMINOLOGY_OK", null);
+
+        List<ClinicalEventEngineDispatchResult> dispatchResults = engineDispatcher.dispatch(context);
+        java.util.Optional<ClinicalEventEngineDispatchResult> unavailable = dispatchResults.stream()
+            .filter(result -> result.status() == ClinicalEventEngineDispatchStatus.UNAVAILABLE)
+            .findFirst();
+        if (unavailable.isPresent()) {
+            return markEnginesUnavailable(mapped, unavailable.get());
+        }
+
+        ClinicalEvent processed = withStatus(mapped, ClinicalEventStatus.PROCESSED);
+        events.save(processed);
+        transitions.record(ENTITY_TYPE, event.eventId(),
+            ClinicalEventStatus.MAPPED.name(), ClinicalEventStatus.PROCESSED.name(),
+            "ENGINES_OK", null);
+
+        auditRecorder.record(AuditAction.EXECUTE, ENTITY_TYPE, event.eventId(),
+            successAuditMessage(event, dispatchResults));
+        applicationEvents.publishEvent(new ClinicalEventProcessedEvent(
+            event.eventId(), event.tenantId(), event.traceId(), context));
+        return ClinicalEventStatus.PROCESSED;
     }
 
     private String ensureContextSnapshot(ClinicalEventContext context) {

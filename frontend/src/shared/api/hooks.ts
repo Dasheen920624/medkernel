@@ -6746,6 +6746,7 @@ export interface ContextSnapshotCreatePayload {
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   currentMedicationText?: string;
   allergyIntoleranceText?: string;
+  observationText?: string;
   heightCm?: number;
   weightKg?: number;
   diagnosticReportType?: string;
@@ -6908,6 +6909,65 @@ function buildFrontdeskAllergyIntoleranceResources(
   }));
 }
 
+function splitFrontdeskObservationEntries(value: string | undefined) {
+  return (value?.split(/[\n;；]/u) ?? []).map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeFrontdeskObservationEntry(entry: string) {
+  const [rawName, ...rawValueParts] = entry.split(/[=:：]/u);
+  const code = rawName?.trim().replace(/\s+/g, " ");
+  const rawValue = rawValueParts.join("=").trim().replace(/\s+/g, " ");
+  if (!code || !rawValue) return null;
+  const match = rawValue.match(/^(-?\d+(?:\.\d+)?)(?:\s+(.+))?$/u);
+  const valueNumeric = match ? Number(match[1]) : null;
+  return {
+    code,
+    displayName: code,
+    valueNumeric: Number.isFinite(valueNumeric) ? valueNumeric : null,
+    valueString: match ? null : rawValue,
+    unit: match?.[2]?.trim() || null,
+  };
+}
+
+function buildFrontdeskObservationResources(
+  observationText: string | undefined,
+  patientId: string,
+  now: string,
+) {
+  const uniqueObservations = new Map<
+    string,
+    {
+      code: string;
+      displayName: string;
+      valueNumeric: number | null;
+      valueString: string | null;
+      unit: string | null;
+    }
+  >();
+  for (const token of splitFrontdeskObservationEntries(observationText)) {
+    const observation = normalizeFrontdeskObservationEntry(token);
+    if (observation && !uniqueObservations.has(observation.code)) {
+      uniqueObservations.set(observation.code, observation);
+    }
+  }
+  return Array.from(uniqueObservations.values()).map((observation) => ({
+    observationId: `obs-${crypto.randomUUID()}`,
+    code: observation.code,
+    displayName: observation.displayName,
+    valueNumeric: observation.valueNumeric,
+    valueString: observation.valueString,
+    unit: observation.unit,
+    referenceRange: null,
+    criticalFlag: null,
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    sourceRecordId: `${patientId}:${observation.code}`,
+    mappedVersion: "FRONTDESK_CONTEXT_V1",
+    eventTime: now,
+    receivedTime: now,
+    qualityStatus: "VALID",
+  }));
+}
+
 function splitFrontdeskKeyFindings(value: string | undefined) {
   return (value?.split(/[,\n;，、；]/u) ?? []).map((item) => item.trim()).filter(Boolean);
 }
@@ -7045,6 +7105,11 @@ function frontdeskSnapshotRequest(
     payload.patient.mpiId,
     now,
   );
+  const observations = buildFrontdeskObservationResources(
+    payload.observationText,
+    payload.patient.mpiId,
+    now,
+  );
   const diagnosticReports = buildFrontdeskDiagnosticReportResources(payload, profile, now);
   const nursingAssessments = buildFrontdeskNursingAssessmentResources(
     payload,
@@ -7108,7 +7173,7 @@ function frontdeskSnapshotRequest(
           },
         ],
         nursingAssessments: nursingAssessments,
-        observations: [],
+        observations,
         diagnosticReports,
         medications,
         procedures: [],
@@ -7124,6 +7189,7 @@ function frontdeskSnapshotRequest(
               riskLevel: payload.riskLevel,
               currentMedicationCount: medications.length,
               allergyIntoleranceCount: allergyIntolerances.length,
+              observationCount: observations.length,
               ...(payload.heightCm !== undefined ? { heightCm: payload.heightCm } : {}),
               ...(payload.weightKg !== undefined ? { weightKg: payload.weightKg } : {}),
               diagnosticReportCount: diagnosticReports.length,

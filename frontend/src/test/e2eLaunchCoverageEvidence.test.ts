@@ -988,16 +988,26 @@ const medicationSafetyFrontdeskEvidence = {
     pharmacist: {
       feedbackId: "rf-pharmacist",
       cardStatus: "PENDING",
-      operatorRole: "PHARMACIST",
+      canonicalSessionRole: "clinical-user",
       roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
-      reasonCode: "PHARMACIST_REVIEWED",
+      persisted: {
+        feedbackId: "rf-pharmacist",
+        feedbackType: "VIEW_SOURCE",
+        operatorRole: "PHARMACIST",
+        reasonCode: "PHARMACIST_REVIEWED",
+      },
     },
     physician: {
       feedbackId: "rf-physician",
       cardStatus: "ACCEPTED",
-      operatorRole: "DOCTOR",
+      canonicalSessionRole: "clinical-user",
       roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
-      reasonCode: "CONFIRMED",
+      persisted: {
+        feedbackId: "rf-physician",
+        feedbackType: "ACCEPT",
+        operatorRole: "DOCTOR",
+        reasonCode: "CONFIRMED",
+      },
     },
     noAutoOrder: true,
   },
@@ -1537,6 +1547,554 @@ function expectNoNursingContinuityCoverage(body: Record<string, unknown>) {
   );
   expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toContain(
     "FOLLOWUP",
+  );
+}
+
+const pharmacyReviewAntimicrobialEvidence = {
+  scenarioCodes: ["S18", "S31"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+  versionedAssets: ["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"],
+  deliveryShapes: ["API_EVENT"],
+  serviceCombinations: [
+    "THIRD_PARTY_INTERFACE",
+    "CLINICAL_RUNTIME",
+    "PROFESSIONAL_COLLABORATION",
+    "QUALITY_IMPROVEMENT",
+  ],
+  scopeStatement:
+    "药房审方与抗菌药物治理代表切片：PHARMACY_REVIEW 双向审方、抗菌药物风险推荐、药师/医生人工确认和 S31 整改闭环，不代表完整药事治理、完整抗菌药物分级管理或第三方药房审方系统族完整覆盖。",
+  apiEvidence: {
+    pharmacyReviewAdapterCreatedThroughRealService: true,
+    pharmacyReviewWebhookCreatedThroughRealService: true,
+    webhookSignaturePreviewGenerated: true,
+    antimicrobialTerminologyActivated: true,
+    antimicrobialRiskMatrixCreated: true,
+    antimicrobialSafetyAssetPromoted: true,
+    antimicrobialActionCardPublished: true,
+    antimicrobialRuleCreated: true,
+    runtimeActivatedWithAntimicrobialAssets: true,
+    contextSnapshotCreatedFromFrontdesk: true,
+    outboundReviewRequested: true,
+    inboundReviewAccepted: true,
+    clinicalEvaluationTriggeredFromFrontdesk: true,
+    pharmacistReviewRecordedWithoutClosingPhysicianConfirmation: true,
+    physicianConfirmationRecorded: true,
+    qualityRectificationSubmittedAndReviewed: true,
+  },
+  adapter: {
+    adapterId: "adapter-pharmacy-review",
+    systemFamilyCode: "PHARMACY_REVIEW",
+    sourceSystem: "PHARMACY_REVIEW",
+    targetSystem: "PHARMACY_REVIEW",
+    protocolType: "Webhook",
+    fieldMappings: [
+      { sourcePath: "/patientId", targetPath: "/patient/mpi" },
+      { sourcePath: "/medicationCode", targetPath: "/medications/0", targetDictionaryKey: "ATC" },
+      { sourcePath: "/infectionCode", targetPath: "/conditions/0", targetDictionaryKey: "ICD-10" },
+      { sourcePath: "/observationCode", targetPath: "/observations/0/code" },
+      { sourcePath: "/pct", targetPath: "/observations/0/valueNumeric" },
+      { sourcePath: "/pharmacyReview/reviewResult", targetPath: "/pharmacyReview/reviewResult" },
+      { sourcePath: "/pharmacyReview/pharmacistOpinion", targetPath: "/pharmacyReview/pharmacistOpinion" },
+    ],
+  },
+  webhookSignature: {
+    webhookId: "webhook-pharmacy-review",
+    adapterId: "adapter-pharmacy-review",
+    signatureAlgorithm: "HMAC-SHA256",
+    canonicalPayloadIncludesTraceId: true,
+    previewGenerated: true,
+  },
+  terminologyGate: {
+    assetType: "TERMINOLOGY",
+    assetIdentity: "TERM.DRUG.PHARMACY_REVIEW.ANTIMICROBIAL",
+    versionId: "av-term-pharmacy-review",
+    versionNo: "V1",
+    contentHash: "8".repeat(64),
+    standardSystem: "ATC",
+    standardCode: "J01C",
+    localCode: "J01C",
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    category: "DRUG",
+    mappingId: 31,
+    pharmacyReview: {
+      standardSystem: "ATC",
+      standardCode: "J01C",
+      localCode: "J01C",
+      sourceSystem: "PHARMACY_REVIEW",
+      category: "DRUG",
+      mappingId: 33,
+    },
+    diagnosis: {
+      standardSystem: "ICD-10",
+      standardCode: "J18.900",
+      localCode: "J18.900",
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      category: "DIAGNOSIS",
+      mappingId: 32,
+    },
+    pharmacyReviewDiagnosis: {
+      standardSystem: "ICD-10",
+      standardCode: "J18.900",
+      localCode: "J18.900",
+      sourceSystem: "PHARMACY_REVIEW",
+      category: "DIAGNOSIS",
+      mappingId: 34,
+    },
+  },
+  riskMatrix: {
+    assetType: "CDSS_RISK",
+    assetIdentity: "CDSS.RISK.MATRIX",
+    versionId: "av-risk-pharmacy-review",
+    versionNo: "V1",
+    contentHash: "6".repeat(64),
+    matrixId: "risk-matrix-pharmacy-review",
+    matrixVersion: "pharmacy-review-v1",
+    triggerPoint: "medication-prescribe",
+    severityLevel: "CRITICAL",
+    automationLevel: "INFORM_ONLY",
+    riskLevel: "CRITICAL",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    silentRunHours: 168,
+    releaseGate: "OPT04_ANTIMICROBIAL_RESTRICTION",
+    autoExecutionAllowed: false,
+  },
+  safetyRedline: {
+    assetType: "SAFETY",
+    assetIdentity: "SAFETY.RDL-ANTIMICROBIAL-RESTRICTION",
+    versionId: "av-safety-pharmacy-review",
+    versionNo: "V1",
+    contentHash: "5".repeat(64),
+    redlineId: "redline-antimicrobial-restriction",
+    redlineKey: "RDL-ANTIMICROBIAL-RESTRICTION",
+    redlineVersion: "2026.1",
+    category: "ANTIMICROBIAL_RESTRICTION",
+    conditionDsl:
+      '{"all":[{"fact":"medications[].code","operator":"contains","value":"J01C"},{"fact":"observations[].valueNumeric","operator":"gte","value":2}]}',
+    trialId: "crt-antimicrobial",
+    hazardSeverity: "CRITICAL",
+    riskMatrixId: "risk-matrix-pharmacy-review",
+    riskMatrixVersion: "pharmacy-review-v1",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    releaseGate: "OPT04_ANTIMICROBIAL_RESTRICTION",
+    lowerTenantOverrideAllowed: false,
+  },
+  actionCard: {
+    assetType: "ACTION_CARD",
+    assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+    versionId: "av-action-pharmacy-review",
+    versionNo: "V1",
+    contentHash: "9".repeat(64),
+    entryState: "ACTIVE",
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+  },
+  ruleAsset: {
+    assetType: "RULE",
+    assetIdentity: "RULE.MEDICATION.PHARMACY_REVIEW.ANTIMICROBIAL",
+    versionId: "av-rule-pharmacy-review",
+    versionNo: "V1",
+    contentHash: "7".repeat(64),
+    ruleId: "rule-pharmacy-review-antimicrobial",
+    ruleVersionId: "rv-pharmacy-review-antimicrobial",
+  },
+  runtime: {
+    releaseId: "runtime-pharmacy-review",
+    revisionNo: 31,
+    manifestSha256: "d".repeat(64),
+    assets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.DRUG.PHARMACY_REVIEW.ANTIMICROBIAL",
+        versionId: "av-term-pharmacy-review",
+        versionNo: "V1",
+        contentHash: "8".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-ANTIMICROBIAL-RESTRICTION",
+        versionId: "av-safety-pharmacy-review",
+        versionNo: "V1",
+        contentHash: "5".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "av-risk-pharmacy-review",
+        versionNo: "V1",
+        contentHash: "6".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.MEDICATION.PHARMACY_REVIEW.ANTIMICROBIAL",
+        versionId: "av-rule-pharmacy-review",
+        versionNo: "V1",
+        contentHash: "7".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+        versionId: "av-action-pharmacy-review",
+        versionNo: "V1",
+        contentHash: "9".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    terminologyAsset: {
+      assetType: "TERMINOLOGY",
+      assetIdentity: "TERM.DRUG.PHARMACY_REVIEW.ANTIMICROBIAL",
+      versionId: "av-term-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "8".repeat(64),
+      entryState: "ACTIVE",
+    },
+    safetyAsset: {
+      assetType: "SAFETY",
+      assetIdentity: "SAFETY.RDL-ANTIMICROBIAL-RESTRICTION",
+      versionId: "av-safety-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "5".repeat(64),
+      entryState: "ACTIVE",
+    },
+    cdssRiskAsset: {
+      assetType: "CDSS_RISK",
+      assetIdentity: "CDSS.RISK.MATRIX",
+      versionId: "av-risk-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "6".repeat(64),
+      entryState: "ACTIVE",
+    },
+    ruleAsset: {
+      assetType: "RULE",
+      assetIdentity: "RULE.MEDICATION.PHARMACY_REVIEW.ANTIMICROBIAL",
+      versionId: "av-rule-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "7".repeat(64),
+      entryState: "ACTIVE",
+    },
+    actionCardAsset: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+      versionId: "av-action-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "9".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.DRUG.PHARMACY_REVIEW.ANTIMICROBIAL",
+        versionId: "av-term-pharmacy-review",
+      },
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-ANTIMICROBIAL-RESTRICTION",
+        versionId: "av-safety-pharmacy-review",
+      },
+      {
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "av-risk-pharmacy-review",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.MEDICATION.PHARMACY_REVIEW.ANTIMICROBIAL",
+        versionId: "av-rule-pharmacy-review",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+        versionId: "av-action-pharmacy-review",
+      },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-pharmacy-review",
+    encounterId: "enc-pharmacy-review",
+    contextSnapshotId: "ctx-pharmacy-review",
+    runtimeReleaseId: "runtime-pharmacy-review",
+    resources: {
+      medications: [{ code: "J01C", displayName: "青霉素类抗菌药" }],
+      allergyIntolerances: [
+        {
+          code: "J01C",
+          substance: "青霉素类",
+          category: "medication",
+          verificationStatus: "CONFIRMED",
+        },
+      ],
+      conditions: [{ code: "J18.900", codeSystem: "ICD-10", displayName: "肺部感染" }],
+      observations: [
+        {
+          observationId: "obs-pct",
+          code: "PCT",
+          valueNumeric: 2.4,
+          unit: "ng/mL",
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+        },
+      ],
+    },
+  },
+  outboundReview: {
+    messageId: "out-pharmacy-review",
+    traceId: "trace-pharmacy-review",
+    adapterId: "adapter-pharmacy-review",
+    targetSystem: "PHARMACY_REVIEW",
+    protocolType: "Webhook",
+    status: "RETRYING",
+    compensationStatus: "NOT_CONNECTED",
+    compensationMessageId: "out-pharmacy-review",
+    blocksMainFlow: false,
+    initialCompensationRequired: false,
+    compensationRequired: true,
+    payload: {
+      patientId: "mpi-pharmacy-review",
+      contextSnapshotId: "ctx-pharmacy-review",
+      medicationCode: "J01C",
+      infectionCode: "J18.900",
+      observationCode: "PCT",
+      pct: 2.4,
+    },
+  },
+  inboundReview: {
+    messageId: "in-pharmacy-review",
+    traceId: "trace-pharmacy-review",
+    adapterId: "adapter-pharmacy-review",
+    webhookId: "webhook-pharmacy-review",
+    patientId: "mpi-pharmacy-review",
+    encounterId: "enc-pharmacy-review",
+    contextSnapshotId: "ctx-pharmacy-review",
+    sourceSystem: "PHARMACY_REVIEW",
+    status: "SUCCESS",
+    clinicalEventStatus: "RECEIVED",
+    clinicalEvent: {
+      eventId: "evt-wh-pharmacy-review",
+      status: "PROCESSED",
+      errorCode: null,
+      errorClass: null,
+      retryCount: 0,
+      runtimeReleaseId: "runtime-pharmacy-review",
+    },
+    mappedFieldCount: 7,
+    mappedPayload: {
+      pharmacyReview: {
+        reviewResult: "REQUIRES_PHYSICIAN_CONFIRMATION",
+        pharmacistOpinion: "抗菌药物使用需结合感染指标与病原学复核。",
+      },
+      medications: [{ standardCode: "J01C", runtimeReleaseId: "runtime-pharmacy-review" }],
+      conditions: [
+        {
+          standardCode: "J18.900",
+          codeSystem: "ICD-10",
+          sourceSystem: "PHARMACY_REVIEW",
+          runtimeReleaseId: "runtime-pharmacy-review",
+        },
+      ],
+      observations: [{ code: "PCT", valueNumeric: 2.4 }],
+    },
+    signedPayload: {
+      patientId: "mpi-pharmacy-review",
+      contextSnapshotId: "ctx-pharmacy-review",
+      medicationCode: "J01C",
+      infectionCode: "J18.900",
+      observationCode: "PCT",
+      pct: 2.4,
+    },
+  },
+  clinicalTrigger: {
+    triggerId: "trigger-pharmacy-review",
+    contextSnapshotId: "ctx-pharmacy-review",
+    runtimeReleaseId: "runtime-pharmacy-review",
+    cardId: "card-pharmacy-review",
+    relatedCardIds: ["card-pharmacy-review", "card-rule-pharmacy-review"],
+  },
+  recommendation: {
+    cardId: "card-pharmacy-review",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-pharmacy-review",
+    cardType: "MEDICATION",
+    requiresPhysicianConfirmation: true,
+    aiGenerated: false,
+    explanation: {
+      matchType: "CLINICAL_REDLINE",
+      redlineId: "redline-antimicrobial-restriction",
+      redlineKey: "RDL-ANTIMICROBIAL-RESTRICTION",
+      riskMatrixId: "risk-matrix-pharmacy-review",
+      riskMatrixVersion: "pharmacy-review-v1",
+      redlineExplanation: {
+        conditionEvidence: [
+          {
+            fact: "medications[].code",
+            operator: "contains",
+            expected: "J01C",
+            actual: ["J01C"],
+            matched: true,
+          },
+          {
+            fact: "observations[].valueNumeric",
+            operator: "gte",
+            expected: 2,
+            actual: 2.4,
+            matched: true,
+          },
+        ],
+      },
+    },
+    riskMatrixExplanation: "临床安全红线运行时强制提升为最高优先级；红线级 CDSS 输出必须由医师逐次确认并经过静默试运行门槛。",
+  },
+  ruleRecommendation: {
+    cardId: "card-rule-pharmacy-review",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-pharmacy-review",
+    explanation: {
+      matchType: "RULE",
+      ruleId: "rule-pharmacy-review-antimicrobial",
+      ruleCode: "RULE.MEDICATION.PHARMACY_REVIEW.ANTIMICROBIAL",
+      ruleVersionId: "rv-pharmacy-review-antimicrobial",
+      runtimeRelease: {
+        runtimeReleaseId: "runtime-pharmacy-review",
+        assetVersionId: "av-rule-pharmacy-review",
+        assetVersionNo: "V1",
+        contentHash: "7".repeat(64),
+      },
+      ruleExplanation: {
+        title: "抗菌药物审方代表切片规则",
+        reason: "Medication、Condition、Observation 均来自当前临床上下文，规则由当前机构生效版本锁定。",
+        conditionEvidence: [
+          {
+            fact: "medications[].code",
+            operator: "contains",
+            expected: "J01C",
+            actual: ["J01C"],
+            matched: true,
+          },
+          {
+            fact: "conditions[].code",
+            operator: "exists",
+            expected: true,
+            actual: ["J18.900"],
+            matched: true,
+          },
+          {
+            fact: "observations[].valueNumeric",
+            operator: "gte",
+            expected: 2,
+            actual: [2.4],
+            matched: true,
+          },
+        ],
+        runtimeAssetEvidence: [
+          {
+            assetType: "ACTION_CARD",
+            assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+            assetVersion: "V1",
+            contentHash: "9".repeat(64),
+            requiresPhysicianConfirmation: true,
+          },
+        ],
+      },
+    },
+  },
+  feedback: {
+    pharmacist: {
+      feedbackId: "rf-pharmacy-pharmacist",
+      cardStatus: "PENDING",
+      canonicalSessionRole: "clinical-user",
+      roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+      persisted: {
+        feedbackId: "rf-pharmacy-pharmacist",
+        feedbackType: "VIEW_SOURCE",
+        operatorRole: "PHARMACIST",
+        reasonCode: "PHARMACIST_REVIEWED",
+      },
+    },
+    physician: {
+      feedbackId: "rf-pharmacy-physician",
+      cardStatus: "ACCEPTED",
+      canonicalSessionRole: "clinical-user",
+      roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+      persisted: {
+        feedbackId: "rf-pharmacy-physician",
+        feedbackType: "ACCEPT",
+        operatorRole: "DOCTOR",
+        reasonCode: "CONFIRMED",
+      },
+    },
+    noAutoOrder: true,
+  },
+  qualityRectification: {
+    findingId: "finding-pharmacy-review",
+    sourceType: "PHARMACY_REVIEW",
+    sourceId: "card-pharmacy-review",
+    severity: "P1",
+    findingStatus: "CLOSED",
+    taskId: "task-pharmacy-review",
+    taskStatus: "CLOSED",
+    submittedByRole: "engine-operator",
+    reviewedByRole: "engine-operator",
+    roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
+    submittedEvidenceRef: "pharmacy-review-antimicrobial-evidence",
+    reviewDecision: "APPROVED",
+  },
+  scenarioEvidence: [
+    {
+      code: "S18",
+      observedStages: [
+        "运营员发布抗菌药物术语、红线、风险矩阵、规则和动作卡资产",
+        "当前机构生效版本包含抗菌药物五类运行资产",
+        "临床用户从患者 360 建立 Medication、AllergyIntolerance、Condition 与 Observation 上下文",
+        "临床用户从真实前台触发 medication-prescribe 推荐评估",
+        "推荐卡证明抗菌药物红线、规则和动作卡按当前机构生效版本消费",
+        "药师登记审方复核且不关闭医生确认链路",
+        "医生逐条确认采纳，系统不自动开嘱",
+      ],
+    },
+    {
+      code: "S31",
+      observedStages: [
+        "平台管理员访问真实前台并经真实服务创建 PHARMACY_REVIEW 适配器、回调通道和签名预览",
+        "系统向 PHARMACY_REVIEW 发出审方请求并诚实断连降级",
+        "PHARMACY_REVIEW 签名回传审方结果并生成标准临床事件",
+        "药事治理问题形成整改任务",
+        "固定四职责账号提交并复核关闭本轮整改任务",
+      ],
+    },
+  ],
+};
+
+function pharmacyReviewAntimicrobialEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts",
+        title:
+          "临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "pharmacy-review-antimicrobial-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoPharmacyReviewAntimicrobialCoverage(body: Record<string, unknown>) {
+  const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["S18", "S31"]),
+  );
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"]),
   );
 }
 
@@ -3430,6 +3988,324 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare nursing continuity coverage when $name", ({ body }) => {
     expectNoNursingContinuityCoverage(body);
+  });
+
+  it("declares S18/S31 pharmacy-review antimicrobial coverage only with bidirectional review, runtime assets and rectification closure", () => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(
+      pharmacyReviewAntimicrobialEvidence,
+    );
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S18", "S31"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+      "DATA_INTEROPERABILITY",
+      "QUALITY_IMPROVEMENT",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "TERMINOLOGY",
+      "SAFETY",
+      "CDSS_RISK",
+      "RULE",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+      "PROFESSIONAL_COLLABORATION",
+      "QUALITY_IMPROVEMENT",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少 PHARMACY_REVIEW 适配器证据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        adapter: {
+          ...pharmacyReviewAntimicrobialEvidence.adapter,
+          systemFamilyCode: "LIS_MONITORING_CRITICAL",
+        },
+      },
+    },
+    {
+      name: "术语门禁缺少 ICD-10 感染诊断覆盖",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        terminologyGate: {
+          ...pharmacyReviewAntimicrobialEvidence.terminologyGate,
+          diagnosis: undefined,
+        },
+      },
+    },
+    {
+      name: "临床上下文缺少 Observation 监测指标事实",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        clinicalContext: {
+          ...pharmacyReviewAntimicrobialEvidence.clinicalContext,
+          resources: {
+            ...pharmacyReviewAntimicrobialEvidence.clinicalContext.resources,
+            observations: [],
+          },
+        },
+      },
+    },
+    {
+      name: "出站审方请求为 FAILED 未收敛到 NOT_CONNECTED",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          status: "FAILED",
+          compensationStatus: "FAILED",
+        },
+      },
+    },
+    {
+      name: "出站审方请求会阻断主链路",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          blocksMainFlow: true,
+        },
+      },
+    },
+    {
+      name: "出站审方请求缺少感染诊断和监测指标依据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          payload: {
+            patientId: "mpi-pharmacy-review",
+            contextSnapshotId: "ctx-pharmacy-review",
+            medicationCode: "J01C",
+          },
+        },
+      },
+    },
+    {
+      name: "缺少审方结果签名入站证据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        inboundReview: undefined,
+      },
+    },
+    {
+      name: "入站审方未绑定同 trace 与本轮上下文",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        inboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.inboundReview,
+          traceId: "trace-other",
+          contextSnapshotId: "ctx-other",
+        },
+      },
+    },
+    {
+      name: "入站审方映射缺少感染诊断归一结果",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        inboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.inboundReview,
+          mappedPayload: {
+            ...pharmacyReviewAntimicrobialEvidence.inboundReview.mappedPayload,
+            conditions: [],
+          },
+        },
+      },
+    },
+    {
+      name: "入站临床事件未处理到 PROCESSED",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        inboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.inboundReview,
+          clinicalEvent: {
+            ...pharmacyReviewAntimicrobialEvidence.inboundReview.clinicalEvent,
+            status: "RECEIVED",
+          },
+        },
+      },
+    },
+    {
+      name: "入站临床事件处理失败仍不得声明覆盖",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        inboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.inboundReview,
+          clinicalEvent: {
+            ...pharmacyReviewAntimicrobialEvidence.inboundReview.clinicalEvent,
+            status: "FAILED",
+            errorCode: "ENG-API-002",
+            errorClass: "VALIDATION_FAILED",
+          },
+        },
+      },
+    },
+    {
+      name: "入站临床事件未绑定本轮 runtime",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        inboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.inboundReview,
+          clinicalEvent: {
+            ...pharmacyReviewAntimicrobialEvidence.inboundReview.clinicalEvent,
+            runtimeReleaseId: "runtime-other",
+          },
+        },
+      },
+    },
+    {
+      name: "当前机构生效版本缺少 ACTION_CARD 资产",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        runtime: {
+          ...pharmacyReviewAntimicrobialEvidence.runtime,
+          actionCardAsset: {
+            ...pharmacyReviewAntimicrobialEvidence.runtime.actionCardAsset,
+            entryState: "DISABLED",
+          },
+        },
+      },
+    },
+    {
+      name: "红线推荐卡附件手工拼入 ACTION_CARD 但规则推荐缺少真实物化证据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        ruleRecommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation,
+          explanation: {
+            ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation,
+            ruleExplanation: {
+              ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation
+                .ruleExplanation,
+              runtimeAssetEvidence: [],
+            },
+          },
+        },
+        recommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.recommendation,
+          explanation: {
+            ...pharmacyReviewAntimicrobialEvidence.recommendation.explanation,
+            runtimeAssetEvidence: [
+              {
+                assetType: "ACTION_CARD",
+                assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+                assetVersion: "V1",
+                contentHash: "9".repeat(64),
+                requiresPhysicianConfirmation: true,
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      name: "规则推荐解释未消费 Observation 和 Condition",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        ruleRecommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation,
+          explanation: {
+            ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation,
+            ruleExplanation: {
+              ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation
+                .ruleExplanation,
+              conditionEvidence: [
+                {
+                  fact: "medications[].code",
+                  operator: "contains",
+                  expected: "J01C",
+                  actual: ["J01C"],
+                  matched: true,
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "没有药师与医生双人工闭环",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          pharmacist: {
+            ...pharmacyReviewAntimicrobialEvidence.feedback.pharmacist,
+            cardStatus: "VIEWED",
+          },
+        },
+      },
+    },
+    {
+      name: "药师医生业务角色只有附件常量没有详情回读证据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          pharmacist: {
+            feedbackId: "rf-pharmacy-pharmacist",
+            cardStatus: "PENDING",
+            operatorRole: "PHARMACIST",
+            roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+            reasonCode: "PHARMACIST_REVIEWED",
+          },
+        },
+      },
+    },
+    {
+      name: "整改任务未闭环",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          taskStatus: "SUBMITTED",
+        },
+      },
+    },
+    {
+      name: "整改闭环使用非 canonical 职责账号",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          submittedByRole: "quality-controller",
+          reviewedByRole: "quality-controller",
+        },
+      },
+    },
+    {
+      name: "scopeStatement 缺少完整抗菌药物分级管理边界",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scopeStatement:
+          "药房审方与抗菌药物治理代表切片：PHARMACY_REVIEW 双向审方，不代表完整药事治理或第三方药房审方系统族完整覆盖。",
+      },
+    },
+    {
+      name: "scopeStatement 过度声明完整药事治理",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scopeStatement: "完整药事治理和完整第三方药房审方系统族已上线。",
+      },
+    },
+    {
+      name: "scopeStatement 混合代表切片与完整抗菌药物分级管理过度声明",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scopeStatement:
+          "药房审方与抗菌药物治理代表切片：PHARMACY_REVIEW 双向审方，不代表完整药事治理；完整抗菌药物分级管理已上线；不代表第三方药房审方系统族完整覆盖。",
+      },
+    },
+  ])("does not declare pharmacy-review antimicrobial coverage when $name", ({ body }) => {
+    expectNoPharmacyReviewAntimicrobialCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

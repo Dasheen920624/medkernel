@@ -1001,6 +1001,139 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("third-party-system-family-codes");
   });
 
+  it("requires pharmacy review antimicrobial rehearsal to prove real bidirectional review, monitoring facts and rectification closure", () => {
+    const mpiSource = readFileSync("src/pages/clinical/Mpi.tsx", "utf8");
+    const hooksSource = readFileSync("src/shared/api/hooks.ts", "utf8");
+    const e2eSource = readFileSync("e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts", "utf8");
+    const qualityRunPayload = e2eSource.slice(
+      e2eSource.indexOf('const run = await postApi(page, "/engine/evaluation/runs"'),
+      e2eSource.indexOf('await expectOk(run, "创建药事治理质量问题")'),
+    );
+
+    expect(mpiSource).toContain("监测指标");
+    expect(mpiSource).toContain('aria-label="监测指标"');
+    expect(hooksSource).toContain("buildFrontdeskObservationResources");
+    expect(hooksSource).toContain("observations");
+    expect(hooksSource).toContain("observationCount");
+    expect(e2eSource).toContain("pharmacy-review-antimicrobial-frontdesk-codes");
+    expect(e2eSource).toContain("attachPharmacyReviewAntimicrobialEvidence");
+    expect(e2eSource).toContain(
+      "临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环",
+    );
+    expect(e2eSource).not.toContain("临床用户、药师、运营员与平台管理员完成本轮");
+    expect(e2eSource).toContain('"S18"');
+    expect(e2eSource).toContain('"S31"');
+    expect(e2eSource).toContain('"PHARMACY_REVIEW"');
+    expect(e2eSource).toContain('"TERMINOLOGY"');
+    expect(e2eSource).toContain('"SAFETY"');
+    expect(e2eSource).toContain('"CDSS_RISK"');
+    expect(e2eSource).toContain('"RULE"');
+    expect(e2eSource).toContain('"ACTION_CARD"');
+    expect(e2eSource).toContain("ANTIMICROBIAL_RESTRICTION");
+    expect(e2eSource).toContain('standardSystem: "ATC"');
+    expect(e2eSource).toContain('standardCode: "J01C"');
+    expect(e2eSource).toContain('standardSystem: "ICD-10"');
+    expect(e2eSource).toContain('standardCode: "J18.900"');
+    expect(e2eSource).toContain('sourceSystem: reviewSourceSystem');
+    expect(e2eSource).toContain("pharmacyReviewDiagnosis");
+    expect(e2eSource).toContain('targetDictionaryKey: "ICD-10"');
+    expect(e2eSource).toContain('sourcePath: "/observationCode"');
+    expect(e2eSource).toContain('targetPath: "/observations/0/code"');
+    expect(e2eSource).toContain('sourcePath: "/pct"');
+    expect(e2eSource).toContain('targetPath: "/observations/0/valueNumeric"');
+    expect(e2eSource).toContain('sourcePath: "/pharmacyReview/reviewResult"');
+    expect(e2eSource).toContain('targetPath: "/pharmacyReview/pharmacistOpinion"');
+    expect(e2eSource).toContain('textField(item, "sourceSystem") === options.sourceSystem');
+    expect(e2eSource).toContain("Medication");
+    expect(e2eSource).toContain("AllergyIntolerance");
+    expect(e2eSource).toContain("Condition");
+    expect(e2eSource).toContain("Observation");
+    expect(e2eSource).toContain('{ fact: "conditions[].code", operator: "equals", value: "J18.900" }');
+    expect(e2eSource).not.toContain('{ fact: "conditions[].code", operator: "exists", value: true }');
+    expect(e2eSource).toContain('getByLabel("监测指标")');
+    expect(e2eSource).toContain("/engine/integration/adapters");
+    expect(e2eSource).toContain("/engine/integration/webhooks");
+    expect(e2eSource).toContain("/engine/integration/webhooks/test");
+    expect(e2eSource).toContain("/engine/integration/messages/outbound");
+    expect(e2eSource).toContain('baseUrl: "https://pharmacy-review.example.test"');
+    expect(e2eSource).toContain('outboundPath: "/review-results"');
+    expect(e2eSource).not.toContain("endpointUrl");
+    expect(e2eSource).not.toContain("deliveryPath");
+    expect(e2eSource).toContain("waitForPharmacyReviewCompensation");
+    expect(e2eSource).toContain('lastStatus === "NOT_CONNECTED"');
+    expect(e2eSource).toContain('const compensationStatus = requireText(textField(compensation, "status")');
+    expect(e2eSource).toContain("PHARMACY_REVIEW 出站补偿日志");
+    expect(e2eSource).toContain("进入非诚实断连状态");
+    expect(e2eSource).toContain("compensationStatus,");
+    expect(e2eSource).toContain("/engine/integration/webhooks/${encodeURIComponent(webhookId)}/inbound");
+    expect(e2eSource).toContain("平台管理员访问真实前台并经真实服务创建");
+    expect(e2eSource).toContain("const clinicalEventId = requireText");
+    expect(e2eSource).toContain("waitForClinicalEventProcessed");
+    expect(e2eSource).toContain('lastDetail.status === "PROCESSED"');
+    expect(e2eSource).toContain("runtimeReleaseId: textField(data, \"runtimeReleaseId\")");
+    expect(e2eSource).not.toContain("linkedOutboundMessageId");
+    expect(e2eSource).not.toContain("outboundMessageId");
+    expect(e2eSource).toContain("signedPayload: request.payload");
+    expect(e2eSource).not.toContain("const sourcePayload = request.payload");
+    expect(e2eSource).not.toContain("pharmacyReview: sourcePayload.pharmacyReview");
+    expect(e2eSource).toContain("/engine/recommendations:evaluate");
+    expect(e2eSource).toContain("/engine/recommendations/cards/${encodeURIComponent(cardId)}");
+    expect(e2eSource).toContain('const runtimeAssetEvidence = arrayField(ruleExplanation, "runtimeAssetEvidence");');
+    expect(e2eSource).toContain('textField(item, "assetType") === "ACTION_CARD"');
+    expect(e2eSource).not.toContain("runtimeAssetEvidence: [");
+    expect(e2eSource).toContain("PHARMACIST_REVIEWED");
+    expect(e2eSource).toContain("persistedFeedback");
+    expect(e2eSource).toContain("pharmacistPersisted");
+    expect(e2eSource).toContain("physicianPersisted");
+    expect(e2eSource).toContain('canonicalSessionRole: "clinical-user"');
+    expect(e2eSource).toContain("PHYSICIAN_CONFIRMATION");
+    expect(e2eSource).toContain("qualityRectification");
+    expect(e2eSource).toContain("/engine/rectifications");
+    expect(e2eSource).toContain("localRehearsalQualityDepartmentId");
+    expect(e2eSource).toContain("level=DEPARTMENT");
+    expect(e2eSource).toContain("ancestorId=");
+    expect(e2eSource).toContain('level: "DEPARTMENT"');
+    expect(e2eSource).toContain(
+      'const departmentId = await localRehearsalQualityDepartmentId(page, options.suffix);\n  await ensureReadySession(page, "engine-operator");',
+    );
+    expect(e2eSource).not.toContain('"quality-controller"');
+    expect(e2eSource).toContain(
+      'await ensureReadySession(page, "engine-operator");\n  const submit = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,',
+    );
+    expect(e2eSource).toContain('await ensureReadySession(page, "platform-admin");');
+    expect(e2eSource).not.toContain("sortOrder");
+    expect(e2eSource).toContain('runType: "MANUAL_SAMPLE"');
+    expect(e2eSource).toContain("manualSampleRuntimeReleaseId: options.runtimeReleaseId");
+    expect(e2eSource).toContain("manualSampleContextSnapshotId: options.snapshot.snapshotId");
+    expect(qualityRunPayload).not.toContain("runtimeReleaseId: options.runtimeReleaseId,");
+    expect(qualityRunPayload).not.toContain("contextSnapshotId: options.snapshot.snapshotId,");
+    expect(e2eSource).toContain('denominatorDefinition: JSON.stringify({');
+    expect(e2eSource).toContain('fact: "recommendation.matchType"');
+    expect(e2eSource).toContain('fact: "observation.pct"');
+    expect(e2eSource).toContain("numeratorDefinition: JSON.stringify({");
+    expect(e2eSource).toContain('exclusionDefinition: null');
+    expect(e2eSource).not.toContain('denominatorDefinition: "本轮触发抗菌药物审方推荐卡的患者"');
+    expect(e2eSource).not.toContain('numeratorDefinition: "审方意见和感染指标依据归档完整"');
+    expect(e2eSource).not.toContain('exclusionDefinition: "无"');
+    expect(e2eSource).not.toContain("const departmentId = await localRehearsalHospitalId(page);");
+    expect(e2eSource).toContain('const blocksMainFlow = booleanField(data, "blocksMainFlow")');
+    expect(e2eSource).toContain(
+      'expect(blocksMainFlow, "审方出站断连不得阻断医生主流程").toBe(false)',
+	    );
+	    expect(e2eSource).toContain('const initialCompensationRequired = booleanField(data, "compensationRequired")');
+	    expect(e2eSource).toContain('const compensationRequired = compensationStatus === "NOT_CONNECTED"');
+    expect(e2eSource).toContain(
+      'expect(compensationRequired, "审方出站断连最终必须留下补偿证据").toBe(true)',
+    );
+    expect(e2eSource).toContain("noAutoOrder: true");
+    expect(e2eSource).not.toContain("page.route(");
+    expect(e2eSource).not.toContain("page.waitForTimeout");
+    expect(e2eSource).not.toContain("third-party-system-family-codes");
+    expect(e2eSource).not.toContain("平台管理员前台创建 PHARMACY_REVIEW 适配器");
+    expect(e2eSource).not.toContain("完整药事治理已上线");
+    expect(e2eSource).not.toContain("完整第三方药房审方系统族");
+  });
+
   it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

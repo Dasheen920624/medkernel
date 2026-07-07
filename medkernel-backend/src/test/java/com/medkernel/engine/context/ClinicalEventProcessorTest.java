@@ -30,6 +30,7 @@ import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.shared.observability.TransitionError;
 
@@ -135,6 +136,40 @@ class ClinicalEventProcessorTest {
     }
 
     @Test
+    void processCreatesSnapshotUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant() {
+        ClinicalEvent event = event(ClinicalEventStatus.RECEIVED);
+        when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(payload()));
+        when(contextSnapshots.createBound(any(ContextSnapshotRequest.class), any(), anyString()))
+            .thenAnswer(inv -> {
+                OrgScope currentScope = RequestContext.currentOrgScope();
+                assertThat(currentScope.hospitalId()).isEqualTo("hospital-A");
+                assertThat(currentScope.departmentId()).isEqualTo("dept-A");
+                ContextSnapshotRequest req = inv.getArgument(0);
+                return new ContextSnapshotResponse(
+                    "ctx-event-evt-1",
+                    ContextSnapshotStatus.ACTIVE,
+                    req.resources(),
+                    "runtime-release-test",
+                    QualityStatus.VALID,
+                    List.of(),
+                    Map.of(),
+                    Instant.parse("2026-05-27T01:00:02Z"),
+                    req.traceId());
+            });
+        RequestContext.restore(new RequestContext.Snapshot(
+            "worker-trace", OrgScope.tenant("tenant-A"), "platform-admin"));
+
+        try {
+            ClinicalEventStatus status = processor.process("evt-1", "tenant-A");
+
+            assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
+    @Test
     void processProjectsOrderPayloadBeforeDispatchingRulePathwayAndCdss() {
         ClinicalEvent event = event(
             "evt-order",
@@ -191,6 +226,104 @@ class ClinicalEventProcessorTest {
             assertThat(anchor.mappedVersion()).isEqualTo("TERM-2026.06");
         });
     }
+
+    @Test
+    void processProjectsPharmacyReviewInboundPayloadToCanonicalResourcesAndReviewExtension() {
+        ClinicalEvent event = event(
+            "evt-pharmacy-review",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE,
+            ClinicalEventStatus.RECEIVED,
+            "PHARMACY_REVIEW");
+        when(events.findByEventIdAndTenantId("evt-pharmacy-review", "tenant-A"))
+            .thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-pharmacy-review", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-pharmacy-review", """
+                {
+                  "patient": {
+                    "mpi": "MPI-1"
+                  },
+                  "medications": [
+                    {
+                      "standardCode": "J01C",
+                      "codeSystem": "ATC",
+                      "localCode": "J01C",
+                      "localCodeSystem": "PHARMACY_REVIEW",
+                      "sourceSystem": "PHARMACY_REVIEW",
+                      "runtimeReleaseId": "runtime-release-test",
+                      "mappingId": 3,
+                      "standardTermId": 2,
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "conditions": [
+                    {
+                      "standardCode": "J18.900",
+                      "codeSystem": "ICD-10",
+                      "localCode": "J18.900",
+                      "localCodeSystem": "PHARMACY_REVIEW",
+                      "sourceSystem": "PHARMACY_REVIEW",
+                      "runtimeReleaseId": "runtime-release-test",
+                      "mappingId": 5,
+                      "standardTermId": 3,
+                      "mappedVersion": "V1"
+                    }
+                  ],
+	                  "observations": [
+	                    {
+	                      "code": "PCT",
+	                      "valueNumeric": 2.4
+	                    }
+	                  ],
+	                  "extensions": {
+	                    "local": {
+	                      "existingFlag": "Y",
+	                      "sourceTraceId": "pharmacy-review-request-1"
+	                    }
+	                  },
+	                  "pharmacyReview": {
+	                    "reviewResult": "REQUIRES_PHYSICIAN_CONFIRMATION",
+	                    "pharmacistOpinion": "抗菌药物使用需结合感染指标与病原学复核。"
+	                  }
+	                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-pharmacy-review", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-pharmacy-review"), anyString());
+        ContextSnapshotResources resources = snapshotCap.getValue().resources();
+        assertThat(resources.medications()).singleElement().satisfies(medication -> {
+            assertThat(medication.code()).isEqualTo("J01C");
+            assertThat(medication.sourceSystem()).isEqualTo("PHARMACY_REVIEW");
+        });
+        assertThat(resources.conditions()).singleElement().satisfies(condition -> {
+            assertThat(condition.code()).isEqualTo("J18.900");
+            assertThat(condition.sourceSystem()).isEqualTo("PHARMACY_REVIEW");
+        });
+        assertThat(resources.observations()).singleElement().satisfies(observation -> {
+            assertThat(observation.code()).isEqualTo("PCT");
+            assertThat(observation.valueNumeric()).isEqualByComparingTo("2.4");
+        });
+        assertThat(resources.extensions().at("/local/pharmacyReview/reviewResult").asText())
+            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
+	        assertThat(resources.extensions().at("/local/pharmacyReview/pharmacistOpinion").asText())
+	            .isEqualTo("抗菌药物使用需结合感染指标与病原学复核。");
+	        assertThat(resources.extensions().at("/local/sourceTraceId").asText())
+	            .isEqualTo("pharmacy-review-request-1");
+	        assertThat(resources.extensions().at("/local/existingFlag").asText()).isEqualTo("Y");
+
+	        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+	        assertThat(context.payload().path("eventPayload").path("pharmacyReview").path("reviewResult").asText())
+	            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
+	        assertThat(context.payload().at("/extensions/local/pharmacyReview/reviewResult").asText())
+	            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
+	        assertThat(context.payload().at("/extensions/local/sourceTraceId").asText())
+	            .isEqualTo("pharmacy-review-request-1");
+	        assertThat(context.payload().at("/extensions/local/existingFlag").asText()).isEqualTo("Y");
+	    }
 
     @Test
     void processMarksEventFailedWhenAnEngineIsUnavailable() {
@@ -269,11 +402,18 @@ class ClinicalEventProcessorTest {
     private ClinicalEvent event(String eventId, ClinicalEventType eventType,
                                 ClinicalEventTriggerPoint triggerPoint,
                                 ClinicalEventStatus status) {
+        return event(eventId, eventType, triggerPoint, status, "HIS");
+    }
+
+    private ClinicalEvent event(String eventId, ClinicalEventType eventType,
+                                ClinicalEventTriggerPoint triggerPoint,
+                                ClinicalEventStatus status,
+                                String sourceSystem) {
         return new ClinicalEvent(
             1L, eventId, "tenant-A", eventType,
             triggerPoint, null, null,
-            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\",\"specialtyId\":\"specialty-A\"}",
-            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "runtime-release-test", "digest",
+            "{\"tenantId\":\"tenant-A\",\"hospitalId\":\"hospital-A\",\"departmentId\":\"dept-A\",\"specialtyId\":\"specialty-A\"}",
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, sourceSystem, "runtime-release-test", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-1");
     }

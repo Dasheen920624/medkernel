@@ -3079,6 +3079,7 @@ describe("mpi api helpers", () => {
         riskLevel: "HIGH",
         currentMedicationText: "华法林、阿司匹林、青霉素、华法林",
         allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难、青霉素：皮疹",
+        observationText: "CRP=128 mg/L；PCT=2.4 ng/mL",
         heightCm: 170,
         weightKg: 82,
         diagnosticReportType: "血钾检验",
@@ -3124,11 +3125,21 @@ describe("mpi api helpers", () => {
           interpreterId?: string | null;
           qualityStatus?: string;
         }>;
+        observations?: Array<{
+          code?: string;
+          displayName?: string;
+          valueNumeric?: number | null;
+          valueString?: string | null;
+          unit?: string | null;
+          sourceSystem?: string;
+          qualityStatus?: string;
+        }>;
         extensions?: {
           local?: {
               frontdeskContext?: {
                 currentMedicationCount?: number;
                 allergyIntoleranceCount?: number;
+                observationCount?: number;
                 heightCm?: number;
                 weightKg?: number;
                 diagnosticReportCount?: number;
@@ -3198,6 +3209,28 @@ describe("mpi api helpers", () => {
       }),
     ]);
     expect(requestBody.resources?.diagnosticReports?.[0]).not.toHaveProperty("interpreterId");
+    expect(requestBody.resources?.observations).toEqual([
+      expect.objectContaining({
+        code: "CRP",
+        displayName: "CRP",
+        valueNumeric: 128,
+        valueString: null,
+        unit: "mg/L",
+        sourceSystem: "MEDKERNEL_FRONTDESK",
+        qualityStatus: "VALID",
+      }),
+      expect.objectContaining({
+        code: "PCT",
+        displayName: "PCT",
+        valueNumeric: 2.4,
+        valueString: null,
+        unit: "ng/mL",
+        sourceSystem: "MEDKERNEL_FRONTDESK",
+        qualityStatus: "VALID",
+      }),
+    ]);
+    expect(requestBody.resources?.observations?.[0]).not.toHaveProperty("value");
+    expect(requestBody.resources?.observations?.[1]).not.toHaveProperty("value");
     expect(requestBody.resources?.claims).toHaveLength(1);
     const claim = requestBody.resources?.claims?.[0];
     expect(claim).toEqual(
@@ -3222,6 +3255,7 @@ describe("mpi api helpers", () => {
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.diagnosticReportCount).toBe(
       1,
     );
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.observationCount).toBe(2);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.claimCount).toBe(1);
   });
 });

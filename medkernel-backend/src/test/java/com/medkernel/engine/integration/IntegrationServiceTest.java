@@ -861,6 +861,149 @@ class IntegrationServiceTest {
     }
 
     @Test
+    void inboundWebhookMapsPharmacyReviewConditionObservationAndReviewResult() throws Exception {
+        insertTerminologyRuntimeOrgTree();
+        Long drugStandardTermId = insertStandardTerm("ATC", "J01C", "青霉素类", "DRUG");
+        Long drugLocalTermId = insertLocalTerm("PHARMACY_REVIEW", "J01C", "审方系统青霉素类", "DRUG");
+        Long drugMappingId = insertConfirmedTermMapping(
+            drugLocalTermId, drugStandardTermId, "PHARMACY_REVIEW", "DRUG");
+        TerminologyRuntimeAsset drugTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.PHARMACY_REVIEW.DRUG", "V1", drugMappingId, drugLocalTermId,
+            drugStandardTermId, "J01C", "PHARMACY_REVIEW", "J01C", "ATC", "DRUG");
+        Long diagnosisStandardTermId = insertStandardTerm("ICD-10", "J18.900", "肺炎");
+        Long diagnosisLocalTermId = insertLocalTerm("PHARMACY_REVIEW", "J18.900", "肺炎");
+        Long diagnosisMappingId = insertConfirmedTermMapping(
+            diagnosisLocalTermId, diagnosisStandardTermId, "PHARMACY_REVIEW");
+        TerminologyRuntimeAsset diagnosisTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.PHARMACY_REVIEW.DIAGNOSIS", "V1", diagnosisMappingId, diagnosisLocalTermId,
+            diagnosisStandardTermId, "J18.900", "PHARMACY_REVIEW", "J18.900", "ICD-10", "DIAGNOSIS");
+        String runtimeReleaseId = "runtime-release-pharmacy-review";
+        insertCurrentRuntimeRelease(runtimeReleaseId, drugTerminology, diagnosisTerminology);
+
+        service.createAdapter(tenantId, new AdapterCreateDto("pharmacy-review-adapter", "审方入站适配器", "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/medicationCode",
+                  "targetPath": "/medications/0",
+                  "targetDictionaryKey": "ATC",
+                  "category": "DRUG"
+                },
+                {
+                  "sourcePath": "/infectionCode",
+                  "targetPath": "/conditions/0",
+                  "targetDictionaryKey": "ICD-10",
+                  "category": "DIAGNOSIS"
+                },
+                {"sourcePath": "/observationCode", "targetPath": "/observations/0/code"},
+                {"sourcePath": "/pct", "targetPath": "/observations/0/valueNumeric"},
+                {"sourcePath": "/pharmacyReview/reviewResult", "targetPath": "/pharmacyReview/reviewResult"},
+                {"sourcePath": "/pharmacyReview/pharmacistOpinion", "targetPath": "/pharmacyReview/pharmacistOpinion"}
+              ]
+            }
+            """));
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-pharmacy-review", "审方回传", "http://localhost/inbound", "PHARMACY_REVIEW_RESULT"));
+        IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId("whk-pharmacy-review", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "msg-pharmacy-review-1",
+            "trace-pharmacy-review-1",
+            "pharmacy-review-adapter",
+            "PHARMACY_REVIEW",
+            ClinicalEventType.ORDER,
+            "P-100",
+            "encounter-100",
+            ClinicalSetting.OUTPATIENT,
+            ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE,
+            Instant.parse("2026-07-07T00:05:00Z"),
+            objectMapper.readTree("""
+            {
+              "patientId": "P-100",
+              "medicationCode": "J01C",
+              "infectionCode": "J18.900",
+              "observationCode": "PCT",
+              "pct": 2.4,
+              "pharmacyReview": {
+                "reviewResult": "REQUIRES_PHYSICIAN_CONFIRMATION",
+                "pharmacistOpinion": "抗菌药物使用需结合感染指标与病原学复核。"
+              }
+            }
+            """));
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        WebhookInboundResultDto result = RequestContext.callWith(
+            new RequestContext.Snapshot(
+                "trace-pharmacy-review-1",
+                new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                "integration-test"),
+            () -> service.ingestWebhook(tenantId, "whk-pharmacy-review", timestamp, signature, inbound));
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(7, result.mappedFieldCount());
+        assertEquals(2, result.normalizedCodeCount());
+        assertEquals("P-100", result.mappedPayload().at("/patient/mpi").asText());
+	        assertEquals("J01C", result.mappedPayload().at("/medications/0/standardCode").asText());
+	        assertEquals("ATC", result.mappedPayload().at("/medications/0/codeSystem").asText());
+	        assertEquals("J01C", result.mappedPayload().at("/medications/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/medications/0/localCodeSystem").asText());
+	        assertEquals(drugMappingId.longValue(), result.mappedPayload().at("/medications/0/mappingId").asLong());
+	        assertEquals(drugStandardTermId.longValue(), result.mappedPayload().at("/medications/0/standardTermId").asLong());
+	        assertEquals("V1", result.mappedPayload().at("/medications/0/mappedVersion").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/medications/0/sourceSystem").asText());
+	        assertEquals(runtimeReleaseId, result.mappedPayload().at("/medications/0/runtimeReleaseId").asText());
+	        assertEquals("J18.900", result.mappedPayload().at("/conditions/0/standardCode").asText());
+	        assertEquals("ICD-10", result.mappedPayload().at("/conditions/0/codeSystem").asText());
+	        assertEquals("J18.900", result.mappedPayload().at("/conditions/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/conditions/0/localCodeSystem").asText());
+	        assertEquals(diagnosisMappingId.longValue(), result.mappedPayload().at("/conditions/0/mappingId").asLong());
+	        assertEquals(diagnosisStandardTermId.longValue(), result.mappedPayload().at("/conditions/0/standardTermId").asLong());
+	        assertEquals("V1", result.mappedPayload().at("/conditions/0/mappedVersion").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/conditions/0/sourceSystem").asText());
+	        assertEquals(runtimeReleaseId, result.mappedPayload().at("/conditions/0/runtimeReleaseId").asText());
+        assertEquals("PCT", result.mappedPayload().at("/observations/0/code").asText());
+        assertEquals(2.4D, result.mappedPayload().at("/observations/0/valueNumeric").asDouble(), 0.001D);
+        assertEquals(
+            "REQUIRES_PHYSICIAN_CONFIRMATION",
+            result.mappedPayload().at("/pharmacyReview/reviewResult").asText());
+        assertEquals(
+            "抗菌药物使用需结合感染指标与病原学复核。",
+            result.mappedPayload().at("/pharmacyReview/pharmacistOpinion").asText());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+	        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+	        assertEquals("J01C", persistedPayload.at("/medications/0/standardCode").asText());
+	        assertEquals("ATC", persistedPayload.at("/medications/0/codeSystem").asText());
+	        assertEquals("J01C", persistedPayload.at("/medications/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", persistedPayload.at("/medications/0/localCodeSystem").asText());
+	        assertEquals(drugMappingId.longValue(), persistedPayload.at("/medications/0/mappingId").asLong());
+	        assertEquals(drugStandardTermId.longValue(), persistedPayload.at("/medications/0/standardTermId").asLong());
+	        assertEquals("V1", persistedPayload.at("/medications/0/mappedVersion").asText());
+	        assertEquals(runtimeReleaseId, persistedPayload.at("/medications/0/runtimeReleaseId").asText());
+	        assertEquals("J18.900", persistedPayload.at("/conditions/0/standardCode").asText());
+	        assertEquals("ICD-10", persistedPayload.at("/conditions/0/codeSystem").asText());
+	        assertEquals("J18.900", persistedPayload.at("/conditions/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", persistedPayload.at("/conditions/0/localCodeSystem").asText());
+	        assertEquals(diagnosisMappingId.longValue(), persistedPayload.at("/conditions/0/mappingId").asLong());
+	        assertEquals(diagnosisStandardTermId.longValue(), persistedPayload.at("/conditions/0/standardTermId").asLong());
+	        assertEquals("V1", persistedPayload.at("/conditions/0/mappedVersion").asText());
+	        assertEquals(runtimeReleaseId, persistedPayload.at("/conditions/0/runtimeReleaseId").asText());
+	        assertEquals("PCT", persistedPayload.at("/observations/0/code").asText());
+	        assertEquals(2.4D, persistedPayload.at("/observations/0/valueNumeric").asDouble(), 0.001D);
+	        assertEquals(
+	            "REQUIRES_PHYSICIAN_CONFIRMATION",
+	            persistedPayload.at("/pharmacyReview/reviewResult").asText());
+	        assertEquals(
+	            "抗菌药物使用需结合感染指标与病原学复核。",
+	            persistedPayload.at("/pharmacyReview/pharmacistOpinion").asText());
+	    }
+
+    @Test
     void inboundWebhookRejectsStaleTimestampEvenWhenSignatureMatches() throws Exception {
         service.createWebhook(tenantId,
             new WebhookCreateDto("whk-stale", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
@@ -1104,6 +1247,22 @@ class IntegrationServiceTest {
             Long localTermId,
             Long standardTermId,
             String standardCode) {
+        return insertPublishedTerminologyAssetVersion(
+            assetIdentity, versionNo, mappingId, localTermId, standardTermId,
+            standardCode, "LIS", "DIA-A00", "ICD-10", "DIAGNOSIS");
+    }
+
+    private TerminologyRuntimeAsset insertPublishedTerminologyAssetVersion(
+            String assetIdentity,
+            String versionNo,
+            Long mappingId,
+            Long localTermId,
+            Long standardTermId,
+            String standardCode,
+            String sourceSystem,
+            String localCode,
+            String targetDictionary,
+            String category) {
         Instant now = Instant.parse("2026-06-22T08:00:00Z");
         String versionId = "term-version-" + UUID.randomUUID();
         String contentHash = "a".repeat(64);
@@ -1111,11 +1270,11 @@ class IntegrationServiceTest {
             mappingId,
             localTermId,
             standardTermId,
-            "LIS",
-            "DIA-A00",
-            "ICD-10",
+            sourceSystem,
+            localCode,
+            targetDictionary,
             standardCode,
-            "DIAGNOSIS",
+            category,
             1.0D,
             "LOW",
             "CONFIRMED",
@@ -1204,7 +1363,7 @@ class IntegrationServiceTest {
         );
     }
 
-    private void insertCurrentRuntimeRelease(String releaseId, TerminologyRuntimeAsset asset) {
+    private void insertCurrentRuntimeRelease(String releaseId, TerminologyRuntimeAsset... assets) {
         jdbcTemplate.update("""
             INSERT INTO platform_baseline_release
                 (baseline_release_id, revision_no, manifest_sha256, published_at,
@@ -1219,21 +1378,23 @@ class IntegrationServiceTest {
             VALUES (?, ?, 'hospital-001', 1, 'baseline-integration-1',
                     ?, CURRENT_TIMESTAMP, 'integration-test', 'integration-test', 'trace-map-1')
             """, releaseId, tenantId, "c".repeat(64));
-        jdbcTemplate.update("""
-            INSERT INTO clinical_runtime_release_item
-                (release_id, source_tenant_id, source_layer, asset_type, asset_identity,
-                 entry_state, version_id, version_no, content_hash, created_at, created_by, trace_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'integration-test', 'trace-map-1')
-            """,
-            releaseId,
-            tenantId,
-            ReleaseSourceLayer.HOSPITAL.name(),
-            VersionedAssetType.TERMINOLOGY.name(),
-            asset.assetIdentity(),
-            ReleaseEntryState.ACTIVE.name(),
-            asset.versionId(),
-            asset.versionNo(),
-            asset.contentHash());
+        for (TerminologyRuntimeAsset asset : assets) {
+            jdbcTemplate.update("""
+                INSERT INTO clinical_runtime_release_item
+                    (release_id, source_tenant_id, source_layer, asset_type, asset_identity,
+                     entry_state, version_id, version_no, content_hash, created_at, created_by, trace_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'integration-test', 'trace-map-1')
+                """,
+                releaseId,
+                tenantId,
+                ReleaseSourceLayer.HOSPITAL.name(),
+                VersionedAssetType.TERMINOLOGY.name(),
+                asset.assetIdentity(),
+                ReleaseEntryState.ACTIVE.name(),
+                asset.versionId(),
+                asset.versionNo(),
+                asset.contentHash());
+        }
     }
 
     private record TerminologyRuntimeAsset(
@@ -1244,43 +1405,55 @@ class IntegrationServiceTest {
     ) {}
 
     private Long insertStandardTerm(String standardSystem, String termCode, String displayName) {
+        return insertStandardTerm(standardSystem, termCode, displayName, "DIAGNOSIS");
+    }
+
+    private Long insertStandardTerm(String standardSystem, String termCode, String displayName, String category) {
         jdbcTemplate.update("""
             INSERT INTO standard_term
                 (tenant_id, standard_system, term_code, category, display_name, normalized_name,
                  version_no, status, evidence_text, created_by, updated_by)
-            VALUES (?, ?, ?, 'DIAGNOSIS', ?, ?, '2026', 'ACTIVE', 'TERM-01 已确认标准术语', 'test', 'test')
-            """, tenantId, standardSystem, termCode, displayName, displayName.toLowerCase());
+            VALUES (?, ?, ?, ?, ?, ?, '2026', 'ACTIVE', 'TERM-01 已确认标准术语', 'test', 'test')
+            """, tenantId, standardSystem, termCode, category, displayName, displayName.toLowerCase());
         return jdbcTemplate.queryForObject("""
             SELECT id FROM standard_term
-            WHERE tenant_id = ? AND standard_system = ? AND term_code = ? AND version_no = '2026'
-            """, Long.class, tenantId, standardSystem, termCode);
+            WHERE tenant_id = ? AND standard_system = ? AND term_code = ? AND category = ? AND version_no = '2026'
+            """, Long.class, tenantId, standardSystem, termCode, category);
     }
 
     private Long insertLocalTerm(String sourceSystem, String localCode, String localName) {
+        return insertLocalTerm(sourceSystem, localCode, localName, "DIAGNOSIS");
+    }
+
+    private Long insertLocalTerm(String sourceSystem, String localCode, String localName, String category) {
         jdbcTemplate.update("""
             INSERT INTO local_term
                 (tenant_id, source_system, local_code, category, local_name, normalized_name,
                  status, created_by, updated_by)
-            VALUES (?, ?, ?, 'DIAGNOSIS', ?, ?, 'MAPPED', 'test', 'test')
-            """, tenantId, sourceSystem, localCode, localName, localName.toLowerCase());
+            VALUES (?, ?, ?, ?, ?, ?, 'MAPPED', 'test', 'test')
+            """, tenantId, sourceSystem, localCode, category, localName, localName.toLowerCase());
         return jdbcTemplate.queryForObject("""
             SELECT id FROM local_term
-            WHERE tenant_id = ? AND source_system = ? AND local_code = ? AND category = 'DIAGNOSIS'
-            """, Long.class, tenantId, sourceSystem, localCode);
+            WHERE tenant_id = ? AND source_system = ? AND local_code = ? AND category = ?
+            """, Long.class, tenantId, sourceSystem, localCode, category);
     }
 
     private Long insertConfirmedTermMapping(Long localTermId, Long standardTermId, String sourceSystem) {
+        return insertConfirmedTermMapping(localTermId, standardTermId, sourceSystem, "DIAGNOSIS");
+    }
+
+    private Long insertConfirmedTermMapping(Long localTermId, Long standardTermId, String sourceSystem, String category) {
         jdbcTemplate.update("""
             INSERT INTO term_mapping
                 (tenant_id, local_term_id, standard_term_id, source_system, category, confidence,
                  risk_level, status, evidence_text, confirmed_by, confirmed_at, created_by, updated_by)
-            VALUES (?, ?, ?, ?, 'DIAGNOSIS', 1.0, 'LOW', 'CONFIRMED',
+            VALUES (?, ?, ?, ?, ?, 1.0, 'LOW', 'CONFIRMED',
                     'TERM-01 已确认映射', 'test', CURRENT_TIMESTAMP, 'test', 'test')
-            """, tenantId, localTermId, standardTermId, sourceSystem);
+            """, tenantId, localTermId, standardTermId, sourceSystem, category);
         return jdbcTemplate.queryForObject("""
             SELECT id FROM term_mapping
-            WHERE tenant_id = ? AND local_term_id = ? AND standard_term_id = ? AND status = 'CONFIRMED'
-            """, Long.class, tenantId, localTermId, standardTermId);
+            WHERE tenant_id = ? AND local_term_id = ? AND standard_term_id = ? AND category = ? AND status = 'CONFIRMED'
+            """, Long.class, tenantId, localTermId, standardTermId, category);
     }
 
     @Test

@@ -89,6 +89,7 @@ type ContextSnapshotFormValues = {
   riskLevel: ContextSnapshotCreatePayload["riskLevel"];
   currentMedicationText?: string;
   allergyIntoleranceText?: string;
+  observationText?: string;
   heightCm?: number | null;
   weightKg?: number | null;
   diagnosticReportType?: string;
@@ -425,6 +426,7 @@ export default function Mpi() {
       const diseaseText = values.diseaseCode.trim();
       const currentMedicationText = values.currentMedicationText?.trim();
       const allergyIntoleranceText = values.allergyIntoleranceText?.trim();
+      const observationText = values.observationText?.trim();
       const diagnosticReportType = values.diagnosticReportType?.trim();
       const diagnosticReportConclusion = values.diagnosticReportConclusion?.trim();
       const diagnosticReportKeyFindingsText = values.diagnosticReportKeyFindingsText?.trim();
@@ -489,6 +491,7 @@ export default function Mpi() {
         riskLevel: values.riskLevel,
         ...(currentMedicationText ? { currentMedicationText } : {}),
         ...(allergyIntoleranceText ? { allergyIntoleranceText } : {}),
+        ...(observationText ? { observationText } : {}),
         ...(values.heightCm !== undefined && values.heightCm !== null
           ? { heightCm: values.heightCm }
           : {}),
@@ -1145,6 +1148,13 @@ export default function Mpi() {
               <Input.TextArea
                 aria-label="过敏/不良反应"
                 placeholder="可选，填写药物或物质及反应，例如：青霉素：皮疹；头孢菌素：呼吸困难"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="observationText" label="监测指标">
+              <Input.TextArea
+                aria-label="监测指标"
+                placeholder="可选，填写检验或监测指标，例如：CRP=128 mg/L；PCT=2.4 ng/mL"
                 rows={2}
               />
             </Form.Item>

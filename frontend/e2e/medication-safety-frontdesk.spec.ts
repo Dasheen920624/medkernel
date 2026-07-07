@@ -1102,22 +1102,42 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
   await expectHttpOk(acceptResponse, "登记 P0 用药安全医生确认");
   const physician = await responseData(acceptResponse);
   await expect(refreshedDrawer.getByText(/医生\s*·\s*采纳建议/u)).toBeVisible({ timeout: 30_000 });
+  const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+  await expectOk(detailResponse, "回读 P0 用药安全推荐卡反馈详情");
+  const detail = await responseData(detailResponse);
+  const persistedFeedback = arrayField(detail, "feedback");
+  const pharmacistPersisted = persistedFeedback.find(
+    (item) =>
+      textField(item, "feedbackId") === textField(pharmacist, "feedbackId") &&
+      textField(item, "feedbackType") === "VIEW_SOURCE" &&
+      textField(item, "operatorRole") === "PHARMACIST" &&
+      textField(item, "reasonCode") === "PHARMACIST_REVIEWED",
+  );
+  const physicianPersisted = persistedFeedback.find(
+    (item) =>
+      textField(item, "feedbackId") === textField(physician, "feedbackId") &&
+      textField(item, "feedbackType") === "ACCEPT" &&
+      textField(item, "operatorRole") === "DOCTOR" &&
+      textField(item, "reasonCode") === "CONFIRMED",
+  );
+  expect(pharmacistPersisted, "药师业务反馈角色必须从推荐详情真实回读").toBeTruthy();
+  expect(physicianPersisted, "医生业务反馈角色必须从推荐详情真实回读").toBeTruthy();
   return {
     pharmacist: {
       feedbackId: textField(pharmacist, "feedbackId"),
       cardStatus: textField(pharmacist, "cardStatus"),
       traceId: textField(pharmacist, "traceId"),
-      operatorRole: "PHARMACIST",
+      canonicalSessionRole: "clinical-user",
       roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
-      reasonCode: "PHARMACIST_REVIEWED",
+      persisted: pharmacistPersisted,
     },
     physician: {
       feedbackId: textField(physician, "feedbackId"),
       cardStatus: textField(physician, "cardStatus"),
       traceId: textField(physician, "traceId"),
-      operatorRole: "DOCTOR",
+      canonicalSessionRole: "clinical-user",
       roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
-      reasonCode: "CONFIRMED",
+      persisted: physicianPersisted,
     },
     noAutoOrder: true,
   };
