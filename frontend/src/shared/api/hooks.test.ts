@@ -3077,7 +3077,8 @@ describe("mpi api helpers", () => {
         diseaseCode: "I48",
         diseaseName: "房颤随访",
         riskLevel: "HIGH",
-        currentMedicationText: "华法林、阿司匹林、华法林",
+        currentMedicationText: "华法林、阿司匹林、青霉素、华法林",
+        allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难、青霉素：皮疹",
         heightCm: 170,
         weightKg: 82,
         diagnosticReportType: "血钾检验",
@@ -3096,6 +3097,16 @@ describe("mpi api helpers", () => {
       orgUnitId?: string;
       resources?: {
         medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
+        allergyIntolerances?: Array<{
+          code?: string;
+          substance?: string;
+          category?: string;
+          criticality?: string;
+          reactions?: string[];
+          clinicalStatus?: string;
+          verificationStatus?: string;
+          qualityStatus?: string;
+        }>;
         claims?: Array<{
           claimId?: string;
           drgCode?: string;
@@ -3117,6 +3128,7 @@ describe("mpi api helpers", () => {
           local?: {
               frontdeskContext?: {
                 currentMedicationCount?: number;
+                allergyIntoleranceCount?: number;
                 heightCm?: number;
                 weightKg?: number;
                 diagnosticReportCount?: number;
@@ -3143,9 +3155,39 @@ describe("mpi api helpers", () => {
           displayName: "阿司匹林",
           prescriptionStatus: "ACTIVE",
         }),
+        expect.objectContaining({
+          code: "J01C",
+          displayName: "青霉素类",
+          prescriptionStatus: "ACTIVE",
+        }),
       ]),
     );
-    expect(requestBody.resources?.medications).toHaveLength(2);
+    expect(requestBody.resources?.medications).toHaveLength(3);
+    expect(requestBody.resources?.allergyIntolerances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "J01C",
+          substance: "青霉素类",
+          category: "medication",
+          criticality: "HIGH",
+          reactions: ["皮疹"],
+          clinicalStatus: "ACTIVE",
+          verificationStatus: "CONFIRMED",
+          qualityStatus: "VALID",
+        }),
+        expect.objectContaining({
+          code: "J01D",
+          substance: "头孢菌素类",
+          category: "medication",
+          criticality: "HIGH",
+          reactions: ["呼吸困难"],
+          clinicalStatus: "ACTIVE",
+          verificationStatus: "CONFIRMED",
+          qualityStatus: "VALID",
+        }),
+      ]),
+    );
+    expect(requestBody.resources?.allergyIntolerances).toHaveLength(2);
     expect(requestBody.resources?.diagnosticReports).toEqual([
       expect.objectContaining({
         reportType: "血钾检验",
@@ -3170,8 +3212,11 @@ describe("mpi api helpers", () => {
     expect(claim?.claimId).toMatch(/^claim-/);
     expect(claim?.sourceRecordId).toBe(claim?.claimId);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
-      2,
+      3,
     );
+    expect(
+      requestBody.resources?.extensions?.local?.frontdeskContext?.allergyIntoleranceCount,
+    ).toBe(2);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.heightCm).toBe(170);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.weightKg).toBe(82);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.diagnosticReportCount).toBe(

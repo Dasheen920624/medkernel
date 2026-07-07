@@ -177,6 +177,38 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void conditionTreeMatchesMedicationAllergyCodesFromCanonicalContext() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluateConditionTree(
+            read("""
+                {"all": [{"fact": "allergyIntolerances[].code", "operator": "contains", "value": "J01C"}]}
+                """),
+            read("""
+                {
+                  "allergyIntolerances": [
+                    {
+                      "code": "J01C",
+                      "substance": "青霉素类",
+                      "category": "medication",
+                      "clinicalStatus": "ACTIVE",
+                      "verificationStatus": "CONFIRMED"
+                    }
+                  ]
+                }
+                """),
+            read("""
+                {"summary": "用药过敏禁忌红线命中"}
+                """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence");
+        assertThat(evidence).hasSize(1);
+        assertThat(evidence.get(0).path("fact").asText()).isEqualTo("allergyIntolerances[].code");
+        assertThat(evidence.get(0).path("sourcePath").asText()).isEqualTo("$.allergyIntolerances[].code");
+        assertThat(evidence.get(0).path("operator").asText()).isEqualTo("contains");
+        assertThat(evidence.get(0).path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
     void missingActionSectionIsRejectedEvenWhenConditionDoesNotMatch() throws Exception {
         JsonNode dsl = read("""
             {

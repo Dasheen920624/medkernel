@@ -853,6 +853,74 @@ describe("E2E credential contract", () => {
     );
   });
 
+  it("requires medication safety frontdesk rehearsal to prove SAFETY/CDSS_RISK/RULE and human confirmation", () => {
+    const source = readFileSync("e2e/medication-safety-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("medication-safety-frontdesk-codes");
+    expect(source).toContain("attachMedicationSafetyEvidence");
+    expect(source).toContain('"SAFETY"');
+    expect(source).toContain('"CDSS_RISK"');
+    expect(source).toContain('"RULE"');
+    expect(source).toContain('"CLINICAL_RUNTIME"');
+    expect(source).toContain("medication-prescribe");
+    expect(source).toContain("/engine/cdss/risk-matrix");
+    expect(source).toContain("/engine/safety/redlines");
+    expect(source).toContain("/engine/safety/redlines:dry-run");
+    expect(source).toContain("/engine/safety/redlines:promote");
+    expect(source).toContain("/engine/terminology/terms/standard");
+    expect(source).toContain("/engine/terminology/terms/local");
+    expect(source).toContain("/engine/terminology/mappings/candidates");
+    expect(source).toContain("/engine/terminology/assets/drafts");
+    expect(source).toContain("terminologyCoverageGateActivated");
+    expect(source).toContain("TERMINOLOGY");
+    expect(source).toContain("运营员补齐 ATC:J01C 术语映射并激活到当前机构生效版本");
+    expect(source).toContain("/engine/rule/rules");
+    expect(source).toContain("/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases");
+    expect(source).toContain("/engine/recommendations:evaluate");
+    expect(source).toContain("/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose");
+    expect(source).toContain("/engine/recommendations/cards/${encodeURIComponent(cardId)}");
+    expect(source).toContain("allergyIntolerances[].code");
+    expect(source).toContain("AllergyIntolerance");
+    expect(source).toContain("Medication");
+    expect(source).toContain("PHARMACIST_REVIEWED");
+    expect(source).toContain("PHYSICIAN_CONFIRMATION");
+    expect(source).toContain("requiresPhysicianConfirmation: true");
+    expect(source).toContain("autoExecutionAllowed: false");
+    expect(source).toContain("button[data-snapshot-id=\"");
+    expect(source).toContain("relatedCardIds");
+    expect(source).toContain("contextSnapshotId");
+    expect(source).toContain("runtimeReleaseId");
+    expect(source).toContain("matchType\") === \"CLINICAL_REDLINE\"");
+    expect(source).toContain("cardStatus, \"药师复核不能关闭医生待确认链路\"");
+    expect(source).toContain("noAutoOrder: true");
+    expect(source).not.toContain("page.route(");
+    expect(source).not.toContain("page.waitForTimeout");
+    expect(source).not.toContain("cards[0]");
+    expect(source).not.toContain("cards.0.cardId");
+    expect(source).not.toContain('riskMatrixId: "risk-matrix-local-rehearsal"');
+    expect(source).not.toContain('riskMatrixVersion: "4"');
+    expect(source).not.toContain("third-party-system-family-codes");
+    expect(source).not.toContain("临床、药师与运营员围绕");
+    expect(source.indexOf("createMedicationSafetyRiskMatrix")).toBeLessThan(
+      source.indexOf("createPromotedMedicationAllergyRedline"),
+    );
+    expect(source.indexOf("createPromotedMedicationAllergyRedline")).toBeLessThan(
+      source.indexOf("createMedicationSafetyTerminologyGate"),
+    );
+    expect(source.indexOf("createMedicationSafetyTerminologyGate")).toBeLessThan(
+      source.indexOf("const runtime = await activateRuntimeWithMedicationSafetyAssets"),
+    );
+    expect(source.indexOf("const runtime = await activateRuntimeWithMedicationSafetyAssets")).toBeLessThan(
+      source.indexOf("const snapshot = await createMedicationSafetyContextFromFrontdesk"),
+    );
+    expect(source.indexOf("const snapshot = await createMedicationSafetyContextFromFrontdesk")).toBeLessThan(
+      source.indexOf("const recommendation = await triggerMedicationSafetyRecommendationFromFrontdesk"),
+    );
+    expect(source.indexOf("triggerMedicationSafetyRecommendationFromFrontdesk")).toBeLessThan(
+      source.indexOf("completePharmacistAndPhysicianFeedback"),
+    );
+  });
+
   it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

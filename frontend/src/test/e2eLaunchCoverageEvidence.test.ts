@@ -734,6 +734,319 @@ function expectNoCdssRuntimeDeclarativeCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S5");
 }
 
+const medicationSafetyFrontdeskEvidence = {
+  scenarioCodes: ["S5"],
+  productLayers: ["CLINICAL_EXECUTION"],
+  versionedAssets: ["SAFETY", "CDSS_RISK", "RULE"],
+  serviceCombinations: ["CLINICAL_RUNTIME"],
+  scopeStatement: "用药安全代表切片：药物过敏红线，不代表完整药事治理或第三方审方系统闭环。",
+  apiEvidence: {
+    riskMatrixCreatedFromRealService: true,
+    safetyRedlineDraftCreated: true,
+    safetyRedlineDryRunSubmitted: true,
+    safetyAssetPromoted: true,
+    terminologyCoverageGateActivated: true,
+    ruleCreatedForMedicationPrescribe: true,
+    ruleRuntimeCandidateResolvedFromCurrentHospital: true,
+    runtimeActivatedWithSafetyRiskAndRule: true,
+    contextSnapshotCreatedFromFrontdesk: true,
+    clinicalEvaluationTriggeredFromFrontdesk: true,
+    pharmacistReviewRecordedWithoutClosingPhysicianConfirmation: true,
+    physicianConfirmationRecorded: true,
+  },
+  riskMatrix: {
+    assetType: "CDSS_RISK",
+    assetIdentity: "CDSS.RISK.MATRIX",
+    versionId: "av-risk-p0",
+    versionNo: "V1",
+    contentHash: "6".repeat(64),
+    matrixId: "risk-matrix-med-safety",
+    matrixVersion: "med-safety-v1",
+    triggerPoint: "medication-prescribe",
+    severityLevel: "CRITICAL",
+    automationLevel: "INFORM_ONLY",
+    riskLevel: "CRITICAL",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    silentRunHours: 168,
+    releaseGate: "OPT04_REDLINE_SILENT_TRIAL",
+    autoExecutionAllowed: false,
+  },
+  safetyRedline: {
+    assetType: "SAFETY",
+    assetIdentity: "SAFETY.RDL-MED-ALLERGY-P0",
+    versionId: "av-safety-p0",
+    versionNo: "V1",
+    contentHash: "5".repeat(64),
+    redlineId: "redline-med-allergy-p0",
+    redlineKey: "RDL-MED-ALLERGY-P0",
+    redlineVersion: "2026.1",
+    conditionDsl:
+      '{"all":[{"fact":"allergyIntolerances[].code","operator":"contains","value":"J01C"}]}',
+    trialId: "crt-p0",
+    hazardSeverity: "CRITICAL",
+    riskMatrixId: "risk-matrix-med-safety",
+    riskMatrixVersion: "med-safety-v1",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    releaseGate: "OPT04_REDLINE_SILENT_TRIAL",
+    lowerTenantOverrideAllowed: false,
+  },
+  ruleAsset: {
+    assetType: "RULE",
+    assetIdentity: "RULE.MEDICATION.SAFETY.P0",
+    versionId: "av-rule-med-p0",
+    versionNo: "V1",
+    contentHash: "7".repeat(64),
+    ruleId: "rule-med-safety-p0",
+    ruleVersionId: "rv-med-safety-p0",
+  },
+  terminologyGate: {
+    assetType: "TERMINOLOGY",
+    assetIdentity: "TERM.DRUG.MEDICATION.SAFETY.P0",
+    versionId: "av-term-med-p0",
+    versionNo: "V1",
+    contentHash: "8".repeat(64),
+    standardSystem: "ATC",
+    standardCode: "J01C",
+    localCode: "J01C",
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    category: "DRUG",
+    mappingId: 18,
+  },
+  runtime: {
+    releaseId: "runtime-med-safety",
+    revisionNo: 18,
+    manifestSha256: "d".repeat(64),
+    assets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.DRUG.MEDICATION.SAFETY.P0",
+        versionId: "av-term-med-p0",
+        versionNo: "V1",
+        contentHash: "8".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-MED-ALLERGY-P0",
+        versionId: "av-safety-p0",
+        versionNo: "V1",
+        contentHash: "5".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "av-risk-p0",
+        versionNo: "V1",
+        contentHash: "6".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.MEDICATION.SAFETY.P0",
+        versionId: "av-rule-med-p0",
+        versionNo: "V1",
+        contentHash: "7".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    safetyAsset: {
+      assetType: "SAFETY",
+      assetIdentity: "SAFETY.RDL-MED-ALLERGY-P0",
+      versionId: "av-safety-p0",
+      versionNo: "V1",
+      contentHash: "5".repeat(64),
+      entryState: "ACTIVE",
+    },
+    cdssRiskAsset: {
+      assetType: "CDSS_RISK",
+      assetIdentity: "CDSS.RISK.MATRIX",
+      versionId: "av-risk-p0",
+      versionNo: "V1",
+      contentHash: "6".repeat(64),
+      entryState: "ACTIVE",
+    },
+    ruleAsset: {
+      assetType: "RULE",
+      assetIdentity: "RULE.MEDICATION.SAFETY.P0",
+      versionId: "av-rule-med-p0",
+      versionNo: "V1",
+      contentHash: "7".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-MED-ALLERGY-P0",
+        versionId: "av-safety-p0",
+      },
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.DRUG.MEDICATION.SAFETY.P0",
+        versionId: "av-term-med-p0",
+      },
+      {
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "av-risk-p0",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.MEDICATION.SAFETY.P0",
+        versionId: "av-rule-med-p0",
+      },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-med-safety",
+    contextSnapshotId: "ctx-med-safety",
+    runtimeReleaseId: "runtime-med-safety",
+    encounterId: "enc-med-safety",
+    resources: {
+      medications: [{ code: "J01C", displayName: "青霉素类" }],
+      allergyIntolerances: [
+        {
+          code: "J01C",
+          substance: "青霉素类",
+          category: "medication",
+          verificationStatus: "CONFIRMED",
+        },
+      ],
+    },
+  },
+  clinicalTrigger: {
+    triggerId: "trigger-med-safety",
+    contextSnapshotId: "ctx-med-safety",
+    runtimeReleaseId: "runtime-med-safety",
+    cardId: "card-med-safety",
+    relatedCardIds: ["card-med-safety", "card-rule-med-safety", "card-other"],
+  },
+  recommendation: {
+    cardId: "card-med-safety",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-med-safety",
+    explanation: {
+      matchType: "CLINICAL_REDLINE",
+      redlineId: "redline-med-allergy-p0",
+      redlineKey: "RDL-MED-ALLERGY-P0",
+      riskMatrixId: "risk-matrix-med-safety",
+      riskMatrixVersion: "med-safety-v1",
+      redlineExplanation: {
+        conditionEvidence: [
+          {
+            fact: "allergyIntolerances[].code",
+            operator: "contains",
+            expected: "J01C",
+            actual: ["J01C"],
+            matched: true,
+          },
+        ],
+      },
+    },
+    riskMatrixExplanation: "高危或高危害触发点的打断式 CDSS 输出必须医师确认",
+  },
+  ruleRecommendation: {
+    cardId: "card-rule-med-safety",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-med-safety",
+    explanation: {
+      matchType: "RULE",
+      ruleId: "rule-med-safety-p0",
+      ruleCode: "RULE.MEDICATION.SAFETY.P0",
+      ruleVersionId: "rv-med-safety-p0",
+      runtimeRelease: {
+        runtimeReleaseId: "runtime-med-safety",
+        assetVersionId: "av-rule-med-p0",
+        assetVersionNo: "V1",
+        contentHash: "7".repeat(64),
+      },
+      ruleExplanation: {
+        title: "P0 用药安全代表切片规则",
+        reason: "Medication 与 AllergyIntolerance 均来自当前临床上下文，规则由当前机构生效版本锁定。",
+        conditionEvidence: [
+          {
+            fact: "medications[].code",
+            operator: "contains",
+            expected: "J01C",
+            actual: ["J01C"],
+            matched: true,
+          },
+          {
+            fact: "allergyIntolerances[].code",
+            operator: "contains",
+            expected: "J01C",
+            actual: ["J01C"],
+            matched: true,
+          },
+        ],
+      },
+    },
+  },
+  feedback: {
+    pharmacist: {
+      feedbackId: "rf-pharmacist",
+      cardStatus: "PENDING",
+      operatorRole: "PHARMACIST",
+      roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+      reasonCode: "PHARMACIST_REVIEWED",
+    },
+    physician: {
+      feedbackId: "rf-physician",
+      cardStatus: "ACCEPTED",
+      operatorRole: "DOCTOR",
+      roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+      reasonCode: "CONFIRMED",
+    },
+    noAutoOrder: true,
+  },
+  scenarioEvidence: [
+    {
+      code: "S5",
+      observedStages: [
+        "运营员创建真实 CDSS_RISK 风险矩阵",
+        "运营员创建药物过敏禁忌 SAFETY 红线草稿",
+        "运营员提交静默试运行并上线 SAFETY 资产",
+        "运营员补齐 ATC:J01C 术语映射并激活到当前机构生效版本",
+        "运营员创建 medication-prescribe 规则资产",
+        "当前机构生效版本包含 SAFETY、CDSS_RISK 与 RULE",
+        "临床用户从患者 360 建立 Medication 与 AllergyIntolerance 上下文",
+        "临床用户从真实前台开立用药触发推荐评估",
+        "药师登记红线复核且不关闭医生确认链路",
+        "医生逐条确认采纳，系统不自动开嘱",
+      ],
+    },
+  ],
+};
+
+function medicationSafetyEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/medication-safety-frontdesk.spec.ts",
+          title: "临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "medication-safety-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoMedicationSafetyCoverage(body: Record<string, unknown>) {
+  const evidence = medicationSafetyEvidenceResult(body);
+  const assets = evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? [];
+  expect(assets).not.toEqual(expect.arrayContaining(["SAFETY", "CDSS_RISK", "RULE"]));
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S5");
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -2161,6 +2474,149 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare CDSS declarative runtime asset coverage when $name", ({ body }) => {
     expectNoCdssRuntimeDeclarativeCoverage(body);
+  });
+
+  it("declares SAFETY/CDSS_RISK/RULE coverage only for the medication safety representative slice", () => {
+    const evidence = medicationSafetyEvidenceResult(medicationSafetyFrontdeskEvidence);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S5"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "SAFETY",
+      "CDSS_RISK",
+      "RULE",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "CLINICAL_RUNTIME",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "SAFETY 候选版本与当前机构生效版本不一致",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        safetyRedline: {
+          ...medicationSafetyFrontdeskEvidence.safetyRedline,
+          contentHash: "a".repeat(64),
+        },
+      },
+    },
+    {
+      name: "规则候选版本与当前机构生效版本不一致",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        ruleAsset: {
+          ...medicationSafetyFrontdeskEvidence.ruleAsset,
+          versionId: "av-rule-med-other",
+        },
+      },
+    },
+    {
+      name: "规则发布缺少术语覆盖门禁证据",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        terminologyGate: undefined,
+      },
+    },
+    {
+      name: "规则发布未证明术语覆盖门禁已激活",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        apiEvidence: {
+          ...medicationSafetyFrontdeskEvidence.apiEvidence,
+          terminologyCoverageGateActivated: false,
+        },
+      },
+    },
+    {
+      name: "同次触发未证明本轮 RULE 推荐卡命中",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        ruleRecommendation: undefined,
+      },
+    },
+    {
+      name: "RULE 推荐解释缺少 Medication 与 AllergyIntolerance 条件命中证据",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        ruleRecommendation: {
+          ...medicationSafetyFrontdeskEvidence.ruleRecommendation,
+          explanation: {
+            ...medicationSafetyFrontdeskEvidence.ruleRecommendation.explanation,
+            ruleExplanation: {
+              ...medicationSafetyFrontdeskEvidence.ruleRecommendation.explanation.ruleExplanation,
+              conditionEvidence: [
+                {
+                  fact: "medications[].code",
+                  operator: "contains",
+                  expected: "J01C",
+                  actual: ["J01C"],
+                  matched: true,
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "没有医生与药师双人工闭环",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        feedback: {
+          ...medicationSafetyFrontdeskEvidence.feedback,
+          pharmacist: {
+            ...medicationSafetyFrontdeskEvidence.feedback.pharmacist,
+            cardStatus: "VIEWED",
+          },
+        },
+      },
+    },
+    {
+      name: "当前机构生效版本没有激活 SAFETY 资产",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        runtime: {
+          ...medicationSafetyFrontdeskEvidence.runtime,
+          safetyAsset: {
+            ...medicationSafetyFrontdeskEvidence.runtime.safetyAsset,
+            entryState: "DISABLED",
+          },
+        },
+      },
+    },
+    {
+      name: "推荐详情不是临床安全红线卡",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        recommendation: {
+          ...medicationSafetyFrontdeskEvidence.recommendation,
+          explanation: {
+            ...medicationSafetyFrontdeskEvidence.recommendation.explanation,
+            matchType: "RULE",
+          },
+        },
+      },
+    },
+    {
+      name: "临床上下文缺少 AllergyIntolerance 结构化过敏资源",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        clinicalContext: {
+          ...medicationSafetyFrontdeskEvidence.clinicalContext,
+          resources: {
+            ...medicationSafetyFrontdeskEvidence.clinicalContext.resources,
+            allergyIntolerances: [],
+          },
+        },
+      },
+    },
+  ])("does not declare medication safety representative coverage when $name", ({ body }) => {
+    expectNoMedicationSafetyCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

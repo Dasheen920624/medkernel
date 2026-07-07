@@ -88,6 +88,7 @@ type ContextSnapshotFormValues = {
   diseaseCode: string;
   riskLevel: ContextSnapshotCreatePayload["riskLevel"];
   currentMedicationText?: string;
+  allergyIntoleranceText?: string;
   heightCm?: number | null;
   weightKg?: number | null;
   diagnosticReportType?: string;
@@ -416,6 +417,7 @@ export default function Mpi() {
       const values = await contextSnapshotForm.validateFields();
       const diseaseText = values.diseaseCode.trim();
       const currentMedicationText = values.currentMedicationText?.trim();
+      const allergyIntoleranceText = values.allergyIntoleranceText?.trim();
       const diagnosticReportType = values.diagnosticReportType?.trim();
       const diagnosticReportConclusion = values.diagnosticReportConclusion?.trim();
       const diagnosticReportKeyFindingsText = values.diagnosticReportKeyFindingsText?.trim();
@@ -459,6 +461,7 @@ export default function Mpi() {
         diseaseName: diseaseText,
         riskLevel: values.riskLevel,
         ...(currentMedicationText ? { currentMedicationText } : {}),
+        ...(allergyIntoleranceText ? { allergyIntoleranceText } : {}),
         ...(values.heightCm !== undefined && values.heightCm !== null
           ? { heightCm: values.heightCm }
           : {}),
@@ -1091,6 +1094,13 @@ export default function Mpi() {
               <Input.TextArea
                 aria-label="当前用药"
                 placeholder="可选，填写当前用药名称，多个项目用顿号或逗号分隔"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="allergyIntoleranceText" label="过敏/不良反应">
+              <Input.TextArea
+                aria-label="过敏/不良反应"
+                placeholder="可选，填写药物或物质及反应，例如：青霉素：皮疹；头孢菌素：呼吸困难"
                 rows={2}
               />
             </Form.Item>

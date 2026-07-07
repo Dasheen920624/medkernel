@@ -390,7 +390,8 @@ public class RecommendationEngineService {
             if (existing.isPresent()) {
                 RecommendationFeedback savedFeedback = existing.get();
                 return new RecommendationFeedbackResponse(savedFeedback.feedbackId(), cardId,
-                    nextStatus(savedFeedback.feedbackType()),
+                    replayStatus(card.status(), savedFeedback.feedbackType(),
+                        savedFeedback.reasonCode(), savedFeedback.operatorRole()),
                     savedFeedback.traceId() == null ? traceId() : savedFeedback.traceId());
             }
         }
@@ -403,7 +404,8 @@ public class RecommendationEngineService {
         String actor = actor();
         String traceId = traceId();
         Instant now = Instant.now();
-        RecommendationCardStatus nextStatus = nextStatus(request.feedbackType());
+        RecommendationCardStatus nextStatus =
+            nextStatus(card.status(), request.feedbackType(), request.reasonCode(), request.operatorRole());
         RecommendationCard savedCard = cards.save(rewriteStatus(card, nextStatus, now, actor));
         String feedbackId = "rf-" + UUID.randomUUID();
         feedback.save(new RecommendationFeedback(
@@ -625,7 +627,14 @@ public class RecommendationEngineService {
             card.regulatoryEvidence(), card.riskMatrixExplanation());
     }
 
-    private RecommendationCardStatus nextStatus(RecommendationFeedbackType feedbackType) {
+    private RecommendationCardStatus nextStatus(
+            RecommendationCardStatus currentStatus,
+            RecommendationFeedbackType feedbackType,
+            String reasonCode,
+            String operatorRole) {
+        if (isPharmacistReview(feedbackType, reasonCode, operatorRole)) {
+            return currentStatus;
+        }
         return switch (feedbackType) {
             case VIEW_SOURCE -> RecommendationCardStatus.VIEWED;
             case ACCEPT -> RecommendationCardStatus.ACCEPTED;
@@ -633,6 +642,26 @@ public class RecommendationEngineService {
             case DEFER -> RecommendationCardStatus.DEFERRED;
             case DISMISS -> RecommendationCardStatus.DISMISSED;
         };
+    }
+
+    private RecommendationCardStatus replayStatus(
+            RecommendationCardStatus currentStatus,
+            RecommendationFeedbackType feedbackType,
+            String reasonCode,
+            String operatorRole) {
+        if (isPharmacistReview(feedbackType, reasonCode, operatorRole)) {
+            return RecommendationCardStatus.PENDING;
+        }
+        return nextStatus(currentStatus, feedbackType, reasonCode, operatorRole);
+    }
+
+    private boolean isPharmacistReview(
+            RecommendationFeedbackType feedbackType,
+            String reasonCode,
+            String operatorRole) {
+        return feedbackType == RecommendationFeedbackType.VIEW_SOURCE
+            && "PHARMACIST_REVIEWED".equals(reasonCode)
+            && "PHARMACIST".equals(operatorRole);
     }
 
     private RecommendationFatigueSignalType initialSignal(RecommendationCardRequest request) {

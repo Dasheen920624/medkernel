@@ -515,6 +515,7 @@ describe("Mpi", () => {
       await user.type(diseaseInput, "真实前台慢病随访主题");
       const medicationInput = screen.getByLabelText("当前用药");
       await user.type(medicationInput, "华法林、阿司匹林");
+      await user.type(screen.getByLabelText("过敏/不良反应"), "青霉素：皮疹、头孢菌素：呼吸困难");
       await user.clear(screen.getByLabelText("身高 cm"));
       await user.type(screen.getByLabelText("身高 cm"), "170");
       await user.clear(screen.getByLabelText("体重 kg"));
@@ -547,6 +548,7 @@ describe("Mpi", () => {
           diseaseName: "真实前台慢病随访主题",
           riskLevel: "MEDIUM",
           currentMedicationText: "华法林、阿司匹林",
+          allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难",
           heightCm: 170,
           weightKg: 82,
           diagnosticReportType: "血钾检验",

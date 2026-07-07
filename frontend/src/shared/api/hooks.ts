@@ -6745,6 +6745,7 @@ export interface ContextSnapshotCreatePayload {
   diseaseName: string;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   currentMedicationText?: string;
+  allergyIntoleranceText?: string;
   heightCm?: number;
   weightKg?: number;
   diagnosticReportType?: string;
@@ -6772,6 +6773,10 @@ const frontdeskMedicationAliases: Record<string, { code: string; displayName: st
   ASPIRIN: { code: "B01AC06", displayName: "阿司匹林" },
   阿司匹林: { code: "B01AC06", displayName: "阿司匹林" },
   阿司匹林肠溶片: { code: "B01AC06", displayName: "阿司匹林" },
+  J01C: { code: "J01C", displayName: "青霉素类" },
+  PENICILLIN: { code: "J01C", displayName: "青霉素类" },
+  青霉素: { code: "J01C", displayName: "青霉素类" },
+  青霉素类: { code: "J01C", displayName: "青霉素类" },
 };
 
 function normalizeFrontdeskMedicationToken(token: string) {
@@ -6808,6 +6813,89 @@ function buildFrontdeskMedicationResources(
     sourceRecordId: `${patientId}:${medication.code}`,
     mappedVersion: "FRONTDESK_CONTEXT_V1",
     eventTime: now,
+    receivedTime: now,
+    qualityStatus: "VALID",
+  }));
+}
+
+const frontdeskAllergyAliases: Record<string, { code: string; substance: string }> = {
+  J01C: { code: "J01C", substance: "青霉素类" },
+  青霉素: { code: "J01C", substance: "青霉素类" },
+  青霉素类: { code: "J01C", substance: "青霉素类" },
+  PENICILLIN: { code: "J01C", substance: "青霉素类" },
+  J01D: { code: "J01D", substance: "头孢菌素类" },
+  头孢: { code: "J01D", substance: "头孢菌素类" },
+  头孢菌素: { code: "J01D", substance: "头孢菌素类" },
+  头孢菌素类: { code: "J01D", substance: "头孢菌素类" },
+  CEPHALOSPORIN: { code: "J01D", substance: "头孢菌素类" },
+};
+
+function normalizeFrontdeskAllergyToken(token: string) {
+  const cleaned = token.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  const [rawSubstance, ...reactionParts] = cleaned.split(/[：:]/u);
+  const substanceText = rawSubstance.trim();
+  if (!substanceText) return null;
+  const alias =
+    frontdeskAllergyAliases[substanceText] ??
+    frontdeskAllergyAliases[substanceText.toUpperCase()];
+  const reactions = reactionParts
+    .join("：")
+    .split(/[、,，;；]/u)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return {
+    code: alias?.code ?? substanceText,
+    substance: alias?.substance ?? substanceText,
+    reactions,
+  };
+}
+
+function splitFrontdeskAllergyEntries(value: string | undefined) {
+  const entries: string[] = [];
+  for (const line of value?.split(/[\n;；]/u) ?? []) {
+    for (const segment of line.split(/[、,，]/u)) {
+      const trimmed = segment.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes("：") || trimmed.includes(":") || entries.length === 0) {
+        entries.push(trimmed);
+      } else {
+        entries[entries.length - 1] = `${entries[entries.length - 1]}、${trimmed}`;
+      }
+    }
+  }
+  return entries;
+}
+
+function buildFrontdeskAllergyIntoleranceResources(
+  allergyText: string | undefined,
+  patientId: string,
+  now: string,
+) {
+  const uniqueAllergies = new Map<
+    string,
+    { code: string; substance: string; reactions: string[] }
+  >();
+  for (const token of splitFrontdeskAllergyEntries(allergyText)) {
+    const allergy = normalizeFrontdeskAllergyToken(token);
+    if (allergy && !uniqueAllergies.has(allergy.code)) {
+      uniqueAllergies.set(allergy.code, allergy);
+    }
+  }
+  return Array.from(uniqueAllergies.values()).map((allergy) => ({
+    allergyIntoleranceId: `alg-${crypto.randomUUID()}`,
+    code: allergy.code,
+    codeSystem: allergy.code.startsWith("J") ? "ATC" : "LOCAL",
+    substance: allergy.substance,
+    category: "medication",
+    criticality: "HIGH",
+    reactions: allergy.reactions,
+    clinicalStatus: "ACTIVE",
+    verificationStatus: "CONFIRMED",
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    sourceRecordId: `${patientId}:${allergy.code}`,
+    mappedVersion: "FRONTDESK_CONTEXT_V1",
+    onsetTime: now,
     receivedTime: now,
     qualityStatus: "VALID",
   }));
@@ -6890,6 +6978,11 @@ function frontdeskSnapshotRequest(
     payload.patient.mpiId,
     now,
   );
+  const allergyIntolerances = buildFrontdeskAllergyIntoleranceResources(
+    payload.allergyIntoleranceText,
+    payload.patient.mpiId,
+    now,
+  );
   const diagnosticReports = buildFrontdeskDiagnosticReportResources(payload, profile, now);
   const claims = buildFrontdeskClaimResources(payload, now);
   const request = withStandardApiContext(
@@ -6912,7 +7005,7 @@ function frontdeskSnapshotRequest(
           receivedTime: now,
           qualityStatus: "VALID",
         },
-        allergyIntolerances: [],
+        allergyIntolerances,
         encounters: [
           {
             encounterId,
@@ -6962,6 +7055,7 @@ function frontdeskSnapshotRequest(
               reason: payload.reason,
               riskLevel: payload.riskLevel,
               currentMedicationCount: medications.length,
+              allergyIntoleranceCount: allergyIntolerances.length,
               ...(payload.heightCm !== undefined ? { heightCm: payload.heightCm } : {}),
               ...(payload.weightKg !== undefined ? { weightKg: payload.weightKg } : {}),
               diagnosticReportCount: diagnosticReports.length,

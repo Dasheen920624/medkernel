@@ -10,6 +10,86 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整用药安全、完整药事治理、抗菌药物治理、第三方药房 / 审方系统双向闭环、
+  完整四职责 / 全业务任职闭环、完整 S0-S40、13 类标准患者资源、13 类版本化资产、完整上线验收或
+  134 清库部署复演收口，而是完成 **P0 用药安全药物过敏红线代表切片**：
+  `Medication / AllergyIntolerance + SAFETY / CDSS_RISK / RULE + CLINICAL_RUNTIME`。当前 coverage
+  只声明 `scenarios:S5`、`productLayers:CLINICAL_EXECUTION`、`versionedAssets:SAFETY/CDSS_RISK/RULE`、
+  `serviceCombinations:CLINICAL_RUNTIME`；`TERMINOLOGY / ATC:J01C` 只作为规则发布与运行前置门禁证据，
+  不外推为完整术语资产覆盖。
+- 第一百五十四批真实链路说明：新增目标真实 E2E `medication-safety-frontdesk.spec.ts`。医疗引擎运营员先在真实
+  服务链路创建 `CDSS_RISK` 风险矩阵、`SAFETY` 药物过敏红线草稿，完成静默试运行与资产上线；再补齐
+  `ATC:J01C` 标准术语和 `MEDKERNEL_FRONTDESK/J01C` 院内术语映射，生成 `TERMINOLOGY` 资产并激活到本地
+  上线演练医院当前机构生效版本；随后创建 `medication-prescribe` 规则，发布验证覆盖 POSITIVE / NEGATIVE /
+  BOUNDARY / CONFLICT 四类用例，最终激活包含平台 baseline、`TERMINOLOGY` 门禁资产和本轮
+  `SAFETY/CDSS_RISK/RULE` 的当前机构生效版本。临床用户从真实前台 `/mpi` 建立脱敏患者 360 上下文，
+  前台现在可录入过敏 / 不良反应并生成结构化 `AllergyIntolerance`，本轮上下文含当前用药 `Medication`
+  与 `AllergyIntolerance`；随后从真实前台触发 `medication-prescribe` 推荐评估，精确通过 trigger diagnose
+  与推荐详情筛出本轮 `CLINICAL_REDLINE` 卡和同次触发的本轮 `RULE` 卡；药师复核仅登记业务复核并保持医生待确认，
+  医生逐条确认后才进入 `ACCEPTED`，且证据明确 `noAutoOrder=true`。
+- 第一百五十四批代码修复与护栏：`frontend/src/shared/api/hooks.ts` 为前台当前就诊上下文补齐
+  `allergyIntoleranceText` 解析、`J01C/PENICILLIN/青霉素/青霉素类` 当前用药别名和结构化
+  `AllergyIntolerance` 生成；`frontend/src/pages/clinical/Mpi.tsx` 暴露过敏 / 不良反应录入。
+  `RecommendationEngineService` 明确 `VIEW_SOURCE + PHARMACIST_REVIEWED + PHARMACIST` 不推进推荐卡到
+  `VIEWED`，保持当前状态等待医生确认；`RuleDslEvaluatorTest` 固化规则 DSL 可从 canonical context 匹配
+  `allergyIntolerances[].code contains J01C`。`launchCoverageEvidence` 对 P0 附件加严，要求候选资产、
+  runtime、激活请求和推荐解释中的 `versionId/versionNo/contentHash` 一致，并要求术语门禁证据真实进入
+  runtime 和 activation request；`RULE` coverage 现在还要求同次 trigger 里的本轮 `RULE` 推荐卡命中，且推荐解释中的
+  `ruleId/ruleCode/ruleVersionId/runtimeRelease.assetVersionId/contentHash` 与本轮规则和 current runtime 一致，
+  `ruleExplanation.conditionEvidence` 同时证明 `medications[].code` 与 `allergyIntolerances[].code` 命中 `J01C`。
+  同时把 coverage 标题匹配同步为真实 E2E 标题，避免旧“临床、药师与运营员”口径造成 coverage 空报或误读。
+- 第一百五十四批红点与处理：目标 E2E 首次复跑红于药师复核响应 `cardStatus=VIEWED`。追溯源码与单测后确认，
+  当前工作树中的后端状态机已要求药师复核保持 `PENDING`，真实红点根因是本地 `18080` 仍运行 11:41 启动的旧 jar；
+  已执行 `mvn -f medkernel-backend/pom.xml -DskipTests package` 重建 jar，并重启本地 18080 后端后，同一真实 E2E
+  通过。随后发现为实时输出临时使用 `--reporter=line` 时不会刷新 `report/results.json`，再用项目默认 reporter
+  复跑得到正式 evidence；正式报告一度 `launchCoverage={}`，根因是 coverage proof 仍匹配旧标题“临床、药师与运营员...”，
+  已先把 `e2eLaunchCoverageEvidence.test.ts` 改为真实标题跑出红灯，再修 `launchCoverageEvidence.ts` 标题匹配并回绿。
+  继续加严 `RULE` 推荐卡证据后，目标 E2E 又红于 `findMedicationSafetyRuleRecommendationCard`：同次 trigger 已能读到
+  本轮 `RULE.MEDICATION.SAFETY.*` 卡、`ruleId/ruleCode/ruleVersionId` 和 runtime `assetVersionId/contentHash` 均正确，
+  但测试仍要求不存在的 `ruleExplanation.summary`。只读查卡片详情确认真实解释结构为
+  `title/reason/conditionEvidence/runtimeAssetEvidence`，已改为校验真实 `title/reason` 与两条条件命中证据，并给
+  coverage parser 增加“缺少 Medication 与 AllergyIntolerance 条件命中证据不得声明覆盖”的负例。
+- 第一百五十四批验证证据：
+  - 红灯：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "declares SAFETY/CDSS_RISK/RULE coverage"`
+    在测试标题切到真实 E2E 标题、coverage proof 仍匹配旧标题时失败，证明 `launchCoverage.scenarios` 未声明；
+    目标 E2E 在旧 18080 jar 上曾失败，药师复核响应 `cardStatus=VIEWED`；目标 E2E 在加严 RULE 推荐卡证据后曾失败，
+    错误上下文证明同次触发已有本轮 RULE 卡但旧匹配误查 `ruleExplanation.summary`。
+  - 绿灯：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "SAFETY/CDSS_RISK/RULE|同次触发未证明本轮 RULE 推荐卡命中|RULE 推荐解释缺少 Medication|没有医生与药师双人工闭环"`
+    通过（4 selected）；`npm --prefix frontend run test -- hooks Mpi e2eAuthCredentialContract e2eLaunchCoverageEvidence -t
+    "converts frontdesk current medications|creates a current clinical context|medication safety|SAFETY/CDSS_RISK/RULE|CDSS declarative runtime asset"`
+    通过（4 files，26 passed，230 skipped）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+    `mvn -f medkernel-backend/pom.xml -Dtest=RecommendationEngineServiceTest#pharmacistReviewRecordsFeedbackWithoutClosingPhysicianConfirmation,RecommendationEngineServiceTest#pharmacistReviewIdempotentReplayKeepsOriginalPendingStatusAfterPhysicianConfirmation,RuleDslEvaluatorTest#conditionTreeMatchesMedicationAllergyCodesFromCanonicalContext,ClinicalRedlineMatcherTest,RuntimeReleaseClinicalRedlineSelectorTest,CdssRiskMatrixServiceTest,RuntimeReleaseCdssRiskMatrixSelectorTest test`
+    通过（20 tests，0 failures，0 errors，0 skipped，BUILD SUCCESS）；`git diff --check` 通过。
+  - 目标真实 E2E：`E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-medication-safety-frontdesk-20260707-final4 npm --prefix frontend run e2e -- --project=chromium medication-safety-frontdesk.spec.ts`
+    通过，`results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=26634ms），
+    `launchCoverage.scenarios.S5`、`launchCoverage.productLayers.CLINICAL_EXECUTION`、
+    `launchCoverage.versionedAssets.SAFETY/CDSS_RISK/RULE`、`launchCoverage.serviceCombinations.CLINICAL_RUNTIME`
+    均为 `PASSED`，未声明第三方系统族或其他全量覆盖。附件记录最终 runtime
+    `releaseId=runtime-01KWXQJ4XYZ723RG6N6B7S29MC/revisionNo=7/manifestSha256=5e460f3344195dcd52fc469764391f23689f8e788c773dbc2133f68b2e65f1fe`；
+    `CDSS_RISK` 为 `matrixId=crm-9e71c9a5-fe16-4e21-ba76-f6f3d0774168/versionId=av-01KWXQHS0978VGWG69PT69EW06/versionNo=V3/contentHash=31d057a05336ec10d8316f778f3c48bcdb12fd54d07a765706f9a9e53b587a11`；
+    `SAFETY` 为 `SAFETY.RDL-MED-ALLERGY-MRABSMIM-0/versionId=av-01KWXQHS16J5G1DYSNNKPQMAZ9/contentHash=d48da1f2abc337bcd903bd3e5948c015271470685e351a7b0d4bdf754c65e325`；
+    `RULE` 为 `RULE.MEDICATION.SAFETY.MRABSMIM-0/ruleVersionId=rv-14d9a66f-5fd5-4a0b-9850-bab0097e30cc/versionId=av-01KWXQJ4TSH1EGYN90D9N8CPNV/contentHash=c27973dcd24c42ed1d3cf22858d636f61d534f20ad86eec2961bf7ef8c95a446`；
+    `TERMINOLOGY` 门禁为 `TERM.DRUG.MEDICATION.SAFETY.MRABSMIM-0/versionId=av-01KWXQHTED207Z72XR36N771V4/contentHash=7a5d9817f57646d8a0ff1b7903916f971323ef7d8c5b132b67a83d9d34d1f9bf`。
+    临床上下文 `contextSnapshotId=ctx-804e76e7-ac98-4f18-a523-b8b0bfdef942` 绑定同一 runtime，记录
+    `allergyIntoleranceCount=2/currentMedicationCount=2`；推荐触发
+    `triggerId=rt-654f2944-b2e0-40aa-95ea-00f713cbfcdd/cardId=rc-4c65a15f-edd4-42d1-bcd7-c6fa2959d8f6`，
+    红线推荐解释 `matchType=CLINICAL_REDLINE` 且风险矩阵 id/version 与本轮一致；同次 RULE 推荐卡
+    `cardId=rc-f9dbad17-8eb7-4432-beb1-434e348420c5/matchType=RULE`，解释中的
+    `runtimeRelease.assetVersionId=av-01KWXQJ4TSH1EGYN90D9N8CPNV/contentHash=c27973dcd24c42ed1d3cf22858d636f61d534f20ad86eec2961bf7ef8c95a446`，
+    且 `medications[].code contains J01C` 与 `allergyIntolerances[].code contains J01C` 均为 `matched=true`。反馈证据为药师
+    `operatorRole=PHARMACIST/reasonCode=PHARMACIST_REVIEWED/cardStatus=PENDING`，医生
+    `operatorRole=DOCTOR/reasonCode=CONFIRMED/cardStatus=ACCEPTED`，`noAutoOrder=true`。
+- 第一百五十四批边界与下一步：本批只证明青霉素类过敏禁忌红线代表链路，不代表完整 `S18 用药安全与治疗建议`
+  或完整 `S31 药事治理与抗菌药物`；未覆盖剂量、途径、诊断 / 检验联动、特殊人群完整组合、相互作用、
+  监测、用药点评和整改；未接入药房 / 审方 / 药事平台第三方双向闭环。药师 / 医生仅为业务参与者反馈口径，
+  不新增系统角色，真实系统职责仍是固定四职责。本批仍未发布到 134，未执行 134 清库重新部署、systemd/Nginx/TLS/
+  正式域名、重启后全功能与全知识复演或完整上线验收。下一步继续按完整产品范围推进：P0 后续应补药房或审方链路、
+  药事治理与抗菌药物治理；继续补 P1 医技报告解读与危急值、护理评估 / 护理计划 / 连续照护、院感公卫、
+  区域互认和跨机构协同；同时继续推进 13 类标准患者资源、13 类 runtime 资产逐类业务消费者、多第三方系统族
+  业务闭环、全角色真实前台体验和 134 目标环境 fresh deploy / 清库 / 重启 / 恢复复演。不要把本批 P0 代表切片
+  包装成完整上线。
 - 第一百五十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是 134 清库部署、完整 S15、完整 S0-S40 或完整上线验收收口，而是关闭
   `docs/audit/deferred-issues.md` 中已不再成立的本机 Docker/Testcontainers 外部环境缺口。当前工作机已可用
