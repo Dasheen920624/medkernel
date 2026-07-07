@@ -55,6 +55,7 @@ type CoverageProof = {
   requiresPathwayLifecycleAttachment?: boolean;
   requiresSystemProvidersAttachment?: boolean;
   requiresIdentityBindingAttachment?: boolean;
+  requiresS2S4RuntimeMappingAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -115,6 +116,18 @@ const thirdPartySystemFamilyClaims = [
   "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
 ];
 
+const s2s4RuntimeMappingClaims = [
+  "scenarios:S2",
+  "scenarios:S4",
+  "productLayers:DATA_INTEROPERABILITY",
+  "productLayers:MEDICAL_ASSET",
+  "versionedAssets:TERMINOLOGY",
+  "deliveryShapes:MANAGEMENT_WORKSPACE",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -167,6 +180,24 @@ const identityBindingClaims = [
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
+
+const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
+
+const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
+  S2: [
+    "平台管理员前台创建 LIS Webhook 适配器并配置字段映射",
+    "平台管理员前台创建回调通道并完成签名预览",
+    "真实 Webhook 入站通过验签并生成标准临床事件",
+    "入站字段映射按当前机构生效版本完成术语归一",
+  ],
+  S4: [
+    "前台登记标准术语",
+    "签名主数据同步登记院内术语",
+    "前台生成并确认术语映射候选",
+    "前台生成不可变术语资产版本",
+    "当前机构生效版本和第三方运行契约读回同一术语资产",
+  ],
+};
 
 const requiredRealFrontdeskScenarioEvidence: Record<string, string[]> = {
   S10: ["前台执行医保审核并联动质量整改"],
@@ -354,6 +385,13 @@ const coverageProofs: CoverageProof[] = [
     requiresSystemFamilyAttachment: true,
   },
   {
+    file: "s2-s4-terminology-integration-rehearsal.spec.ts",
+    titleIncludes:
+      "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
+    claims: s2s4RuntimeMappingClaims,
+    requiresS2S4RuntimeMappingAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -457,6 +495,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test)) &&
       (!proof.requiresSystemProvidersAttachment || hasRequiredSystemProvidersAttachment(test)) &&
       (!proof.requiresIdentityBindingAttachment || hasRequiredIdentityBindingAttachment(test)) &&
+      (!proof.requiresS2S4RuntimeMappingAttachment ||
+        hasRequiredS2S4RuntimeMappingAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -477,6 +517,75 @@ function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
     return (
       JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort())
     );
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredS2S4RuntimeMappingAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "s2-s4-runtime-mapping-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      apiEvidence?: unknown;
+      adapter?: unknown;
+      terminology?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      inboundResult?: unknown;
+      runtimeConsumerReadback?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const terminology = parseS2S4TerminologyEvidence(parsed.terminology);
+    const runtime = parseS2S4RuntimeEvidence(parsed.runtime, terminology);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredS2S4RuntimeMappingScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["DATA_INTEROPERABILITY", "MEDICAL_ASSET"]) ||
+      !arrayEquals(parsed.versionedAssets, ["TERMINOLOGY"]) ||
+      !arrayEquals(parsed.deliveryShapes, ["MANAGEMENT_WORKSPACE", "API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "THIRD_PARTY_INTERFACE",
+        "CLINICAL_RUNTIME",
+      ]) ||
+      !hasCompleteS2S4RuntimeMappingApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteS2S4AdapterEvidence(parsed.adapter, terminology) ||
+      !terminology ||
+      !runtime ||
+      !hasCompleteS2S4ActivationRequest(parsed.activationRequest, terminology) ||
+      !hasCompleteS2S4InboundResult(parsed.inboundResult, terminology, runtime.releaseId) ||
+      !hasCompleteS2S4RuntimeConsumerReadback(
+        parsed.runtimeConsumerReadback,
+        terminology,
+        runtime,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredS2S4RuntimeMappingScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredS2S4RuntimeMappingScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
   } catch {
     return false;
   }
@@ -765,6 +874,239 @@ function hasCompleteRuntimeReleaseLocalCandidateEvidence(value: {
     runtimeReleasePayloadExcludesCandidate(value.rollbackReadback, candidate) &&
     runtimeReleasePayloadExcludesCandidate(value.rollbackRuntimeConsumerReadback, candidate)
   );
+}
+
+function hasCompleteS2S4RuntimeMappingApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "adapterCreatedFromFrontdesk",
+    "fieldMappingConfigured",
+    "webhookCreatedFromFrontdesk",
+    "standardTermRegisteredFromFrontdesk",
+    "localTermRegisteredThroughSignedSync",
+    "candidateGeneratedFromFrontdesk",
+    "candidateConfirmedFromFrontdesk",
+    "terminologyAssetDraftCreatedFromFrontdesk",
+    "runtimeReleaseActivatedWithTerminologyAsset",
+    "invalidMasterDataSignatureRejected",
+    "invalidInboundWebhookSignatureRejected",
+    "inboundWebhookAccepted",
+    "inboundNormalizedByRuntimeRelease",
+    "runtimeContractReadbackMatched",
+  ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteS2S4AdapterEvidence(
+  value: unknown,
+  terminology: {
+    sourceSystem: string;
+    targetDictionaryKey: string;
+    category: string;
+  } | null,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !terminology) return false;
+  const adapter = value as Record<string, unknown>;
+  if (
+    !hasText(adapter.adapterId) ||
+    String(adapter.protocolType).toUpperCase() !== "WEBHOOK" ||
+    String(adapter.sourceSystem).toUpperCase() !== terminology.sourceSystem.toUpperCase() ||
+    !Array.isArray(adapter.fieldMappings)
+  ) {
+    return false;
+  }
+  const mappings = adapter.fieldMappings.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  );
+  const hasPlainField = mappings.some(
+    (item) => hasText(item.sourcePath) && hasText(item.targetPath) && !hasText(item.targetDictionaryKey),
+  );
+  const hasTerminologyField = mappings.some(
+    (item) =>
+      hasText(item.sourcePath) &&
+      hasText(item.targetPath) &&
+      item.targetDictionaryKey === terminology.targetDictionaryKey &&
+      item.category === terminology.category,
+  );
+  return hasPlainField && hasTerminologyField;
+}
+
+function parseS2S4TerminologyEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const terminology = value as Record<string, unknown>;
+  if (
+    terminology.assetType !== "TERMINOLOGY" ||
+    !hasText(terminology.assetIdentity) ||
+    !hasText(terminology.versionId) ||
+    !hasText(terminology.standardSystem) ||
+    !hasText(terminology.standardCode) ||
+    !hasText(terminology.localCode) ||
+    !hasText(terminology.sourceSystem) ||
+    !hasText(terminology.category) ||
+    typeof terminology.mappingId !== "number" ||
+    terminology.mappingId <= 0
+  ) {
+    return null;
+  }
+  return {
+    assetType: "TERMINOLOGY",
+    assetIdentity: String(terminology.assetIdentity),
+    versionId: String(terminology.versionId),
+    targetDictionaryKey: String(terminology.standardSystem),
+    standardCode: String(terminology.standardCode),
+    localCode: String(terminology.localCode),
+    sourceSystem: String(terminology.sourceSystem),
+    category: String(terminology.category),
+    mappingId: terminology.mappingId,
+    standardTermId:
+      typeof terminology.standardTermId === "number" && terminology.standardTermId > 0
+        ? terminology.standardTermId
+        : null,
+  };
+}
+
+function parseS2S4RuntimeEvidence(
+  value: unknown,
+  terminology: {
+    assetType: string;
+    assetIdentity: string;
+    versionId: string;
+  } | null,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !terminology) return null;
+  const runtime = value as Record<string, unknown>;
+  if (
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    typeof runtime.manifestSha256 !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets) ||
+    !runtime.assets.some((asset) =>
+      runtimeReleaseAssetMatchesCandidate(asset, {
+        assetType: terminology.assetType,
+        assetIdentity: terminology.assetIdentity,
+        versionId: terminology.versionId,
+      }, { requireActive: true }),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: runtime.manifestSha256,
+    terminology,
+  };
+}
+
+function hasCompleteS2S4ActivationRequest(
+  value: unknown,
+  terminology: {
+    assetType: string;
+    assetIdentity: string;
+    versionId: string;
+  },
+) {
+  return runtimeReleasePayloadContainsCandidate(value, "activeAssets", terminology);
+}
+
+function hasCompleteS2S4InboundResult(
+  value: unknown,
+  terminology: {
+    standardCode: string;
+    localCode: string;
+    sourceSystem: string;
+    targetDictionaryKey: string;
+    mappingId: number;
+    standardTermId: number | null;
+  },
+  runtimeReleaseId: string,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  if (
+    result.status !== "SUCCESS" ||
+    typeof result.mappedFieldCount !== "number" ||
+    result.mappedFieldCount < 2 ||
+    result.normalizedCodeCount !== 1 ||
+    !hasText(result.clinicalEventStatus) ||
+    result.clinicalEventStatus !== "RECEIVED"
+  ) {
+    return false;
+  }
+  const normalized = findS2S4NormalizedCode(result.mappedPayload);
+  return (
+    normalized?.standardCode === terminology.standardCode &&
+    normalized.codeSystem === terminology.targetDictionaryKey &&
+    normalized.localCode === terminology.localCode &&
+    normalized.sourceSystem === terminology.sourceSystem &&
+    normalized.runtimeReleaseId === runtimeReleaseId &&
+    normalized.mappingId === terminology.mappingId &&
+    (terminology.standardTermId === null ||
+      normalized.standardTermId === terminology.standardTermId)
+  );
+}
+
+function hasCompleteS2S4RuntimeConsumerReadback(
+  value: unknown,
+  terminology: {
+    assetType: string;
+    assetIdentity: string;
+    versionId: string;
+  },
+  runtime: {
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+  },
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const readback = value as Record<string, unknown>;
+  return (
+    readback.releaseId === runtime.releaseId &&
+    readback.revisionNo === runtime.revisionNo &&
+    readback.manifestSha256 === runtime.manifestSha256 &&
+    Array.isArray(readback.assets) &&
+    readback.assets.some((asset) =>
+      runtimeReleaseAssetMatchesCandidate(asset, terminology, { requireActive: true }),
+    )
+  );
+}
+
+function findS2S4NormalizedCode(value: unknown) {
+  const queue = [value];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object") continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    const record = current as Record<string, unknown>;
+    if (
+      hasText(record.standardCode) &&
+      hasText(record.codeSystem) &&
+      hasText(record.localCode) &&
+      hasText(record.sourceSystem) &&
+      hasText(record.runtimeReleaseId) &&
+      typeof record.mappingId === "number"
+    ) {
+      return {
+        standardCode: String(record.standardCode),
+        codeSystem: String(record.codeSystem),
+        localCode: String(record.localCode),
+        sourceSystem: String(record.sourceSystem),
+        runtimeReleaseId: String(record.runtimeReleaseId),
+        mappingId: record.mappingId,
+        standardTermId:
+          typeof record.standardTermId === "number" ? record.standardTermId : undefined,
+      };
+    }
+    queue.push(...Object.values(record));
+  }
+  return null;
 }
 
 function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {

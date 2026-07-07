@@ -337,6 +337,106 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain('page.request.get("/api/v1/engine/integration/onboardings"');
   });
 
+  it("requires S2/S4 rehearsal to prove frontdesk mapping and real inbound runtime consumption", () => {
+    const source = readFileSync(
+      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      "utf8",
+    );
+
+    expect(source).toContain("s2-s4-runtime-mapping-codes");
+    expect(source).toContain("平台管理员前台创建 LIS Webhook 适配器并配置字段映射");
+    expect(source).toContain('ensureReadySession(page, "platform-admin")');
+    expect(source).toContain('ensureReadySession(page, "engine-operator")');
+    expect(source).toContain("前台登记标准术语");
+    expect(source).toContain("签名主数据同步登记院内术语");
+    expect(source).toContain("前台生成并确认术语映射候选");
+    expect(source).toContain("前台生成不可变术语资产版本");
+    expect(source).toContain("/engine/integration/webhooks/");
+    expect(source).toContain("/inbound");
+    expect(source).toContain("postExternalSignedApi(");
+    expect(source).toContain("context.post(`${apiBase}${path}`");
+    expect(source).not.toContain("playwrightRequest.newContext({ baseURL: apiBase })");
+    expect(source).toContain("await context.dispose()");
+    expect(source).toContain("postApi(");
+    expect(source).toContain("options.page");
+    expect(source).toContain("normalizedCodeCount");
+    expect(source).toContain("runtimeReleaseId");
+    expect(source).toContain("mappingId");
+    expect(source).toContain("/engine/integration/knowledge-runtime/runtime-release/current");
+    expect(source).toContain("runtimeContractReadbackMatched");
+    expect(source).toContain("runtimeAssetSelectionForActivation");
+    expect(source).toContain('textField(item, "sourceLayer") === "PLATFORM"');
+    expect(source).toContain("versionId: null");
+    expect(source).toContain("canonicalInboundWebhookPayload(options.request)");
+    expect(source).toContain("sha256=${signHmacSha256");
+    expect(source).toContain('triggerPoint: "result-review"');
+    expect(source).not.toContain('triggerPoint: "RESULT_REVIEW"');
+    expect(source).toContain("chooseFieldMappingCategory(page, dialog, 1, \"检验\")");
+    expect(source).toContain("targetDictionaryKey: options.standardSystem");
+    expect(source).toContain('category: "LAB"');
+    expect(source).not.toContain("page.waitForTimeout");
+  });
+
+  it("requires S2/S4 signature preview to choose and submit the current webhook channel", () => {
+    const source = readFileSync(
+      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      "utf8",
+    );
+
+    expect(source).toContain("const webhookName = `S2S4 LIS 入站 ${suffix}`");
+    expect(source).toContain("await generateWebhookSignaturePreview(page, {");
+    expect(source).toContain("webhookName,");
+    expect(source).toContain("await expectWebhookVisibleInFrontdesk(page, options.webhookName)");
+    expect(source).toContain("selectAntOptionFromSelect(page,");
+    expect(source).toContain('signaturePreviewCard.locator(".ant-select").first()');
+    expect(source).toContain("options.webhookName");
+    expect(source).toContain("selectedAntOptionMatches(select, optionText)");
+    expect(source).toContain("clickVisibleAntOption(page, option");
+    expect(source).toContain("page.mouse.click(");
+    expect(source).toContain("await readRequestJson(response.request())");
+    expect(source).toContain(
+      'expect(requestBody?.webhookId, "签名预览必须绑定本轮回调通道").toBe(options.webhookId)',
+    );
+    expect(source).not.toContain(
+      'selectAntOption(page, page.locator("main"), "回调通道", `S2S4 LIS 入站`)',
+    );
+    expect(source).not.toContain("selectAntOptionByPlaceholder(page, signaturePreviewCard");
+    expect(source).not.toContain("await option.click();");
+  });
+
+  it("requires S2/S4 signed master data sync to continue from the latest server cursor", () => {
+    const source = readFileSync(
+      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      "utf8",
+    );
+
+    expect(source).toContain("readLatestMasterDataCursor(page, sourceSystem)");
+    expect(source).toContain("previousCursor,");
+    expect(source).toContain("/engine/integration/master-data/reconciliation?sourceSystem=");
+    expect(source).toContain("签名必须基于读取到的最新服务端游标");
+    expect(source).not.toContain("previousCursor: null");
+  });
+
+  it("requires S2/S4 terminology candidates to use deterministic alias evidence", () => {
+    const source = readFileSync(
+      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      "utf8",
+    );
+
+    expect(source).toContain("registerStandardTermFromFrontdesk(page, {");
+    expect(source).toContain("localCode,");
+    expect(source).toContain('getByLabel("规范名称")');
+    expect(source).toContain(".fill(`S2S4 血红蛋白标准");
+    expect(source).toContain("options.localCode");
+    expect(source).toContain("确定性别名");
+    expect(source).toContain("canonicalTerminologyAlias(options.localCode)");
+    expect(source).toContain('textField(item, "evidenceText")');
+    expect(source).toContain('candidateRow.getByRole("button", { name: /确\\s*认/u })');
+    expect(source).not.toContain('textField(item, "localCode") === options.localCode');
+    expect(source).not.toContain('textField(item, "standardCode") === options.standardCode');
+    expect(source).not.toContain('candidateRow.getByRole("button", { name: "确认" })');
+  });
+
   it("detects missing platform runtime candidates before publishing the baseline", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -455,7 +555,7 @@ describe("E2E credential contract", () => {
     for (const assetType of runtimeAssetTypes) {
       expect(source).toContain(`missingTypes.includes("${assetType}")`);
     }
-    expect(source).toContain('writeApi(page, "put", path, data)');
+    expect(source).toContain('writeApi(page, "put", path, data, extraHeaders)');
     expect(source).toContain("function ruleDefinition(");
     expect(source).toContain("JSON.stringify({ all: [{ fact, operator, value }] })");
     expect(source).toContain("waitForPollingInterval(250)");

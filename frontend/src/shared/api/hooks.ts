@@ -2757,7 +2757,6 @@ export interface TerminologyAssetDraft {
 }
 
 export function useCreateTerminologyAssetDraft() {
-  const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
@@ -2768,7 +2767,7 @@ export function useCreateTerminologyAssetDraft() {
     }) => {
       const { data } = await apiClient.post<{ data: TerminologyAssetDraft }>(
         `${TERMINOLOGY_API_ROOT}/assets/drafts`,
-        withStandardApiContext(payload, security.data),
+        payload,
       );
       return data.data;
     },

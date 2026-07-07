@@ -724,7 +724,30 @@ class IntegrationServiceTest {
     }
 
     @Test
+    void inboundWebhookCanonicalPayloadMatchesExternalJsonContract() throws Exception {
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "s2s4-msg-mr9pqykf",
+            "s2s4-trace-mr9pqykf",
+            "s2s4-lis-mr9pqykf",
+            "LIS",
+            ClinicalEventType.REPORT,
+            "S2S4-P-mr9pqykf",
+            "S2S4-E-mr9pqykf",
+            ClinicalSetting.OUTPATIENT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            Instant.parse("2026-07-07T00:05:00Z"),
+            objectMapper.readTree("{\"patientId\":\"S2S4-P-mr9pqykf\",\"labCode\":\"LIS-HGB-MR9PQYKF\"}")
+        );
+
+        assertEquals(
+            "{\"messageId\":\"s2s4-msg-mr9pqykf\",\"traceId\":\"s2s4-trace-mr9pqykf\",\"adapterId\":\"s2s4-lis-mr9pqykf\",\"sourceSystem\":\"LIS\",\"eventType\":\"REPORT\",\"patientId\":\"S2S4-P-mr9pqykf\",\"encounterId\":\"S2S4-E-mr9pqykf\",\"clinicalSetting\":\"OUTPATIENT\",\"triggerPoint\":\"result-review\",\"occurredAt\":\"2026-07-07T00:05:00Z\",\"payload\":{\"patientId\":\"S2S4-P-mr9pqykf\",\"labCode\":\"LIS-HGB-MR9PQYKF\"}}",
+            objectMapper.writeValueAsString(inbound)
+        );
+    }
+
+    @Test
     void inboundWebhookVerifiesSignatureMapsFieldsAndNormalizesCodesByConfirmedTermMapping() throws Exception {
+        insertTerminologyRuntimeOrgTree();
         Long standardTermId = insertStandardTerm("ICD-10", "A00", "霍乱");
         Long localTermId = insertLocalTerm("HIS", "DIA-A00", "本院霍乱诊断");
         Long mappingId = insertConfirmedTermMapping(localTermId, standardTermId, "HIS");
@@ -1124,13 +1147,13 @@ class IntegrationServiceTest {
             VersionedAssetType.TERMINOLOGY,
             assetIdentity,
             versionNo,
-            "tenant:" + tenantId,
+            "/tenant-001/hospital-001",
             "ALL",
             contentHash,
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             AssetVersionStatus.PUBLISHED,
-            assetIdentity + "|tenant:" + tenantId + "|ALL",
+            assetIdentity + "|/tenant-001/hospital-001|ALL",
             "terminology-version:" + versionId,
             now,
             null,
@@ -1150,6 +1173,35 @@ class IntegrationServiceTest {
             "integration-test"
         ));
         return new TerminologyRuntimeAsset(assetIdentity, versionId, versionNo, contentHash);
+    }
+
+    private void insertTerminologyRuntimeOrgTree() {
+        Instant now = Instant.parse("2026-06-22T08:00:00Z");
+        jdbcTemplate.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status,
+                created_at, created_by, updated_at, updated_by
+            ) VALUES ('tenant-001-root', NULL, ?, '/tenant-001', 'TENANT', 'tenant-001',
+                '集成测试租户', NULL, 'ACTIVE', ?, 'integration-test', ?, 'integration-test')
+            """, tenantId, now, now);
+        jdbcTemplate.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status,
+                created_at, created_by, updated_at, updated_by
+            ) VALUES ('hospital-001', 'tenant-001-root', ?, '/tenant-001/hospital-001', 'FACILITY',
+                'hospital-001', '集成测试医院', 'HOSPITAL', 'ACTIVE', ?, 'integration-test', ?,
+                'integration-test')
+            """, tenantId, now, now);
+        insertOrgClosure("tenant-001-root", "tenant-001-root", 0);
+        insertOrgClosure("tenant-001-root", "hospital-001", 1);
+        insertOrgClosure("hospital-001", "hospital-001", 0);
+    }
+
+    private void insertOrgClosure(String ancestorId, String descendantId, int depth) {
+        jdbcTemplate.update(
+            "INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth) VALUES (?, ?, ?, ?)",
+            tenantId, ancestorId, descendantId, depth
+        );
     }
 
     private void insertCurrentRuntimeRelease(String releaseId, TerminologyRuntimeAsset asset) {

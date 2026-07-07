@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.engine.integration.dto.IntegrationOnboardingResponse;
 import com.medkernel.engine.integration.dto.RegionalSourceResponse;
+import com.medkernel.engine.integration.dto.WebhookInboundResultDto;
 import com.medkernel.engine.integration.dto.WebhookConfigResponse;
 import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.shared.api.PageRequest;
@@ -186,6 +189,50 @@ class IntegrationControllerSecurityTest {
                 .content(INBOUND_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    void tenantOperatorReceivesRuntimeLockedInboundNormalizationContract() throws Exception {
+        ObjectNode mappedPayload = JsonNodeFactory.instance.objectNode();
+        ObjectNode diagnosis = JsonNodeFactory.instance.objectNode()
+            .put("standardCode", "718-7")
+            .put("codeSystem", "LOINC")
+            .put("localCode", "LIS-HGB")
+            .put("sourceSystem", "LIS")
+            .put("runtimeReleaseId", "runtime-H7")
+            .put("mappingId", 101)
+            .put("standardTermId", 202)
+            .put("mappedVersion", "H7");
+        mappedPayload.putArray("observations").add(diagnosis);
+        when(service.ingestWebhook(eq("tenant-1"), eq("whk-9"), eq("1780456123"),
+            eq("sha256=test"), any()))
+            .thenReturn(new WebhookInboundResultDto(
+                "msg-9",
+                "trace-9",
+                "whk-9",
+                "adp-9",
+                "SUCCESS",
+                mappedPayload,
+                2,
+                1,
+                "evt-9",
+                "RECEIVED",
+                false,
+                List.of()));
+
+        mvc.perform(post("/api/v1/engine/integration/webhooks/whk-9/inbound")
+                .contentType("application/json")
+                .header("X-MedKernel-Timestamp", "1780456123")
+                .header("X-MedKernel-Signature", "sha256=test")
+                .content(INBOUND_BODY)
+                .with(ops("tenant-1")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.data.normalizedCodeCount").value(1))
+            .andExpect(jsonPath("$.data.clinicalEventStatus").value("RECEIVED"))
+            .andExpect(jsonPath("$.data.mappedPayload.observations[0].runtimeReleaseId").value("runtime-H7"))
+            .andExpect(jsonPath("$.data.mappedPayload.observations[0].mappingId").value(101))
+            .andExpect(jsonPath("$.data.mappedPayload.observations[0].standardTermId").value(202));
     }
 
     @Test

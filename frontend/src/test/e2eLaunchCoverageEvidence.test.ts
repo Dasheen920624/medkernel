@@ -296,6 +296,166 @@ function runtimeReleaseEvidenceResult(body: Record<string, unknown>) {
   });
 }
 
+function s2s4RuntimeMappingEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    scenarioCodes: ["S2", "S4"],
+    productLayers: ["DATA_INTEROPERABILITY", "MEDICAL_ASSET"],
+    versionedAssets: ["TERMINOLOGY"],
+    deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
+    serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"],
+    apiEvidence: {
+      adapterCreatedFromFrontdesk: true,
+      fieldMappingConfigured: true,
+      webhookCreatedFromFrontdesk: true,
+      standardTermRegisteredFromFrontdesk: true,
+      localTermRegisteredThroughSignedSync: true,
+      candidateGeneratedFromFrontdesk: true,
+      candidateConfirmedFromFrontdesk: true,
+      terminologyAssetDraftCreatedFromFrontdesk: true,
+      runtimeReleaseActivatedWithTerminologyAsset: true,
+      invalidMasterDataSignatureRejected: true,
+      invalidInboundWebhookSignatureRejected: true,
+      inboundWebhookAccepted: true,
+      inboundNormalizedByRuntimeRelease: true,
+      runtimeContractReadbackMatched: true,
+    },
+    adapter: {
+      adapterId: "lis-s2-s4",
+      protocolType: "Webhook",
+      sourceSystem: "LIS",
+      fieldMappings: [
+        { sourcePath: "/patientId", targetPath: "/patient/mpi" },
+        {
+          sourcePath: "/labCode",
+          targetPath: "/observations/0",
+          targetDictionaryKey: "LOINC",
+          category: "LAB",
+        },
+      ],
+    },
+    terminology: {
+      assetType: "TERMINOLOGY",
+      assetIdentity: "TERM.LAB.S2S4",
+      versionId: "term-lab-v1",
+      standardSystem: "LOINC",
+      standardCode: "718-7",
+      localCode: "LIS-HGB",
+      sourceSystem: "LIS",
+      category: "LAB",
+      mappingId: 101,
+    },
+    runtime: {
+      releaseId: "runtime-s2-s4",
+      revisionNo: 7,
+      manifestSha256: "a".repeat(64),
+      assets: [
+        {
+          assetType: "TERMINOLOGY",
+          assetIdentity: "TERM.LAB.S2S4",
+          versionId: "term-lab-v1",
+          entryState: "ACTIVE",
+        },
+      ],
+    },
+    activationRequest: {
+      activeAssets: [
+        {
+          assetType: "TERMINOLOGY",
+          assetIdentity: "TERM.LAB.S2S4",
+          versionId: "term-lab-v1",
+        },
+      ],
+    },
+    inboundResult: {
+      status: "SUCCESS",
+      mappedFieldCount: 2,
+      normalizedCodeCount: 1,
+      clinicalEventStatus: "RECEIVED",
+      mappedPayload: {
+        patient: { mpi: "P-100" },
+        observations: [
+          {
+            standardCode: "718-7",
+            codeSystem: "LOINC",
+            localCode: "LIS-HGB",
+            localCodeSystem: "LIS",
+            sourceSystem: "LIS",
+            runtimeReleaseId: "runtime-s2-s4",
+            mappingId: 101,
+            mappedVersion: "H1",
+          },
+        ],
+      },
+    },
+    runtimeConsumerReadback: {
+      releaseId: "runtime-s2-s4",
+      revisionNo: 7,
+      manifestSha256: "a".repeat(64),
+      assets: [
+        {
+          assetType: "TERMINOLOGY",
+          assetIdentity: "TERM.LAB.S2S4",
+          versionId: "term-lab-v1",
+          entryState: "ACTIVE",
+        },
+      ],
+    },
+    scenarioEvidence: [
+      {
+        code: "S2",
+        observedStages: [
+          "平台管理员前台创建 LIS Webhook 适配器并配置字段映射",
+          "平台管理员前台创建回调通道并完成签名预览",
+          "真实 Webhook 入站通过验签并生成标准临床事件",
+          "入站字段映射按当前机构生效版本完成术语归一",
+        ],
+      },
+      {
+        code: "S4",
+        observedStages: [
+          "前台登记标准术语",
+          "签名主数据同步登记院内术语",
+          "前台生成并确认术语映射候选",
+          "前台生成不可变术语资产版本",
+          "当前机构生效版本和第三方运行契约读回同一术语资产",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function s2s4EvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+        title:
+          "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
+        status: "passed",
+        attachments: [
+          {
+            name: "s2-s4-runtime-mapping-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoS2S4RuntimeMappingCoverage(body: Record<string, unknown>) {
+  const evidence = s2s4EvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["S2", "S4"]),
+  );
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toContain(
+    "TERMINOLOGY",
+  );
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -1289,6 +1449,121 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
+  });
+
+  it("does not declare S2/S4 runtime mapping coverage from adapter registration alone", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/third-party-system-families-rehearsal.spec.ts",
+          title: "平台管理员逐类登记第三方系统族接入并验证断连诚实降级",
+          status: "passed",
+          attachments: [
+            {
+              name: "third-party-system-family-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                systemFamilyCodes: [
+                  "HIS_EMR_CDR",
+                  "LIS_MONITORING_CRITICAL",
+                  "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+                  "PHARMACY_REVIEW",
+                  "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                  "MEDICAL_RECORD_INSURANCE_PAYMENT",
+                  "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                  "FOLLOWUP_PATIENT_SERVICE",
+                  "CA_OIDC_SSO_HR",
+                  "REGIONAL_REMOTE",
+                  "SPD_UDI_DEVICE",
+                  "RESEARCH_ETHICS_DATA",
+                  "MODEL_DIFY_AGENT",
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toEqual(
+      expect.arrayContaining(["S2", "S4"]),
+    );
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toContain(
+      "TERMINOLOGY",
+    );
+  });
+
+  it("declares S2/S4 runtime mapping coverage only with frontdesk evidence and real inbound consumption", () => {
+    const evidence = s2s4EvidenceResult(s2s4RuntimeMappingEvidence());
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S2", "S4"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "DATA_INTEROPERABILITY",
+      "MEDICAL_ASSET",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "TERMINOLOGY",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺少真实入站归一结果",
+      body: s2s4RuntimeMappingEvidence({ inboundResult: undefined }),
+    },
+    {
+      name: "入站归一 releaseId 与当前 runtime 不一致",
+      body: s2s4RuntimeMappingEvidence({
+        inboundResult: {
+          ...s2s4RuntimeMappingEvidence().inboundResult,
+          mappedPayload: {
+            observations: [
+              {
+                standardCode: "718-7",
+                codeSystem: "LOINC",
+                localCode: "LIS-HGB",
+                sourceSystem: "LIS",
+                runtimeReleaseId: "runtime-other",
+                mappingId: 101,
+              },
+            ],
+          },
+        },
+      }),
+    },
+    {
+      name: "第三方 runtime contract 未读回本轮术语资产",
+      body: s2s4RuntimeMappingEvidence({
+        runtimeConsumerReadback: {
+          releaseId: "runtime-s2-s4",
+          revisionNo: 7,
+          manifestSha256: "a".repeat(64),
+          assets: [],
+        },
+      }),
+    },
+    {
+      name: "前台生成机构生效版本请求没有携带本轮术语资产",
+      body: s2s4RuntimeMappingEvidence({ activationRequest: { activeAssets: [] } }),
+    },
+    {
+      name: "适配器只有登记没有术语字段映射",
+      body: s2s4RuntimeMappingEvidence({
+        adapter: {
+          adapterId: "lis-s2-s4",
+          protocolType: "Webhook",
+          sourceSystem: "LIS",
+          fieldMappings: [{ sourcePath: "/patientId", targetPath: "/patient/mpi" }],
+        },
+      }),
+    },
+  ])("does not declare S2/S4 runtime mapping coverage when $name", ({ body }) => {
+    expectNoS2S4RuntimeMappingCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

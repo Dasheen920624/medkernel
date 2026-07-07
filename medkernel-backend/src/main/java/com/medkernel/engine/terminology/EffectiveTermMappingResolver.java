@@ -7,8 +7,14 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
+import com.medkernel.engine.org.OrgHierarchyRepository;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -30,9 +36,19 @@ public class EffectiveTermMappingResolver {
     );
 
     private final TermMappingSnapshotRepository snapshots;
+    private final OrgHierarchyRepository orgHierarchy;
+    private final OrgUnitRepository orgUnits;
+    private final ClinicalRuntimeReleaseRepository runtimeReleases;
 
-    public EffectiveTermMappingResolver(TermMappingSnapshotRepository snapshots) {
+    public EffectiveTermMappingResolver(
+            TermMappingSnapshotRepository snapshots,
+            OrgHierarchyRepository orgHierarchy,
+            OrgUnitRepository orgUnits,
+            ClinicalRuntimeReleaseRepository runtimeReleases) {
         this.snapshots = snapshots;
+        this.orgHierarchy = orgHierarchy;
+        this.orgUnits = orgUnits;
+        this.runtimeReleases = runtimeReleases;
     }
 
     public List<EffectiveTermMapping> resolve(
@@ -43,15 +59,15 @@ public class EffectiveTermMappingResolver {
             String targetDictionaryKey,
             String category) {
         OrgScope scope = effectiveScope(tenantId);
+        EffectiveOrgPaths orgPaths = effectiveOrgPaths(tenantId, scope);
         String releaseId = required(runtimeReleaseId, "术语映射解析必须指定机构生效版本");
+        requireRuntimeReleaseBelongsToCurrentHospital(tenantId, releaseId, scope);
         List<EffectiveTermMappingCandidate> candidates = snapshots.findEffectiveByAnchor(
             tenantId,
             releaseId,
-            scope.tenantId(),
-            scope.groupId(),
-            facilityId(scope),
-            scope.campusId(),
-            scope.departmentId(),
+            orgPaths.organizationScopes(),
+            orgPaths.regionOrgPath(),
+            orgPaths.facilityOrgPath(),
             sourceSystem,
             localCode,
             targetDictionaryKey,
@@ -66,14 +82,15 @@ public class EffectiveTermMappingResolver {
             String targetDictionaryKey,
             String standardCode) {
         OrgScope scope = effectiveScope(tenantId);
+        EffectiveOrgPaths orgPaths = effectiveOrgPaths(tenantId, scope);
+        String releaseId = required(runtimeReleaseId, "术语覆盖率评估必须指定机构生效版本");
+        requireRuntimeReleaseBelongsToCurrentHospital(tenantId, releaseId, scope);
         return resolveMostSpecific(snapshots.findEffectiveByStandardCode(
             tenantId,
-            required(runtimeReleaseId, "术语覆盖率评估必须指定机构生效版本"),
-            scope.tenantId(),
-            scope.groupId(),
-            facilityId(scope),
-            scope.campusId(),
-            scope.departmentId(),
+            releaseId,
+            orgPaths.organizationScopes(),
+            orgPaths.regionOrgPath(),
+            orgPaths.facilityOrgPath(),
             targetDictionaryKey,
             standardCode
         )).size();
@@ -118,11 +135,72 @@ public class EffectiveTermMappingResolver {
         return current;
     }
 
-    private static String facilityId(OrgScope scope) {
-        if (scope.siteId() != null && !scope.siteId().isBlank()) {
-            return scope.siteId();
+    private EffectiveOrgPaths effectiveOrgPaths(String tenantId, OrgScope scope) {
+        String nearestOrgUnitId = scope.nearestOrgUnitId();
+        if (nearestOrgUnitId == null || nearestOrgUnitId.isBlank()) {
+            return new EffectiveOrgPaths(List.of(tenantRootOrgPath(tenantId)), null, null);
         }
-        return scope.hospitalId();
+        List<OrgUnit> ancestors = orgHierarchy.findResolutionAncestorsAndSelf(tenantId, nearestOrgUnitId);
+        if (ancestors.isEmpty()) {
+            throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "术语映射组织上下文不在当前租户组织树中");
+        }
+        List<OrgUnit> ownerScopes = ancestors.stream()
+            .filter(OrgUnit::isActive)
+            .filter(EffectiveTermMappingResolver::isVersionOwnerScope)
+            .distinct()
+            .toList();
+        if (ownerScopes.isEmpty()) {
+            throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "术语映射组织上下文缺少可用版本归属范围");
+        }
+        return new EffectiveOrgPaths(
+            ownerScopes.stream().map(OrgUnit::orgPath).toList(),
+            lastOrgPath(ownerScopes, OrgLevel.REGION),
+            lastOrgPath(ownerScopes, OrgLevel.FACILITY)
+        );
+    }
+
+    private String tenantRootOrgPath(String tenantId) {
+        return orgUnits.findByTenantIdAndParentIdIsNull(tenantId)
+            .filter(OrgUnit::isActive)
+            .map(OrgUnit::orgPath)
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "租户根组织不存在，无法解析术语映射范围"));
+    }
+
+    private static boolean isVersionOwnerScope(OrgUnit unit) {
+        return unit.level() == OrgLevel.TENANT
+            || unit.level() == OrgLevel.REGION
+            || unit.level() == OrgLevel.FACILITY;
+    }
+
+    private static String lastOrgPath(List<OrgUnit> orgUnits, OrgLevel level) {
+        return orgUnits.stream()
+            .filter(unit -> unit.level() == level)
+            .reduce((left, right) -> right)
+            .map(OrgUnit::orgPath)
+            .orElse(null);
+    }
+
+    private void requireRuntimeReleaseBelongsToCurrentHospital(
+            String tenantId,
+            String runtimeReleaseId,
+            OrgScope scope) {
+        String hospitalId = required(scope.hospitalId(), "术语映射解析必须携带当前医院上下文");
+        ClinicalRuntimeRelease release = runtimeReleases
+            .findByTenantIdAndReleaseId(tenantId.trim(), runtimeReleaseId)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_CONTEXT_002,
+                "机构生效版本不存在或不属于当前租户"
+            ));
+        if (!hospitalId.equals(release.hospitalId())) {
+            throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "机构生效版本不属于当前医院");
+        }
+    }
+
+    private record EffectiveOrgPaths(
+        List<String> organizationScopes,
+        String regionOrgPath,
+        String facilityOrgPath
+    ) {
     }
 
     private static int scopeRank(String scopeLevel) {

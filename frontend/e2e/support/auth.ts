@@ -1473,38 +1473,38 @@ function resolveRuntimeAssetCandidates(value: unknown): RuntimeAssetCandidate[] 
     );
 }
 
-async function getApi(page: Page, path: string) {
+export async function getApi(page: Page, path: string) {
   return page.request.get(`${apiBase}${path}`, {
     headers: { "X-Trace-Id": `e2e-api-get-${Date.now()}` },
   });
 }
 
-async function responseData(response: APIResponse) {
+export async function responseData(response: APIResponse) {
   const body = (await response.json()) as { data?: unknown };
   return body.data ?? null;
 }
 
-function pageItems(value: unknown) {
+export function pageItems(value: unknown) {
   const record = recordValue(value);
   const items = record ? record.items : undefined;
   return Array.isArray(items) ? items : [];
 }
 
-function arrayData(value: unknown) {
+export function arrayData(value: unknown) {
   return Array.isArray(value) ? value : pageItems(value);
 }
 
-function arrayField(value: unknown, field: string) {
+export function arrayField(value: unknown, field: string) {
   const raw = recordField(value, field);
   return Array.isArray(raw) ? raw : [];
 }
 
-function recordField(value: unknown, field: string) {
+export function recordField(value: unknown, field: string) {
   const record = recordValue(value);
   return record ? record[field] : undefined;
 }
 
-function numericField(value: unknown, field: string) {
+export function numericField(value: unknown, field: string) {
   const record = recordValue(value);
   const raw = record ? record[field] : undefined;
   if (typeof raw === "number" && Number.isFinite(raw)) {
@@ -1517,7 +1517,7 @@ function numericField(value: unknown, field: string) {
   return null;
 }
 
-function textField(value: unknown, field: string) {
+export function textField(value: unknown, field: string) {
   const record = recordValue(value);
   const raw = record ? record[field] : undefined;
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
@@ -1558,22 +1558,44 @@ function localRoleDisplayName(role: RoleAccount) {
   return names[role];
 }
 
-export async function postApi(page: Page, path: string, data: unknown) {
-  return writeApi(page, "post", path, data);
+export async function postApi(
+  page: Page,
+  path: string,
+  data: unknown,
+  extraHeaders: Record<string, string> = {},
+) {
+  return writeApi(page, "post", path, data, extraHeaders);
 }
 
-export async function patchApi(page: Page, path: string, data: unknown) {
-  return writeApi(page, "patch", path, data);
+export async function patchApi(
+  page: Page,
+  path: string,
+  data: unknown,
+  extraHeaders: Record<string, string> = {},
+) {
+  return writeApi(page, "patch", path, data, extraHeaders);
 }
 
-export async function putApi(page: Page, path: string, data: unknown) {
-  return writeApi(page, "put", path, data);
+export async function putApi(
+  page: Page,
+  path: string,
+  data: unknown,
+  extraHeaders: Record<string, string> = {},
+) {
+  return writeApi(page, "put", path, data, extraHeaders);
 }
 
-async function writeApi(page: Page, method: "post" | "patch" | "put", path: string, data: unknown) {
+async function writeApi(
+  page: Page,
+  method: "post" | "patch" | "put",
+  path: string,
+  data: unknown,
+  extraHeaders: Record<string, string>,
+) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Trace-Id": `e2e-${Date.now()}`,
+    ...extraHeaders,
   };
   const xsrf = (await page.context().cookies(apiBase)).find(
     (cookie) => cookie.name === "XSRF-TOKEN",
@@ -1584,7 +1606,7 @@ async function writeApi(page: Page, method: "post" | "patch" | "put", path: stri
   return page.request[method](`${apiBase}${path}`, { data, headers });
 }
 
-function waitForPollingInterval(intervalMs: number) {
+export function waitForPollingInterval(intervalMs: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, intervalMs);
   });

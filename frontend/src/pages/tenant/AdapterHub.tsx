@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Alert,
@@ -422,6 +422,9 @@ export default function AdapterHub() {
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
   const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
   const [createdWebhook, setCreatedWebhook] = useState<WebhookCreateResult | null>(null);
+  const [lastCreatedWebhook, setLastCreatedWebhook] = useState<IntegrationWebhookConfig | null>(
+    null,
+  );
   const [signatureResult, setSignatureResult] = useState<WebhookSignatureTestResult | null>(null);
   const [signatureWebhookId, setSignatureWebhookId] = useState<string>();
 
@@ -481,7 +484,16 @@ export default function AdapterHub() {
   const logs = logsQuery.data?.items ?? [];
   const onboardings = onboardingsQuery.data?.items ?? [];
   const webhooks = webhooksQuery.data?.items ?? [];
-  const firstWebhookId = webhooks[0]?.webhookId;
+  const visibleWebhooks = useMemo(() => {
+    const merged = lastCreatedWebhook ? [lastCreatedWebhook, ...webhooks] : webhooks;
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      if (seen.has(item.webhookId)) return false;
+      seen.add(item.webhookId);
+      return true;
+    });
+  }, [lastCreatedWebhook, webhooks]);
+  const firstWebhookId = visibleWebhooks[0]?.webhookId;
   const regionalSources = regionalSourcesQuery.data?.items ?? [];
   const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
@@ -519,6 +531,28 @@ export default function AdapterHub() {
   async function handleCreateAdapter() {
     try {
       const values = (await adapterForm.validateFields()) as AdapterFormValue;
+      const invalidMappingIndexes = (values.fieldMappings ?? [])
+        .map((mapping, index) => {
+          const hasDictionary = Boolean(mapping.targetDictionaryKey?.trim());
+          const hasCategory = Boolean(mapping.category);
+          return hasDictionary === hasCategory ? null : index;
+        })
+        .filter((index): index is number => index !== null);
+      if (invalidMappingIndexes.length > 0) {
+        adapterForm.setFields(
+          invalidMappingIndexes.flatMap((index) => [
+            {
+              name: ["fieldMappings", index, "targetDictionaryKey"],
+              errors: ["目标标准字典与术语分类必须同时填写"],
+            },
+            {
+              name: ["fieldMappings", index, "category"],
+              errors: ["目标标准字典与术语分类必须同时填写"],
+            },
+          ]),
+        );
+        return;
+      }
       const configJson = evidenceDetailsEnabled
         ? values.configJson?.trim()
         : JSON.stringify({
@@ -658,9 +692,21 @@ export default function AdapterHub() {
       const values = await webhookForm.validateFields();
       const result = await createWebhookMutation.mutateAsync(values);
       setCreatedWebhook(result);
+      setLastCreatedWebhook({
+        id: result.id,
+        webhookId: result.webhookId,
+        name: result.name,
+        callbackUrl: result.callbackUrl,
+        eventsSubscribed: result.eventsSubscribed,
+        status: result.status,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+      });
+      setSignatureWebhookId(result.webhookId);
+      setWebhookPage(1);
       setWebhookModalOpen(false);
       webhookForm.resetFields();
-      void webhooksQuery.refetch();
+      await webhooksQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(webhookForm, error)) return;
       messageApi.error(getApiErrorMessage(error, "创建回调通道失败"));
@@ -1393,18 +1439,18 @@ export default function AdapterHub() {
                         新增回调通道
                       </Button>
                     </div>
-                    <Table
-                      rowKey="webhookId"
-                      columns={webhookColumns}
-                      dataSource={webhooks}
-                      loading={webhooksQuery.isLoading}
-                      pagination={{
-                        current: webhookPage,
-                        pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
-                        total: webhooksQuery.data?.total ?? 0,
-                        onChange: setWebhookPage,
-                      }}
-                      scroll={{ x: 900 }}
+                      <Table
+                        rowKey="webhookId"
+                        columns={webhookColumns}
+                        dataSource={visibleWebhooks}
+                        loading={webhooksQuery.isLoading}
+                        pagination={{
+                          current: webhookPage,
+                          pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+                          total: Math.max(webhooksQuery.data?.total ?? 0, visibleWebhooks.length),
+                          onChange: setWebhookPage,
+                        }}
+                        scroll={{ x: 900 }}
                     />
                     <Card title="签名预览" className={styles.sectionCard}>
                       <Form
@@ -1421,7 +1467,7 @@ export default function AdapterHub() {
                           <Select
                             value={signatureWebhookId}
                             onChange={setSignatureWebhookId}
-                            options={webhooks.map((item) => ({
+                            options={visibleWebhooks.map((item) => ({
                               label: evidenceDetailsEnabled
                                 ? `${item.name}（${item.webhookId}）`
                                 : item.name,
@@ -1457,7 +1503,7 @@ export default function AdapterHub() {
                         ) : null}
                         <Button
                           loading={testWebhookSignatureMutation.isPending}
-                          disabled={!canExecute || webhooks.length === 0}
+                          disabled={!canExecute || visibleWebhooks.length === 0}
                           onClick={handleTestWebhookSignature}
                         >
                           生成签名预览
@@ -1881,7 +1927,7 @@ export default function AdapterHub() {
               showSearch
               optionFilterProp="label"
               placeholder="可选，选择已配置回调通道"
-              options={webhooks.map((item) => ({
+              options={visibleWebhooks.map((item) => ({
                 value: item.webhookId,
                 label: `${item.name} · ${customerEnumLabel(item.status)}`,
               }))}

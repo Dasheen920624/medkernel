@@ -3417,14 +3417,16 @@ describe("terminology mapping api helpers", () => {
       name: "检验术语字典",
     });
 
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/terminology/assets/drafts",
-      expect.objectContaining({
-        assetIdentity: "TERM.LAB",
-        scopeLevel: "FACILITY",
-        scopeCode: "hospital-A",
-      }),
-    );
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/terminology/assets/drafts", {
+      assetIdentity: "TERM.LAB",
+      name: "检验术语字典",
+      scopeLevel: "FACILITY",
+      scopeCode: "hospital-A",
+    });
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("request_id");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("trace_id");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("tenant_id");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("role_codes");
     expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("packageVersion");
     expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("versionNo");
   });

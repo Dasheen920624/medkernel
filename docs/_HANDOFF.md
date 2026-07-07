@@ -10,6 +10,57 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，而是在前序
+  S13 机构生效版本证据切片基础上，补齐 S2/S4 的“系统接入 + 字典映射 + 当前机构生效版本 runtime 消费 +
+  真实入站归一”代表性证据切片。`launchCoverageEvidence` 现在只有在 `s2-s4-runtime-mapping-codes`
+  附件同时证明 `scenarios:S2/S4`、数据互操作层与医疗资产层、术语版本化资产、管理前台与 API 事件、第三方接口与临床运行组合，
+  并且真实附件包含前台适配器字段映射、前台回调通道签名预览、坏签名主数据同步拒绝、签名主数据同步登记院内术语、
+  前台标准术语登记、候选生成与人工确认、不可变术语资产版本、`/config/releases` 真实机构生效版本激活、
+  坏签名入站拒绝、真实 Webhook 入站成功、入站按当前 `runtimeReleaseId` 归一、第三方 runtime contract
+  读回一致时，才声明 `scenarios:S2` 和 `scenarios:S4`。
+- 第一百四十八批真实链路说明：后端 `EffectiveTermMappingResolver` 不再只按传入
+  `runtimeReleaseId` 盲查术语快照；解析和覆盖率统计都会先校验该机构生效版本属于当前请求医院，并通过
+  `OrgHierarchyRepository.findResolutionAncestorsAndSelf(...)` 使用当前组织树中的租户 / 区域 / 医院版本归属
+  `orgPath` 解析有效术语映射，缺少可用版本归属范围时直接返回 `ORG_SCOPE_DENIED`，避免空组织范围进入 SQL。
+  `TermMappingSnapshotRepository` / `TermMappingRepository` 改为按组织路径集合、区域路径和医院路径消费当前 runtime
+  中的术语资产快照；入站 Webhook 字段映射使用当前机构生效版本完成术语归一，标准码、院内码、`mappingId`、
+  `standardTermId` 和 `runtimeReleaseId` 均写入归一结果。
+- 第一百四十八批前台与 E2E 说明：新增 `s2-s4-terminology-integration-rehearsal.spec.ts`。真实前台中，
+  平台管理员进入 `/adapter/hub` 创建 LIS Webhook 适配器，配置 `/patientId` 到 `/patient/mpi` 和
+  `/labCode` 到 `/observations/0` 的字段映射，第二条字段映射绑定 `LOINC` 和检验分类；随后创建回调通道并生成签名预览。
+  外部签名主数据同步先用坏签名验证拒绝，再用真实 HMAC-SHA256 登记院内术语。医疗引擎运营员进入
+  `/terminology/mapping` 登记标准术语、生成候选、人工确认映射并生成不可变术语资产版本；再进入
+  `/config/releases` 选择本地上线演练医院，显式确认 13 类平台标准资产已作为 `versionId=null` 平台沿用选择保留，
+  勾选本轮本院术语资产，完成发布影响评估后点击“生成新机构生效版本”。E2E 捕获真实激活请求，断言
+  `activeAssets` 同时包含 13 类平台沿用资产和本轮术语资产；随后后端当前 runtime 与第三方 runtime contract
+  均读回同一术语资产，真实入站 Webhook 先坏签名拒绝，再签名成功并产生 `normalizedCodeCount=1` 的标准临床事件。
+- 第一百四十八批边界说明：本批 coverage 只是 S2/S4 的“真实系统接入 + 字段映射 + 术语映射 +
+  当前机构生效版本消费 + 入站归一”证据切片；不声明完整第三方系统全景、所有院内系统族、完整字段目录业务消费、
+  全标准患者资源、完整 S0-S40、完整全医疗专业领域、全角色全功能真实操作、完整上线验收或 134 清库复演。
+  本地演练会持续在本地 H2 数据中追加 S2/S4 适配器、回调通道、术语和 runtime 修订，用于后续重复演练；下一棒不要把本批证据外推为全量上线完成。
+- 第一百四十八批验证证据：目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s2-s4 npm --prefix frontend run e2e -- --project=chromium s2-s4-terminology-integration-rehearsal.spec.ts`
+  重新通过，仓库外 `playwright-results.json` 为 1 expected、0 unexpected、0 flaky，duration=19070.822ms。
+  最新附件记录 `scenarioCodes=[S2,S4]`、`adapterId=s2s4-lis-mr9wi033`、
+  `terminology.assetIdentity=TERM.LAB.S2S4.MR9WI033/versionId=av-01KWWZ27F8AJCYGG9K5PJ6YXVC/versionNo=V1`、
+  `runtime.releaseId=runtime-01KWWZ28YAEV8RKH1YR10MC8Z6/revisionNo=5/
+  manifestSha256=56c4e42ec8e076d03ed4df0211ce5ed73a5f9330dd23dd7003dbcc3dbe2d6532`；
+  入站归一读回 `standardCode=S2S4-MR9WI033/codeSystem=LOINC/
+  localCode=LIS-HGB-MR9WI033/runtimeReleaseId=runtime-01KWWZ28YAEV8RKH1YR10MC8Z6/
+  mappingId=5/standardTermId=5/mappedVersion=V1`，激活请求中的 13 类平台资产均为 `versionId=null`。
+  其他新鲜门禁：`npm --prefix frontend run test -- e2eAuthCredentialContract -t "requires S2/S4"`
+  通过（4 tests）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "S2/S4"`
+  通过（7 tests）；S2/S4 相关 TS 命令通过；
+  `mvn -f medkernel-backend/pom.xml -Dtest=EffectiveTermMappingRepositoryIntegrationTest,IntegrationServiceTest#inboundWebhookCanonicalPayloadMatchesExternalJsonContract,IntegrationServiceTest#inboundWebhookVerifiesSignatureMapsFieldsAndNormalizesCodesByConfirmedTermMapping test`
+  通过（8 tests）；`npm --prefix frontend run test -- AdapterHub ReleaseGovernance hooks e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（250 tests）；`mvn -f medkernel-backend/pom.xml -Dtest=IntegrationControllerSecurityTest,ThirdPartyKnowledgeRuntimeControllerSecurityTest test`
+  通过（34 tests）；`npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。本地 18080 演练后端服务 PID `89743` 当前仍在运行，未停止。
+- 第一百四十八批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S2/S4 代表性证据切片等同于完整
+  上线验收。后续继续补真实覆盖缺口：完整 S0-S40、完整语义族 / 专业域 / 全知识、13 类 runtime
+  资产逐类业务消费者、全标准患者资源、多第三方系统族断连降级、真实备份 / 隔离恢复 / 重启恢复，以及 134
+  清库部署复演；继续坚持全角色真实前台和真实服务链路，发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S13、完整跨环境离线恢复、全角色全功能、完整上线验收或 134
   清库部署收口，而是在第一百四十三至一百四十六批 S13 部分选择、两机构差异化、离线交付预检和平台升级分析基础上，把

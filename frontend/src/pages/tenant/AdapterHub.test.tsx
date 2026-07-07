@@ -953,6 +953,42 @@ describe("AdapterHub", () => {
     ADAPTER_INTERACTION_TIMEOUT_MS,
   );
 
+  it(
+    "blocks half-configured terminology field mappings before adapter creation",
+    async () => {
+      const user = userEvent.setup();
+      const createAdapter = mutation(hisAdapter);
+      vi.mocked(useCreateAdapter).mockReturnValue(createAdapter as never);
+
+      renderPage();
+      await user.click(screen.getByRole("button", { name: "新增适配器" }));
+
+      fireEvent.change(screen.getByLabelText("稳定适配器身份"), {
+        target: { value: "lis-lab" },
+      });
+      fireEvent.change(screen.getByLabelText("系统名称"), {
+        target: { value: "检验 LIS" },
+      });
+      fireEvent.change(screen.getByLabelText("服务地址"), {
+        target: { value: "https://lis.example.test/api" },
+      });
+      fireEvent.change(screen.getByLabelText("来源字段路径"), {
+        target: { value: "/labCode" },
+      });
+      fireEvent.change(screen.getByLabelText("标准字段路径"), {
+        target: { value: "/observations/0" },
+      });
+      await user.click(screen.getByRole("combobox", { name: "术语分类" }));
+      await user.click(await screen.findByText("检验"));
+
+      await user.click(screen.getByRole("button", { name: "提交适配器" }));
+
+      expect(await screen.findByText("目标标准字典与术语分类必须同时填写")).toBeInTheDocument();
+      expect(createAdapter.mutateAsync).not.toHaveBeenCalled();
+    },
+    ADAPTER_INTERACTION_TIMEOUT_MS,
+  );
+
   it("creates a callback with one-time secret and previews signatures without claiming connectivity", async () => {
     const user = userEvent.setup();
     const createWebhook = mutation({ ...webhook, sharedSecret: "whsec_once_only" });
@@ -1030,6 +1066,65 @@ describe("AdapterHub", () => {
     });
     expect(await screen.findByText("签名已在本地生成，未向外部地址发起请求。")).toBeInTheDocument();
     expect(screen.getByText("sha256=preview-signature")).toBeInTheDocument();
+  }, 15_000);
+
+  it("binds signature preview to the newly created callback channel before the first联调", async () => {
+    const user = userEvent.setup();
+    const createdWebhook = {
+      ...webhook,
+      webhookId: "quality-events",
+      name: "质控事件回调",
+      callbackUrl: "https://quality.example.test/medkernel/events",
+      eventsSubscribed: "quality.alert.opened",
+      sharedSecret: "whsec_new_channel",
+    };
+    const createWebhook = mutation(createdWebhook);
+    const testSignature = mutation({
+      webhookId: createdWebhook.webhookId,
+      callbackUrl: createdWebhook.callbackUrl,
+      timestamp: 1780743600,
+      signature: "sha256=new-channel-preview",
+      status: "SIGNATURE_GENERATED",
+      connectionStatus: "NOT_TESTED",
+      message: "签名已在本地生成，未向外部地址发起请求。",
+    });
+    vi.mocked(useCreateWebhook).mockReturnValue(createWebhook as never);
+    vi.mocked(useTestWebhookSignature).mockReturnValue(testSignature as never);
+
+    renderPage();
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    await user.click(screen.getByRole("button", { name: "新增回调通道" }));
+    fireEvent.change(screen.getByLabelText("稳定回调通道身份"), {
+      target: { value: createdWebhook.webhookId },
+    });
+    fireEvent.change(screen.getByLabelText("通道名称"), {
+      target: { value: createdWebhook.name },
+    });
+    fireEvent.change(screen.getByLabelText("回调地址"), {
+      target: { value: createdWebhook.callbackUrl },
+    });
+    fireEvent.change(screen.getByLabelText("订阅事件"), {
+      target: { value: createdWebhook.eventsSubscribed },
+    });
+    await user.click(screen.getByRole("button", { name: "创建回调通道" }));
+    await user.click(await screen.findByRole("button", { name: "我已安全保存" }));
+    await user.click(screen.getAllByRole("combobox")[0]);
+
+    expect(
+      await screen.findByText(createdWebhook.name, { selector: ".ant-select-item-option-content" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "生成签名预览" }));
+
+    expect(testSignature.mutateAsync).toHaveBeenCalledWith({
+      webhookId: createdWebhook.webhookId,
+      payload: JSON.stringify({
+        event: "clinical.test",
+        patient: "联调患者（非真实）",
+        encounter: "门诊联调就诊",
+        summary: "签名预览联调事件",
+      }),
+    });
   }, 15_000);
 
   it("registers a graded regional source instead of leaving the service-only done item unusable", async () => {
