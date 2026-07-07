@@ -243,6 +243,75 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void explanationCarriesRuntimeAssetEvidenceFromMaterializedDslOnlyWhenRuleHits() throws Exception {
+        RuleDslEvaluation hit = evaluator.evaluate(read("""
+            {
+              "trigger": "patient-view",
+              "runtimeAssetEvidence": [
+                {
+                  "assetType": "VALUE_SET",
+                  "assetIdentity": "VALUE_SET.CDSS.RUNTIME",
+                  "assetVersion": "V1",
+                  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [
+                {
+                  "actionCode": "REMIND",
+                  "atSeverity": "LOW",
+                  "indicator": "info",
+                  "summary": "已记录规则命中",
+                  "detail": "本动作仅留痕，不自动修改医嘱。",
+                  "source": {"label": "规则测试来源"},
+                  "suggestions": [],
+                  "overrideReasons": []
+                }
+              ]
+            }
+            """), read("""
+            {"patient": {"present": true}}
+            """));
+
+        assertThat(hit.hit()).isTrue();
+        assertThat(hit.explanation().path("runtimeAssetEvidence")).hasSize(1);
+        assertThat(hit.explanation().path("runtimeAssetEvidence").get(0).path("assetIdentity").asText())
+            .isEqualTo("VALUE_SET.CDSS.RUNTIME");
+
+        RuleDslEvaluation miss = evaluator.evaluate(read("""
+            {
+              "trigger": "patient-view",
+              "runtimeAssetEvidence": [
+                {
+                  "assetType": "VALUE_SET",
+                  "assetIdentity": "VALUE_SET.CDSS.RUNTIME",
+                  "assetVersion": "V1",
+                  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [
+                {
+                  "actionCode": "REMIND",
+                  "atSeverity": "LOW",
+                  "indicator": "info",
+                  "summary": "未命中规则",
+                  "detail": "未命中时不得声明运行资产已消费。",
+                  "source": {"label": "规则测试来源"},
+                  "suggestions": [],
+                  "overrideReasons": []
+                }
+              ]
+            }
+            """), read("""
+            {"patient": {"present": false}}
+            """));
+
+        assertThat(miss.hit()).isFalse();
+        assertThat(miss.explanation().has("runtimeAssetEvidence")).isFalse();
+    }
+
+    @Test
     void numericArrayIndexPathResolvesDeterministically() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {

@@ -45,8 +45,8 @@ export function ContextSnapshotSelector({
         const selectLabel = evidenceDetailsEnabled
           ? `选择 ${snapshot.snapshotId}`
           : createdAtText
-            ? `选择 ${createdAtText} 建立的${noun}`
-            : `选择第 ${index + 1} 个${noun}`;
+            ? `选择 ${snapshot.snapshotId} · ${createdAtText} 建立的${noun}`
+            : `选择 ${snapshot.snapshotId} · 第 ${index + 1} 个${noun}`;
         return (
           <List.Item
             actions={[

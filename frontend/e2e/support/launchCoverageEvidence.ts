@@ -56,6 +56,7 @@ type CoverageProof = {
   requiresSystemProvidersAttachment?: boolean;
   requiresIdentityBindingAttachment?: boolean;
   requiresS2S4RuntimeMappingAttachment?: boolean;
+  requiresCdssDeclarativeRuntimeAssetAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -128,6 +129,15 @@ const s2s4RuntimeMappingClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
 ];
 
+const cdssDeclarativeRuntimeAssetClaims = [
+  "scenarios:S5",
+  "productLayers:CLINICAL_EXECUTION",
+  "versionedAssets:VALUE_SET",
+  "versionedAssets:FORMULA",
+  "versionedAssets:ACTION_CARD",
+  "serviceCombinations:CLINICAL_RUNTIME",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -183,6 +193,7 @@ const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .map((claim) => claim.split(":")[1]);
 
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
+const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -197,6 +208,18 @@ const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
     "前台生成并确认术语映射候选",
     "前台生成不可变术语资产版本",
     "当前机构生效版本和第三方运行契约读回同一术语资产",
+  ],
+};
+
+const requiredCdssDeclarativeRuntimeAssetScenarioEvidence: Record<string, string[]> = {
+  S5: [
+    "前台创建 VALUE_SET 值集资产草稿",
+    "前台创建 FORMULA 公式资产草稿",
+    "前台创建 ACTION_CARD 临床提示卡资产草稿",
+    "临床规则引用三类运行资产",
+    "当前机构生效版本包含三类本轮运行资产",
+    "临床用户从真实前台触发 CDSS 推荐评估",
+    "推荐卡解释证明三类资产按当前机构生效版本物化消费",
   ],
 };
 
@@ -394,6 +417,12 @@ const coverageProofs: CoverageProof[] = [
     requiresS2S4RuntimeMappingAttachment: true,
   },
   {
+    file: "cdss-runtime-declarative-assets.spec.ts",
+    titleIncludes: "临床用户从真实前台触发 CDSS 推荐并消费当前机构生效版本声明式运行资产",
+    claims: cdssDeclarativeRuntimeAssetClaims,
+    requiresCdssDeclarativeRuntimeAssetAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -499,6 +528,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresIdentityBindingAttachment || hasRequiredIdentityBindingAttachment(test)) &&
       (!proof.requiresS2S4RuntimeMappingAttachment ||
         hasRequiredS2S4RuntimeMappingAttachment(test)) &&
+      (!proof.requiresCdssDeclarativeRuntimeAssetAttachment ||
+        hasRequiredCdssDeclarativeRuntimeAssetAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -585,6 +616,65 @@ function hasRequiredS2S4RuntimeMappingAttachment(test: BrowserE2eTestResult) {
     return requiredS2S4RuntimeMappingScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredS2S4RuntimeMappingScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredCdssDeclarativeRuntimeAssetAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "cdss-runtime-declarative-assets-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      serviceCombinations?: unknown;
+      apiEvidence?: unknown;
+      createdAssets?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalTrigger?: unknown;
+      recommendation?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseCdssDeclarativeRuntimeEvidence(parsed.runtime);
+    const createdAssets = parseCdssDeclarativeCreatedAssets(parsed.createdAssets);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredCdssDeclarativeRuntimeAssetScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
+      !arrayEquals(parsed.versionedAssets, ["VALUE_SET", "FORMULA", "ACTION_CARD"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["CLINICAL_RUNTIME"]) ||
+      !hasCompleteCdssDeclarativeRuntimeApiEvidence(parsed.apiEvidence) ||
+      !createdAssets ||
+      !runtime ||
+      !cdssDeclarativeCreatedAssetsMatchRuntime(createdAssets, runtime.assets) ||
+      !hasCompleteCdssDeclarativeActivationRequest(parsed.activationRequest, runtime.assets) ||
+      !hasCompleteCdssDeclarativeTriggerEvidence(parsed.clinicalTrigger, runtime.releaseId) ||
+      !hasCompleteCdssDeclarativeRecommendationEvidence(parsed.recommendation, runtime, parsed.clinicalTrigger) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredCdssDeclarativeRuntimeAssetScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredCdssDeclarativeRuntimeAssetScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -1109,6 +1199,207 @@ function findS2S4NormalizedCode(value: unknown) {
     queue.push(...Object.values(record));
   }
   return null;
+}
+
+function hasCompleteCdssDeclarativeRuntimeApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "valueSetCreatedFromFrontdesk",
+    "formulaCreatedFromFrontdesk",
+    "actionCardCreatedFromFrontdesk",
+    "declarativeRuntimeActivatedBeforeRuleTestCases",
+    "ruleTestSnapshotBoundToDeclarativeRuntime",
+    "ruleCreatedWithRuntimeAssetReferences",
+    "ruleRuntimeCandidateResolvedFromCurrentHospital",
+    "runtimeReleaseActivatedWithDeclarativeAssets",
+    "activeSnapshotBoundToRuntimeRelease",
+    "cdssEvaluationTriggeredFromFrontdesk",
+    "recommendationPersisted",
+    "ruleExplanationContainsRuntimeMaterialization",
+  ].every((key) => evidence[key] === true);
+}
+
+function parseCdssDeclarativeRuntimeEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runtime = value as Record<string, unknown>;
+  if (
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const runtimeAssets = runtime.assets;
+  const assets = (["VALUE_SET", "FORMULA", "ACTION_CARD"] as const)
+    .map((assetType) => parseCdssDeclarativeAsset(runtimeAssets, assetType))
+    .filter((asset): asset is CdssDeclarativeRuntimeAsset => asset !== null);
+  if (assets.length !== 3) return null;
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    assets,
+  };
+}
+
+function parseCdssDeclarativeCreatedAssets(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const assets = (["VALUE_SET", "FORMULA", "ACTION_CARD"] as const)
+    .map((assetType) => parseCdssDeclarativeAsset(value, assetType, false))
+    .filter((asset): asset is CdssDeclarativeRuntimeAsset => asset !== null);
+  return assets.length === 3 ? assets : null;
+}
+
+function cdssDeclarativeCreatedAssetsMatchRuntime(
+  createdAssets: CdssDeclarativeRuntimeAsset[],
+  runtimeAssets: CdssDeclarativeRuntimeAsset[],
+) {
+  return createdAssets.every((created) =>
+    runtimeAssets.some(
+      (runtime) =>
+        runtime.assetType === created.assetType &&
+        runtime.assetIdentity === created.assetIdentity &&
+        runtime.versionId === created.versionId &&
+        runtime.versionNo === created.versionNo &&
+        runtime.contentHash === created.contentHash,
+    ),
+  );
+}
+
+type CdssDeclarativeRuntimeAsset = {
+  assetType: "VALUE_SET" | "FORMULA" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+function parseCdssDeclarativeAsset(
+  values: unknown[],
+  assetType: "VALUE_SET" | "FORMULA" | "ACTION_CARD",
+  requireActive = true,
+): CdssDeclarativeRuntimeAsset | null {
+  const asset = values.find((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const record = item as Record<string, unknown>;
+    return record.assetType === assetType && (!requireActive || record.entryState === "ACTIVE");
+  });
+  if (!asset || typeof asset !== "object" || Array.isArray(asset)) return null;
+  const record = asset as Record<string, unknown>;
+  if (
+    !hasText(record.assetIdentity) ||
+    !hasText(record.versionId) ||
+    !hasText(record.versionNo) ||
+    !isSha256(record.contentHash)
+  ) {
+    return null;
+  }
+  return {
+    assetType,
+    assetIdentity: String(record.assetIdentity),
+    versionId: String(record.versionId),
+    versionNo: String(record.versionNo),
+    contentHash: String(record.contentHash),
+  };
+}
+
+function hasCompleteCdssDeclarativeActivationRequest(
+  value: unknown,
+  assets: CdssDeclarativeRuntimeAsset[],
+) {
+  return assets.every((asset) =>
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: asset.versionId,
+    }),
+  );
+}
+
+function hasCompleteCdssDeclarativeTriggerEvidence(value: unknown, runtimeReleaseId: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const trigger = value as Record<string, unknown>;
+  const relatedCardIds = Array.isArray(trigger.relatedCardIds)
+    ? trigger.relatedCardIds.filter((cardId): cardId is string => hasText(cardId))
+    : [];
+  return (
+    hasText(trigger.triggerId) &&
+    hasText(trigger.contextSnapshotId) &&
+    hasText(trigger.cardId) &&
+    relatedCardIds.includes(String(trigger.cardId)) &&
+    trigger.runtimeReleaseId === runtimeReleaseId
+  );
+}
+
+function hasCompleteCdssDeclarativeRecommendationEvidence(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    assets: CdssDeclarativeRuntimeAsset[];
+  },
+  triggerValue: unknown,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const recommendation = value as Record<string, unknown>;
+  const trigger = recordValue(triggerValue);
+  if (
+    !hasText(recommendation.cardId) ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardId !== trigger?.cardId ||
+    recommendation.contextSnapshotId !== trigger?.contextSnapshotId
+  ) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const runtimeRelease = recordValue(explanation?.runtimeRelease);
+  const ruleExplanation = recordValue(explanation?.ruleExplanation);
+  if (
+    runtimeRelease?.runtimeReleaseId !== runtime.releaseId ||
+    !hasText(runtimeRelease.assetVersionId) ||
+    !hasText(runtimeRelease.assetVersionNo) ||
+    !isSha256(runtimeRelease.contentHash) ||
+    !Array.isArray(ruleExplanation?.conditionEvidence) ||
+    !Array.isArray(ruleExplanation?.runtimeAssetEvidence)
+  ) {
+    return false;
+  }
+  const runtimeAssetEvidence = ruleExplanation.runtimeAssetEvidence;
+  return runtime.assets.every((asset) =>
+    cdssRuntimeAssetEvidenceMatches(runtimeAssetEvidence, asset),
+  );
+}
+
+function cdssRuntimeAssetEvidenceMatches(
+  values: unknown[],
+  asset: CdssDeclarativeRuntimeAsset,
+) {
+  return values.some((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const evidence = item as Record<string, unknown>;
+    if (
+      evidence.assetType !== asset.assetType ||
+      evidence.assetIdentity !== asset.assetIdentity ||
+      evidence.assetVersion !== asset.versionNo ||
+      evidence.contentHash !== asset.contentHash
+    ) {
+      return false;
+    }
+    if (asset.assetType === "VALUE_SET") {
+      return typeof evidence.expandedCount === "number" && evidence.expandedCount > 0;
+    }
+    if (asset.assetType === "FORMULA") {
+      return hasText(evidence.runtimeFunction);
+    }
+    return (
+      evidence.actionCardRef === asset.assetIdentity &&
+      evidence.resolvedActionCardVersion === asset.versionNo &&
+      evidence.resolvedActionCardHash === asset.contentHash &&
+      evidence.requiresPhysicianConfirmation === true
+    );
+  });
 }
 
 function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {

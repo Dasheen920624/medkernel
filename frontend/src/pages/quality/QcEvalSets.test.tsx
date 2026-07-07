@@ -460,7 +460,7 @@ describe("QcEvalSets", () => {
 
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "选择 2026年06月06日 08:00:00 建立的临床快照",
+        name: "选择 snapshot-real-1 · 2026年06月06日 08:00:00 建立的临床快照",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));

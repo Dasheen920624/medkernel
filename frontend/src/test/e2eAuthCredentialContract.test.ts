@@ -791,6 +791,67 @@ describe("E2E credential contract", () => {
     expect(cdssBody).not.toContain('name: "选择第 1 个临床快照"');
   });
 
+  it("requires CDSS declarative runtime asset rehearsal to prove frontdesk creation and recommendation materialization", () => {
+    const source = readFileSync("e2e/cdss-runtime-declarative-assets.spec.ts", "utf8");
+
+    expect(source).toContain("createDeclarativeAssetFromFrontdesk");
+    expect(source).toContain("VALUE_SET.CDSS.RUNTIME");
+    expect(source).toContain("FORMULA.CDSS.RUNTIME");
+    expect(source).toContain("ACTION_CARD.CDSS.RUNTIME");
+    expect(source).toContain("/engine/authoring/declarative-assets");
+    expect(source).toContain("/engine/rule/rules");
+    expect(source).toContain("/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions");
+    expect(source).toContain("/engine/rule/rules/${encodeURIComponent(ruleId)}/test");
+    expect(source).toContain("assertRuleReleaseTestRunPassed");
+    expect(source).toContain("publishEvidence: ruleGovernancePublishEvidence(targetState)");
+    expect(source).toContain("qualityGate");
+    expect(source).not.toContain("releaseEvidence: [`${targetState} 推进由真实 E2E 记录`]");
+    expect(source).toContain("declarativeRuntime = await activateRuntimeWithDeclarativeAssets");
+    expect(source).toContain("ruleTestSnapshot.runtimeReleaseId");
+    expect(source).toContain("toBe(declarativeRuntime.releaseId)");
+    expect(source).toContain("readHospitalRuntimeCandidate");
+    expect(source).toContain("runtime-candidates?assetType=RULE");
+    expect(source).toContain("versionId.startsWith(\"av-\")");
+    expect(source).toContain("/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases");
+    expect(source).toContain("/cdss/fatigue");
+    expect(source).toContain("getByRole(\"button\", { name: \"登记触发评估\" })");
+    expect(source).toContain("name: `选择 ${snapshot.snapshotId}`");
+    expect(source).toContain("/engine/recommendations:evaluate");
+    expect(source).toContain("readRecommendationTriggerDiagnose");
+    expect(source).toContain("/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose");
+    expect(source).toContain("relatedCardIds");
+    expect(source).toContain("findMaterializedRecommendationCard");
+    expect(source).toContain("/engine/recommendations/cards/${encodeURIComponent(cardId)}");
+    expect(source).toContain("assertRecommendationMaterializedDeclarativeAssets");
+    expect(source).toContain("runtimeAssetEvidence");
+    expect(source).toContain("createdAssets");
+    expect(source).toContain("extensions.local.frontdeskContext.heightCm");
+    expect(source).toContain("extensions.local.frontdeskContext.weightKg");
+    expect(source).toContain("contextSnapshotId");
+    expect(source).toContain("resources.encounters[0].encounterId");
+    expect(source).toContain("responseCardIds");
+    expect(source).not.toContain("resources.encounters.0.encounterId");
+    expect(source).not.toContain("cards.0.cardId");
+    expect(source).not.toContain("textField(evaluation, \"cards[0].cardId\")");
+    expect(source).toContain("cdss-runtime-declarative-assets-codes");
+    expect(source).toContain("attachCdssRuntimeDeclarativeAssetEvidence");
+    expect(source).toContain("推荐卡解释证明三类资产按当前机构生效版本物化消费");
+    expect(source).not.toContain("page.route(");
+    expect(source).not.toContain("选择第 1 个临床快照");
+    expect(source.indexOf("declarativeRuntime = await activateRuntimeWithDeclarativeAssets")).toBeLessThan(
+      source.indexOf("ruleTestSnapshot = await createClinicalContextFromFrontdesk"),
+    );
+    expect(source.indexOf("ruleTestSnapshot = await createClinicalContextFromFrontdesk")).toBeLessThan(
+      source.indexOf("createAndPublishRuleReferencingDeclarativeAssets"),
+    );
+    expect(source.indexOf("readHospitalRuntimeCandidate")).toBeLessThan(
+      source.indexOf("finalRuntime = await activateRuntimeWithDeclarativeAssets"),
+    );
+    expect(source.indexOf("finalRuntime = await activateRuntimeWithDeclarativeAssets")).toBeLessThan(
+      source.indexOf("snapshot = await createClinicalContextFromFrontdesk"),
+    );
+  });
+
   it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

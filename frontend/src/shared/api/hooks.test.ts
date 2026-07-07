@@ -3078,6 +3078,8 @@ describe("mpi api helpers", () => {
         diseaseName: "房颤随访",
         riskLevel: "HIGH",
         currentMedicationText: "华法林、阿司匹林、华法林",
+        heightCm: 170,
+        weightKg: 82,
         diagnosticReportType: "血钾检验",
         diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
         diagnosticReportKeyFindingsText: "血钾升高、危急值",
@@ -3113,11 +3115,13 @@ describe("mpi api helpers", () => {
         }>;
         extensions?: {
           local?: {
-            frontdeskContext?: {
-              currentMedicationCount?: number;
-              diagnosticReportCount?: number;
-              claimCount?: number;
-            };
+              frontdeskContext?: {
+                currentMedicationCount?: number;
+                heightCm?: number;
+                weightKg?: number;
+                diagnosticReportCount?: number;
+                claimCount?: number;
+              };
           };
         };
       };
@@ -3168,6 +3172,8 @@ describe("mpi api helpers", () => {
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
       2,
     );
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.heightCm).toBe(170);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.weightKg).toBe(82);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.diagnosticReportCount).toBe(
       1,
     );

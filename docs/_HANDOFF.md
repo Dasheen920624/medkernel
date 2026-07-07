@@ -10,6 +10,78 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，而是在前序
+  S2/S4、S6 与 S13 机构生效版本证据切片基础上，补齐 S5 中 `VALUE_SET`、`FORMULA`、`ACTION_CARD`
+  当前机构生效版本 runtime 消费的代表性证据切片。`launchCoverageEvidence` 现在只有在
+  `cdss-runtime-declarative-assets-codes` 附件同时证明 `scenarios:S5`、`productLayers:CLINICAL_EXECUTION`、
+  `serviceCombinations:CLINICAL_RUNTIME`、`versionedAssets:VALUE_SET/FORMULA/ACTION_CARD`，
+  且真实附件证明三类资产由前台创建、本轮三类资产先激活成规则发布验证 runtime、发布验证快照绑定该 runtime、
+  规则发布后从当前医院 runtime-candidates 解析 RULE `av-*` 统一资产版本、最终 runtime 同时包含 RULE 与三类资产、
+  ACTIVE 临床快照绑定最终 runtime、临床用户从真实前台触发推荐评估、推荐详情解释返回同一 runtime 下三类资产物化证据时，
+  才声明 S5 与三类声明式运行资产覆盖。
+- 第一百五十批真实链路说明：新增目标真实 E2E
+  `cdss-runtime-declarative-assets.spec.ts`。医疗引擎运营员先在真实前台 `/authoring/assets`
+  创建本轮 `VALUE_SET.CDSS.RUNTIME.<suffix>`、`FORMULA.CDSS.RUNTIME.<suffix>` 与
+  `ACTION_CARD.CDSS.RUNTIME.<suffix>` 草稿，值集包含 `J01GB03`，公式绑定受控 BMI 函数与
+  `extensions.local.frontdeskContext.heightCm/weightKg`，提示卡为高风险强提醒且
+  `requiresPhysicianConfirmation=true`，只生成建议、不自动开嘱。随后 E2E 激活本地上线演练医院 runtime，
+  保留 13 类平台 baseline 资产并加入三类本轮资产；临床用户用该 runtime 创建规则发布验证 ACTIVE 快照；
+  医疗引擎运营员创建引用三类资产的 DSL 规则，执行发布验证用例，并按 REVIEWED、SHADOW、CANARY、FULL 真实治理推进。
+  发布后 E2E 通过
+  `/engine/releases/hospitals/{hospitalId}/runtime-candidates?assetType=RULE&keyword=<ruleCode>`
+  读取当前医院 RULE runtime 候选，显式要求 `versionId` 为 `av-*`，再激活最终 runtime，断言当前机构生效版本同时包含
+  RULE、`VALUE_SET`、`FORMULA`、`ACTION_CARD` 的 `versionId/versionNo/contentHash`。
+- 第一百五十批前台与 E2E 修复说明：目标 E2E 曾先后暴露四个真实前台 / 取证红点。第一，默认业务视图中
+  `ContextSnapshotSelector` 的按钮可访问名只含建立时间，真实 E2E 无法按本轮 `snapshotId` 精确选择；
+  已改为默认可访问名包含 `snapshotId + 建立时间`，但可见文本仍不暴露患者、就诊和快照原始 ID，避免把敏感技术身份直接放到普通业务列表。
+  第二，S5 E2E 的 `textField()` 路径曾写成 `resources.encounters.0.encounterId`，但本地取值器只支持 bracket
+  数组索引；已改为 `resources.encounters[0].encounterId`。第三，推荐评估响应中的 `cards` 顺序不稳定，不能用
+  `cards[0]` 当作本轮推荐卡取证；E2E 现在精确等待本轮 evaluate 请求体，读取
+  `/engine/recommendations/triggers/{triggerId}/diagnose` 的 `relatedEntities.cards`，再逐张读取推荐详情，唯一筛出
+  本轮 S5 runtime 物化推荐卡，并在 `e2eAuthCredentialContract` 中禁止 `cards.0.cardId` 和直接
+  `cards[0]` 最终取证。第四，提醒推荐默认业务表格可按 `cardId` 搜索过滤，但不会在默认列中显示 raw `cardId`；
+  `CdssFatigue.test.tsx` 也加了“可按卡片身份过滤但默认业务表格不暴露身份”的护栏。
+- 第一百五十批边界说明：本批 coverage 只是 S5 的“真实前台创建三类声明式运行资产 + 当前机构生效版本 RULE 与
+  `VALUE_SET/FORMULA/ACTION_CARD` runtime 消费 + 推荐解释物化证据”代表性证据切片；不声明完整 S5、
+  完整 CDSS 产品族、13 类 runtime 资产逐类业务消费者、完整 S0-S40、完整全医疗专业领域、完整全知识、
+  全标准患者资源、全角色全功能真实操作、完整上线验收或 134 清库复演。后续不能把本批三类资产证据外推为
+  13 类资产或全量上线完成。
+- 第一百五十批验证证据：目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-cdss-runtime-assets npm --prefix frontend run e2e -- --project=chromium cdss-runtime-declarative-assets.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=21851ms）。
+  最新附件记录 `scenarioCodes=[S5]`、`versionedAssets=[VALUE_SET,FORMULA,ACTION_CARD]`，
+  本轮资产为 `VALUE_SET.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCDYV3NXSWQCVSNJMQVZ9F/versionNo=V1/
+  contentHash=7f0f21f0ee7e3e710bf902c90555f34e139fa4b6df03a4b77b631ead0c645125`、
+  `FORMULA.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCE0FS04AMDDD09SN8MBT2/versionNo=V1/
+  contentHash=5bed98e2e81b8730612915edd9023e6f4a9ab9a0c7d783ffb0b25b9e429050eb`、
+  `ACTION_CARD.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCE3WVS1KP86G31ZZEPFYB/versionNo=V1/
+  contentHash=ea6c2ecfc439c7b00bb2a1abb62c7febf3d2968e91b1de7a9df06dc70e16c6ff`；
+  RULE runtime 候选为 `RULE.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCE9J9AQ2NYMF1KNJQKFTJ/versionNo=V1/
+  contentHash=0ad489607b4ad666f93fa6257cd5268e37352dd85ae8fc095d703f3e7a2a0e93/sourceLayer=HOSPITAL`；
+  三类声明式资产先激活的规则发布验证 runtime 为 `releaseId=runtime-01KWXCE48CR741FX68Q30HYZFK/revisionNo=12/
+  manifestSha256=76d19a518afa208cb58507e02e4bc98272f5ecd2af81272e630cc3b83a92ccfd`；最终 runtime 为
+  `releaseId=runtime-01KWXCE9N42HAPH945QC4DBGPE/revisionNo=13/
+  manifestSha256=2dd299a634a3a65ad8f4d963a2534719edfe2b752b2cafb6e16c243c2cacf96c`；
+  临床触发 `triggerId=rt-b8bef2e6-4610-4d6d-bd8c-e0dbe95d43a7/
+  contextSnapshotId=ctx-de634340-3a0b-43e9-9d53-a69bdd4c770f/cardId=rc-91f889e7-8d83-420d-bfeb-d14ceff7647a/
+  relatedCardIds=[rc-91f889e7-8d83-420d-bfeb-d14ceff7647a,rc-0090c863-3f3c-44b3-8e08-a54b3bc8d69d]`，
+  推荐解释 `runtimeReleaseId` 与最终 runtime 一致，`runtimeAssetEvidence` 含 VALUE_SET `expandedCount=1`、
+  FORMULA `runtimeFunction=BMI`、ACTION_CARD `resolvedActionCardVersion=V1/resolvedActionCardHash=<同上>/
+  requiresPhysicianConfirmation=true`。
+  其他新鲜门禁：`npm --prefix frontend run test -- ContextSnapshotSelector QcEvalSets` 通过（13 tests）；
+  `npm --prefix frontend run test -- CdssFatigue e2eAuthCredentialContract -t "filters by card identifier|requires CDSS declarative runtime asset"`
+  通过（2 selected，45 skipped）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "VALUE_SET/FORMULA/ACTION_CARD"`
+  通过；`npm --prefix frontend run test -- hooks -t "converts frontdesk current medications"` 通过；
+  `npm --prefix frontend run test -- Mpi -t "creates a current clinical context"` 通过；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuleEngineServiceTest#peerReviewRunsTestCasesWithSnapshotRuntimeReleaseForDeclarativeAssets,RuleDslAssetMaterializerTest,RuleDslEvaluatorTest test`
+  通过（83 tests）；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+  `git diff --check` 通过。本地 18080 演练后端服务 PID `44154` 当前仍在运行，未停止。
+- 第一百五十批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S5 三类声明式资产代表性证据切片等同于完整上线验收。
+  后续继续补真实覆盖缺口：完整 S0-S40、完整语义族 / 专业域 / 全知识、13 类 runtime 资产逐类业务消费者、
+  全标准患者资源、多第三方系统族断连降级、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持全角色真实前台和真实服务链路，
+  发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，而是在前序
   S2/S4 与 S13 机构生效版本证据切片基础上，补齐 S6 专病路径中 `ORDER_SET` 当前机构生效版本 runtime

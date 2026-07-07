@@ -515,6 +515,10 @@ describe("Mpi", () => {
       await user.type(diseaseInput, "真实前台慢病随访主题");
       const medicationInput = screen.getByLabelText("当前用药");
       await user.type(medicationInput, "华法林、阿司匹林");
+      await user.clear(screen.getByLabelText("身高 cm"));
+      await user.type(screen.getByLabelText("身高 cm"), "170");
+      await user.clear(screen.getByLabelText("体重 kg"));
+      await user.type(screen.getByLabelText("体重 kg"), "82");
       await user.type(screen.getByLabelText("医技报告项目"), "血钾检验");
       await user.type(screen.getByLabelText("报告结论"), "血钾 6.3 mmol/L，危急值，已复核");
       await user.type(screen.getByLabelText("异常重点"), "血钾升高、危急值");
@@ -543,6 +547,8 @@ describe("Mpi", () => {
           diseaseName: "真实前台慢病随访主题",
           riskLevel: "MEDIUM",
           currentMedicationText: "华法林、阿司匹林",
+          heightCm: 170,
+          weightKg: 82,
           diagnosticReportType: "血钾检验",
           diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
           diagnosticReportKeyFindingsText: "血钾升高、危急值",

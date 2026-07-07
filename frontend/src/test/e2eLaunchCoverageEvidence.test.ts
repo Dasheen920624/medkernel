@@ -456,6 +456,284 @@ function expectNoS2S4RuntimeMappingCoverage(body: Record<string, unknown>) {
   );
 }
 
+const cdssRuntimeDeclarativeAssets = {
+  scenarioCodes: ["S5"],
+  productLayers: ["CLINICAL_EXECUTION"],
+  versionedAssets: ["VALUE_SET", "FORMULA", "ACTION_CARD"],
+  serviceCombinations: ["CLINICAL_RUNTIME"],
+  apiEvidence: {
+    valueSetCreatedFromFrontdesk: true,
+    formulaCreatedFromFrontdesk: true,
+    actionCardCreatedFromFrontdesk: true,
+    declarativeRuntimeActivatedBeforeRuleTestCases: true,
+    ruleTestSnapshotBoundToDeclarativeRuntime: true,
+    ruleCreatedWithRuntimeAssetReferences: true,
+    ruleRuntimeCandidateResolvedFromCurrentHospital: true,
+    runtimeReleaseActivatedWithDeclarativeAssets: true,
+    activeSnapshotBoundToRuntimeRelease: true,
+    cdssEvaluationTriggeredFromFrontdesk: true,
+    recommendationPersisted: true,
+    ruleExplanationContainsRuntimeMaterialization: true,
+  },
+  runtime: {
+    releaseId: "runtime-cdss-assets",
+    revisionNo: 12,
+    manifestSha256: "c".repeat(64),
+    assets: [
+      {
+        assetType: "VALUE_SET",
+        assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+        versionId: "vs-v1",
+        versionNo: "V1",
+        contentHash: "1".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "FORMULA",
+        assetIdentity: "FORMULA.CDSS.RUNTIME",
+        versionId: "formula-v1",
+        versionNo: "V1",
+        contentHash: "2".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.CDSS.RUNTIME",
+        versionId: "card-v1",
+        versionNo: "V1",
+        contentHash: "3".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    ruleAsset: {
+      assetType: "RULE",
+      assetIdentity: "RULE.CDSS.RUNTIME",
+      versionId: "av-rule-v1",
+      versionNo: "V1",
+      contentHash: "4".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  createdAssets: [
+    {
+      assetType: "VALUE_SET",
+      assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+      versionId: "vs-v1",
+      versionNo: "V1",
+      contentHash: "1".repeat(64),
+    },
+    {
+      assetType: "FORMULA",
+      assetIdentity: "FORMULA.CDSS.RUNTIME",
+      versionId: "formula-v1",
+      versionNo: "V1",
+      contentHash: "2".repeat(64),
+    },
+    {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.CDSS.RUNTIME",
+      versionId: "card-v1",
+      versionNo: "V1",
+      contentHash: "3".repeat(64),
+    },
+  ],
+  rule: {
+    assetType: "RULE",
+    assetIdentity: "RULE.CDSS.RUNTIME",
+    ruleId: "rule-cdss-runtime",
+    ruleVersionId: "rv-rule-v1",
+  },
+  ruleRuntimeCandidate: {
+    assetType: "RULE",
+    assetIdentity: "RULE.CDSS.RUNTIME",
+    versionId: "av-rule-v1",
+    versionNo: "V1",
+    contentHash: "4".repeat(64),
+    status: "PUBLISHED",
+    sourceLayer: "HOSPITAL",
+  },
+  declarativeRuntime: {
+    releaseId: "runtime-cdss-declarative-assets",
+    revisionNo: 11,
+    manifestSha256: "b".repeat(64),
+    assets: [
+      {
+        assetType: "VALUE_SET",
+        assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+        versionId: "vs-v1",
+        versionNo: "V1",
+        contentHash: "1".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "FORMULA",
+        assetIdentity: "FORMULA.CDSS.RUNTIME",
+        versionId: "formula-v1",
+        versionNo: "V1",
+        contentHash: "2".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.CDSS.RUNTIME",
+        versionId: "card-v1",
+        versionNo: "V1",
+        contentHash: "3".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    activationRequest: {
+      activeAssets: [
+        {
+          assetType: "VALUE_SET",
+          assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+          versionId: "vs-v1",
+        },
+        {
+          assetType: "FORMULA",
+          assetIdentity: "FORMULA.CDSS.RUNTIME",
+          versionId: "formula-v1",
+        },
+        {
+          assetType: "ACTION_CARD",
+          assetIdentity: "ACTION_CARD.CDSS.RUNTIME",
+          versionId: "card-v1",
+        },
+      ],
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      {
+        assetType: "VALUE_SET",
+        assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+        versionId: "vs-v1",
+      },
+      {
+        assetType: "FORMULA",
+        assetIdentity: "FORMULA.CDSS.RUNTIME",
+        versionId: "formula-v1",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.CDSS.RUNTIME",
+        versionId: "card-v1",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.CDSS.RUNTIME",
+        versionId: "av-rule-v1",
+      },
+    ],
+  },
+  clinicalTrigger: {
+    triggerId: "trigger-cdss-runtime",
+    contextSnapshotId: "ctx-cdss-runtime",
+    runtimeReleaseId: "runtime-cdss-assets",
+    cardId: "card-cdss-runtime",
+    relatedCardIds: ["card-cdss-runtime", "card-other-runtime"],
+  },
+  recommendation: {
+    cardId: "card-cdss-runtime",
+    contextSnapshotId: "ctx-cdss-runtime",
+    triggerRuntimeReleaseId: "runtime-cdss-assets",
+    explanation: {
+      runtimeRelease: {
+        runtimeReleaseId: "runtime-cdss-assets",
+        assetVersionId: "av-rule-v1",
+        assetVersionNo: "V1",
+        contentHash: "4".repeat(64),
+      },
+      ruleExplanation: {
+        conditionEvidence: [
+          {
+            fact: "medications[].code",
+            operator: "in",
+            expected: ["J01GB03"],
+            actual: "J01GB03",
+            matched: true,
+          },
+          {
+            fact: "patient.bodyMassIndex",
+            operator: "gte",
+            expected: 30,
+            actual: 32,
+            matched: true,
+            formula: "BMI: WeightKg / (HeightM^2)",
+          },
+        ],
+        runtimeAssetEvidence: [
+          {
+            assetType: "VALUE_SET",
+            assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+            assetVersion: "V1",
+            contentHash: "1".repeat(64),
+            expandedCount: 1,
+          },
+          {
+            assetType: "FORMULA",
+            assetIdentity: "FORMULA.CDSS.RUNTIME",
+            assetVersion: "V1",
+            contentHash: "2".repeat(64),
+            runtimeFunction: "BMI",
+          },
+          {
+            assetType: "ACTION_CARD",
+            actionCardRef: "ACTION_CARD.CDSS.RUNTIME",
+            assetIdentity: "ACTION_CARD.CDSS.RUNTIME",
+            resolvedActionCardVersion: "V1",
+            resolvedActionCardHash: "3".repeat(64),
+            assetVersion: "V1",
+            contentHash: "3".repeat(64),
+            requiresPhysicianConfirmation: true,
+          },
+        ],
+      },
+    },
+  },
+  scenarioEvidence: [
+    {
+      code: "S5",
+      observedStages: [
+        "前台创建 VALUE_SET 值集资产草稿",
+        "前台创建 FORMULA 公式资产草稿",
+        "前台创建 ACTION_CARD 临床提示卡资产草稿",
+        "临床规则引用三类运行资产",
+        "当前机构生效版本包含三类本轮运行资产",
+        "临床用户从真实前台触发 CDSS 推荐评估",
+        "推荐卡解释证明三类资产按当前机构生效版本物化消费",
+      ],
+    },
+  ],
+};
+
+function cdssRuntimeDeclarativeEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/cdss-runtime-declarative-assets.spec.ts",
+        title: "临床用户从真实前台触发 CDSS 推荐并消费当前机构生效版本声明式运行资产",
+        status: "passed",
+        attachments: [
+          {
+            name: "cdss-runtime-declarative-assets-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoCdssRuntimeDeclarativeCoverage(body: Record<string, unknown>) {
+  const evidence = cdssRuntimeDeclarativeEvidenceResult(body);
+  const assets = evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? [];
+  expect(assets).not.toEqual(expect.arrayContaining(["VALUE_SET", "FORMULA", "ACTION_CARD"]));
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S5");
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -1564,6 +1842,141 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S2/S4 runtime mapping coverage when $name", ({ body }) => {
     expectNoS2S4RuntimeMappingCoverage(body);
+  });
+
+  it("declares VALUE_SET/FORMULA/ACTION_CARD coverage only when CDSS consumes them from the current runtime", () => {
+    const evidence = cdssRuntimeDeclarativeEvidenceResult(cdssRuntimeDeclarativeAssets);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S5"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "VALUE_SET",
+      "FORMULA",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "CLINICAL_RUNTIME",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "只证明发布读回没有推荐解释",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: undefined,
+      },
+    },
+    {
+      name: "推荐触发绑定的 runtime 与当前机构生效版本不一致",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        clinicalTrigger: {
+          ...cdssRuntimeDeclarativeAssets.clinicalTrigger,
+          runtimeReleaseId: "runtime-other",
+        },
+      },
+    },
+    {
+      name: "本轮前台创建资产没有进入当前机构生效版本",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        createdAssets: cdssRuntimeDeclarativeAssets.createdAssets.map((asset) =>
+          asset.assetType === "VALUE_SET" ? { ...asset, versionId: "vs-other" } : asset,
+        ),
+      },
+    },
+    {
+      name: "推荐详情卡片不是本次真实前台触发生成的卡片",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          cardId: "card-other",
+        },
+      },
+    },
+    {
+      name: "推荐详情卡片不属于本次触发诊断关联卡",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        clinicalTrigger: {
+          ...cdssRuntimeDeclarativeAssets.clinicalTrigger,
+          relatedCardIds: ["card-other-runtime"],
+        },
+      },
+    },
+    {
+      name: "推荐详情没有绑定本次前台选择的上下文快照",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          contextSnapshotId: "ctx-other",
+        },
+      },
+    },
+    {
+      name: "解释里缺少 VALUE_SET 物化版本",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "VALUE_SET",
+                ),
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "解释里缺少 FORMULA 物化版本",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "FORMULA",
+                ),
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "解释里缺少 ACTION_CARD 运行版本与哈希",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "ACTION_CARD",
+                ),
+            },
+          },
+        },
+      },
+    },
+  ])("does not declare CDSS declarative runtime asset coverage when $name", ({ body }) => {
+    expectNoCdssRuntimeDeclarativeCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

@@ -89,6 +89,12 @@ public class RuleDslEvaluator {
                 .map(this::forceManualReview)
                 .toList();
         }
+        if (dsl.path("runtimeAssetEvidence").isArray() && explanation instanceof ObjectNode objectExplanation) {
+            objectExplanation.set(
+                "runtimeAssetEvidence",
+                dsl.path("runtimeAssetEvidence").deepCopy()
+            );
+        }
 
         RuleRiskLevel highest = actions.stream()
             .map(RuleActionResult::severity)

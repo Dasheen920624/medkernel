@@ -88,6 +88,8 @@ type ContextSnapshotFormValues = {
   diseaseCode: string;
   riskLevel: ContextSnapshotCreatePayload["riskLevel"];
   currentMedicationText?: string;
+  heightCm?: number | null;
+  weightKg?: number | null;
   diagnosticReportType?: string;
   diagnosticReportConclusion?: string;
   diagnosticReportKeyFindingsText?: string;
@@ -457,6 +459,12 @@ export default function Mpi() {
         diseaseName: diseaseText,
         riskLevel: values.riskLevel,
         ...(currentMedicationText ? { currentMedicationText } : {}),
+        ...(values.heightCm !== undefined && values.heightCm !== null
+          ? { heightCm: values.heightCm }
+          : {}),
+        ...(values.weightKg !== undefined && values.weightKg !== null
+          ? { weightKg: values.weightKg }
+          : {}),
         ...(diagnosticReportType ? { diagnosticReportType } : {}),
         ...(diagnosticReportConclusion ? { diagnosticReportConclusion } : {}),
         ...(diagnosticReportKeyFindingsText ? { diagnosticReportKeyFindingsText } : {}),
@@ -1086,6 +1094,26 @@ export default function Mpi() {
                 rows={2}
               />
             </Form.Item>
+            <Space wrap className="mk-full-width">
+              <Form.Item name="heightCm" label="身高 cm">
+                <InputNumber
+                  aria-label="身高 cm"
+                  min={30}
+                  max={260}
+                  precision={1}
+                  placeholder="可选"
+                />
+              </Form.Item>
+              <Form.Item name="weightKg" label="体重 kg">
+                <InputNumber
+                  aria-label="体重 kg"
+                  min={1}
+                  max={400}
+                  precision={1}
+                  placeholder="可选"
+                />
+              </Form.Item>
+            </Space>
             <Text strong>已签发医技报告（可选）</Text>
             <Form.Item name="diagnosticReportType" label="医技报告项目">
               <Input aria-label="医技报告项目" placeholder="可选，填写已签发医技报告项目名称" />

@@ -396,6 +396,56 @@ describe("CdssFatigue", () => {
     expect(screen.getAllByText("patient-real-1").length).toBeGreaterThan(0);
   });
 
+  it("filters by card identifier without exposing the identifier in the default business table", async () => {
+    const user = userEvent.setup();
+    mockUseClinicalRecommendationCards.mockReturnValue({
+      data: {
+        items: [
+          {
+            cardId: "card-real-1",
+            triggerId: "trigger-real-1",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            patientPathwayId: null,
+            scenarioCode: "WARD_ORDER",
+            triggerType: "order-sign",
+            cardCode: "CARD.REAL",
+            title: "联合用药风险提醒",
+            summary: "当前用药命中需人工复核的声明式运行资产规则",
+            detail: "请结合上下文人工复核。",
+            sourceSummary: "S5 CDSS 声明式运行资产规则",
+            cardType: "MEDICATION",
+            riskLevel: "HIGH",
+            interruptLevel: "SOFT",
+            requiresPhysicianConfirmation: true,
+            reviewRequirement: "PHYSICIAN_CONFIRMATION",
+            releaseGate: "OPT04_REDLINE_RUNTIME_GUARD",
+            status: "PENDING",
+            createdAt: "2026-06-04T00:00:00Z",
+            updatedAt: "2026-06-04T00:00:00Z",
+            traceId: "trace-rec",
+          },
+        ],
+        total: 1,
+        page: 1,
+        size: 10,
+        traceId: "trace-page",
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: refetchCards,
+    } as unknown as ReturnType<typeof useClinicalRecommendationCards>);
+
+    renderCdssFatigue();
+
+    await user.type(screen.getByLabelText("患者或证据线索"), "card-real-1");
+
+    expect(screen.getByRole("row", { name: /联合用药风险提醒/ })).toBeInTheDocument();
+    expect(screen.getByText("共 1 张临床协同提醒卡")).toBeInTheDocument();
+    expect(screen.queryByText("card-real-1")).not.toBeInTheDocument();
+  });
+
   it("does not reveal CDSS evidence when the role lacks evidence-detail permission", () => {
     useEvidenceDetailsStore.setState({ enabled: true });
     mockUseSecurityProfile.mockReturnValue({

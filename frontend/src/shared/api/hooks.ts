@@ -6745,6 +6745,8 @@ export interface ContextSnapshotCreatePayload {
   diseaseName: string;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   currentMedicationText?: string;
+  heightCm?: number;
+  weightKg?: number;
   diagnosticReportType?: string;
   diagnosticReportConclusion?: string;
   diagnosticReportKeyFindingsText?: string;
@@ -6960,6 +6962,8 @@ function frontdeskSnapshotRequest(
               reason: payload.reason,
               riskLevel: payload.riskLevel,
               currentMedicationCount: medications.length,
+              ...(payload.heightCm !== undefined ? { heightCm: payload.heightCm } : {}),
+              ...(payload.weightKg !== undefined ? { weightKg: payload.weightKg } : {}),
               diagnosticReportCount: diagnosticReports.length,
               claimCount: claims.length,
             },
