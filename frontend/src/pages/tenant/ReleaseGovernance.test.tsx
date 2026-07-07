@@ -588,8 +588,12 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("runtime-offline-runtime-H9-01")).toBeInTheDocument();
-    expect(screen.getByText("sm3:1111111111111111111111111111111111111111111111111111111111111111")).toBeInTheDocument();
-    expect(screen.getByText("/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file")).toBeInTheDocument();
+    expect(
+      screen.getByText("sm3:1111111111111111111111111111111111111111111111111111111111111111"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file"),
+    ).toBeInTheDocument();
   });
 
   it("restores a validated offline delivery file as a new institution effective version", async () => {
@@ -598,9 +602,7 @@ describe("ReleaseGovernance", () => {
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
 
-    expect(
-      await screen.findByRole("button", { name: "恢复为新机构生效版本" }),
-    ).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "恢复为新机构生效版本" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "导出离线交付文件" }));
     await screen.findByText("离线交付文件已生成");
     expect(screen.getByRole("button", { name: "恢复为新机构生效版本" })).toBeDisabled();

@@ -1193,10 +1193,7 @@ export default function Mpi() {
               />
             </Form.Item>
             <Form.Item name="carePlanVarianceCode" label="护理计划变异">
-              <Input
-                aria-label="护理计划变异"
-                placeholder="可选，填写变异编码或人工复评说明"
-              />
+              <Input aria-label="护理计划变异" placeholder="可选，填写变异编码或人工复评说明" />
             </Form.Item>
             <Form.Item name="carePlanPlannedFinishAt" label="计划完成时间">
               <Input

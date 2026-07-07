@@ -1452,18 +1452,18 @@ export default function AdapterHub() {
                         新增回调通道
                       </Button>
                     </div>
-                      <Table
-                        rowKey="webhookId"
-                        columns={webhookColumns}
-                        dataSource={visibleWebhooks}
-                        loading={webhooksQuery.isLoading}
-                        pagination={{
-                          current: webhookPage,
-                          pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
-                          total: Math.max(webhooksQuery.data?.total ?? 0, visibleWebhooks.length),
-                          onChange: setWebhookPage,
-                        }}
-                        scroll={{ x: 900 }}
+                    <Table
+                      rowKey="webhookId"
+                      columns={webhookColumns}
+                      dataSource={visibleWebhooks}
+                      loading={webhooksQuery.isLoading}
+                      pagination={{
+                        current: webhookPage,
+                        pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+                        total: Math.max(webhooksQuery.data?.total ?? 0, visibleWebhooks.length),
+                        onChange: setWebhookPage,
+                      }}
+                      scroll={{ x: 900 }}
                     />
                     <Card title="签名预览" className={styles.sectionCard}>
                       <Form

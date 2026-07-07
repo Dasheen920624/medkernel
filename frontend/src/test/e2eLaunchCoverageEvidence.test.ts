@@ -431,8 +431,7 @@ function s2s4EvidenceResult(body: Record<string, unknown>) {
     tests: [
       {
         file: "/repo/frontend/e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
-        title:
-          "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
+        title: "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
         status: "passed",
         attachments: [
           {
@@ -964,7 +963,8 @@ const medicationSafetyFrontdeskEvidence = {
       },
       ruleExplanation: {
         title: "P0 用药安全代表切片规则",
-        reason: "Medication 与 AllergyIntolerance 均来自当前临床上下文，规则由当前机构生效版本锁定。",
+        reason:
+          "Medication 与 AllergyIntolerance 均来自当前临床上下文，规则由当前机构生效版本锁定。",
         conditionEvidence: [
           {
             fact: "medications[].code",
@@ -1046,7 +1046,7 @@ function medicationSafetyEvidenceResult(body: Record<string, unknown>) {
     tests: [
       {
         file: "/repo/frontend/e2e/medication-safety-frontdesk.spec.ts",
-          title: "临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环",
+        title: "临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环",
         status: "passed",
         attachments: [
           {
@@ -1260,9 +1260,7 @@ const diagnosticCriticalValueEvidence = {
       sourceVersionId: 21,
       sourceContentHash: "1".repeat(64),
       criticalRisk: true,
-      recommendations: [
-        "请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。",
-      ],
+      recommendations: ["请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。"],
       runtimeAssetEvidence: [
         {
           assetType: "FIELD_CATALOG",
@@ -1338,11 +1336,7 @@ const regionalDiagnosticMutualRecognitionEvidence = {
   productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
   versionedAssets: ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"],
   deliveryShapes: ["API_EVENT"],
-  serviceCombinations: [
-    "THIRD_PARTY_INTERFACE",
-    "CLINICAL_RUNTIME",
-    "PROFESSIONAL_COLLABORATION",
-  ],
+  serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME", "PROFESSIONAL_COLLABORATION"],
   scopeStatement:
     "区域医技报告互认代表切片：REGIONAL_REMOTE 区域来源可信分级、跨机构 DiagnosticReport 入站、报告解读、人工互认和协同待办闭环，不代表完整区域平台、完整远程医疗、完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整 S40、完整 S0-S40 或完整上线验收。",
   apiEvidence: {
@@ -1560,7 +1554,8 @@ const regionalDiagnosticMutualRecognitionEvidence = {
     category: "REPORT_INTERPRETATION",
     sourceId: "card-regional-report",
     completedBy: "clinical-user",
-    completionReason: "已人工核对区域来源、报告签发状态和互认理由，仅采纳为参考；不改写报告，不自动开嘱。",
+    completionReason:
+      "已人工核对区域来源、报告签发状态和互认理由，仅采纳为参考；不改写报告，不自动开嘱。",
     noAutoOrder: true,
     noAutoRecognition: true,
   },
@@ -1880,7 +1875,10 @@ const pharmacyReviewAntimicrobialEvidence = {
       { sourcePath: "/observationCode", targetPath: "/observations/0/code" },
       { sourcePath: "/pct", targetPath: "/observations/0/valueNumeric" },
       { sourcePath: "/pharmacyReview/reviewResult", targetPath: "/pharmacyReview/reviewResult" },
-      { sourcePath: "/pharmacyReview/pharmacistOpinion", targetPath: "/pharmacyReview/pharmacistOpinion" },
+      {
+        sourcePath: "/pharmacyReview/pharmacistOpinion",
+        targetPath: "/pharmacyReview/pharmacistOpinion",
+      },
     ],
   },
   webhookSignature: {
@@ -2231,7 +2229,8 @@ const pharmacyReviewAntimicrobialEvidence = {
         ],
       },
     },
-    riskMatrixExplanation: "临床安全红线运行时强制提升为最高优先级；红线级 CDSS 输出必须由医师逐次确认并经过静默试运行门槛。",
+    riskMatrixExplanation:
+      "临床安全红线运行时强制提升为最高优先级；红线级 CDSS 输出必须由医师逐次确认并经过静默试运行门槛。",
   },
   ruleRecommendation: {
     cardId: "card-rule-pharmacy-review",
@@ -2250,7 +2249,8 @@ const pharmacyReviewAntimicrobialEvidence = {
       },
       ruleExplanation: {
         title: "抗菌药物审方代表切片规则",
-        reason: "Medication、Condition、Observation 均来自当前临床上下文，规则由当前机构生效版本锁定。",
+        reason:
+          "Medication、Condition、Observation 均来自当前临床上下文，规则由当前机构生效版本锁定。",
         conditionEvidence: [
           {
             fact: "medications[].code",
@@ -2435,7 +2435,10 @@ const infectionPublicHealthSafetyEvidence = {
       { sourcePath: "/labResult", targetPath: "/observations/0/valueString" },
       { sourcePath: "/reportCardType", targetPath: "/documents/0/documentType" },
       { sourcePath: "/reportCardDigest", targetPath: "/documents/0/contentDigest" },
-      { sourcePath: "/publicHealthReport/reportType", targetPath: "/publicHealthReport/reportType" },
+      {
+        sourcePath: "/publicHealthReport/reportType",
+        targetPath: "/publicHealthReport/reportType",
+      },
       {
         sourcePath: "/publicHealthReport/manualSubmitRequired",
         targetPath: "/publicHealthReport/manualSubmitRequired",
@@ -2894,14 +2897,21 @@ const surgeryAnesthesiaTransfusionEvidence = {
     protocolType: "Webhook",
     fieldMappings: [
       { sourcePath: "/patientId", targetPath: "/patient/mpi" },
-      { sourcePath: "/procedureCode", targetPath: "/procedures/0", targetDictionaryKey: "ICD-9-CM-3" },
+      {
+        sourcePath: "/procedureCode",
+        targetPath: "/procedures/0",
+        targetDictionaryKey: "ICD-9-CM-3",
+      },
       { sourcePath: "/asaCode", targetPath: "/observations/0/code" },
       { sourcePath: "/asaClass", targetPath: "/observations/0/valueString" },
       { sourcePath: "/anesthesiaDrugCode", targetPath: "/medications/0/standardCode" },
       { sourcePath: "/checklistType", targetPath: "/documents/0/documentType" },
       { sourcePath: "/checklistDigest", targetPath: "/documents/0/contentDigest" },
       { sourcePath: "/surgeryPlan/surgeryLevel", targetPath: "/surgeryPlan/surgeryLevel" },
-      { sourcePath: "/anesthesiaAssessment/airwayRisk", targetPath: "/anesthesiaAssessment/airwayRisk" },
+      {
+        sourcePath: "/anesthesiaAssessment/airwayRisk",
+        targetPath: "/anesthesiaAssessment/airwayRisk",
+      },
       {
         sourcePath: "/transfusionRequest/noAutoTransfusion",
         targetPath: "/transfusionRequest/noAutoTransfusion",
@@ -3073,11 +3083,27 @@ const surgeryAnesthesiaTransfusionEvidence = {
   },
   activationRequest: {
     activeAssets: [
-      { assetType: "TERMINOLOGY", assetIdentity: "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE", versionId: "av-term-surgery" },
-      { assetType: "SAFETY", assetIdentity: "SAFETY.RDL-SURGERY-ANESTHESIA-TRANSFUSION", versionId: "av-safety-surgery" },
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE",
+        versionId: "av-term-surgery",
+      },
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-SURGERY-ANESTHESIA-TRANSFUSION",
+        versionId: "av-safety-surgery",
+      },
       { assetType: "CDSS_RISK", assetIdentity: "CDSS.RISK.MATRIX", versionId: "av-risk-surgery" },
-      { assetType: "RULE", assetIdentity: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST", versionId: "av-rule-surgery" },
-      { assetType: "ACTION_CARD", assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST", versionId: "av-action-surgery" },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+        versionId: "av-rule-surgery",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+        versionId: "av-action-surgery",
+      },
     ],
   },
   clinicalContext: {
@@ -3089,12 +3115,28 @@ const surgeryAnesthesiaTransfusionEvidence = {
       procedures: [{ code: "47.0901", displayName: "腹腔镜阑尾切除术", anesthesiaType: "GENERAL" }],
       observations: [{ code: "ASA_CLASS", valueString: "III" }],
       medications: [{ code: "N01AB06", displayName: "七氟烷" }],
-      documents: [{ documentType: "SURGERY_SAFETY_CHECKLIST", contentDigest: "sha256:surgery-safety-checklist" }],
+      documents: [
+        {
+          documentType: "SURGERY_SAFETY_CHECKLIST",
+          contentDigest: "sha256:surgery-safety-checklist",
+        },
+      ],
       extensions: {
         local: {
-          surgeryPlan: { surgeryLevel: "LEVEL_3", preOpAssessmentStatus: "PASSED_WITH_RISK", timeOutRequired: true },
-          anesthesiaAssessment: { airwayRisk: "DIFFICULT_AIRWAY", anesthesiologistReviewRequired: true },
-          transfusionRequest: { crossmatchStatus: "MATCHED", transfusionConsentConfirmed: true, noAutoTransfusion: true },
+          surgeryPlan: {
+            surgeryLevel: "LEVEL_3",
+            preOpAssessmentStatus: "PASSED_WITH_RISK",
+            timeOutRequired: true,
+          },
+          anesthesiaAssessment: {
+            airwayRisk: "DIFFICULT_AIRWAY",
+            anesthesiologistReviewRequired: true,
+          },
+          transfusionRequest: {
+            crossmatchStatus: "MATCHED",
+            transfusionConsentConfirmed: true,
+            noAutoTransfusion: true,
+          },
         },
       },
     },
@@ -3110,7 +3152,12 @@ const surgeryAnesthesiaTransfusionEvidence = {
     compensationMessageId: "out-surgery-checklist",
     blocksMainFlow: false,
     compensationRequired: true,
-    payload: { patientId: "mpi-surgery", contextSnapshotId: "ctx-surgery", noAutoTransfusion: true, noAutoSurgery: true },
+    payload: {
+      patientId: "mpi-surgery",
+      contextSnapshotId: "ctx-surgery",
+      noAutoTransfusion: true,
+      noAutoSurgery: true,
+    },
   },
   inboundSurgeryEvent: {
     messageId: "in-surgery",
@@ -3133,13 +3180,32 @@ const surgeryAnesthesiaTransfusionEvidence = {
     },
     mappedFieldCount: 20,
     mappedPayload: {
-      procedures: [{ standardCode: "47.0901", codeSystem: "ICD-9-CM-3", sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU", runtimeReleaseId: "runtime-surgery" }],
+      procedures: [
+        {
+          standardCode: "47.0901",
+          codeSystem: "ICD-9-CM-3",
+          sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+          runtimeReleaseId: "runtime-surgery",
+        },
+      ],
       observations: [{ code: "ASA_CLASS", valueString: "III" }],
       medications: [{ standardCode: "N01AB06" }],
-      documents: [{ documentType: "SURGERY_SAFETY_CHECKLIST", contentDigest: "sha256:surgery-safety-checklist" }],
+      documents: [
+        {
+          documentType: "SURGERY_SAFETY_CHECKLIST",
+          contentDigest: "sha256:surgery-safety-checklist",
+        },
+      ],
       surgeryPlan: { timeOutRequired: true },
-      anesthesiaAssessment: { airwayRisk: "DIFFICULT_AIRWAY", anesthesiologistReviewRequired: true },
-      transfusionRequest: { crossmatchStatus: "MATCHED", transfusionConsentConfirmed: true, noAutoTransfusion: true },
+      anesthesiaAssessment: {
+        airwayRisk: "DIFFICULT_AIRWAY",
+        anesthesiologistReviewRequired: true,
+      },
+      transfusionRequest: {
+        crossmatchStatus: "MATCHED",
+        transfusionConsentConfirmed: true,
+        noAutoTransfusion: true,
+      },
     },
     signedPayload: {
       procedureCode: "OR-LAP-APP",
@@ -3284,11 +3350,7 @@ const criticalEmergencyIcuEvidence = {
   productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
   versionedAssets: ["TERMINOLOGY", "CDSS_RISK", "RULE", "PATHWAY", "ACTION_CARD"],
   deliveryShapes: ["API_EVENT"],
-  serviceCombinations: [
-    "THIRD_PARTY_INTERFACE",
-    "CLINICAL_RUNTIME",
-    "PROFESSIONAL_COLLABORATION",
-  ],
+  serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME", "PROFESSIONAL_COLLABORATION"],
   scopeStatement:
     "急诊分诊与 ICU 生命支持风险代表切片：LIS_MONITORING_CRITICAL 入站监护事实、HIS_EMR_CDR 急诊分诊上下文、当前机构生效版本风险规则、路径升级候选、人工确认和升级待办闭环，不代表完整急诊系统、完整 ICU 系统、完整生命支持系统、生命支持设备控制、完整 S19/S24/S27、完整 S0-S40 或完整上线验收。",
   apiEvidence: {
@@ -3320,9 +3382,18 @@ const criticalEmergencyIcuEvidence = {
       { sourcePath: "/shockIndexValue", targetPath: "/observations/0/valueNumeric" },
       { sourcePath: "/lactateCode", targetPath: "/observations/1", targetDictionaryKey: "LOINC" },
       { sourcePath: "/lactateValue", targetPath: "/observations/1/valueNumeric" },
-      { sourcePath: "/ventilatorMode", targetPath: "/extensions/local/criticalCare/ventilatorMode" },
-      { sourcePath: "/vasopressorRunning", targetPath: "/extensions/local/criticalCare/vasopressorRunning" },
-      { sourcePath: "/noDeviceControl", targetPath: "/extensions/local/criticalCare/noDeviceControl" },
+      {
+        sourcePath: "/ventilatorMode",
+        targetPath: "/extensions/local/criticalCare/ventilatorMode",
+      },
+      {
+        sourcePath: "/vasopressorRunning",
+        targetPath: "/extensions/local/criticalCare/vasopressorRunning",
+      },
+      {
+        sourcePath: "/noDeviceControl",
+        targetPath: "/extensions/local/criticalCare/noDeviceControl",
+      },
     ],
   },
   emergencyOnboarding: {
@@ -3495,11 +3566,27 @@ const criticalEmergencyIcuEvidence = {
   },
   activationRequest: {
     activeAssets: [
-      { assetType: "TERMINOLOGY", assetIdentity: "TERM.CRITICAL.EMERGENCY.ICU.LACTATE", versionId: "av-term-critical" },
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.CRITICAL.EMERGENCY.ICU.LACTATE",
+        versionId: "av-term-critical",
+      },
       { assetType: "CDSS_RISK", assetIdentity: "CDSS.RISK.MATRIX", versionId: "av-risk-critical" },
-      { assetType: "RULE", assetIdentity: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION", versionId: "av-rule-critical" },
-      { assetType: "PATHWAY", assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION", versionId: "av-pathway-critical" },
-      { assetType: "ACTION_CARD", assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION", versionId: "av-action-critical" },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-rule-critical",
+      },
+      {
+        assetType: "PATHWAY",
+        assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-pathway-critical",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-action-critical",
+      },
     ],
   },
   clinicalContext: {
@@ -5366,9 +5453,7 @@ describe("browser E2E launch coverage evidence", () => {
       "FIELD_CATALOG",
       "ACTION_CARD",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
@@ -5443,10 +5528,11 @@ describe("browser E2E launch coverage evidence", () => {
         ...diagnosticCriticalValueEvidence,
         activationRequest: {
           ...diagnosticCriticalValueEvidence.activationRequest,
-          activeAssets: diagnosticCriticalValueEvidence.activationRequest.activeAssets.map((asset) =>
-            asset.assetType === "FIELD_CATALOG"
-              ? { ...asset, versionId: "fc-critical-report" }
-              : asset,
+          activeAssets: diagnosticCriticalValueEvidence.activationRequest.activeAssets.map(
+            (asset) =>
+              asset.assetType === "FIELD_CATALOG"
+                ? { ...asset, versionId: "fc-critical-report" }
+                : asset,
           ),
         },
       },
@@ -5533,9 +5619,7 @@ describe("browser E2E launch coverage evidence", () => {
       "FIELD_CATALOG",
       "ACTION_CARD",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
@@ -5697,9 +5781,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
       "CLINICAL_EXECUTION",
     ]);
-    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
-      "FOLLOWUP",
-    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual(["FOLLOWUP"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "CLINICAL_RUNTIME",
     ]);
@@ -5846,9 +5928,7 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it("declares S18/S31 pharmacy-review antimicrobial coverage only with bidirectional review, runtime assets and rectification closure", () => {
-    const evidence = pharmacyReviewAntimicrobialEvidenceResult(
-      pharmacyReviewAntimicrobialEvidence,
-    );
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(pharmacyReviewAntimicrobialEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S18", "S31"]);
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
@@ -5863,9 +5943,7 @@ describe("browser E2E launch coverage evidence", () => {
       "RULE",
       "ACTION_CARD",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
@@ -6038,8 +6116,7 @@ describe("browser E2E launch coverage evidence", () => {
           explanation: {
             ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation,
             ruleExplanation: {
-              ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation
-                .ruleExplanation,
+              ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation.ruleExplanation,
               runtimeAssetEvidence: [],
             },
           },
@@ -6070,8 +6147,7 @@ describe("browser E2E launch coverage evidence", () => {
           explanation: {
             ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation,
             ruleExplanation: {
-              ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation
-                .ruleExplanation,
+              ...pharmacyReviewAntimicrobialEvidence.ruleRecommendation.explanation.ruleExplanation,
               conditionEvidence: [
                 {
                   fact: "medications[].code",
@@ -6193,9 +6269,7 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it("declares S21/S32 infection public-health safety coverage only with signed inbound, runtime assets and rectification closure", () => {
-    const evidence = infectionPublicHealthSafetyEvidenceResult(
-      infectionPublicHealthSafetyEvidence,
-    );
+    const evidence = infectionPublicHealthSafetyEvidenceResult(infectionPublicHealthSafetyEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S21", "S32"]);
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
@@ -6208,9 +6282,7 @@ describe("browser E2E launch coverage evidence", () => {
       "RULE",
       "ACTION_CARD",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
@@ -6383,9 +6455,7 @@ describe("browser E2E launch coverage evidence", () => {
       "RULE",
       "ACTION_CARD",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
@@ -6410,7 +6480,9 @@ describe("browser E2E launch coverage evidence", () => {
         terminologyGate: {
           ...structuredClone(surgeryAnesthesiaTransfusionEvidence.terminologyGate),
           confirmedMapping: {
-            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.terminologyGate.confirmedMapping),
+            ...structuredClone(
+              surgeryAnesthesiaTransfusionEvidence.terminologyGate.confirmedMapping,
+            ),
             localTermId: 9999,
           },
         },
@@ -6436,7 +6508,9 @@ describe("browser E2E launch coverage evidence", () => {
         inboundSurgeryEvent: {
           ...structuredClone(surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent),
           clinicalEvent: {
-            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent.clinicalEvent),
+            ...structuredClone(
+              surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent.clinicalEvent,
+            ),
             status: "FAILED",
             errorCode: "ENG-API-002",
           },
@@ -6575,9 +6649,7 @@ describe("browser E2E launch coverage evidence", () => {
       "PATHWAY",
       "ACTION_CARD",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
@@ -6606,9 +6678,10 @@ describe("browser E2E launch coverage evidence", () => {
     delete signedPayload.criticalCare;
     body.inboundMonitoringEvent.signedPayload =
       signedPayload as typeof body.inboundMonitoringEvent.signedPayload;
-    const actionCardRuntimeEvidence = body.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.find(
-      (item) => item.assetType === "ACTION_CARD",
-    ) as Record<string, unknown>;
+    const actionCardRuntimeEvidence =
+      body.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.find(
+        (item) => item.assetType === "ACTION_CARD",
+      ) as Record<string, unknown>;
     delete actionCardRuntimeEvidence.noAutoOrder;
     delete actionCardRuntimeEvidence.noAutoTransfer;
     delete actionCardRuntimeEvidence.noDeviceControl;
@@ -6698,7 +6771,9 @@ describe("browser E2E launch coverage evidence", () => {
           explanation: {
             ...structuredClone(criticalEmergencyIcuEvidence.recommendation.explanation),
             ruleExplanation: {
-              ...structuredClone(criticalEmergencyIcuEvidence.recommendation.explanation.ruleExplanation),
+              ...structuredClone(
+                criticalEmergencyIcuEvidence.recommendation.explanation.ruleExplanation,
+              ),
               runtimeAssetEvidence:
                 criticalEmergencyIcuEvidence.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
                   (item) => item.assetType !== "PATHWAY",
@@ -7307,7 +7382,8 @@ describe("browser E2E launch coverage evidence", () => {
       tests: [
         {
           file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
-          title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+          title:
+            "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
           status: "passed",
           attachments: [
             {
@@ -7435,7 +7511,8 @@ describe("browser E2E launch coverage evidence", () => {
       tests: [
         {
           file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
-          title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+          title:
+            "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
           status: "passed",
           attachments: [
             {
@@ -7485,7 +7562,8 @@ describe("browser E2E launch coverage evidence", () => {
       tests: [
         {
           file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
-          title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+          title:
+            "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
           status: "passed",
           attachments: [
             {

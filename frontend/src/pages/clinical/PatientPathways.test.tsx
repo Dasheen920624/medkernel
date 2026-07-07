@@ -421,7 +421,9 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
 
     expect(mockUsePathwayEntryCandidates).toHaveBeenLastCalledWith("ctx-active-1", "patient-view");
-    expect(await screen.findByText("已读取 1 条当前机构生效候选路径，确认后才会入径。")).toBeInTheDocument();
+    expect(
+      await screen.findByText("已读取 1 条当前机构生效候选路径，确认后才会入径。"),
+    ).toBeInTheDocument();
   });
 
   it("associates entry modal patient and encounter controls with visible labels", async () => {
@@ -455,7 +457,9 @@ describe("PatientPathways", () => {
       await screen.findByRole("option", { name: "卒中急诊路径 · STROKE" }),
     ).toBeInTheDocument();
     await user.click(await screen.findByText("卒中急诊路径 · STROKE"));
-    expect(screen.getByText("已读取 1 条当前机构生效候选路径，确认后才会入径。")).toBeInTheDocument();
+    expect(
+      screen.getByText("已读取 1 条当前机构生效候选路径，确认后才会入径。"),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
 
     await waitFor(() => {

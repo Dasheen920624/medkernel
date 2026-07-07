@@ -687,7 +687,9 @@ export default function ReleaseGovernance() {
               {offlineImportPreview && (
                 <>
                   <Descriptions.Item label="导入预检">导入预检通过</Descriptions.Item>
-                  <Descriptions.Item label="运行版本">不会改写当前机构生效版本</Descriptions.Item>
+                  <Descriptions.Item label="生效版本影响">
+                    不会改写当前机构生效版本
+                  </Descriptions.Item>
                 </>
               )}
               {offlineRestoreResult && (
@@ -785,14 +787,14 @@ export default function ReleaseGovernance() {
                 <Descriptions.Item label="差异摘要" span={2}>
                   {platformUpgradeSummary(platformUpgradeAnalysis)}
                 </Descriptions.Item>
-                <Descriptions.Item label="运行版本">
-                  {platformUpgradeAnalysis.runtimeMutation ? "异常改写" : "分析不改写当前机构生效版本"}
+                <Descriptions.Item label="生效版本影响">
+                  {platformUpgradeAnalysis.runtimeMutation
+                    ? "异常改写"
+                    : "分析不改写当前机构生效版本"}
                 </Descriptions.Item>
                 {evidenceDetailsEnabled && (
                   <Descriptions.Item label="分析摘要" span={3}>
-                    <Text className={styles.digest}>
-                      {platformUpgradeAnalysis.analysisDigest}
-                    </Text>
+                    <Text className={styles.digest}>{platformUpgradeAnalysis.analysisDigest}</Text>
                   </Descriptions.Item>
                 )}
               </Descriptions>

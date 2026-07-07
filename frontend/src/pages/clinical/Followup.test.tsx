@@ -19,9 +19,11 @@ const followupHookMocks = vi.hoisted(() => ({
   createTemplate: vi.fn(),
   generatePlan: vi.fn(),
   publishTemplate: vi.fn(),
+  backflowResult: vi.fn(),
   refetchPlans: vi.fn(),
   reportAbnormal: vi.fn(),
   submitQuestionnaire: vi.fn(),
+  useBackflowFollowupResult: vi.fn(),
   useCreateFollowupTemplate: vi.fn(),
   useFollowupStats: vi.fn(),
   useFollowupPlans: vi.fn(),
@@ -37,6 +39,7 @@ const followupHookMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useBackflowFollowupResult: followupHookMocks.useBackflowFollowupResult,
   useCreateFollowupTemplate: followupHookMocks.useCreateFollowupTemplate,
   useFollowupStats: followupHookMocks.useFollowupStats,
   useFollowupPlans: followupHookMocks.useFollowupPlans,
@@ -162,6 +165,15 @@ describe("Followup", () => {
       templateId: "ftpl-1",
       assetStatus: "PUBLISHED",
       traceId: "trace-template-published",
+    });
+    followupHookMocks.backflowResult.mockResolvedValue({
+      resultId: "followup-result-1",
+      standardResourceType: "FollowUp",
+      patientId: "patient-real-1",
+      encounterId: "enc-real-1",
+      carePlanId: "care-plan-followup-1",
+      snapshotId: "snapshot-followup-1",
+      traceId: "trace-followup-backflow",
     });
     followupHookMocks.reportAbnormal.mockResolvedValue({
       eventId: "event-return-1",
@@ -337,6 +349,10 @@ describe("Followup", () => {
     followupHookMocks.useSubmitFollowupQuestionnaire.mockReturnValue({
       isPending: false,
       mutateAsync: followupHookMocks.submitQuestionnaire,
+    });
+    followupHookMocks.useBackflowFollowupResult.mockReturnValue({
+      isPending: false,
+      mutateAsync: followupHookMocks.backflowResult,
     });
   });
 
@@ -522,12 +538,12 @@ describe("Followup", () => {
     expect(source).toContain("className: styles.followupPlanPrimaryColumn");
     expect(source).toContain("className={styles.followupEvidenceText}");
     expect(source).toContain("className={styles.followupEvidenceTag}");
-    expect(source).toContain("width=\"min(860px, 100vw)\"");
-    expect(source).toContain('column={{ xs: 1, sm: 1, md: 2 }}');
+    expect(source).toContain('width="min(860px, 100vw)"');
+    expect(source).toContain("column={{ xs: 1, sm: 1, md: 2 }}");
     expect(source).toContain("task.questionnaireTemplateId");
-    expect(source).toContain("FollowupEvidenceTag color=\"red\"");
-    expect(source).toContain("FollowupEvidenceTag color=\"orange\"");
-    expect(source).toContain("FollowupEvidenceTag color=\"gold\"");
+    expect(source).toContain('FollowupEvidenceTag color="red"');
+    expect(source).toContain('FollowupEvidenceTag color="orange"');
+    expect(source).toContain('FollowupEvidenceTag color="gold"');
     expect(clinicalCss).toMatch(
       /\.followupEvidenceText\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/s,
     );
@@ -580,7 +596,9 @@ describe("Followup", () => {
     expect(
       screen.getByText("真实前台慢病随访方案 · ftpl-outside-current-page · v7"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("已绑定随访方案 · ftpl-outside-current-page · v7")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("已绑定随访方案 · ftpl-outside-current-page · v7"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps follow-up read failures in hospital language", () => {

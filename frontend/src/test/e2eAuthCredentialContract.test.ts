@@ -185,7 +185,9 @@ describe("E2E credential contract", () => {
         assetIdentity: runtimeAssetIdentities[assetType],
         versionId: `${assetType.toLowerCase()}-v1`,
         versionNo: `V${index + 1}`,
-        contentHash: String(index + 1).repeat(64).slice(0, 64),
+        contentHash: String(index + 1)
+          .repeat(64)
+          .slice(0, 64),
         entryState: "ACTIVE",
       })),
       {
@@ -214,7 +216,9 @@ describe("E2E credential contract", () => {
         assetIdentity: runtimeAssetIdentities[assetType],
         versionId: `${assetType.toLowerCase()}-v1`,
         versionNo: `V${index + 1}`,
-        contentHash: String(index + 1).repeat(64).slice(0, 64),
+        contentHash: String(index + 1)
+          .repeat(64)
+          .slice(0, 64),
         entryState: "ACTIVE",
       })),
     });
@@ -364,7 +368,7 @@ describe("E2E credential contract", () => {
 
     expect(source).toContain('a[href*="cardId=${options.cardId}"]');
     expect(source).toContain('locator("xpath=ancestor::tr")');
-    expect(source).not.toContain('.filter({ hasText: options.reportType })\\n    .first()');
+    expect(source).not.toContain(".filter({ hasText: options.reportType })\\n    .first()");
   });
 
   it("keeps third-party family evidence API readback on the real backend API base", () => {
@@ -376,10 +380,7 @@ describe("E2E credential contract", () => {
   });
 
   it("requires S2/S4 rehearsal to prove frontdesk mapping and real inbound runtime consumption", () => {
-    const source = readFileSync(
-      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
-      "utf8",
-    );
+    const source = readFileSync("e2e/s2-s4-terminology-integration-rehearsal.spec.ts", "utf8");
 
     expect(source).toContain("s2-s4-runtime-mapping-codes");
     expect(source).toContain("平台管理员前台创建 LIS Webhook 适配器并配置字段映射");
@@ -409,17 +410,14 @@ describe("E2E credential contract", () => {
     expect(source).toContain("sha256=${signHmacSha256");
     expect(source).toContain('triggerPoint: "result-review"');
     expect(source).not.toContain('triggerPoint: "RESULT_REVIEW"');
-    expect(source).toContain("chooseFieldMappingCategory(page, dialog, 1, \"检验\")");
+    expect(source).toContain('chooseFieldMappingCategory(page, dialog, 1, "检验")');
     expect(source).toContain("targetDictionaryKey: options.standardSystem");
     expect(source).toContain('category: "LAB"');
     expect(source).not.toContain("page.waitForTimeout");
   });
 
   it("requires S21/S32 frontdesk rehearsal to choose the actual result-review option label", () => {
-    const source = readFileSync(
-      "e2e/infection-public-health-safety-frontdesk.spec.ts",
-      "utf8",
-    );
+    const source = readFileSync("e2e/infection-public-health-safety-frontdesk.spec.ts", "utf8");
     const triggerOptions = readFileSync("src/shared/config/clinicalTriggerPoints.ts", "utf8");
 
     expect(triggerOptions).toContain('{ value: "result-review", label: "审核结果" }');
@@ -434,14 +432,13 @@ describe("E2E credential contract", () => {
     );
     expect(source).not.toContain('...apiContext(suffix, "evaluation-indicator-create")');
     expect(source).not.toContain("...apiContext(suffix, `evaluation-indicator-${action}`)");
-    expect(source).not.toContain('await chooseDialogOption(page, dialog, "触发时点", "检验结果复核")');
+    expect(source).not.toContain(
+      'await chooseDialogOption(page, dialog, "触发时点", "检验结果复核")',
+    );
   });
 
   it("requires S2/S4 signature preview to choose and submit the current webhook channel", () => {
-    const source = readFileSync(
-      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
-      "utf8",
-    );
+    const source = readFileSync("e2e/s2-s4-terminology-integration-rehearsal.spec.ts", "utf8");
 
     expect(source).toContain("const webhookName = `S2S4 LIS 入站 ${suffix}`");
     expect(source).toContain("await generateWebhookSignaturePreview(page, {");
@@ -465,10 +462,7 @@ describe("E2E credential contract", () => {
   });
 
   it("requires S2/S4 signed master data sync to continue from the latest server cursor", () => {
-    const source = readFileSync(
-      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
-      "utf8",
-    );
+    const source = readFileSync("e2e/s2-s4-terminology-integration-rehearsal.spec.ts", "utf8");
 
     expect(source).toContain("readLatestMasterDataCursor(page, sourceSystem)");
     expect(source).toContain("previousCursor,");
@@ -478,10 +472,7 @@ describe("E2E credential contract", () => {
   });
 
   it("requires S2/S4 terminology candidates to use deterministic alias evidence", () => {
-    const source = readFileSync(
-      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
-      "utf8",
-    );
+    const source = readFileSync("e2e/s2-s4-terminology-integration-rehearsal.spec.ts", "utf8");
 
     expect(source).toContain("registerStandardTermFromFrontdesk(page, {");
     expect(source).toContain("localCode,");
@@ -860,7 +851,9 @@ describe("E2E credential contract", () => {
     expect(source).toContain("ACTION_CARD.CDSS.RUNTIME");
     expect(source).toContain("/engine/authoring/declarative-assets");
     expect(source).toContain("/engine/rule/rules");
-    expect(source).toContain("/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions");
+    expect(source).toContain(
+      "/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions",
+    );
     expect(source).toContain("/engine/rule/rules/${encodeURIComponent(ruleId)}/test");
     expect(source).toContain("assertRuleReleaseTestRunPassed");
     expect(source).toContain("publishEvidence: ruleGovernancePublishEvidence(targetState)");
@@ -871,15 +864,19 @@ describe("E2E credential contract", () => {
     expect(source).toContain("toBe(declarativeRuntime.releaseId)");
     expect(source).toContain("readHospitalRuntimeCandidate");
     expect(source).toContain("runtime-candidates?assetType=RULE");
-    expect(source).toContain("versionId.startsWith(\"av-\")");
-    expect(source).toContain("/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases");
+    expect(source).toContain('versionId.startsWith("av-")');
+    expect(source).toContain(
+      "/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases",
+    );
     expect(source).toContain("/cdss/fatigue");
-    expect(source).toContain("getByRole(\"button\", { name: \"登记触发评估\" })");
-    expect(source).toContain("button[data-snapshot-id=\"");
+    expect(source).toContain('getByRole("button", { name: "登记触发评估" })');
+    expect(source).toContain('button[data-snapshot-id="');
     expect(source).not.toContain("name: `选择 ${snapshot.snapshotId}`");
     expect(source).toContain("/engine/recommendations:evaluate");
     expect(source).toContain("readRecommendationTriggerDiagnose");
-    expect(source).toContain("/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose");
+    expect(source).toContain(
+      "/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose",
+    );
     expect(source).toContain("relatedCardIds");
     expect(source).toContain("findMaterializedRecommendationCard");
     expect(source).toContain("/engine/recommendations/cards/${encodeURIComponent(cardId)}");
@@ -893,24 +890,24 @@ describe("E2E credential contract", () => {
     expect(source).toContain("responseCardIds");
     expect(source).not.toContain("resources.encounters.0.encounterId");
     expect(source).not.toContain("cards.0.cardId");
-    expect(source).not.toContain("textField(evaluation, \"cards[0].cardId\")");
+    expect(source).not.toContain('textField(evaluation, "cards[0].cardId")');
     expect(source).toContain("cdss-runtime-declarative-assets-codes");
     expect(source).toContain("attachCdssRuntimeDeclarativeAssetEvidence");
     expect(source).toContain("推荐卡解释证明三类资产按当前机构生效版本物化消费");
     expect(source).not.toContain("page.route(");
     expect(source).not.toContain("选择第 1 个临床快照");
-    expect(source.indexOf("declarativeRuntime = await activateRuntimeWithDeclarativeAssets")).toBeLessThan(
+    expect(
+      source.indexOf("declarativeRuntime = await activateRuntimeWithDeclarativeAssets"),
+    ).toBeLessThan(source.indexOf("ruleTestSnapshot = await createClinicalContextFromFrontdesk"));
+    expect(
       source.indexOf("ruleTestSnapshot = await createClinicalContextFromFrontdesk"),
-    );
-    expect(source.indexOf("ruleTestSnapshot = await createClinicalContextFromFrontdesk")).toBeLessThan(
-      source.indexOf("createAndPublishRuleReferencingDeclarativeAssets"),
-    );
+    ).toBeLessThan(source.indexOf("createAndPublishRuleReferencingDeclarativeAssets"));
     expect(source.indexOf("readHospitalRuntimeCandidate")).toBeLessThan(
       source.indexOf("finalRuntime = await activateRuntimeWithDeclarativeAssets"),
     );
-    expect(source.indexOf("finalRuntime = await activateRuntimeWithDeclarativeAssets")).toBeLessThan(
-      source.indexOf("snapshot = await createClinicalContextFromFrontdesk"),
-    );
+    expect(
+      source.indexOf("finalRuntime = await activateRuntimeWithDeclarativeAssets"),
+    ).toBeLessThan(source.indexOf("snapshot = await createClinicalContextFromFrontdesk"));
   });
 
   it("requires medication safety frontdesk rehearsal to prove SAFETY/CDSS_RISK/RULE and human confirmation", () => {
@@ -935,9 +932,13 @@ describe("E2E credential contract", () => {
     expect(source).toContain("TERMINOLOGY");
     expect(source).toContain("运营员补齐 ATC:J01C 术语映射并激活到当前机构生效版本");
     expect(source).toContain("/engine/rule/rules");
-    expect(source).toContain("/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases");
+    expect(source).toContain(
+      "/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases",
+    );
     expect(source).toContain("/engine/recommendations:evaluate");
-    expect(source).toContain("/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose");
+    expect(source).toContain(
+      "/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose",
+    );
     expect(source).toContain("/engine/recommendations/cards/${encodeURIComponent(cardId)}");
     expect(source).toContain("allergyIntolerances[].code");
     expect(source).toContain("AllergyIntolerance");
@@ -946,12 +947,12 @@ describe("E2E credential contract", () => {
     expect(source).toContain("PHYSICIAN_CONFIRMATION");
     expect(source).toContain("requiresPhysicianConfirmation: true");
     expect(source).toContain("autoExecutionAllowed: false");
-    expect(source).toContain("button[data-snapshot-id=\"");
+    expect(source).toContain('button[data-snapshot-id="');
     expect(source).toContain("relatedCardIds");
     expect(source).toContain("contextSnapshotId");
     expect(source).toContain("runtimeReleaseId");
-    expect(source).toContain("matchType\") === \"CLINICAL_REDLINE\"");
-    expect(source).toContain("cardStatus, \"药师复核不能关闭医生待确认链路\"");
+    expect(source).toContain('matchType") === "CLINICAL_REDLINE"');
+    expect(source).toContain('cardStatus, "药师复核不能关闭医生待确认链路"');
     expect(source).toContain("noAutoOrder: true");
     expect(source).not.toContain("page.route(");
     expect(source).not.toContain("page.waitForTimeout");
@@ -970,11 +971,17 @@ describe("E2E credential contract", () => {
     expect(source.indexOf("createMedicationSafetyTerminologyGate")).toBeLessThan(
       source.indexOf("const runtime = await activateRuntimeWithMedicationSafetyAssets"),
     );
-    expect(source.indexOf("const runtime = await activateRuntimeWithMedicationSafetyAssets")).toBeLessThan(
+    expect(
+      source.indexOf("const runtime = await activateRuntimeWithMedicationSafetyAssets"),
+    ).toBeLessThan(
       source.indexOf("const snapshot = await createMedicationSafetyContextFromFrontdesk"),
     );
-    expect(source.indexOf("const snapshot = await createMedicationSafetyContextFromFrontdesk")).toBeLessThan(
-      source.indexOf("const recommendation = await triggerMedicationSafetyRecommendationFromFrontdesk"),
+    expect(
+      source.indexOf("const snapshot = await createMedicationSafetyContextFromFrontdesk"),
+    ).toBeLessThan(
+      source.indexOf(
+        "const recommendation = await triggerMedicationSafetyRecommendationFromFrontdesk",
+      ),
     );
     expect(source.indexOf("triggerMedicationSafetyRecommendationFromFrontdesk")).toBeLessThan(
       source.indexOf("completePharmacistAndPhysicianFeedback"),
@@ -993,8 +1000,8 @@ describe("E2E credential contract", () => {
     expect(mpiSource).toContain('aria-label="护理计划路径"');
     expect(hooksSource).toContain("buildFrontdeskNursingAssessmentResources");
     expect(hooksSource).toContain("buildFrontdeskCarePlanResources");
-    expect(hooksSource).toContain("nursingAssessments: nursingAssessments");
-    expect(hooksSource).toContain("carePlans: carePlans");
+    expect(hooksSource).toContain("nursingAssessments");
+    expect(hooksSource).toContain("carePlans");
     expect(hooksSource).not.toContain("nursingAssessments: []");
     expect(hooksSource).not.toContain("carePlans: []");
     expect(hooksSource).toContain("nursingAssessmentCount");
@@ -1056,7 +1063,7 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('standardCode: "J01C"');
     expect(e2eSource).toContain('standardSystem: "ICD-10"');
     expect(e2eSource).toContain('standardCode: "J18.900"');
-    expect(e2eSource).toContain('sourceSystem: reviewSourceSystem');
+    expect(e2eSource).toContain("sourceSystem: reviewSourceSystem");
     expect(e2eSource).toContain("pharmacyReviewDiagnosis");
     expect(e2eSource).toContain('targetDictionaryKey: "ICD-10"');
     expect(e2eSource).toContain('sourcePath: "/observationCode"');
@@ -1070,8 +1077,12 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("AllergyIntolerance");
     expect(e2eSource).toContain("Condition");
     expect(e2eSource).toContain("Observation");
-    expect(e2eSource).toContain('{ fact: "conditions[].code", operator: "equals", value: "J18.900" }');
-    expect(e2eSource).not.toContain('{ fact: "conditions[].code", operator: "exists", value: true }');
+    expect(e2eSource).toContain(
+      '{ fact: "conditions[].code", operator: "equals", value: "J18.900" }',
+    );
+    expect(e2eSource).not.toContain(
+      '{ fact: "conditions[].code", operator: "exists", value: true }',
+    );
     expect(e2eSource).toContain('getByLabel("监测指标")');
     expect(e2eSource).toContain("/engine/integration/adapters");
     expect(e2eSource).toContain("/engine/integration/webhooks");
@@ -1083,16 +1094,20 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("deliveryPath");
     expect(e2eSource).toContain("waitForPharmacyReviewCompensation");
     expect(e2eSource).toContain('lastStatus === "NOT_CONNECTED"');
-    expect(e2eSource).toContain('const compensationStatus = requireText(textField(compensation, "status")');
+    expect(e2eSource).toContain(
+      'const compensationStatus = requireText(textField(compensation, "status")',
+    );
     expect(e2eSource).toContain("PHARMACY_REVIEW 出站补偿日志");
     expect(e2eSource).toContain("进入非诚实断连状态");
     expect(e2eSource).toContain("compensationStatus,");
-    expect(e2eSource).toContain("/engine/integration/webhooks/${encodeURIComponent(webhookId)}/inbound");
+    expect(e2eSource).toContain(
+      "/engine/integration/webhooks/${encodeURIComponent(webhookId)}/inbound",
+    );
     expect(e2eSource).toContain("平台管理员访问真实前台并经真实服务创建");
     expect(e2eSource).toContain("const clinicalEventId = requireText");
     expect(e2eSource).toContain("waitForClinicalEventProcessed");
     expect(e2eSource).toContain('lastDetail.status === "PROCESSED"');
-    expect(e2eSource).toContain("runtimeReleaseId: textField(data, \"runtimeReleaseId\")");
+    expect(e2eSource).toContain('runtimeReleaseId: textField(data, "runtimeReleaseId")');
     expect(e2eSource).not.toContain("linkedOutboundMessageId");
     expect(e2eSource).not.toContain("outboundMessageId");
     expect(e2eSource).toContain("signedPayload: request.payload");
@@ -1100,7 +1115,9 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("pharmacyReview: sourcePayload.pharmacyReview");
     expect(e2eSource).toContain("/engine/recommendations:evaluate");
     expect(e2eSource).toContain("/engine/recommendations/cards/${encodeURIComponent(cardId)}");
-    expect(e2eSource).toContain('const runtimeAssetEvidence = arrayField(ruleExplanation, "runtimeAssetEvidence");');
+    expect(e2eSource).toContain(
+      'const runtimeAssetEvidence = arrayField(ruleExplanation, "runtimeAssetEvidence");',
+    );
     expect(e2eSource).toContain('textField(item, "assetType") === "ACTION_CARD"');
     expect(e2eSource).not.toContain("runtimeAssetEvidence: [");
     expect(e2eSource).toContain("PHARMACIST_REVIEWED");
@@ -1129,11 +1146,11 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("manualSampleContextSnapshotId: options.snapshot.snapshotId");
     expect(qualityRunPayload).not.toContain("runtimeReleaseId: options.runtimeReleaseId,");
     expect(qualityRunPayload).not.toContain("contextSnapshotId: options.snapshot.snapshotId,");
-    expect(e2eSource).toContain('denominatorDefinition: JSON.stringify({');
+    expect(e2eSource).toContain("denominatorDefinition: JSON.stringify({");
     expect(e2eSource).toContain('fact: "recommendation.matchType"');
     expect(e2eSource).toContain('fact: "observation.pct"');
     expect(e2eSource).toContain("numeratorDefinition: JSON.stringify({");
-    expect(e2eSource).toContain('exclusionDefinition: null');
+    expect(e2eSource).toContain("exclusionDefinition: null");
     expect(e2eSource).not.toContain('denominatorDefinition: "本轮触发抗菌药物审方推荐卡的患者"');
     expect(e2eSource).not.toContain('numeratorDefinition: "审方意见和感染指标依据归档完整"');
     expect(e2eSource).not.toContain('exclusionDefinition: "无"');
@@ -1141,9 +1158,13 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('const blocksMainFlow = booleanField(data, "blocksMainFlow")');
     expect(e2eSource).toContain(
       'expect(blocksMainFlow, "审方出站断连不得阻断医生主流程").toBe(false)',
-	    );
-	    expect(e2eSource).toContain('const initialCompensationRequired = booleanField(data, "compensationRequired")');
-	    expect(e2eSource).toContain('const compensationRequired = compensationStatus === "NOT_CONNECTED"');
+    );
+    expect(e2eSource).toContain(
+      'const initialCompensationRequired = booleanField(data, "compensationRequired")',
+    );
+    expect(e2eSource).toContain(
+      'const compensationRequired = compensationStatus === "NOT_CONNECTED"',
+    );
     expect(e2eSource).toContain(
       'expect(compensationRequired, "审方出站断连最终必须留下补偿证据").toBe(true)',
     );
@@ -1157,10 +1178,7 @@ describe("E2E credential contract", () => {
   });
 
   it("requires surgery anesthesia transfusion rehearsal to prove real S26 frontdesk chain without scope inflation", () => {
-    const e2eSource = readFileSync(
-      "e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts",
-      "utf8",
-    );
+    const e2eSource = readFileSync("e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts", "utf8");
 
     expect(e2eSource).toContain("surgery-anesthesia-transfusion-frontdesk-codes");
     expect(e2eSource).toContain("attachPeriopEvidence");
@@ -1175,26 +1193,30 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("PROCEDURE_ORDER");
     expect(e2eSource).toContain("waitForClinicalEventProcessed");
     expect(e2eSource).toContain('last.status === "PROCESSED"');
-    expect(e2eSource).toContain(
-      'async function postSignedPeriopInbound(\n  page: Page,',
-    );
+    expect(e2eSource).toContain("async function postSignedPeriopInbound(\n  page: Page,");
     expect(e2eSource).toContain(
       ') {\n  await ensureReadySession(page, "platform-admin");\n  const positive = options.positive ?? true;',
     );
-    expect(e2eSource).toContain('const localTermId = numberField(await responseData(local), "id");');
+    expect(e2eSource).toContain(
+      'const localTermId = numberField(await responseData(local), "id");',
+    );
     expect(e2eSource).toContain(
       'normalizedName: "手术室腹腔镜阑尾切除|OR-LAP-APP|47.0901|腹腔镜阑尾切除术"',
     );
     expect(e2eSource).toContain("localTermId,");
     expect(e2eSource).toContain("/engine/terminology/mappings/candidate-generation-jobs/");
     expect(e2eSource).toContain("generatedCount");
-    expect(e2eSource).toContain('expect(textField(jobData, "sourceSystem"), "术语候选任务必须绑定本轮来源系统").toBe(');
+    expect(e2eSource).toContain(
+      'expect(textField(jobData, "sourceSystem"), "术语候选任务必须绑定本轮来源系统").toBe(',
+    );
     expect(e2eSource).toContain('numberField(item, "localTermId") === expected.localTermId');
     expect(e2eSource).toContain('numberField(item, "standardTermId") === expected.standardTermId');
     expect(e2eSource).toContain('textField(item, "generationJobCode") === jobCode');
     expect(e2eSource).toContain("confirmedMapping: mapping");
     expect(e2eSource).not.toContain("evidence.includes(expected.localCode)");
-    expect(e2eSource).not.toContain("waitForTerminologyCandidate(page, jobCode, options.localCode)");
+    expect(e2eSource).not.toContain(
+      "waitForTerminologyCandidate(page, jobCode, options.localCode)",
+    );
     expect(e2eSource).not.toContain("OR-MINOR-NEG");
     expect(e2eSource).toContain(
       "const ruleValidationAdapterId = await ensureTemporaryAdapterForRuleValidation(page, suffix);",
@@ -1215,7 +1237,9 @@ describe("E2E credential contract", () => {
       e2eSource.indexOf("async function completePeriopManualConfirmation"),
     );
     expect(periopRuleCardMatcher).toContain('textField(item, "assetType") === "ACTION_CARD"');
-    expect(periopRuleCardMatcher).toContain('textField(item, "contentHash") === options.runtime.actionCardAsset.contentHash');
+    expect(periopRuleCardMatcher).toContain(
+      'textField(item, "contentHash") === options.runtime.actionCardAsset.contentHash',
+    );
     expect(periopRuleCardMatcher).not.toContain('booleanField(item, "noAutoOrder")');
     expect(periopRuleCardMatcher).not.toContain('booleanField(item, "noAutoTransfusion")');
     expect(periopRuleCardMatcher).not.toContain('booleanField(item, "noAutoSurgery")');
@@ -1268,14 +1292,20 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("async function completeCriticalEscalationTodo");
     expect(e2eSource).not.toContain("async function createAndCompleteCriticalEscalationTodo");
     expect(e2eSource).not.toContain('postApi(page, "/engine/workflow/todos"');
-    expect(e2eSource.indexOf("const recommendation = await triggerCriticalRecommendationFromFrontdesk")).toBeLessThan(
+    expect(
+      e2eSource.indexOf("const recommendation = await triggerCriticalRecommendationFromFrontdesk"),
+    ).toBeLessThan(
       e2eSource.indexOf("const escalationTodo = await completeCriticalEscalationTodo"),
     );
-    expect(e2eSource.indexOf("const escalationTodo = await completeCriticalEscalationTodo")).toBeLessThan(
+    expect(
+      e2eSource.indexOf("const escalationTodo = await completeCriticalEscalationTodo"),
+    ).toBeLessThan(
       e2eSource.indexOf("const manualEscalation = await completeCriticalManualEscalation"),
     );
     expect(e2eSource).toContain('await chooseDialogOption(page, dialog, "触发时点", "查看患者")');
-    expect(e2eSource).not.toContain('await chooseDialogOption(page, dialog, "触发时点", "患者查看")');
+    expect(e2eSource).not.toContain(
+      'await chooseDialogOption(page, dialog, "触发时点", "患者查看")',
+    );
     expect(e2eSource).toContain('triggerType: "patient-view"');
     expect(e2eSource).toContain("waitForClinicalEventProcessed");
     expect(e2eSource).toContain('last.status === "PROCESSED"');
@@ -1293,9 +1323,15 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("noDeviceControl: true");
     expect(e2eSource).toContain("noAutoVentilatorChange: true");
     expect(e2eSource).toContain('canonicalSessionRole: "clinical-user"');
-    expect(e2eSource).toContain('expect(textField(persisted, "cardId"), "人工确认反馈必须绑定本轮推荐卡")');
-    expect(e2eSource).toContain('expect(textField(completed, "patientId"), "完成响应必须绑定本轮患者")');
-    expect(e2eSource).toContain('expect(textField(completed, "encounterId"), "完成响应必须绑定本轮就诊")');
+    expect(e2eSource).toContain(
+      'expect(textField(persisted, "cardId"), "人工确认反馈必须绑定本轮推荐卡")',
+    );
+    expect(e2eSource).toContain(
+      'expect(textField(completed, "patientId"), "完成响应必须绑定本轮患者")',
+    );
+    expect(e2eSource).toContain(
+      'expect(textField(completed, "encounterId"), "完成响应必须绑定本轮就诊")',
+    );
     expect(e2eSource).not.toContain("persistedWithCard");
     expect(e2eSource).not.toContain("patientId: options.snapshot.patientId");
     expect(e2eSource).not.toContain("encounterId: options.snapshot.encounterId");
@@ -1303,7 +1339,9 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('textField(item, "reasonCode") === "CONFIRMED"');
     expect(e2eSource).toContain("async function createAndPublishCriticalIcuRule");
     expect(e2eSource).toContain("async function createCriticalIcuPathwayAsset");
-    expect(e2eSource).toContain('const allowedStatuses = assetType === "PATHWAY" ? ["DRAFT", "PUBLISHED"] : ["PUBLISHED"];');
+    expect(e2eSource).toContain(
+      'const allowedStatuses = assetType === "PATHWAY" ? ["DRAFT", "PUBLISHED"] : ["PUBLISHED"];',
+    );
     expect(e2eSource).toContain("minMinutes: 0");
     expect(e2eSource).toContain("targetMinutes: timeWindowMinutes");
     expect(e2eSource).toContain("maxMinutes: timeWindowMinutes * 2");
@@ -1367,14 +1405,18 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('"FIELD_CATALOG"');
     expect(e2eSource).toContain('"ACTION_CARD"');
     expect(e2eSource).toContain("DiagnosticReport");
-    expect(e2eSource).toContain('createRegionalDiagnosticKnowledgeAsset(page, suffix, hospitalId)');
+    expect(e2eSource).toContain("createRegionalDiagnosticKnowledgeAsset(page, suffix, hospitalId)");
     expect(e2eSource).toContain("/engine/knowledge-production/generate");
-    expect(e2eSource).toContain("targetPipeline: \"TENANT_OVERLAY\"");
-    expect(e2eSource).toContain("domain: \"CLINICAL\"");
-    expect(e2eSource).toContain("newIdentity: { domain: \"DIAGNOSTIC_ITEM\", subject, identityCode }");
+    expect(e2eSource).toContain('targetPipeline: "TENANT_OVERLAY"');
+    expect(e2eSource).toContain('domain: "CLINICAL"');
+    expect(e2eSource).toContain(
+      'newIdentity: { domain: "DIAGNOSTIC_ITEM", subject, identityCode }',
+    );
     expect(e2eSource).toContain("parseKnowledgeCandidateRef");
     expect(e2eSource).toContain("/engine/knowledge/citations");
-    expect(e2eSource).toContain("/engine/knowledge-production/jobs/${encodeURIComponent(jobCode)}/publication-quality-records");
+    expect(e2eSource).toContain(
+      "/engine/knowledge-production/jobs/${encodeURIComponent(jobCode)}/publication-quality-records",
+    );
     expect(e2eSource).toContain("/engine/knowledge/candidates/${classificationId}/review");
     expect(e2eSource).toContain("qualityGateRecordId");
     expect(e2eSource).not.toContain("activateRegionalDiagnosticKnowledgeVersion");
@@ -1383,9 +1425,13 @@ describe("E2E credential contract", () => {
     expect(knowledgeCandidateBody).toContain("options.hospitalId");
     expect(knowledgeCandidateBody).toContain("runtime-candidates?assetType=KNOWLEDGE");
     expect(knowledgeCandidateBody).toContain('textField(candidate, "status") === "PUBLISHED"');
-    expect(knowledgeCandidateBody).toContain('textField(candidate, "contentHash") === options.contentHash');
+    expect(knowledgeCandidateBody).toContain(
+      'textField(candidate, "contentHash") === options.contentHash',
+    );
     expect(knowledgeCandidateBody).toContain('versionId.startsWith("av-")');
-    expect(knowledgeCandidateBody).not.toContain("/engine/authoring/declarative-assets?assetType=KNOWLEDGE");
+    expect(knowledgeCandidateBody).not.toContain(
+      "/engine/authoring/declarative-assets?assetType=KNOWLEDGE",
+    );
     expect(e2eSource).not.toContain("page.route(");
     expect(e2eSource).not.toContain("page.waitForTimeout");
     expect(e2eSource).not.toContain("third-party-system-family-codes");
@@ -1564,15 +1610,25 @@ describe("E2E credential contract", () => {
     expect(source).toContain("SCREENING_TRIAGE");
     expect(source).toContain("QUALITY_ITERATION");
     expect(source).toContain("/engine/authoring/declarative-assets");
-    expect(source).toContain("/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases");
+    expect(source).toContain(
+      "/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases",
+    );
     expect(source).toContain("/engine/pathway/pathway-templates");
     expect(source).toContain("/engine/authoring/preview-run");
-    expect(source).toContain("/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}/simulate");
+    expect(source).toContain(
+      "/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}/simulate",
+    );
     expect(source).toContain("/engine/pathway/patient-pathways/entry-candidates");
     expect(source).toContain("/engine/pathway/patient-pathways/enter");
-    expect(source).toContain("/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/advance");
-    expect(source).toContain("/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/clocks");
-    expect(source).toContain("/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/variances");
+    expect(source).toContain(
+      "/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/advance",
+    );
+    expect(source).toContain(
+      "/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/clocks",
+    );
+    expect(source).toContain(
+      "/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/variances",
+    );
     expect(source).toContain("/engine/followup/plans");
     expect(source).toContain("前台创建专病路径草稿并保存节点边时钟");
     expect(source).toContain("后端回读路径节点边时钟与十阶段里程碑");

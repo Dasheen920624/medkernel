@@ -10,6 +10,29 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十五批本地收尾：继续按上线级前端组合门禁和文档同步推进；本批不是新业务场景、
+  不是完整上线、不是 134 清库部署复演，而是把前端组合 `verify` 门禁从红转绿。首次执行
+  `npm --prefix frontend run verify` 时，`lint`、`stylelint`、T-GATE lint rules 已过，但 `format:check`
+  发现 11 个文件未按 Prettier 格式；对这些文件做机械格式化后，第二次 `verify` 进入全量测试并暴露三个真实红点：
+  `Followup.test.tsx` 的 `@/shared/api/hooks` mock 缺 `useBackflowFollowupResult`，静态契约仍匹配格式化前的
+  `nursingAssessments: nursingAssessments` / `carePlans: carePlans`，以及客户语言门禁拦住
+  `ReleaseGovernance.tsx` 两处可见标签“运行版本”。同时 `productCatalog.test.ts` 要求按当前源码重新生成
+  `docs/audit/product-function-catalog.md`。
+- 第一百六十五批修复与证据：已补随访页测试的 `useBackflowFollowupResult` mutation mock，保留随访结果回流链路；
+  静态契约改为检查 `nursingAssessments` / `carePlans` 存在并继续禁止空数组；`ReleaseGovernance` 可见标签改为
+  “生效版本影响”，保持“不改写当前机构生效版本”的业务语义；执行
+  `node scripts/audit/export-product-capabilities.mjs` 重新生成当前功能目录，补入 `RuntimeReleaseController`
+  的 `platform-upgrade-analysis` 等接口清单变化。验证：`npm --prefix frontend run test -- productCatalog
+  customerLanguageGate e2eAuthCredentialContract Followup -t "product function catalog|customer language gate|nursing continuity|Followup"`
+  通过（4 files，34 selected，44 skipped）；随后 `npm --prefix frontend run verify` 通过：
+  `lint`、`stylelint`、`test:lint-rules`、`format:check`、`typecheck` 和全量 Vitest 均通过，
+  最终 `116 passed` test files、`1235 passed` tests。`git diff --check` 退出码 0，但仍提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百六十五批边界与下一步：前端组合 verify 已恢复为可验证绿门禁，但仍未证明完整 S0-S40、
+  13 类版本化资产逐类真实消费者、13 类标准患者资源逐类真实接入、专业系统族真实消费者链路、
+  每页核心业务动作全闭环、移动端全菜单、隐藏 / embedded / API-only 能力或 134 fresh deploy / 清库 / 重启 /
+  备份恢复。下一步继续按完整产品范围推进剩余专业链路和目标环境复演；当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十四批本地收尾：继续按上线级代码 / 契约 / 前端 / 构建核查推进；本批不是新业务场景、
   不是完整上线、不是 134 清库部署复演，也不是每页核心业务动作闭环，而是把第一百六十三批遗留的
   **前端 lint 门禁** 从红转绿。复现命令 `npm --prefix frontend run lint` 原失败于 8 个 warning：

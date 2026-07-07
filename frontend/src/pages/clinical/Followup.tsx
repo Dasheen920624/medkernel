@@ -162,13 +162,7 @@ function FollowupEvidenceText({ children }: { children: ReactNode }) {
   return <span className={styles.followupEvidenceText}>{children}</span>;
 }
 
-function FollowupEvidenceTag({
-  children,
-  color,
-}: {
-  children: ReactNode;
-  color?: string;
-}) {
+function FollowupEvidenceTag({ children, color }: { children: ReactNode; color?: string }) {
   return (
     <Tag color={color} className={styles.followupEvidenceTag}>
       <FollowupEvidenceText>{children}</FollowupEvidenceText>
@@ -210,8 +204,9 @@ export default function Followup() {
   const [abnormalEvidence, setAbnormalEvidence] = useState<FollowupAbnormalReportResponse | null>(
     null,
   );
-  const [backflowEvidence, setBackflowEvidence] =
-    useState<FollowupResultBackflowResponse | null>(null);
+  const [backflowEvidence, setBackflowEvidence] = useState<FollowupResultBackflowResponse | null>(
+    null,
+  );
   const [questionnaireEvidence, setQuestionnaireEvidence] =
     useState<FollowupQuestionnaireResponse | null>(null);
 

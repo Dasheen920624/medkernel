@@ -6845,8 +6845,7 @@ function normalizeFrontdeskAllergyToken(token: string) {
   const substanceText = rawSubstance.trim();
   if (!substanceText) return null;
   const alias =
-    frontdeskAllergyAliases[substanceText] ??
-    frontdeskAllergyAliases[substanceText.toUpperCase()];
+    frontdeskAllergyAliases[substanceText] ?? frontdeskAllergyAliases[substanceText.toUpperCase()];
   const reactions = reactionParts
     .join("：")
     .split(/[、,，;；]/u)

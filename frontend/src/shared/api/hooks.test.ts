@@ -3136,15 +3136,15 @@ describe("mpi api helpers", () => {
         }>;
         extensions?: {
           local?: {
-              frontdeskContext?: {
-                currentMedicationCount?: number;
-                allergyIntoleranceCount?: number;
-                observationCount?: number;
-                heightCm?: number;
-                weightKg?: number;
-                diagnosticReportCount?: number;
-                claimCount?: number;
-              };
+            frontdeskContext?: {
+              currentMedicationCount?: number;
+              allergyIntoleranceCount?: number;
+              observationCount?: number;
+              heightCm?: number;
+              weightKg?: number;
+              diagnosticReportCount?: number;
+              claimCount?: number;
+            };
           };
         };
       };
