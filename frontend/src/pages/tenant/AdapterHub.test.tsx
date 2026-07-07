@@ -858,6 +858,103 @@ describe("AdapterHub", () => {
     );
   });
 
+  it("keeps a newly created onboarding selectable when registering a regional source", async () => {
+    const user = userEvent.setup();
+    const createdOnboarding = {
+      ...onboarding,
+      onboardingId: "onb-frontdesk-regional",
+      name: "区域平台 FHIR 接入",
+      status: "REQUESTED",
+      routeType: "FHIR",
+      adapterId: null,
+      routeReference: "/api/v1/engine/integration/fhir/R4",
+      systemFamilyCode: "REGIONAL_REMOTE",
+      sourceSystem: "REGIONAL_FHIR",
+      businessScenario: "S40 区域共享",
+    };
+    const createOnboarding = mutation(createdOnboarding);
+    const registerSource = mutation(regionalSource);
+    vi.mocked(useCreateIntegrationOnboarding).mockReturnValue(createOnboarding as never);
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(query(pageData([])) as never);
+    vi.mocked(useRegisterRegionalSource).mockReturnValue(registerSource as never);
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    fireEvent.change(screen.getByLabelText("稳定接入申请身份"), {
+      target: { value: createdOnboarding.onboardingId },
+    });
+    fireEvent.change(screen.getByLabelText("接入申请名称"), {
+      target: { value: createdOnboarding.name },
+    });
+    await user.click(screen.getByLabelText("接入模式"));
+    await user.click(screen.getByTitle("FHIR 门面"));
+    await user.click(screen.getByLabelText("FHIR 版本"));
+    await user.click(screen.getByTitle("FHIR R4"));
+    await user.click(screen.getByLabelText("系统族"));
+    await user.click(screen.getByTitle("区域平台、医联体和远程协同"));
+    fireEvent.change(screen.getByLabelText("来源系统"), {
+      target: { value: createdOnboarding.sourceSystem },
+    });
+    fireEvent.change(screen.getByLabelText("业务场景"), {
+      target: { value: createdOnboarding.businessScenario },
+    });
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
+    await user.click(screen.getByRole("button", { name: "提交申请" }));
+    await waitFor(() => {
+      expect(createOnboarding.mutateAsync).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "新增接入申请" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("tab", { name: "区域来源" }));
+    await user.click(screen.getByRole("button", { name: "登记区域来源" }));
+    const regionalSourceDialog = screen.getByRole("dialog", { name: "登记区域来源" });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("稳定来源身份"), {
+      target: { value: "regional-frontdesk" },
+    });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("区域网络"), {
+      target: { value: "区域影像互认平台" },
+    });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("来源机构身份"), {
+      target: { value: "hospital-remote" },
+    });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("来源机构名称"), {
+      target: { value: "远程示范医院" },
+    });
+    await user.click(within(regionalSourceDialog).getByLabelText("可信等级"));
+    await user.click(screen.getByTitle("高可信"));
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("可信证据"), {
+      target: { value: "OPT-07 可信分级证据" },
+    });
+    await user.click(within(regionalSourceDialog).getByRole("combobox", { name: "绑定接入申请" }));
+    await user.type(
+      within(regionalSourceDialog).getByRole("combobox", { name: "绑定接入申请" }),
+      createdOnboarding.onboardingId,
+    );
+    await user.click(
+      await screen.findByTitle(
+        `区域平台 FHIR 接入 · 已提交接入申请 · ${createdOnboarding.onboardingId}`,
+      ),
+    );
+    await user.click(within(regionalSourceDialog).getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
+    await user.click(within(regionalSourceDialog).getByRole("button", { name: "保存区域来源" }));
+    expect(screen.queryByText("'orgPath' is required")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(registerSource.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceId: "regional-frontdesk",
+          onboardingId: createdOnboarding.onboardingId,
+        }),
+      );
+    });
+  }, 15_000);
+
   it("points empty organization scope setup to 服务机构 instead of abstract org maintenance", async () => {
     const user = userEvent.setup();
     vi.mocked(useOrgUnits).mockReturnValue(
@@ -1141,6 +1238,7 @@ describe("AdapterHub", () => {
     expect(screen.queryByLabelText("来源标识")).not.toBeInTheDocument();
     expect(screen.getByLabelText("来源机构身份")).toBeInTheDocument();
     expect(screen.queryByLabelText("来源机构标识")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "绑定接入申请" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("稳定来源身份"), {
       target: { value: "regional-image" },
     });
@@ -1158,6 +1256,9 @@ describe("AdapterHub", () => {
     fireEvent.change(screen.getByLabelText("可信证据"), {
       target: { value: "区域互认协议与接口验收单" },
     });
+    await user.click(screen.getByRole("combobox", { name: "绑定接入申请" }));
+    await user.type(screen.getByRole("combobox", { name: "绑定接入申请" }), "onb-his");
+    await user.click(await screen.findByTitle("HIS 主数据接入申请 · 字段映射已配置 · onb-his"));
     await user.click(screen.getByLabelText("组织范围"));
     await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
     await user.click(screen.getByRole("button", { name: "保存区域来源" }));
@@ -1171,6 +1272,7 @@ describe("AdapterHub", () => {
         trustLevel: "MEDIUM",
         evidenceText: "区域互认协议与接口验收单",
         orgPath: "/tenant-1/hospital-1",
+        onboardingId: "onb-his",
       });
     });
   }, 15_000);

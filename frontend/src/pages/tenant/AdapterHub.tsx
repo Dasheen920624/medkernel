@@ -421,6 +421,9 @@ export default function AdapterHub() {
   const [masterDataSource, setMasterDataSource] = useState("");
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
   const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
+  const [lastCreatedOnboarding, setLastCreatedOnboarding] = useState<IntegrationOnboarding | null>(
+    null,
+  );
   const [createdWebhook, setCreatedWebhook] = useState<WebhookCreateResult | null>(null);
   const [lastCreatedWebhook, setLastCreatedWebhook] = useState<IntegrationWebhookConfig | null>(
     null,
@@ -483,6 +486,15 @@ export default function AdapterHub() {
   const status = statusQuery.data;
   const logs = logsQuery.data?.items ?? [];
   const onboardings = onboardingsQuery.data?.items ?? [];
+  const visibleOnboardings = useMemo(() => {
+    const merged = lastCreatedOnboarding ? [lastCreatedOnboarding, ...onboardings] : onboardings;
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      if (seen.has(item.onboardingId)) return false;
+      seen.add(item.onboardingId);
+      return true;
+    });
+  }, [lastCreatedOnboarding, onboardings]);
   const webhooks = webhooksQuery.data?.items ?? [];
   const visibleWebhooks = useMemo(() => {
     const merged = lastCreatedWebhook ? [lastCreatedWebhook, ...webhooks] : webhooks;
@@ -662,7 +674,8 @@ export default function AdapterHub() {
   async function handleCreateOnboarding() {
     try {
       const values = await onboardingForm.validateFields();
-      await createOnboardingMutation.mutateAsync(values);
+      const created = await createOnboardingMutation.mutateAsync(values);
+      setLastCreatedOnboarding(created);
       messageApi.success("接入申请已创建。");
       setOnboardingModalOpen(false);
       onboardingForm.resetFields();
@@ -1407,7 +1420,7 @@ export default function AdapterHub() {
                     <Table
                       rowKey="onboardingId"
                       columns={onboardingColumns}
-                      dataSource={onboardings}
+                      dataSource={visibleOnboardings}
                       loading={onboardingsQuery.isLoading}
                       pagination={{
                         current: onboardingPage,
@@ -1578,6 +1591,7 @@ export default function AdapterHub() {
         okText="创建回调通道"
         cancelText="取消"
         confirmLoading={createWebhookMutation.isPending}
+        destroyOnClose
       >
         <Form form={webhookForm} layout="vertical">
           <Form.Item name="webhookId" label="稳定回调通道身份" rules={[{ required: true }]}>
@@ -1628,6 +1642,7 @@ export default function AdapterHub() {
         okText="保存区域来源"
         cancelText="取消"
         confirmLoading={registerRegionalSourceMutation.isPending}
+        destroyOnClose
       >
         <Form form={regionalSourceForm} layout="vertical">
           <Form.Item name="sourceId" label="稳定来源身份" rules={[{ required: true }]}>
@@ -1661,6 +1676,7 @@ export default function AdapterHub() {
           </Form.Item>
           <Form.Item name="adapterId" label="绑定适配器">
             <Select
+              aria-label="绑定适配器"
               allowClear
               showSearch
               optionFilterProp="label"
@@ -1674,13 +1690,14 @@ export default function AdapterHub() {
           </Form.Item>
           <Form.Item name="onboardingId" label="绑定接入申请">
             <Select
+              aria-label="绑定接入申请"
               allowClear
               showSearch
               optionFilterProp="label"
               placeholder="可选，按名称选择"
-              options={onboardings.map((item) => ({
+              options={visibleOnboardings.map((item) => ({
                 value: item.onboardingId,
-                label: `${item.name} · ${customerEnumLabel(item.status)}`,
+                label: `${item.name} · ${customerEnumLabel(item.status)} · ${item.onboardingId}`,
               }))}
               notFoundContent="暂无可绑定接入申请"
             />
@@ -1704,6 +1721,7 @@ export default function AdapterHub() {
         okText="提交适配器"
         cancelText="取消"
         width={760}
+        destroyOnClose
       >
         <Form
           form={adapterForm}
@@ -1857,6 +1875,7 @@ export default function AdapterHub() {
         onCancel={() => setOnboardingModalOpen(false)}
         okText="提交申请"
         cancelText="取消"
+        destroyOnClose
       >
         <Form form={onboardingForm} layout="vertical">
           <Form.Item name="onboardingId" label="稳定接入申请身份" rules={[{ required: true }]}>

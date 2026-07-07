@@ -229,6 +229,43 @@ class ReportInterpretationServiceTest {
     }
 
     @Test
+    void prefersSpecificRegionalChestCtDiagnosticItemOverGenericImageBoundaryKnowledge() {
+        when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(report(
+            "dr-regional-chest-ct",
+            "CHEST_CT",
+            "区域胸部 CT 报告提示右肺结节，已由远程示范医院签发",
+            List.of("胸部 CT 右肺结节", "区域互认目录已核验")))));
+        when(diagnosticItems.select("t-1", "runtime-release-report")).thenReturn(List.of(
+            new RuntimeDiagnosticItemReference(
+                "t-1",
+                101L,
+                "launch.diagnostic-item.image-boundary",
+                "医技项目说明书来源与使用边界",
+                22L,
+                "2026.06",
+                SourceAuthorityLevel.C_CONSENSUS_LITERATURE.name(),
+                "hash-image-boundary"),
+            new RuntimeDiagnosticItemReference(
+                "t-1",
+                200L,
+                "IMG.CT.CHEST.REGIONAL.MRTEST",
+                "区域胸部 CT 互认说明书",
+                23L,
+                "V1",
+                SourceAuthorityLevel.D_HOSPITAL.name(),
+                "hash-regional-chest-ct")));
+
+        ReportInterpretationResponse response = service.interpret(new ReportInterpretationRequest("snap-report"));
+
+        assertThat(response.interpretations()).singleElement().satisfies(item -> {
+            assertThat(item.reportId()).isEqualTo("dr-regional-chest-ct");
+            assertThat(item.itemCode()).isEqualTo("IMG.CT.CHEST.REGIONAL.MRTEST");
+            assertThat(item.itemName()).isEqualTo("区域胸部 CT 互认说明书");
+            assertThat(item.sourceVersionId()).isEqualTo(23L);
+        });
+    }
+
+    @Test
     void emptyStateDoesNotPersistRecommendationCard() {
         when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(report(
             "report-plain-1",

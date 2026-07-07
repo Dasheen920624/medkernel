@@ -60,6 +60,7 @@ type CoverageProof = {
   requiresMedicationSafetyFrontdeskAttachment?: boolean;
   requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
   requiresNursingContinuityFrontdeskAttachment?: boolean;
+  requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
@@ -163,6 +164,19 @@ const diagnosticCriticalValueFrontdeskClaims = [
   "deliveryShapes:API_EVENT",
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
+];
+
+const regionalDiagnosticMutualRecognitionFrontdeskClaims = [
+  "scenarios:S40",
+  "productLayers:CLINICAL_EXECUTION",
+  "productLayers:DATA_INTEROPERABILITY",
+  "versionedAssets:KNOWLEDGE",
+  "versionedAssets:FIELD_CATALOG",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:PROFESSIONAL_COLLABORATION",
 ];
 
 const nursingContinuityFrontdeskClaims = [
@@ -282,6 +296,7 @@ const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
+const requiredRegionalDiagnosticMutualRecognitionScenarioCodes = ["S40"];
 const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
 const requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes = ["S18", "S31"];
 const requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes = ["S21", "S32"];
@@ -335,10 +350,23 @@ const requiredDiagnosticCriticalValueFrontdeskScenarioEvidence: Record<string, s
     "外部 FHIR/LIS 入站 Observation 危急值并落标准资源",
     "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源",
     "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本",
-    "当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD",
+    "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
     "临床用户从真实前台生成医技报告解读",
     "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
     "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
+  ],
+};
+
+const requiredRegionalDiagnosticMutualRecognitionScenarioEvidence: Record<string, string[]> = {
+  S40: [
+    "平台管理员登记 REGIONAL_REMOTE FHIR 接入申请并保持断连诚实状态",
+    "平台管理员登记区域来源可信分级并回读跨机构证据",
+    "外部区域 FHIR 入站已签发 DiagnosticReport 并落标准资源",
+    "当前上下文回读跨机构 DiagnosticReport 并绑定同一机构生效版本",
+    "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
+    "临床用户从真实前台生成区域报告互认解读",
+    "推荐卡证明互认理由、重复检查提示、字段目录和提示卡按当前机构生效版本消费",
+    "医生人工完成互认协同待办，系统不自动互认、不改写报告且不自动开嘱",
   ],
 };
 
@@ -622,6 +650,12 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosticCriticalValueFrontdeskAttachment: true,
   },
   {
+    file: "regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
+    titleIncludes: "临床用户与平台管理员完成区域医技报告互认代表闭环",
+    claims: regionalDiagnosticMutualRecognitionFrontdeskClaims,
+    requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment: true,
+  },
+  {
     file: "nursing-continuity-frontdesk.spec.ts",
     titleIncludes: "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
     claims: nursingContinuityFrontdeskClaims,
@@ -758,6 +792,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredMedicationSafetyFrontdeskAttachment(test)) &&
       (!proof.requiresDiagnosticCriticalValueFrontdeskAttachment ||
         hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) &&
+      (!proof.requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment ||
+        hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(test)) &&
       (!proof.requiresNursingContinuityFrontdeskAttachment ||
         hasRequiredNursingContinuityFrontdeskAttachment(test)) &&
       (!proof.requiresPharmacyReviewAntimicrobialFrontdeskAttachment ||
@@ -1091,6 +1127,106 @@ function hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test: BrowserE2eT
     return requiredDiagnosticCriticalValueFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredDiagnosticCriticalValueFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(
+  test: BrowserE2eTestResult,
+) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "regional-diagnostic-mutual-recognition-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      fhirOnboarding?: unknown;
+      regionalSource?: unknown;
+      inboundDiagnosticReport?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      interpretation?: unknown;
+      recommendation?: unknown;
+      workflowTodo?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseRegionalDiagnosticMutualRecognitionRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredRegionalDiagnosticMutualRecognitionScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
+      !arrayEquals(parsed.versionedAssets, ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]) ||
+      !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "THIRD_PARTY_INTERFACE",
+        "CLINICAL_RUNTIME",
+        "PROFESSIONAL_COLLABORATION",
+      ]) ||
+      !hasRegionalDiagnosticMutualRecognitionScopeBoundary(parsed.scopeStatement) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionOnboarding(parsed.fhirOnboarding) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionSource(
+        parsed.regionalSource,
+        parsed.fhirOnboarding,
+      ) ||
+      !runtime ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(
+        parsed.activationRequest,
+        runtime,
+      ) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionInboundReport(
+        parsed.inboundDiagnosticReport,
+        runtime.releaseId,
+        parsed.regionalSource,
+      ) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionClinicalContext(
+        parsed.clinicalContext,
+        runtime.releaseId,
+        parsed.inboundDiagnosticReport,
+      ) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionInterpretation(
+        parsed.interpretation,
+        runtime,
+        parsed.inboundDiagnosticReport,
+      ) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionRecommendation(
+        parsed.recommendation,
+        runtime,
+        parsed.inboundDiagnosticReport,
+      ) ||
+      !hasCompleteRegionalDiagnosticMutualRecognitionWorkflowTodo(
+        parsed.workflowTodo,
+        parsed.recommendation,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const stages = Array.isArray(row?.observedStages) ? row.observedStages : [];
+      if (!code) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredRegionalDiagnosticMutualRecognitionScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredRegionalDiagnosticMutualRecognitionScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -3102,6 +3238,378 @@ function hasCompleteDiagnosticCriticalValueWorkflowTodo(value: unknown, recommen
   );
 }
 
+function hasCompleteRegionalDiagnosticMutualRecognitionApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "regionalRemoteOnboardingCreated",
+    "regionalSourceRegisteredAndReadBack",
+    "fhirDiagnosticReportAccepted",
+    "contextSnapshotContainsRegionalReport",
+    "currentRuntimeContainsMutualRecognitionAssets",
+    "reportInterpretationTriggeredFromFrontdesk",
+    "mutualRecognitionRecommendationPersisted",
+    "workflowTodoCompletedByHuman",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionOnboarding(value: unknown) {
+  const onboarding = recordValue(value);
+  return (
+    hasText(onboarding?.onboardingId) &&
+    onboarding?.routeType === "FHIR" &&
+    hasText(onboarding.routeReference) &&
+    String(onboarding.routeReference).includes("/engine/integration/fhir/R4") &&
+    onboarding.systemFamilyCode === "REGIONAL_REMOTE" &&
+    onboarding.sourceSystem === "REGIONAL_FHIR" &&
+    hasText(onboarding.businessScenario) &&
+    String(onboarding.businessScenario).includes("S40") &&
+    ["REQUESTED", "AUTH_CONFIGURED", "MAPPING_CONFIGURED", "ONLINE"].includes(
+      String(onboarding.status),
+    ) &&
+    ["NOT_CONNECTED", "DEGRADED", "UNKNOWN", "HEALTHY"].includes(
+      String(onboarding.healthStatus),
+    )
+  );
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionSource(
+  value: unknown,
+  onboardingValue: unknown,
+) {
+  const source = recordValue(value);
+  const onboarding = recordValue(onboardingValue);
+  return (
+    source !== null &&
+    onboarding !== null &&
+    hasText(source.sourceId) &&
+    hasText(source.regionalNetworkName) &&
+    hasText(source.sourceOrganizationId) &&
+    hasText(source.sourceOrganizationName) &&
+    ["HIGH", "MEDIUM"].includes(String(source.trustLevel)) &&
+    hasText(source.evidenceText) &&
+    String(source.evidenceText).includes("可信") &&
+    source.onboardingId === onboarding.onboardingId &&
+    hasText(source.orgPath) &&
+    source.status === "ACTIVE"
+  );
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionInboundReport(
+  value: unknown,
+  runtimeReleaseId: string,
+  sourceValue: unknown,
+) {
+  const report = recordValue(value);
+  const source = recordValue(sourceValue);
+  return (
+    report !== null &&
+    source !== null &&
+    report.fhirResourceType === "DiagnosticReport" &&
+    report.canonicalResourceType === "DIAGNOSTIC_REPORT" &&
+    hasText(report.fhirId) &&
+    hasText(report.snapshotId) &&
+    report.runtimeReleaseId === runtimeReleaseId &&
+    hasText(report.patientId) &&
+    report.sourceSystem === "FHIR_R4" &&
+    report.sourceRecordId === `DiagnosticReport/${report.fhirId}` &&
+    hasText(report.reportType) &&
+    hasText(report.conclusion) &&
+    report.signedStatus === "FINAL" &&
+    hasText(report.signedAt) &&
+    report.regionalSourceId === source.sourceId &&
+    report.sourceOrganizationId === source.sourceOrganizationId &&
+    report.sourceOrganizationName === source.sourceOrganizationName &&
+    hasText(report.mutualRecognitionReason) &&
+    hasText(report.duplicateExamHint) &&
+    String(report.duplicateExamHint).includes("不自动") &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(report.integrationStatus)) &&
+    hasDiagnosticCriticalValueNotConnectedEvidence(report) &&
+    report.compensationStatus === "NOT_CONNECTED" &&
+    hasText(report.compensationMessageId)
+  );
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionClinicalContext(
+  value: unknown,
+  runtimeReleaseId: string,
+  reportValue: unknown,
+) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const report = recordValue(reportValue);
+  const reports = Array.isArray(resources?.diagnosticReports) ? resources.diagnosticReports : [];
+  return (
+    context !== null &&
+    report !== null &&
+    hasText(context.patientId) &&
+    hasText(context.contextSnapshotId) &&
+    context.runtimeReleaseId === runtimeReleaseId &&
+    context.contextSnapshotId === report.snapshotId &&
+    context.patientId === report.patientId &&
+    reports.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        row.reportId === report.fhirId &&
+        row.reportType === report.reportType &&
+        hasText(row.conclusion) &&
+        row.sourceSystem === "FHIR_R4"
+      );
+    })
+  );
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionInterpretation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    knowledgeAsset: DiagnosticCriticalValueRuntimeAsset;
+  },
+  reportValue: unknown,
+) {
+  const interpretation = recordValue(value);
+  const report = recordValue(reportValue);
+  const items = Array.isArray(interpretation?.interpretations)
+    ? interpretation.interpretations
+    : [];
+  return (
+    interpretation !== null &&
+    report !== null &&
+    interpretation.runtimeReleaseId === runtime.releaseId &&
+    interpretation.contextSnapshotId === report.snapshotId &&
+    hasText(interpretation.advisoryNote) &&
+    String(interpretation.advisoryNote).includes("不改写已签发报告") &&
+    items.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      const recommendations = Array.isArray(row?.recommendations) ? row.recommendations : [];
+      const highlights = Array.isArray(row?.abnormalHighlights) ? row.abnormalHighlights : [];
+      return (
+        row.reportId === report.fhirId &&
+        row.itemCode === runtime.knowledgeAsset.assetIdentity &&
+        typeof row.sourceVersionId === "number" &&
+        row.versionNo === runtime.knowledgeAsset.versionNo &&
+        row.criticalRisk === false &&
+        highlights.length > 0 &&
+        recommendations.some((text) => typeof text === "string" && text.includes("不自动"))
+      );
+    })
+  );
+}
+
+function parseRegionalDiagnosticMutualRecognitionRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    !hasText(runtime.platformBaselineReleaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const knowledgeAsset = parseDiagnosticCriticalValueRuntimeAsset(
+    runtime.knowledgeAsset,
+    "KNOWLEDGE",
+    "HOSPITAL",
+  );
+  const fieldCatalogAsset = parseDiagnosticCriticalValueRuntimeAsset(
+    runtime.fieldCatalogAsset,
+    "FIELD_CATALOG",
+    "PLATFORM",
+  );
+  const actionCardAsset = parseDiagnosticCriticalValueRuntimeAsset(
+    runtime.actionCardAsset,
+    "ACTION_CARD",
+    "HOSPITAL",
+  );
+  if (!knowledgeAsset || !fieldCatalogAsset || !actionCardAsset) return null;
+  const runtimeAssets = runtime.assets;
+  if (
+    ![knowledgeAsset, fieldCatalogAsset, actionCardAsset].every((asset) =>
+      runtimeAssets.some((item) =>
+        diagnosticCriticalValueRuntimeAssetMatches(item, asset, { requireActive: true }),
+      ),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    platformBaselineReleaseId: String(runtime.platformBaselineReleaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    knowledgeAsset,
+    fieldCatalogAsset,
+    actionCardAsset,
+  };
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(
+  value: unknown,
+  runtime: {
+    platformBaselineReleaseId: string;
+    knowledgeAsset: DiagnosticCriticalValueRuntimeAsset;
+    fieldCatalogAsset: DiagnosticCriticalValueRuntimeAsset;
+    actionCardAsset: DiagnosticCriticalValueRuntimeAsset;
+  },
+) {
+  const request = recordValue(value);
+  return Boolean(
+    request?.platformBaselineReleaseId === runtime.platformBaselineReleaseId &&
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: runtime.knowledgeAsset.assetType,
+        assetIdentity: runtime.knowledgeAsset.assetIdentity,
+        versionId: runtime.knowledgeAsset.versionId,
+      }) &&
+      runtimeReleasePayloadContainsPlatformSelection(
+        value,
+        "activeAssets",
+        runtime.fieldCatalogAsset,
+      ) &&
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: runtime.actionCardAsset.assetType,
+        assetIdentity: runtime.actionCardAsset.assetIdentity,
+        versionId: runtime.actionCardAsset.versionId,
+      }),
+  );
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    knowledgeAsset: DiagnosticCriticalValueRuntimeAsset;
+    fieldCatalogAsset: DiagnosticCriticalValueRuntimeAsset;
+    actionCardAsset: DiagnosticCriticalValueRuntimeAsset;
+  },
+  reportValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const explanation = recordValue(recommendation?.explanation);
+  const report = recordValue(reportValue);
+  const runtimeAssetEvidence = Array.isArray(explanation?.runtimeAssetEvidence)
+    ? explanation.runtimeAssetEvidence
+    : [];
+  const recommendationTexts = Array.isArray(explanation?.recommendations)
+    ? explanation.recommendations
+    : [];
+  return (
+    recommendation !== null &&
+    explanation !== null &&
+    report !== null &&
+    hasText(recommendation.cardId) &&
+    recommendation.cardStatus === "PENDING" &&
+    recommendation.triggerRuntimeReleaseId === runtime.releaseId &&
+    recommendation.cardType === "EXAM" &&
+    recommendation.requiresPhysicianConfirmation === true &&
+    recommendation.aiGenerated === false &&
+    hasText(recommendation.mutualRecognitionReason) &&
+    hasText(recommendation.duplicateExamHint) &&
+    String(recommendation.duplicateExamHint).includes("不自动") &&
+    explanation.reportId === report.fhirId &&
+    explanation.runtimeReleaseId === runtime.releaseId &&
+    explanation.itemCode === runtime.knowledgeAsset.assetIdentity &&
+    explanation.sourceContentHash === runtime.knowledgeAsset.contentHash &&
+    explanation.criticalRisk === false &&
+    recommendationTexts.some(
+      (text) => typeof text === "string" && text.includes("人工") && text.includes("互认"),
+    ) &&
+    recommendationTexts.some((text) => typeof text === "string" && text.includes("不自动")) &&
+    regionalDiagnosticMutualRecognitionRuntimeAssetEvidenceMatches(
+      runtimeAssetEvidence,
+      runtime.fieldCatalogAsset,
+    ) &&
+    regionalDiagnosticMutualRecognitionRuntimeAssetEvidenceMatches(
+      runtimeAssetEvidence,
+      runtime.actionCardAsset,
+    )
+  );
+}
+
+function regionalDiagnosticMutualRecognitionRuntimeAssetEvidenceMatches(
+  values: unknown[],
+  asset: DiagnosticCriticalValueRuntimeAsset,
+) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    if (
+      evidence?.assetType !== asset.assetType ||
+      evidence.assetIdentity !== asset.assetIdentity ||
+      evidence.assetVersion !== asset.versionNo ||
+      evidence.contentHash !== asset.contentHash
+    ) {
+      return false;
+    }
+    if (asset.assetType === "FIELD_CATALOG") {
+      const fields = Array.isArray(evidence.fields) ? evidence.fields : [];
+      return (
+        fields.includes("diagnosticReports[].conclusion") &&
+        fields.some((field) => field === "diagnosticReports[].signedAt" || field === "observations[].criticalFlag")
+      );
+    }
+    if (asset.assetType === "ACTION_CARD") {
+      return evidence.requiresPhysicianConfirmation === true;
+    }
+    return true;
+  });
+}
+
+function hasCompleteRegionalDiagnosticMutualRecognitionWorkflowTodo(
+  value: unknown,
+  recommendationValue: unknown,
+) {
+  const todo = recordValue(value);
+  const recommendation = recordValue(recommendationValue);
+  return (
+    todo !== null &&
+    recommendation !== null &&
+    hasText(todo.todoId) &&
+    todo.status === "COMPLETED" &&
+    todo.category === "REPORT_INTERPRETATION" &&
+    hasText(recommendation.cardId) &&
+    todo.sourceId === recommendation.cardId &&
+    hasText(todo.completedBy) &&
+    hasText(todo.completionReason) &&
+    String(todo.completionReason).includes("人工") &&
+    String(todo.completionReason).includes("不改写") &&
+    todo.noAutoOrder === true &&
+    todo.noAutoRecognition === true
+  );
+}
+
+function hasRegionalDiagnosticMutualRecognitionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedRegionalDiagnosticMutualRecognitionScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整区域平台") &&
+    hasNegatedScopeTerm(statement, "完整远程医疗") &&
+    hasNegatedScopeTerm(statement, "完整 PACS/RIS/病理/内镜/心电系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S40") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedRegionalDiagnosticMutualRecognitionScopeClaim(statement: string) {
+  return [
+    "完整区域平台",
+    "完整远程医疗",
+    "完整 PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整S40",
+    "完整 S40",
+    "完整S0-S40",
+    "完整 S0-S40",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
 type NursingContinuityRuntimeAsset = {
   assetType: "FOLLOWUP";
   assetIdentity: string;
@@ -3889,7 +4397,8 @@ function hasNegatedScopeTerm(statement: string, term: string) {
     matchingSegments.every((segment) => {
       const termIndex = segment.indexOf(term);
       const prefix = segment.slice(0, termIndex);
-      return /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix);
+      return /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix)
+        || /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(segment);
     })
   );
 }

@@ -107,7 +107,7 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
             .extracting(
                 RuntimeDiagnosticItemReference::knowledgeVersionId,
                 RuntimeDiagnosticItemReference::versionNo)
-            .containsExactly(tuple(10L, "ai-draft-task-diagnostic-item"));
+            .containsExactly(tuple(10L, "V1"));
     }
 
     @Test

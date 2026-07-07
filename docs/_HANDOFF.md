@@ -10,6 +10,91 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整上线、134 清库部署复演、完整区域平台、完整远程医疗、
+  完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整 S40 或完整 S0-S40 收口，而是完成
+  **P1 区域医技报告互认代表切片 S40**：
+  `REGIONAL_REMOTE + DiagnosticReport + KNOWLEDGE(诊断项目说明书身份域) / FIELD_CATALOG /
+  ACTION_CARD + API_EVENT + THIRD_PARTY_INTERFACE / CLINICAL_RUNTIME /
+  PROFESSIONAL_COLLABORATION`。当前 coverage 只声明 `scenarios:S40`、
+  `productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、
+  `versionedAssets:KNOWLEDGE/FIELD_CATALOG/ACTION_CARD`、`deliveryShapes:API_EVENT`、
+  `serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION`；
+  不声明完整区域平台、完整远程医疗、完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整 S40、
+  完整 S0-S40、完整四职责全菜单体验、完整上线验收或 134 fresh deploy。
+- 第一百六十批真实链路说明：新增目标真实 E2E
+  `regional-diagnostic-mutual-recognition-frontdesk.spec.ts`。医疗引擎运营员通过真实知识生产服务登记
+  本地医院区域胸部 CT 互认说明书来源、片段、引用、质量门和审核发布，等待该 `KNOWLEDGE`
+  资产同步为医院 runtime 候选，并创建要求人工确认的 `ACTION_CARD`；随后把平台 baseline、
+  本轮医院 `KNOWLEDGE`、平台 `FIELD_CATALOG` 和本轮医院 `ACTION_CARD` 激活到本地上线演练医院当前机构生效版本。
+  临床用户从真实 `/mpi` 前台创建脱敏患者并建立当前就诊上下文；平台管理员从真实 `/adapter/hub`
+  登记 `REGIONAL_REMOTE` FHIR 接入申请，保持 `NOT_CONNECTED` 诚实状态，再登记高可信区域来源并回读。
+  之后以 HMAC 签名 FHIR R4 `DiagnosticReport` 入站跨机构已签发胸部 CT 报告，标准上下文回读必须包含该
+  `DiagnosticReport` 并绑定同一机构生效版本。临床用户从真实 `/cdss/fatigue` 前台生成报告解读，
+  推荐卡必须证明互认理由、重复检查提示、字段目录和提示卡按当前机构生效版本消费，且
+  `requiresPhysicianConfirmation=true/aiGenerated=false`。最后临床用户从真实 `/workflow/todos`
+  人工完成互认协同待办；证据明确系统不自动互认、不改写已签发报告、不自动取消检查、不自动开嘱。
+- 第一百六十批代码修复与护栏：`AdapterHub` 新建接入申请后把刚创建的 onboarding 合并进可见列表，
+  使“登记区域来源”弹窗能立即绑定本轮接入申请；接入申请选项标签补充稳定 `onboardingId`，Webhook、
+  区域来源、适配器和接入申请弹窗统一 `destroyOnClose`，避免前台真实操作复用旧表单状态。
+  `ReportInterpretationService` 把医技项目匹配从首个 family 命中改为评分选择，确保区域胸部 CT
+  互认说明书优先于泛化“医技项目说明书来源与使用边界”；`RuntimeReleaseDiagnosticItemSelector`
+  用当前机构生效版本条目的统一资产 `versionNo/contentHash` 返回运行证据，仍按 content hash 解析
+  `knowledgeVersionId` 以保留知识血缘。`launchCoverageEvidence` 增加 S40 专用附件门禁：必须校验
+  REGIONAL_REMOTE FHIR onboarding、区域来源可信分级、FHIR 入站 DiagnosticReport、当前上下文回读、
+  `KNOWLEDGE/FIELD_CATALOG/ACTION_CARD` runtime 与激活请求一致、报告解读、推荐卡、人工待办闭环、
+  以及 scope 边界；并修正 parser 对真实阶段名
+  “当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD”的期望，防止真实
+  E2E 已通过但 coverage 为空。
+- 第一百六十批验证证据：
+  - 红绿与单测：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "S40 regional diagnostic mutual-recognition coverage"` 在只改 fixture 为真实 r18 阶段名后先红
+    （S40 coverage 未声明），修正 parser 期望后绿；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "S40 regional diagnostic mutual-recognition coverage|scope 过度宣称完整区域平台|scope 过度宣称完整 PACS/RIS|scope 过度宣称完整 S0-S40"`
+    通过（5 selected）；`npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence`
+    通过（2 files，210 tests）；`npm --prefix frontend run test -- AdapterHub -t
+    "newly created onboarding|registers a graded regional source"` 通过（2 selected）。
+  - 后端定向与构建：`mvn -f medkernel-backend/pom.xml
+    -Dtest=ReportInterpretationServiceTest,RuntimeReleaseDiagnosticItemSelectorTest test` 通过（9 tests，
+    0 failures，0 errors）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+    `npm --prefix frontend run build` 通过；`mvn -f medkernel-backend/pom.xml -DskipTests package`
+    通过；`git diff --check` 通过但仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF
+    替换，本批不处理、不暂存该文件。
+  - 目标真实 E2E：r17 使用 18082 时失败，根因是验证过程中先运行
+    `mvn -f medkernel-backend/pom.xml -DskipTests package` 重写了正在 `java -jar target/...jar` 运行的
+    18082 jar，导致后端出现 `NoClassDefFoundError: ch/qos/logback/classic/spi/ThrowableProxy`，运行时发布
+    POST 一直未返回直到 Playwright 360s timeout；这不是 S40 业务断言失败，r17 证据保留在
+    `/tmp/medkernel-e2e-regional-diagnostic-mutual-recognition-20260708-r17`。随后停止污染进程，用已完成
+    package 后的 jar 重新启动 18082 dev/H2 空库后端，健康检查 `UP`，当前 PID `69807`，执行
+    `E2E_API_BASE_URL=http://localhost:18082/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18082
+    E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-regional-diagnostic-mutual-recognition-20260708-r19
+    npm --prefix frontend run e2e -- --project=chromium regional-diagnostic-mutual-recognition-frontdesk.spec.ts`
+    通过；`/tmp/medkernel-e2e-regional-diagnostic-mutual-recognition-20260708-r19/report/results.json`
+    由当前 reporter 自然生成为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=21443ms），顶层
+    `launchCoverage` 只含 `S40`、`CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、
+    `KNOWLEDGE/FIELD_CATALOG/ACTION_CARD`、`API_EVENT`、
+    `THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION`。附件记录 runtime
+    `releaseId=runtime-01KWZ2P21DS2YP6F65SSGHJ20F/revisionNo=2/manifestSha256=97649af379ea5837cabc3f427216fa242fcb8b6216e73cc43e6f2451ad1b041e`；
+    区域知识资产
+    `IMG.CT.CHEST.REGIONAL.MRB2PYEQ-0/versionId=av-01KWZ2P1X69TZR27HAJAKZYA9K/versionNo=V1/contentHash=6320b8584217e6fc0aa425cba9266f5581d9ffa7deb863f58b0fcdce564ea6b5`；
+    字段目录
+    `FIELD.CATALOG.CLINICAL_CONTEXT/versionId=av-01KWZ2NZJ591PWAA050BGPKVG8/contentHash=5913ab3e00bbc13b21a1edd59888c33c4e065ff7e268ed26f43d017da1e4cd84`；
+    动作卡
+    `ACTION_CARD.REPORT.CRITICAL_VALUE/versionId=av-01KWZ2P1TZ9E676BRXJER24EFZ/contentHash=05e9613e147b17f5a3eb46d2d206c0fa0449dd065bc9fdd99e2933f86fd47d7a`。
+    接入申请 `onboardingId=onb-s40-regional-mrb2pyeq-0/healthStatus=NOT_CONNECTED`；区域来源
+    `sourceId=regional-source-s40-mrb2pyeq-0/trustLevel=HIGH`；入站报告
+    `fhirId=dr-regional-chest-ct-mrb2pyeq-0/snapshotId=ctx-cedf3e73-5780-48f3-a6ae-d6aa7d36ebb8/patientId=mpi-01KWZ2P4XPA8FPBKCFBS97D5AF/integrationStatus=RETRYING/compensationStatus=NOT_CONNECTED`；
+    推荐卡 `cardId=rc-b37ec2d9-0c89-436d-994f-c24fb2fb6400/status=PENDING`；人工待办
+    `todoId=todo-080f92ec-47e2-40c3-ae58-73678e04a08c/status=COMPLETED`。18082 干净验证后端仍在运行，
+    日志为 `/tmp/medkernel-18082-s40-clean.out.log` 与 `/tmp/medkernel-18082-s40-clean.err.log`。
+- 第一百六十批边界与下一步：用户允许子代理，但本批尝试启动只读复核子代理仍遇到
+  `agent thread limit reached`，未产生子代理改动。即便本批 S40 目标 E2E 已绿，也仍未完成
+  134 fresh deploy / 清库 / 重启 / 全功能全知识复演，仍未证明完整 S0-S40、完整区域平台、
+  完整远程医疗、完整 PACS/RIS/病理/内镜/心电系统族覆盖、13 类标准患者资源逐类真实消费者、
+  13 类版本化资产逐类真实消费者或完整四职责全菜单体验。下一步继续按完整产品范围推进：
+  PACS/RIS/病理/心电/ICU 等剩余专业链路、全角色真实前台体验收敛和 134 目标环境 fresh deploy /
+  清库 / 恢复复演；不要把本批代表切片包装成完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  仍为工作树脏文件，本批不要回滚、不要暂存。
 - 第一百五十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整围手术期系统、完整手麻系统、
   完整手术室系统、完整输血系统、完整第三方系统族覆盖、完整 S26/S33 或完整 S0-S40 收口，

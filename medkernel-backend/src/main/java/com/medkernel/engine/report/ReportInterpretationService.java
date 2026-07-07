@@ -119,11 +119,16 @@ public class ReportInterpretationService {
         String conclusion = normalize(report.conclusion());
         String findings = normalize(String.join(" ", safeList(report.keyFindings())));
         return items.stream()
-            .filter(item -> matchesDiagnosticItem(reportType, conclusion, findings, item))
-            .findFirst();
+            .map(item -> new DiagnosticItemMatch(item, diagnosticItemMatchScore(reportType, conclusion, findings, item)))
+            .filter(match -> match.score() > 0)
+            .max(Comparator
+                .comparingInt(DiagnosticItemMatch::score)
+                .thenComparing(match -> normalize(match.item().itemName()).length())
+                .thenComparing(match -> normalize(match.item().itemCode()).length()))
+            .map(DiagnosticItemMatch::item);
     }
 
-    private boolean matchesDiagnosticItem(
+    private int diagnosticItemMatchScore(
             String reportType,
             String conclusion,
             String findings,
@@ -131,15 +136,36 @@ public class ReportInterpretationService {
         String code = normalize(item.itemCode());
         String name = normalize(item.itemName());
         String reportText = (reportType + " " + conclusion + " " + findings).trim();
-        if ((!reportType.isBlank() && reportType.equals(code))
-                || (!reportType.isBlank() && !code.isBlank() && (reportType.contains(code) || code.contains(reportType)))
-                || (!name.isBlank() && (conclusion.contains(name) || findings.contains(name)))) {
-            return true;
+        if (!reportType.isBlank() && reportType.equals(code)) {
+            return 100;
+        }
+        if (!reportType.isBlank() && !code.isBlank() && (reportType.contains(code) || code.contains(reportType))) {
+            return 90;
+        }
+        int tokenScore = diagnosticTokenScore(reportText, code + " " + name);
+        if (tokenScore > 0) {
+            return 70 + tokenScore;
+        }
+        if (!name.isBlank() && (conclusion.contains(name) || findings.contains(name))) {
+            return 60;
         }
         if (!reportType.isBlank() && !name.isBlank() && name.contains(reportType)) {
-            return true;
+            return 50;
         }
-        return matchesDiagnosticFamily(reportText, code + " " + name);
+        return matchesDiagnosticFamily(reportText, code + " " + name) ? 10 : 0;
+    }
+
+    private int diagnosticTokenScore(String reportText, String itemText) {
+        int score = 0;
+        for (String token : List.of("胸部", "chest", "ct", "mri", "超声", "x线", "影像", "检验", "血钾", "potassium")) {
+            String normalized = normalize(token);
+            if (!normalized.isBlank()
+                    && reportText.contains(normalized)
+                    && itemText.contains(normalized)) {
+                score++;
+            }
+        }
+        return score;
     }
 
     private boolean matchesDiagnosticFamily(String reportText, String itemText) {
@@ -444,4 +470,6 @@ public class ReportInterpretationService {
     private String traceId() {
         return RequestContext.currentTraceId();
     }
+
+    private record DiagnosticItemMatch(RuntimeDiagnosticItemReference item, int score) {}
 }

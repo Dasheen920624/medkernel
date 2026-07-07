@@ -1252,6 +1252,50 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("完整上线验收已完成");
   });
 
+  it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
+    const e2eSource = readFileSync(
+      "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
+      "utf8",
+    );
+    const knowledgeCandidateBody = e2eSource.slice(
+      e2eSource.indexOf("async function waitForKnowledgeUnifiedAssetVersion"),
+      e2eSource.indexOf("function regionalDiagnosticKnowledgeContent"),
+    );
+
+    expect(e2eSource).toContain("regional-diagnostic-mutual-recognition-frontdesk-codes");
+    expect(e2eSource).toContain("REGIONAL_REMOTE");
+    expect(e2eSource).toContain('"KNOWLEDGE"');
+    expect(e2eSource).toContain('"FIELD_CATALOG"');
+    expect(e2eSource).toContain('"ACTION_CARD"');
+    expect(e2eSource).toContain("DiagnosticReport");
+    expect(e2eSource).toContain('createRegionalDiagnosticKnowledgeAsset(page, suffix, hospitalId)');
+    expect(e2eSource).toContain("/engine/knowledge-production/generate");
+    expect(e2eSource).toContain("targetPipeline: \"TENANT_OVERLAY\"");
+    expect(e2eSource).toContain("domain: \"CLINICAL\"");
+    expect(e2eSource).toContain("newIdentity: { domain: \"DIAGNOSTIC_ITEM\", subject, identityCode }");
+    expect(e2eSource).toContain("parseKnowledgeCandidateRef");
+    expect(e2eSource).toContain("/engine/knowledge/citations");
+    expect(e2eSource).toContain("/engine/knowledge-production/jobs/${encodeURIComponent(jobCode)}/publication-quality-records");
+    expect(e2eSource).toContain("/engine/knowledge/candidates/${classificationId}/review");
+    expect(e2eSource).toContain("qualityGateRecordId");
+    expect(e2eSource).not.toContain("activateRegionalDiagnosticKnowledgeVersion");
+    expect(e2eSource).not.toContain("/versions/${options.versionId}/activate");
+    expect(knowledgeCandidateBody).toContain("/engine/releases/hospitals/${encodeURIComponent(");
+    expect(knowledgeCandidateBody).toContain("options.hospitalId");
+    expect(knowledgeCandidateBody).toContain("runtime-candidates?assetType=KNOWLEDGE");
+    expect(knowledgeCandidateBody).toContain('textField(candidate, "status") === "PUBLISHED"');
+    expect(knowledgeCandidateBody).toContain('textField(candidate, "contentHash") === options.contentHash');
+    expect(knowledgeCandidateBody).toContain('versionId.startsWith("av-")');
+    expect(knowledgeCandidateBody).not.toContain("/engine/authoring/declarative-assets?assetType=KNOWLEDGE");
+    expect(e2eSource).not.toContain("page.route(");
+    expect(e2eSource).not.toContain("page.waitForTimeout");
+    expect(e2eSource).not.toContain("third-party-system-family-codes");
+    expect(e2eSource).not.toContain('"quality-controller"');
+    expect(e2eSource).not.toContain("完整区域平台已上线");
+    expect(e2eSource).not.toContain("完整 S40 已上线");
+    expect(e2eSource).not.toContain("完整上线验收已完成");
+  });
+
   it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

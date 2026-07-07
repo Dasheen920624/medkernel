@@ -1297,7 +1297,7 @@ const diagnosticCriticalValueEvidence = {
         "外部 FHIR/LIS 入站 Observation 危急值并落标准资源",
         "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源",
         "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本",
-        "当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD",
+        "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
         "临床用户从真实前台生成医技报告解读",
         "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
         "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
@@ -1331,6 +1331,282 @@ function expectNoDiagnosticCriticalValueCoverage(body: Record<string, unknown>) 
   const assets = evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? [];
   expect(assets).not.toEqual(expect.arrayContaining(["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]));
   expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S36");
+}
+
+const regionalDiagnosticMutualRecognitionEvidence = {
+  scenarioCodes: ["S40"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
+  versionedAssets: ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"],
+  deliveryShapes: ["API_EVENT"],
+  serviceCombinations: [
+    "THIRD_PARTY_INTERFACE",
+    "CLINICAL_RUNTIME",
+    "PROFESSIONAL_COLLABORATION",
+  ],
+  scopeStatement:
+    "区域医技报告互认代表切片：REGIONAL_REMOTE 区域来源可信分级、跨机构 DiagnosticReport 入站、报告解读、人工互认和协同待办闭环，不代表完整区域平台、完整远程医疗、完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整 S40、完整 S0-S40 或完整上线验收。",
+  apiEvidence: {
+    regionalRemoteOnboardingCreated: true,
+    regionalSourceRegisteredAndReadBack: true,
+    fhirDiagnosticReportAccepted: true,
+    contextSnapshotContainsRegionalReport: true,
+    currentRuntimeContainsMutualRecognitionAssets: true,
+    reportInterpretationTriggeredFromFrontdesk: true,
+    mutualRecognitionRecommendationPersisted: true,
+    workflowTodoCompletedByHuman: true,
+  },
+  fhirOnboarding: {
+    onboardingId: "onboarding-s40-regional-fhir",
+    routeType: "FHIR",
+    routeReference: "/api/v1/engine/integration/fhir/R4",
+    systemFamilyCode: "REGIONAL_REMOTE",
+    sourceSystem: "REGIONAL_FHIR",
+    businessScenario: "S40 区域共享",
+    status: "REQUESTED",
+    healthStatus: "NOT_CONNECTED",
+    fhirVersion: "R4",
+    mappedFieldCount: 0,
+  },
+  regionalSource: {
+    sourceId: "regional-source-s40",
+    regionalNetworkName: "长三角影像互认平台",
+    sourceOrganizationId: "ORG-REMOTE-IMG-001",
+    sourceOrganizationName: "远程示范医院影像中心",
+    trustLevel: "HIGH",
+    evidenceText: "OPT-07 可信分级：CA 签章、报告号、来源机构和互认目录均已核验。",
+    adapterId: null,
+    onboardingId: "onboarding-s40-regional-fhir",
+    orgPath: "/tenant/demo/hospital/h001",
+    status: "ACTIVE",
+  },
+  inboundDiagnosticReport: {
+    fhirResourceType: "DiagnosticReport",
+    fhirId: "dr-regional-chest-ct",
+    canonicalResourceType: "DIAGNOSTIC_REPORT",
+    snapshotId: "ctx-regional-report",
+    runtimeReleaseId: "runtime-regional-report",
+    patientId: "mpi-regional-report",
+    sourceSystem: "FHIR_R4",
+    sourceRecordId: "DiagnosticReport/dr-regional-chest-ct",
+    reportType: "胸部 CT",
+    conclusion: "外院胸部 CT 已签发：右肺上叶结节，建议结合病史复核，可作为互认报告参考。",
+    signedStatus: "FINAL",
+    signedAt: "2026-07-08T09:30:00Z",
+    sourceOrganizationId: "ORG-REMOTE-IMG-001",
+    sourceOrganizationName: "远程示范医院影像中心",
+    regionalSourceId: "regional-source-s40",
+    mutualRecognitionReason: "同级医院同项目 7 日内已签发，影像质量满足互认目录要求。",
+    duplicateExamHint: "提示 7 日内已有胸部 CT 报告，需人工判断是否互认，系统不自动取消检查。",
+    integrationStatus: "RETRYING",
+    operationOutcomeContainsNotConnected: true,
+    compensationStatus: "NOT_CONNECTED",
+    compensationRequired: true,
+    compensationMessageId: "fhir-diagnosticreport-dr-regional-chest-ct",
+  },
+  runtime: {
+    releaseId: "runtime-regional-report",
+    platformBaselineReleaseId: "baseline-regional-report",
+    revisionNo: 19,
+    manifestSha256: "6".repeat(64),
+    assets: [
+      {
+        assetType: "KNOWLEDGE",
+        assetIdentity: "IMG.CT.CHEST.REGIONAL.S40",
+        sourceLayer: "HOSPITAL",
+        versionId: "av-regional-report-knowledge",
+        versionNo: "V1",
+        contentHash: "a".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        sourceLayer: "PLATFORM",
+        versionId: "fc-regional-report",
+        versionNo: "V1",
+        contentHash: "b".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+        sourceLayer: "HOSPITAL",
+        versionId: "ac-regional-report",
+        versionNo: "V1",
+        contentHash: "c".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    knowledgeAsset: {
+      assetType: "KNOWLEDGE",
+      assetIdentity: "IMG.CT.CHEST.REGIONAL.S40",
+      sourceLayer: "HOSPITAL",
+      versionId: "av-regional-report-knowledge",
+      versionNo: "V1",
+      contentHash: "a".repeat(64),
+      entryState: "ACTIVE",
+    },
+    fieldCatalogAsset: {
+      assetType: "FIELD_CATALOG",
+      assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+      sourceLayer: "PLATFORM",
+      versionId: "fc-regional-report",
+      versionNo: "V1",
+      contentHash: "b".repeat(64),
+      entryState: "ACTIVE",
+    },
+    actionCardAsset: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+      sourceLayer: "HOSPITAL",
+      versionId: "ac-regional-report",
+      versionNo: "V1",
+      contentHash: "c".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    platformBaselineReleaseId: "baseline-regional-report",
+    activeAssets: [
+      {
+        assetType: "KNOWLEDGE",
+        assetIdentity: "IMG.CT.CHEST.REGIONAL.S40",
+        versionId: "av-regional-report-knowledge",
+      },
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        versionId: null,
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+        versionId: "ac-regional-report",
+      },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-regional-report",
+    contextSnapshotId: "ctx-regional-report",
+    runtimeReleaseId: "runtime-regional-report",
+    resources: {
+      diagnosticReports: [
+        {
+          reportId: "dr-regional-chest-ct",
+          reportType: "胸部 CT",
+          conclusion: "外院胸部 CT 已签发：右肺上叶结节，建议结合病史复核，可作为互认报告参考。",
+          sourceSystem: "FHIR_R4",
+        },
+      ],
+    },
+  },
+  interpretation: {
+    contextSnapshotId: "ctx-regional-report",
+    runtimeReleaseId: "runtime-regional-report",
+    advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+    interpretations: [
+      {
+        reportId: "dr-regional-chest-ct",
+        itemCode: "IMG.CT.CHEST.REGIONAL.S40",
+        sourceVersionId: 21,
+        versionNo: "V1",
+        criticalRisk: false,
+        abnormalHighlights: ["右肺上叶结节"],
+        recommendations: ["请结合患者上下文复核异常重点，系统不自动开立医嘱。"],
+      },
+    ],
+  },
+  recommendation: {
+    cardId: "card-regional-report",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-regional-report",
+    cardType: "EXAM",
+    requiresPhysicianConfirmation: true,
+    aiGenerated: false,
+    mutualRecognitionReason: "同级医院同项目 7 日内已签发，影像质量满足互认目录要求。",
+    duplicateExamHint: "提示 7 日内已有胸部 CT 报告，需人工判断是否互认，系统不自动取消检查。",
+    explanation: {
+      reportId: "dr-regional-chest-ct",
+      runtimeReleaseId: "runtime-regional-report",
+      itemCode: "IMG.CT.CHEST.REGIONAL.S40",
+      sourceVersionId: 21,
+      sourceContentHash: "a".repeat(64),
+      criticalRisk: false,
+      recommendations: [
+        "区域来源报告仅作为互认参考，医师需核对来源、影像质量和患者上下文后人工确认。",
+        "提示可能存在重复检查，系统不自动取消检查、不自动开立医嘱。",
+      ],
+      runtimeAssetEvidence: [
+        {
+          assetType: "FIELD_CATALOG",
+          assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+          assetVersion: "V1",
+          contentHash: "b".repeat(64),
+          fields: ["diagnosticReports[].conclusion", "diagnosticReports[].signedAt"],
+        },
+        {
+          assetType: "ACTION_CARD",
+          assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+          assetVersion: "V1",
+          contentHash: "c".repeat(64),
+          requiresPhysicianConfirmation: true,
+        },
+      ],
+    },
+  },
+  workflowTodo: {
+    todoId: "todo-regional-report",
+    status: "COMPLETED",
+    category: "REPORT_INTERPRETATION",
+    sourceId: "card-regional-report",
+    completedBy: "clinical-user",
+    completionReason: "已人工核对区域来源、报告签发状态和互认理由，仅采纳为参考；不改写报告，不自动开嘱。",
+    noAutoOrder: true,
+    noAutoRecognition: true,
+  },
+  scenarioEvidence: [
+    {
+      code: "S40",
+      observedStages: [
+        "平台管理员登记 REGIONAL_REMOTE FHIR 接入申请并保持断连诚实状态",
+        "平台管理员登记区域来源可信分级并回读跨机构证据",
+        "外部区域 FHIR 入站已签发 DiagnosticReport 并落标准资源",
+        "当前上下文回读跨机构 DiagnosticReport 并绑定同一机构生效版本",
+        "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
+        "临床用户从真实前台生成区域报告互认解读",
+        "推荐卡证明互认理由、重复检查提示、字段目录和提示卡按当前机构生效版本消费",
+        "医生人工完成互认协同待办，系统不自动互认、不改写报告且不自动开嘱",
+      ],
+    },
+  ],
+};
+
+function regionalDiagnosticMutualRecognitionEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
+        title: "临床用户与平台管理员完成区域医技报告互认代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "regional-diagnostic-mutual-recognition-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoRegionalDiagnosticMutualRecognitionCoverage(body: Record<string, unknown>) {
+  const evidence = regionalDiagnosticMutualRecognitionEvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S40");
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]),
+  );
 }
 
 const nursingContinuityEvidence = {
@@ -4738,6 +5014,178 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare diagnostic critical-value coverage when $name", ({ body }) => {
     expectNoDiagnosticCriticalValueCoverage(body);
+  });
+
+  it("declares S40 regional diagnostic mutual-recognition coverage only with trusted source, runtime assets and human closure", () => {
+    const evidence = regionalDiagnosticMutualRecognitionEvidenceResult(
+      regionalDiagnosticMutualRecognitionEvidence,
+    );
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S40"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+      "DATA_INTEROPERABILITY",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "KNOWLEDGE",
+      "FIELD_CATALOG",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+      "PROFESSIONAL_COLLABORATION",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "区域来源未回读可信分级",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        regionalSource: undefined,
+      },
+    },
+    {
+      name: "区域来源为低可信",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        regionalSource: {
+          ...regionalDiagnosticMutualRecognitionEvidence.regionalSource,
+          trustLevel: "LOW",
+        },
+      },
+    },
+    {
+      name: "区域来源缺少分级证据",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        regionalSource: {
+          ...regionalDiagnosticMutualRecognitionEvidence.regionalSource,
+          evidenceText: "",
+        },
+      },
+    },
+    {
+      name: "接入申请不是 REGIONAL_REMOTE",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        fhirOnboarding: {
+          ...regionalDiagnosticMutualRecognitionEvidence.fhirOnboarding,
+          systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+        },
+      },
+    },
+    {
+      name: "接入申请不是区域 FHIR 来源",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        fhirOnboarding: {
+          ...regionalDiagnosticMutualRecognitionEvidence.fhirOnboarding,
+          sourceSystem: "FHIR_R4",
+        },
+      },
+    },
+    {
+      name: "入站报告未绑定跨机构来源证据",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        inboundDiagnosticReport: {
+          ...regionalDiagnosticMutualRecognitionEvidence.inboundDiagnosticReport,
+          sourceOrganizationId: "",
+          sourceOrganizationName: "",
+          regionalSourceId: "",
+        },
+      },
+    },
+    {
+      name: "上下文未回读入站区域报告",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        clinicalContext: {
+          ...regionalDiagnosticMutualRecognitionEvidence.clinicalContext,
+          resources: {
+            ...regionalDiagnosticMutualRecognitionEvidence.clinicalContext.resources,
+            diagnosticReports: [],
+          },
+        },
+      },
+    },
+    {
+      name: "当前机构生效版本缺少 ACTION_CARD 证据",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        recommendation: {
+          ...regionalDiagnosticMutualRecognitionEvidence.recommendation,
+          explanation: {
+            ...regionalDiagnosticMutualRecognitionEvidence.recommendation.explanation,
+            runtimeAssetEvidence:
+              regionalDiagnosticMutualRecognitionEvidence.recommendation.explanation.runtimeAssetEvidence.filter(
+                (item) => item.assetType !== "ACTION_CARD",
+              ),
+          },
+        },
+      },
+    },
+    {
+      name: "报告解读未绑定本轮 runtime",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        interpretation: {
+          ...regionalDiagnosticMutualRecognitionEvidence.interpretation,
+          runtimeReleaseId: "runtime-from-previous-rehearsal",
+        },
+      },
+    },
+    {
+      name: "协同待办未由人工完成",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        workflowTodo: {
+          ...regionalDiagnosticMutualRecognitionEvidence.workflowTodo,
+          status: "PENDING",
+        },
+      },
+    },
+    {
+      name: "协同待办声明自动互认",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        workflowTodo: {
+          ...regionalDiagnosticMutualRecognitionEvidence.workflowTodo,
+          noAutoRecognition: false,
+        },
+      },
+    },
+    {
+      name: "scope 过度宣称完整区域平台",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        scopeStatement: "区域医技报告互认代表切片，完整区域平台已上线。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整 PACS/RIS/病理/心电系统族覆盖",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        scopeStatement:
+          "区域医技报告互认代表切片，不代表完整区域平台；完整 PACS/RIS/病理/内镜/心电系统族覆盖已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整 S0-S40",
+      body: {
+        ...regionalDiagnosticMutualRecognitionEvidence,
+        scopeStatement:
+          "区域医技报告互认代表切片，不代表完整区域平台、完整远程医疗或完整 PACS/RIS/病理/内镜/心电系统族覆盖；完整 S0-S40 已上线。",
+      },
+    },
+  ])("does not declare S40 regional mutual-recognition coverage when $name", ({ body }) => {
+    expectNoRegionalDiagnosticMutualRecognitionCoverage(body);
   });
 
   it("declares S20/S35 nursing continuity coverage only with nursing facts, followup asset and backflow", () => {

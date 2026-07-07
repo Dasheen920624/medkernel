@@ -74,9 +74,9 @@ public class RuntimeReleaseDiagnosticItemSelector {
                 identity.identityCode(),
                 identity.subject(),
                 version.id(),
-                version.versionNo(),
+                requireText(item.versionNo(), "医技项目说明书统一资产版本号"),
                 version.authorityLevel() == null ? null : version.authorityLevel().name(),
-                version.contentHash()
+                contentHash
             ));
         }
         return List.copyOf(selected);
