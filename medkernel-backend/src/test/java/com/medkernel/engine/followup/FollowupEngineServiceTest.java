@@ -945,6 +945,74 @@ class FollowupEngineServiceTest {
     }
 
     @Test
+    void backflowResultRejectsIncompleteQuestionnaireTask() {
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-followup-plan", FollowupPlanStatus.ACTIVE, "follow-plan-key-1",
+            null, null, null, null, null, null,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.IN_PROGRESS, "nurse-1", "FOLLOWUP_NURSE", "task-key-1", Instant.now(),
+            "sys", Instant.now(), "nurse-1", "trace-123");
+        FollowupQuestionnaire questionnaire = new FollowupQuestionnaire(
+            1L, "FQ01", "tenant-1", "PLAN01", "TASK01", "Q-TPL-1",
+            "{\"title\":\"出院后症状随访\"}", "{\"painScore\":2}", new BigDecimal("2.00"), "COMPLETED",
+            "questionnaire-key-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1",
+            "trace-123"
+        );
+
+        when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
+        when(taskRepository.findByTaskId("TASK01")).thenReturn(Optional.of(task));
+        when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.backflowResult(
+            new FollowupResultBackflowRequest("PLAN01", "TASK01", "FQ01", "{\"painScore\":2}", "N",
+                "result-key-incomplete-task")
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        assertThat(exception.getMessage()).contains("随访问卷任务未完成");
+        verify(contextSnapshotService, never()).create(any(ContextSnapshotRequest.class), any(String.class));
+        verify(contextSnapshotService, never()).createBound(
+            any(ContextSnapshotRequest.class), any(String.class), any(String.class));
+        verify(eventRepository, never()).save(any(FollowupEvent.class));
+    }
+
+    @Test
+    void backflowResultRejectsIncompleteQuestionnaireRecord() {
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-followup-plan", FollowupPlanStatus.ACTIVE, "follow-plan-key-1",
+            null, null, null, null, null, null,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.COMPLETED, "nurse-1", "FOLLOWUP_NURSE", "task-key-1", Instant.now(),
+            "sys", Instant.now(), "nurse-1", "trace-123");
+        FollowupQuestionnaire questionnaire = new FollowupQuestionnaire(
+            1L, "FQ01", "tenant-1", "PLAN01", "TASK01", "Q-TPL-1",
+            "{\"title\":\"出院后症状随访\"}", null, null, "DISPATCHED",
+            "questionnaire-key-1", null, "nurse-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1",
+            "trace-123"
+        );
+
+        when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
+        when(taskRepository.findByTaskId("TASK01")).thenReturn(Optional.of(task));
+        when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.backflowResult(
+            new FollowupResultBackflowRequest("PLAN01", "TASK01", "FQ01", "{\"painScore\":2}", "N",
+                "result-key-incomplete-questionnaire")
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        assertThat(exception.getMessage()).contains("随访问卷未完成");
+        verify(contextSnapshotService, never()).create(any(ContextSnapshotRequest.class), any(String.class));
+        verify(contextSnapshotService, never()).createBound(
+            any(ContextSnapshotRequest.class), any(String.class), any(String.class));
+        verify(eventRepository, never()).save(any(FollowupEvent.class));
+    }
+
+    @Test
     void backflowResultReusesExistingResultInflowEventByIdempotencyKey() {
         FollowupEvent existing = new FollowupEvent(
             10L,

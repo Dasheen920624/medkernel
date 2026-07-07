@@ -487,6 +487,7 @@ public class FollowupEngineService {
         if (!plan.planId().equals(task.planId()) || !task.taskId().equals(questionnaire.taskId())) {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访结果引用关系不一致");
         }
+        ensureQuestionnaireCompletedForBackflow(task, questionnaire);
 
         ContextSnapshotRequest backflowRequest = contextBackflowRequest(
             plan, task, questionnaire, request, ctx);
@@ -615,6 +616,23 @@ public class FollowupEngineService {
     private void ensureAbnormalReportType(FollowupEventType eventType) {
         if (eventType != FollowupEventType.ABNORMAL_RETURN) {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "异常回院上报仅允许 ABNORMAL_RETURN 事件");
+        }
+    }
+
+    private void ensureQuestionnaireCompletedForBackflow(
+            FollowupTask task,
+            FollowupQuestionnaire questionnaire) {
+        if (task.taskType() != FollowupTaskType.QUESTIONNAIRE) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访结果回流仅允许问卷任务");
+        }
+        if (task.status() != FollowupTaskStatus.COMPLETED) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访问卷任务未完成，不能回流结果");
+        }
+        if (!"COMPLETED".equalsIgnoreCase(questionnaire.status())) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访问卷未完成，不能回流结果");
+        }
+        if (!hasText(questionnaire.answerData())) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访问卷缺少完成结果，不能回流结果");
         }
     }
 

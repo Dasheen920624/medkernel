@@ -63,7 +63,22 @@
     FollowUp 事实的预期边界，初始护理上下文仍要求存在 encounter。
 - 第一百五十六批只读复核与下一步：用户已允许使用子代理；本批使用只读复核子代理确认现有代表 E2E 覆盖不能外推为
   完整上线，`runtime-release` 只能证明 13 类资产治理，不等于逐类业务消费者，第三方系统族登记 / 断连降级也不等于
-  各系统族真实业务闭环。下一批建议优先补 **药房 / 审方系统双向闭环 + 抗菌药物治理 S18/S31**，同时覆盖平台管理员
+  各系统族真实业务闭环。护理切片复核曾指出后端 `backflowResult` 只校验 plan/task/questionnaire 引用关系，直接
+  API 可绕过前台完成态约束，把未完成问卷回流为 FollowUp 标准资源；已补
+  `backflowResultRejectsIncompleteQuestionnaireTask` 与 `backflowResultRejectsIncompleteQuestionnaireRecord`
+  红绿单测，并在 `FollowupEngineService` 增加防线：回流只允许 QUESTIONNAIRE 任务、任务状态必须
+  `COMPLETED`、问卷状态必须 `COMPLETED` 且存在 `answerData`。验证：
+  `mvn -f medkernel-backend/pom.xml -Dtest=FollowupEngineServiceTest#generatePlanExplanationConsumesNursingAssessmentAndCarePlanFacts,FollowupEngineServiceTest#backflowResultCreatesFollowupContextSnapshot,FollowupEngineServiceTest#backflowResultRejectsIncompleteQuestionnaireTask,FollowupEngineServiceTest#backflowResultRejectsIncompleteQuestionnaireRecord test`
+  通过（4 tests）；`npm --prefix frontend run test -- e2eAuthCredentialContract -t "nursing continuity"` 通过；
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "nursing continuity|护理连续照护|S20/S35"`
+  通过（13 selected）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 通过；`git diff --check` 通过。重启本地 18080 到修复后
+  jar（PID `7180`）后复跑
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-nursing-continuity-frontdesk-20260707-r6 npm --prefix frontend run e2e -- --project=chromium nursing-continuity-frontdesk.spec.ts`
+  通过，`results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=19369ms）。非阻塞增强：
+  当前计划解释的 `runtimeAssetEvidence` 有 `assetVersionId/versionNo`，但未直接写入 FOLLOWUP `contentHash`；
+  runtime 选择器和 E2E 附件仍校验 contentHash，后续如继续加严可把 asset version hash 透传进计划解释。
+  下一批建议优先补 **药房 / 审方系统双向闭环 + 抗菌药物治理 S18/S31**，同时覆盖平台管理员
   登记 `PHARMACY_REVIEW` 适配器、医疗引擎运营员发布 `TERMINOLOGY/SAFETY/CDSS_RISK/RULE/ACTION_CARD`、
   临床使用者以医生 / 药师业务任职完成处方触发、审方回传、人工确认和整改任务，并至少消费
   `Medication / AllergyIntolerance / Observation / Condition` 等标准资源，覆盖
