@@ -1156,6 +1156,102 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("完整第三方药房审方系统族");
   });
 
+  it("requires surgery anesthesia transfusion rehearsal to prove real S26 frontdesk chain without scope inflation", () => {
+    const e2eSource = readFileSync(
+      "e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts",
+      "utf8",
+    );
+
+    expect(e2eSource).toContain("surgery-anesthesia-transfusion-frontdesk-codes");
+    expect(e2eSource).toContain("attachPeriopEvidence");
+    expect(e2eSource).toContain('"S26"');
+    expect(e2eSource).not.toContain('"S33"');
+    expect(e2eSource).toContain("NURSING_ANESTHESIA_TRANSFUSION_ICU");
+    expect(e2eSource).toContain("/adapter/hub");
+    expect(e2eSource).toContain("/mpi");
+    expect(e2eSource).toContain("/cdss/fatigue");
+    expect(e2eSource).toContain("签署医嘱");
+    expect(e2eSource).toContain('triggerType: "order-sign"');
+    expect(e2eSource).not.toContain("PROCEDURE_ORDER");
+    expect(e2eSource).toContain("waitForClinicalEventProcessed");
+    expect(e2eSource).toContain('last.status === "PROCESSED"');
+    expect(e2eSource).toContain(
+      'async function postSignedPeriopInbound(\n  page: Page,',
+    );
+    expect(e2eSource).toContain(
+      ') {\n  await ensureReadySession(page, "platform-admin");\n  const positive = options.positive ?? true;',
+    );
+    expect(e2eSource).toContain('const localTermId = numberField(await responseData(local), "id");');
+    expect(e2eSource).toContain(
+      'normalizedName: "手术室腹腔镜阑尾切除|OR-LAP-APP|47.0901|腹腔镜阑尾切除术"',
+    );
+    expect(e2eSource).toContain("localTermId,");
+    expect(e2eSource).toContain("/engine/terminology/mappings/candidate-generation-jobs/");
+    expect(e2eSource).toContain("generatedCount");
+    expect(e2eSource).toContain('expect(textField(jobData, "sourceSystem"), "术语候选任务必须绑定本轮来源系统").toBe(');
+    expect(e2eSource).toContain('numberField(item, "localTermId") === expected.localTermId');
+    expect(e2eSource).toContain('numberField(item, "standardTermId") === expected.standardTermId');
+    expect(e2eSource).toContain('textField(item, "generationJobCode") === jobCode');
+    expect(e2eSource).toContain("confirmedMapping: mapping");
+    expect(e2eSource).not.toContain("evidence.includes(expected.localCode)");
+    expect(e2eSource).not.toContain("waitForTerminologyCandidate(page, jobCode, options.localCode)");
+    expect(e2eSource).not.toContain("OR-MINOR-NEG");
+    expect(e2eSource).toContain(
+      "const ruleValidationAdapterId = await ensureTemporaryAdapterForRuleValidation(page, suffix);",
+    );
+    expect(e2eSource).not.toContain("adapterId: await ensureTemporaryAdapterForRuleValidation");
+    expect(e2eSource).toContain("Procedure");
+    expect(e2eSource).toContain("Observation");
+    expect(e2eSource).toContain("Medication");
+    expect(e2eSource).toContain("Document");
+    expect(e2eSource).toContain("extensions.local.surgeryPlan");
+    expect(e2eSource).toContain("extensions.local.anesthesiaAssessment");
+    expect(e2eSource).toContain("extensions.local.transfusionRequest");
+    expect(e2eSource).toContain("noAutoOrder: true");
+    expect(e2eSource).toContain("noAutoTransfusion: true");
+    expect(e2eSource).toContain("noAutoSurgery: true");
+    const periopRuleCardMatcher = e2eSource.slice(
+      e2eSource.indexOf("async function findPeriopRuleCard"),
+      e2eSource.indexOf("async function completePeriopManualConfirmation"),
+    );
+    expect(periopRuleCardMatcher).toContain('textField(item, "assetType") === "ACTION_CARD"');
+    expect(periopRuleCardMatcher).toContain('textField(item, "contentHash") === options.runtime.actionCardAsset.contentHash');
+    expect(periopRuleCardMatcher).not.toContain('booleanField(item, "noAutoOrder")');
+    expect(periopRuleCardMatcher).not.toContain('booleanField(item, "noAutoTransfusion")');
+    expect(periopRuleCardMatcher).not.toContain('booleanField(item, "noAutoSurgery")');
+    expect(e2eSource).toContain('canonicalSessionRole: "clinical-user"');
+    expect(e2eSource).toContain("BUSINESS_FEEDBACK_ROLE_ONLY");
+    expect(e2eSource).toContain('textField(item, "operatorRole") === "DOCTOR"');
+    expect(e2eSource).toContain('textField(item, "reasonCode") === "CONFIRMED"');
+    expect(e2eSource).not.toContain('operatorRole: "clinical-user",');
+    expect(e2eSource).not.toContain('businessOperatorRole: "SURGEON",');
+    expect(e2eSource).toContain("async function createAndPublishPeriopRule");
+    expect(e2eSource).toContain('await ensureReadySession(page, "engine-operator");');
+    expect(e2eSource).toContain(
+      'async function createActiveEvaluationIndicator(page: Page, suffix: string, departmentId: string) {\n  await ensureReadySession(page, "engine-operator");',
+    );
+    expect(e2eSource).toContain("qualityRectification");
+    expect(e2eSource).toContain("const { releaseId } = await activateRuntimeRelease(page, {");
+    expect(e2eSource).not.toContain("const releaseId = await activateRuntimeRelease(page, {");
+    expect(e2eSource).toContain("const byKey = new Map<string, RuntimeAssetSelection>();");
+    expect(e2eSource).toContain("byKey.set(`${asset.assetType}:${asset.assetIdentity}`, asset);");
+    expect(e2eSource).toContain("完整围手术期系统");
+    expect(e2eSource).toContain("完整手麻系统");
+    expect(e2eSource).toContain("完整手术室系统");
+    expect(e2eSource).toContain("完整输血系统");
+    expect(e2eSource).toContain("护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖");
+    expect(e2eSource).toContain("完整上线验收");
+    expect(e2eSource).not.toContain("page.route(");
+    expect(e2eSource).not.toContain("page.waitForTimeout");
+    expect(e2eSource).not.toContain("third-party-system-family-codes");
+    expect(e2eSource).not.toContain('"quality-controller"');
+    expect(e2eSource).not.toContain('"surgeon"');
+    expect(e2eSource).not.toContain('"anesthesiologist"');
+    expect(e2eSource).not.toContain("完整 S26 已上线");
+    expect(e2eSource).not.toContain("完整 S33 已上线");
+    expect(e2eSource).not.toContain("完整上线验收已完成");
+  });
+
   it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

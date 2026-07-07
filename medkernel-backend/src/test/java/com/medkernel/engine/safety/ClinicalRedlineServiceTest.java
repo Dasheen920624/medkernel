@@ -82,7 +82,8 @@ class ClinicalRedlineServiceTest {
                 ClinicalRedlineCategory.CRITICAL_VALUE,
                 ClinicalRedlineCategory.DOSE_LIMIT,
                 ClinicalRedlineCategory.ANTIMICROBIAL_RESTRICTION,
-                ClinicalRedlineCategory.SPECIAL_POPULATION_CONTRAINDICATION);
+                ClinicalRedlineCategory.SPECIAL_POPULATION_CONTRAINDICATION,
+                ClinicalRedlineCategory.SURGERY_ANESTHESIA_TRANSFUSION);
     }
 
     @Test

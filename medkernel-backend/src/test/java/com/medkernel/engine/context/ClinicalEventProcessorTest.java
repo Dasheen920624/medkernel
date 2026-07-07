@@ -468,6 +468,135 @@ class ClinicalEventProcessorTest {
     }
 
     @Test
+    void processProjectsSurgeryAnesthesiaTransfusionPayloadToCanonicalResourcesAndLocalExtensions() {
+        ClinicalEvent event = event(
+            "evt-surgery-anesthesia-transfusion",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            ClinicalEventStatus.RECEIVED,
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU");
+        when(events.findByEventIdAndTenantId("evt-surgery-anesthesia-transfusion", "tenant-A"))
+            .thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-surgery-anesthesia-transfusion", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-surgery-anesthesia-transfusion", """
+                {
+                  "patient": {
+                    "mpi": "MPI-S26"
+                  },
+                  "procedures": [
+                    {
+                      "procedureId": "proc-appendectomy-1",
+                      "standardCode": "47.0901",
+                      "displayName": "腹腔镜阑尾切除术",
+                      "localCode": "OR-LAP-APP",
+                      "localCodeSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "anesthesiaType": "GENERAL",
+                      "surgeonId": "doctor-surgery-1",
+                      "performedAt": "2026-07-07T02:30:00Z",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "observations": [
+                    {
+                      "observationId": "obs-asa-1",
+                      "code": "ASA_CLASS",
+                      "displayName": "ASA 麻醉分级",
+                      "valueString": "III",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "medications": [
+                    {
+                      "medicationId": "med-anesthesia-1",
+                      "standardCode": "N01AB06",
+                      "displayName": "七氟烷",
+                      "dose": "2.0",
+                      "doseUnit": "%",
+                      "route": "INHALATION",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "documents": [
+                    {
+                      "documentId": "doc-safety-checklist-1",
+                      "documentType": "SURGERY_SAFETY_CHECKLIST",
+                      "contentDigest": "sha256:surgery-safety-checklist",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "extensions": {
+                    "local": {
+                      "existingFlag": "Y",
+                      "sourceTraceId": "s26-surgery-trace-1"
+                    }
+                  },
+                  "surgeryPlan": {
+                    "surgeryLevel": "LEVEL_3",
+                    "preOpAssessmentStatus": "PASSED_WITH_RISK",
+                    "timeOutRequired": true
+                  },
+                  "anesthesiaAssessment": {
+                    "asaClass": "III",
+                    "airwayRisk": "DIFFICULT_AIRWAY",
+                    "anesthesiologistReviewRequired": true
+                  },
+                  "transfusionRequest": {
+                    "bloodType": "A+",
+                    "crossmatchStatus": "MATCHED",
+                    "transfusionConsentConfirmed": true,
+                    "noAutoTransfusion": true
+                  }
+                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-surgery-anesthesia-transfusion", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-surgery-anesthesia-transfusion"), anyString());
+        ContextSnapshotResources resources = snapshotCap.getValue().resources();
+        assertThat(resources.procedures()).singleElement().satisfies(procedure -> {
+            assertThat(procedure.code()).isEqualTo("47.0901");
+            assertThat(procedure.displayName()).isEqualTo("腹腔镜阑尾切除术");
+            assertThat(procedure.anesthesiaType()).isEqualTo("GENERAL");
+            assertThat(procedure.sourceSystem()).isEqualTo("NURSING_ANESTHESIA_TRANSFUSION_ICU");
+        });
+        assertThat(resources.observations()).singleElement().satisfies(observation -> {
+            assertThat(observation.code()).isEqualTo("ASA_CLASS");
+            assertThat(observation.valueString()).isEqualTo("III");
+        });
+        assertThat(resources.medications()).singleElement().satisfies(medication -> {
+            assertThat(medication.code()).isEqualTo("N01AB06");
+            assertThat(medication.route()).isEqualTo("INHALATION");
+        });
+        assertThat(resources.documents()).singleElement().satisfies(document -> {
+            assertThat(document.documentType()).isEqualTo("SURGERY_SAFETY_CHECKLIST");
+            assertThat(document.contentDigest()).isEqualTo("sha256:surgery-safety-checklist");
+        });
+        assertThat(resources.extensions().at("/local/surgeryPlan/timeOutRequired").asBoolean()).isTrue();
+        assertThat(resources.extensions().at("/local/anesthesiaAssessment/airwayRisk").asText())
+            .isEqualTo("DIFFICULT_AIRWAY");
+        assertThat(resources.extensions().at("/local/transfusionRequest/noAutoTransfusion").asBoolean()).isTrue();
+        assertThat(resources.extensions().at("/local/sourceTraceId").asText())
+            .isEqualTo("s26-surgery-trace-1");
+
+        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+        assertThat(context.payload().at("/extensions/local/surgeryPlan/preOpAssessmentStatus").asText())
+            .isEqualTo("PASSED_WITH_RISK");
+        assertThat(context.payload().at("/extensions/local/anesthesiaAssessment/anesthesiologistReviewRequired")
+            .asBoolean()).isTrue();
+        assertThat(context.payload().at("/extensions/local/transfusionRequest/crossmatchStatus").asText())
+            .isEqualTo("MATCHED");
+        assertThat(context.payload().path("eventPayload").path("transfusionRequest")
+            .path("noAutoTransfusion").asBoolean()).isTrue();
+    }
+
+    @Test
     void processMarksEventFailedWhenAnEngineIsUnavailable() {
         ClinicalEvent event = event(ClinicalEventStatus.RECEIVED);
         when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));

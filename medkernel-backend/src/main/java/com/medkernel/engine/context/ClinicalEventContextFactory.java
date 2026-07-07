@@ -105,7 +105,7 @@ public class ClinicalEventContextFactory {
             observations(event, payload),
             diagnosticReports(event, payload),
             medications(event, payload),
-            List.<CanonicalProcedure>of(),
+            procedures(event, payload),
             documents(event, payload),
             List.<CanonicalCarePlan>of(),
             followUps(event, payload),
@@ -253,6 +253,28 @@ public class ClinicalEventContextFactory {
         return List.copyOf(values);
     }
 
+    private List<CanonicalProcedure> procedures(ClinicalEvent event, JsonNode payload) {
+        List<CanonicalProcedure> values = new ArrayList<>();
+        for (JsonNode item : array(payload, "procedures", "operations", "surgeries")) {
+            String standardCode = standardCode(item);
+            values.add(new CanonicalProcedure(
+                firstText(item, "proc-" + values.size(), "procedureId", "operationId", "surgeryId", "id"),
+                standardCode,
+                firstText(item, standardCode, "displayName", "name"),
+                text(item, "anesthesiaType"),
+                text(item, "surgeonId"),
+                instant(text(item, "performedAt")),
+                sourceSystem(event, item),
+                firstText(item, null, "sourceRecordId", "sourceId"),
+                mappedVersion(event, item),
+                event.occurredAt(),
+                event.receivedAt(),
+                QualityStatus.VALID
+            ));
+        }
+        return List.copyOf(values);
+    }
+
     private List<CanonicalDocument> documents(ClinicalEvent event, JsonNode payload) {
         List<CanonicalDocument> values = new ArrayList<>();
         JsonNode dischargeSummary = payload.path("dischargeSummary");
@@ -319,6 +341,8 @@ public class ClinicalEventContextFactory {
             event, array(payload, "diagnoses", "conditions"), "conditionId", "id");
         addPayloadAnchors(anchors, CanonicalResourceType.OBSERVATION, "code", "TERM.LAB",
             event, array(payload, "results", "observations"), "observationId", "resultId", "id");
+        addPayloadAnchors(anchors, CanonicalResourceType.PROCEDURE, "code", "TERM.PROCEDURE",
+            event, array(payload, "procedures", "operations", "surgeries"), "procedureId", "operationId", "surgeryId", "id");
         return List.copyOf(anchors);
     }
 
@@ -332,6 +356,9 @@ public class ClinicalEventContextFactory {
         projectLocalExtension(payload, local, "pharmacyReview");
         projectLocalExtension(payload, local, "publicHealthReport");
         projectLocalExtension(payload, local, "safetyEvent");
+        projectLocalExtension(payload, local, "surgeryPlan");
+        projectLocalExtension(payload, local, "anesthesiaAssessment");
+        projectLocalExtension(payload, local, "transfusionRequest");
         if (!local.isEmpty()) {
             extensions.set("local", local);
         }

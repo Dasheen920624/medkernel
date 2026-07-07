@@ -209,6 +209,7 @@ public class ClinicalRedlineMatcher {
             case DRUG_INTERACTION, DOSE_LIMIT, ANTIMICROBIAL_RESTRICTION,
                     SPECIAL_POPULATION_CONTRAINDICATION -> RecommendationCardType.MEDICATION;
             case CRITICAL_VALUE -> RecommendationCardType.LAB;
+            case SURGERY_ANESTHESIA_TRANSFUSION -> RecommendationCardType.RISK;
         };
     }
 

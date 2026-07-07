@@ -14601,7 +14601,7 @@
     },
     {
       "name": "mk_engine_clinical_redline",
-      "comment": "临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制和特殊人群禁忌等红线版本",
+      "comment": "临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌和围手术期麻醉输血等红线版本",
       "columns": [
         {
           "name": "id",
@@ -14636,7 +14636,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌"
+          "comment": "红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌、围手术期麻醉输血"
         },
         {
           "name": "trigger_point",
@@ -14891,7 +14891,7 @@
       "checkConstraints": [
         {
           "name": "ck_clinical_redline_category",
-          "expression": "category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION')"
+          "expression": "category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION', 'SURGERY_ANESTHESIA_TRANSFUSION')"
         },
         {
           "name": "ck_clinical_redline_hazard",

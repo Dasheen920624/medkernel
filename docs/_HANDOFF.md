@@ -10,6 +10,97 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整上线、134 清库部署复演、完整围手术期系统、完整手麻系统、
+  完整手术室系统、完整输血系统、完整第三方系统族覆盖、完整 S26/S33 或完整 S0-S40 收口，
+  而是完成 **P1 围手术期、麻醉与输血代表切片 S26**：
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU + Procedure / Observation / Medication / Document /
+  extensions.local.surgeryPlan / extensions.local.anesthesiaAssessment /
+  extensions.local.transfusionRequest + TERMINOLOGY / SAFETY / CDSS_RISK / RULE /
+  ACTION_CARD + API_EVENT + THIRD_PARTY_INTERFACE / CLINICAL_RUNTIME /
+  PROFESSIONAL_COLLABORATION / QUALITY_IMPROVEMENT`。当前 coverage 只声明 `scenarios:S26`、
+  `productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY/QUALITY_IMPROVEMENT`、
+  `versionedAssets:TERMINOLOGY/SAFETY/CDSS_RISK/RULE/ACTION_CARD`、`deliveryShapes:API_EVENT`、
+  `serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION/
+  QUALITY_IMPROVEMENT`；不声明完整围手术期、完整手麻 / 手术室 / 输血系统、第三方系统族完整覆盖、
+  完整四职责全菜单体验、完整上线验收或完整 S0-S40。
+- 第一百五十九批真实链路说明：新增目标真实 E2E
+  `surgery-anesthesia-transfusion-frontdesk.spec.ts`。平台管理员经真实 `/adapter/hub` 服务登记
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU` Webhook 适配器、回调通道和 HMAC 签名预览；医疗引擎运营员
+  创建手术操作 `TERMINOLOGY` 映射、围手术期 `SAFETY` 红线、麻醉用血 `CDSS_RISK` 风险矩阵、
+  术前核查 `ACTION_CARD` 和 `RULE` 规则，规则发布前用真实患者上下文完成验证，再把平台 baseline
+  资产与本轮五类资产激活到本地上线演练医院当前机构生效版本。随后以签名 Webhook 入站手麻手术室输血消息，
+  映射生成 Procedure、Observation、Medication、Document 以及手术计划、麻醉评估、用血申请本地扩展；
+  异步临床事件必须处理到 `PROCESSED`、`errorCode/errorClass=null` 并绑定本轮 runtime。系统向
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU` 发出核查确认回传，断连时以 `RETRYING/NOT_CONNECTED`
+  诚实降级且不阻断主链路。临床用户从真实 `/cdss/fatigue` 前台“签署医嘱”触发 `order-sign`
+  推荐评估，不新增 `PROCEDURE_ORDER`；推荐卡证明本轮规则和动作卡按当前机构生效版本消费，临床用户再人工确认
+  围手术期风险，证据明确手术医生等仅为业务反馈角色，系统不自动开嘱、不自动手术、不自动输血。最后医疗引擎运营员
+  创建 S26 时序质控评价指标、手工样本、质量问题和整改任务，并用 canonical 固定职责账号提交、复核关闭。
+- 第一百五十九批代码修复与护栏：后端 `ClinicalEventContextFactory` 在保留已有 `extensions.local`
+  的同时，把入站 `payload.surgeryPlan/anesthesiaAssessment/transfusionRequest` 投影到本地扩展，
+  不新增伪标准资源类型；`ClinicalEventProcessorTest` 固化 S26 payload 到 Procedure / Observation /
+  Medication / Document 和本地扩展的投影；`IntegrationServiceTest` 固化
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU` Webhook 入站对 ICD-9-CM-3 手术操作、ASA 麻醉分级、麻醉药品、
+  手术安全核查文档和输血本地扩展的真实映射与临床事件持久化；`ClinicalRedlineMatcherTest` 与
+  `ClinicalRedlineServiceTest` 固化 `SURGERY_ANESTHESIA_TRANSFUSION` 红线类别和风险卡生成。五方言
+  baseline 与 schema 增补该红线类别。`launchCoverageEvidence` 对 S26 附件加严：必须证明真实适配器 /
+  签名回调、五类 runtime 资产与激活请求一致、术语 mapping 与 `localTermId/standardTermId/sourceSystem/category`
+  的真实确认绑定、上下文标准资源和本地扩展、出站断连不阻断、入站临床事件处理完成并绑定本轮 runtime、
+  前台 `order-sign` 触发、推荐卡绑定本轮 `RULE/ACTION_CARD` 物化版本与哈希、人工确认真实回读
+  `operatorRole=DOCTOR/reasonCode=CONFIRMED`、动作卡不自动开嘱 / 手术 / 输血治理、整改关闭和 scope 边界。
+  本批还修复两个证据弱点：runtime 激活时用 `Map` 覆盖同 identity 旧资产，确保本轮 `CDSS_RISK:CDSS.RISK.MATRIX`
+  进入当前机构生效版本；术语候选不再用 `evidence.includes(localCode)` 兜底，必须按 job、local / standard term
+  和 sourceSystem 精确匹配。子代理复核指出 S26 scope 还可能漏挡泛化“完整第三方系统族覆盖”和组合式“完整手麻手术室输血系统”
+  过度宣称，已按 TDD 先补 3 条红灯负例再扩展 S26 scope guard，防止代表切片被语言包装成完整上线。
+- 第一百五十九批验证证据：
+  - 红绿与单测：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "完整第三方系统族覆盖|所有第三方系统族完整覆盖|完整手麻手术室输血系统"` 先红（3 failed，仍错误声明 S26）
+    后绿（3 passed）；`npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence`
+    通过（2 files，194 tests）；`npm --prefix frontend run typecheck -- --pretty false` 通过。
+  - 后端定向：`mvn -f medkernel-backend/pom.xml
+    -Dtest=IntegrationServiceTest#inboundWebhookMapsSurgeryAnesthesiaTransfusionEvent,
+    ClinicalEventProcessorTest#processProjectsSurgeryAnesthesiaTransfusionPayloadToCanonicalResourcesAndLocalExtensions,
+    ClinicalRedlineMatcherTest#surgeryAnesthesiaTransfusionRedlineMaterializesAsRiskCard,
+    ClinicalRedlineServiceTest#requiredCategoriesCoverTheClinicalSafetyRedlineScope,
+    IntegrationServiceTest#adapterHubStatusIncludesAllRequiredSystemFamiliesWithoutFakingMissingConnections test`
+    通过（5 tests，0 failures，0 errors）。此前也补跑过含 `ClinicalRedlineServiceTest` 全类的命令，
+    实际执行 20 tests，0 failures，0 errors，修正了交接摘要里旧方法名
+    `IntegrationServiceTest#inboundWebhookMapsSurgeryAnesthesiaTransfusionOrderAndClinicalEvent` 不存在的问题；
+    正确方法名是 `inboundWebhookMapsSurgeryAnesthesiaTransfusionEvent`。
+  - 构建与静态：`npm --prefix frontend run build` 通过；`mvn -f medkernel-backend/pom.xml -DskipTests package`
+    通过；`git diff --check` 通过但仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，
+    本批不处理、不暂存该文件。
+  - 目标真实 E2E：18081 本地演练后端健康检查为 `UP`，PID `35721`；执行
+    `E2E_API_BASE_URL=http://localhost:18081/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18081
+    E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-surgery-anesthesia-transfusion-20260708-r14
+    npm --prefix frontend run e2e -- --project=chromium surgery-anesthesia-transfusion-frontdesk.spec.ts`
+    通过；`/tmp/medkernel-e2e-surgery-anesthesia-transfusion-20260708-r14/report/results.json` 为 `PASSED`
+    （1 expected，0 unexpected，0 flaky，duration=34473ms），顶层 `launchCoverage` 只含 `S26`、
+    `CLINICAL_EXECUTION/DATA_INTEROPERABILITY/QUALITY_IMPROVEMENT`、
+    `TERMINOLOGY/SAFETY/CDSS_RISK/RULE/ACTION_CARD`、`API_EVENT`、
+    `THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION/QUALITY_IMPROVEMENT`。
+    附件记录 runtime
+    `releaseId=runtime-01KWYSDZS5Z5JWM6YX98V3W2YZ/revisionNo=18/manifestSha256=8d21aac6ec3deeea365a4667a396f5afed0faf7aa2e2bd8d6b45bb91ea2b5710`；
+    术语资产 `TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE.MRAWXQQG-0/versionId=av-01KWYSDH470AZEGTB0N6JCRGWT/mappingId=2`
+    且 `confirmedMapping` 同 `localTermId=2/standardTermId=2/sourceSystem=NURSING_ANESTHESIA_TRANSFUSION_ICU/category=PROCEDURE`；
+    风险矩阵 `CDSS.RISK.MATRIX/versionId=av-01KWYSDH2ZGBK4646JDANK2X99/contentHash=d11530fa788c301429817af57a916042ef62344c05f535412cd440c4a43aafa0`；
+    动作卡
+    `ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST.MRAWXQQG-0/versionId=av-01KWYSDH4H3R15HQK7Q5QX46H6/contentHash=497a353c0f26ac7dd53bb5279ee8e0922df893ad43cc2fc6eb8b21f9c46ebdb1`。
+    入站临床事件
+    `eventId=evt-wh-3b85607213b804eef8f7518ef3ddb05d94aed0d53afac14dc21a1645/status=PROCESSED/errorCode=null/errorClass=null/runtimeReleaseId=runtime-01KWYSDZS5Z5JWM6YX98V3W2YZ/mappedFieldCount=20`；
+    推荐卡 `cardId=rc-c98ae7c5-f918-422e-ad82-90fbd8a91b37/matchType=RULE/triggerType=order-sign`；
+    人工确认
+    `feedbackId=rf-31bac0a4-5007-4e03-a91d-032711bb71ee/cardStatus=ACCEPTED/canonicalSessionRole=clinical-user/operatorRole=DOCTOR/reasonCode=CONFIRMED`；
+    整改
+    `findingId=qf-6cb99ef8-88f5-42f2-a18b-938b9e419f2a/taskId=rct-d67dc10f-e519-498a-8293-8f6dc00a67ea/taskStatus=CLOSED/reviewDecision=APPROVED`。
+- 第一百五十九批边界与下一步：本批使用两个只读子代理分别核对 S26 后端测试名与 scope 过度宣称风险，
+  并已处理发现；提交前再次启动只读 code review 子代理但等待两轮仍未返回结论，已关闭，未产生代码改动。
+  即便本批 S26 目标 E2E 已绿，也仍未完成 134 fresh deploy / 清库 / 重启 / 全功能全知识复演，仍未证明完整
+  S0-S40、完整围手术期系统、完整手麻 / 手术室 / 输血系统、完整护理 / 手麻 / 手术室 / 输血 / ICU 第三方系统族、
+  13 类标准患者资源逐类真实消费者、13 类版本化资产逐类真实消费者或完整四职责全菜单体验。下一步继续按完整产品范围推进：
+  PACS/RIS/病理/心电/ICU 等剩余专业链路、全角色真实前台体验收敛和 134 目标环境 fresh deploy / 清库 /
+  恢复复演；不要把本批代表切片包装成完整上线。
 - 第一百五十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整院感系统、完整公卫法定上报、
   完整医疗安全 / 不良事件系统、完整第三方公卫院感监管系统族、完整 S21/S32 或完整 S0-S40 收口，

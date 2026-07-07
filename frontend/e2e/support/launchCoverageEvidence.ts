@@ -62,6 +62,7 @@ type CoverageProof = {
   requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
+  requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -206,6 +207,23 @@ const infectionPublicHealthSafetyFrontdeskClaims = [
   "serviceCombinations:QUALITY_IMPROVEMENT",
 ];
 
+const surgeryAnesthesiaTransfusionFrontdeskClaims = [
+  "scenarios:S26",
+  "productLayers:CLINICAL_EXECUTION",
+  "productLayers:DATA_INTEROPERABILITY",
+  "productLayers:QUALITY_IMPROVEMENT",
+  "versionedAssets:TERMINOLOGY",
+  "versionedAssets:SAFETY",
+  "versionedAssets:CDSS_RISK",
+  "versionedAssets:RULE",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:PROFESSIONAL_COLLABORATION",
+  "serviceCombinations:QUALITY_IMPROVEMENT",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -267,6 +285,7 @@ const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
 const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
 const requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes = ["S18", "S31"];
 const requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes = ["S21", "S32"];
+const requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes = ["S26"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -372,6 +391,20 @@ const requiredInfectionPublicHealthSafetyFrontdeskScenarioEvidence: Record<strin
     "入站安全事件保留风险、原因和整改要求扩展证据",
     "医疗安全事件形成整改任务",
     "固定四职责账号提交并复核关闭本轮安全事件整改任务",
+  ],
+};
+
+const requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S26: [
+    "平台管理员访问真实前台并经真实服务创建 NURSING_ANESTHESIA_TRANSFUSION_ICU 适配器、回调通道和签名预览",
+    "运营员发布手术操作术语、高危安全红线、麻醉用血风险矩阵、术前核查规则和动作卡资产",
+    "当前机构生效版本包含围手术期五类运行资产",
+    "签名入站事件生成 Procedure、Observation、Medication、Document 和手麻输血本地扩展上下文",
+    "系统向 NURSING_ANESTHESIA_TRANSFUSION_ICU 发出核查确认回传并诚实断连降级",
+    "临床用户从真实前台触发 order-sign 推荐评估",
+    "推荐卡证明术前核查规则、安全红线和动作卡按当前机构生效版本消费",
+    "临床用户人工确认围手术期风险，系统不自动输血、不自动开嘱、不自动手术",
+    "围手术期时序质控形成整改任务并由固定职责账号复核关闭",
   ],
 };
 
@@ -608,6 +641,12 @@ const coverageProofs: CoverageProof[] = [
     requiresInfectionPublicHealthSafetyFrontdeskAttachment: true,
   },
   {
+    file: "surgery-anesthesia-transfusion-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环",
+    claims: surgeryAnesthesiaTransfusionFrontdeskClaims,
+    requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -725,6 +764,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test)) &&
       (!proof.requiresInfectionPublicHealthSafetyFrontdeskAttachment ||
         hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test)) &&
+      (!proof.requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment ||
+        hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -1384,6 +1425,140 @@ function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: Browser
     return requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredInfectionPublicHealthSafetyFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "surgery-anesthesia-transfusion-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      adapter?: unknown;
+      webhookSignature?: unknown;
+      terminologyGate?: unknown;
+      safetyRedline?: unknown;
+      riskMatrix?: unknown;
+      actionCard?: unknown;
+      ruleAsset?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      outboundChecklist?: unknown;
+      inboundSurgeryEvent?: unknown;
+      clinicalTrigger?: unknown;
+      recommendation?: unknown;
+      manualConfirmation?: unknown;
+      qualityRectification?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseSurgeryAnesthesiaTransfusionRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, [
+        "CLINICAL_EXECUTION",
+        "DATA_INTEROPERABILITY",
+        "QUALITY_IMPROVEMENT",
+      ]) ||
+      !arrayEquals(parsed.versionedAssets, [
+        "TERMINOLOGY",
+        "SAFETY",
+        "CDSS_RISK",
+        "RULE",
+        "ACTION_CARD",
+      ]) ||
+      !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "THIRD_PARTY_INTERFACE",
+        "CLINICAL_RUNTIME",
+        "PROFESSIONAL_COLLABORATION",
+        "QUALITY_IMPROVEMENT",
+      ]) ||
+      !hasText(parsed.scopeStatement) ||
+      !hasSurgeryAnesthesiaTransfusionScopeBoundary(parsed.scopeStatement) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionAdapterEvidence(parsed.adapter) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionWebhookEvidence(
+        parsed.webhookSignature,
+        parsed.adapter,
+      ) ||
+      !runtime ||
+      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(
+        parsed.terminologyGate,
+        runtime.terminologyAsset,
+      ) ||
+      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.safetyRedline, runtime.safetyAsset) ||
+      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.riskMatrix, runtime.cdssRiskAsset) ||
+      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.ruleAsset, runtime.ruleAsset) ||
+      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.actionCard, runtime.actionCardAsset) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionTerminologyGate(parsed.terminologyGate) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionSafetyRedline(parsed.safetyRedline) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionRiskMatrix(parsed.riskMatrix) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionActionCard(parsed.actionCard) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionRuleAsset(parsed.ruleAsset) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
+        parsed.clinicalContext,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionOutbound(
+        parsed.outboundChecklist,
+        parsed.adapter,
+        parsed.clinicalContext,
+      ) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionInbound(
+        parsed.inboundSurgeryEvent,
+        parsed.adapter,
+        parsed.webhookSignature,
+        parsed.outboundChecklist,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionTrigger(parsed.clinicalTrigger, runtime.releaseId) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionRecommendation(
+        parsed.recommendation,
+        runtime,
+        parsed.clinicalTrigger,
+        parsed.ruleAsset,
+      ) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionManualConfirmation(
+        parsed.manualConfirmation,
+        runtime.actionCardAsset,
+      ) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionRectification(
+        parsed.qualityRectification,
+        parsed.recommendation,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const stages = Array.isArray(row?.observedStages) ? row.observedStages : [];
+      if (!code) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -4394,6 +4569,653 @@ function hasInfectionPublicHealthSafetyScopeBoundary(value: unknown) {
     hasNegatedScopeTerm(statement, "完整不良事件系统") &&
     hasNegatedScopeTerm(statement, "第三方公卫院感监管系统族完整覆盖")
   );
+}
+
+type SurgeryAnesthesiaTransfusionRuntimeAsset = {
+  assetType: "TERMINOLOGY" | "SAFETY" | "CDSS_RISK" | "RULE" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+function hasCompleteSurgeryAnesthesiaTransfusionApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "surgeryAdapterCreatedThroughRealService",
+    "surgeryWebhookCreatedThroughRealService",
+    "webhookSignaturePreviewGenerated",
+    "surgeryTerminologyActivated",
+    "surgerySafetyAssetPromoted",
+    "surgeryRiskMatrixCreated",
+    "surgeryActionCardPublished",
+    "surgeryRuleCreated",
+    "runtimeActivatedWithSurgeryAssets",
+    "contextSnapshotCreatedFromFrontdesk",
+    "outboundChecklistRequested",
+    "inboundSurgeryEventAccepted",
+    "clinicalEvaluationTriggeredFromFrontdesk",
+    "humanRiskConfirmationRecorded",
+    "qualityRectificationSubmittedAndReviewed",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function parseSurgeryAnesthesiaTransfusionRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const terminologyAsset = parseSurgeryAnesthesiaTransfusionRuntimeAsset(
+    runtime.terminologyAsset,
+    "TERMINOLOGY",
+  );
+  const safetyAsset = parseSurgeryAnesthesiaTransfusionRuntimeAsset(runtime.safetyAsset, "SAFETY");
+  const cdssRiskAsset = parseSurgeryAnesthesiaTransfusionRuntimeAsset(
+    runtime.cdssRiskAsset,
+    "CDSS_RISK",
+  );
+  const ruleAsset = parseSurgeryAnesthesiaTransfusionRuntimeAsset(runtime.ruleAsset, "RULE");
+  const actionCardAsset = parseSurgeryAnesthesiaTransfusionRuntimeAsset(
+    runtime.actionCardAsset,
+    "ACTION_CARD",
+  );
+  const runtimeAssets = runtime.assets;
+  const assets = [terminologyAsset, safetyAsset, cdssRiskAsset, ruleAsset, actionCardAsset];
+  if (
+    assets.some((asset) => asset === null) ||
+    !assets.every((asset) =>
+      runtimeAssets.some((item) =>
+        surgeryAnesthesiaTransfusionRuntimeAssetMatches(
+          item,
+          asset as SurgeryAnesthesiaTransfusionRuntimeAsset,
+          { requireActive: true },
+        ),
+      ),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    terminologyAsset: terminologyAsset as SurgeryAnesthesiaTransfusionRuntimeAsset,
+    safetyAsset: safetyAsset as SurgeryAnesthesiaTransfusionRuntimeAsset,
+    cdssRiskAsset: cdssRiskAsset as SurgeryAnesthesiaTransfusionRuntimeAsset,
+    ruleAsset: ruleAsset as SurgeryAnesthesiaTransfusionRuntimeAsset,
+    actionCardAsset: actionCardAsset as SurgeryAnesthesiaTransfusionRuntimeAsset,
+  };
+}
+
+function parseSurgeryAnesthesiaTransfusionRuntimeAsset(
+  value: unknown,
+  assetType: SurgeryAnesthesiaTransfusionRuntimeAsset["assetType"],
+): SurgeryAnesthesiaTransfusionRuntimeAsset | null {
+  const asset = recordValue(value);
+  if (
+    !asset ||
+    asset.assetType !== assetType ||
+    !hasText(asset.assetIdentity) ||
+    !hasText(asset.versionId) ||
+    !hasText(asset.versionNo) ||
+    !isSha256(asset.contentHash) ||
+    asset.entryState !== "ACTIVE"
+  ) {
+    return null;
+  }
+  return {
+    assetType,
+    assetIdentity: String(asset.assetIdentity),
+    versionId: String(asset.versionId),
+    versionNo: String(asset.versionNo),
+    contentHash: String(asset.contentHash),
+  };
+}
+
+function surgeryAnesthesiaTransfusionRuntimeAssetMatches(
+  value: unknown,
+  asset: SurgeryAnesthesiaTransfusionRuntimeAsset,
+  options: { requireActive?: boolean } = {},
+) {
+  const candidate = recordValue(value);
+  return (
+    candidate?.assetType === asset.assetType &&
+    candidate.assetIdentity === asset.assetIdentity &&
+    candidate.versionId === asset.versionId &&
+    candidate.versionNo === asset.versionNo &&
+    candidate.contentHash === asset.contentHash &&
+    (!options.requireActive || candidate.entryState === "ACTIVE")
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionAdapterEvidence(value: unknown) {
+  const adapter = recordValue(value);
+  const mappings = Array.isArray(adapter?.fieldMappings) ? adapter.fieldMappings : [];
+  return (
+    hasText(adapter?.adapterId) &&
+    adapter?.systemFamilyCode === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    adapter.sourceSystem === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    adapter.targetSystem === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    adapter.protocolType === "Webhook" &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/procedures/0", "ICD-9-CM-3") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/observations/0/code") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/observations/0/valueString") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/medications/0/standardCode") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/documents/0/documentType") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/documents/0/contentDigest") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/surgeryPlan/surgeryLevel") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/anesthesiaAssessment/airwayRisk") &&
+    surgeryAnesthesiaTransfusionMappingTargets(mappings, "/transfusionRequest/noAutoTransfusion")
+  );
+}
+
+function surgeryAnesthesiaTransfusionMappingTargets(
+  mappings: unknown[],
+  targetPath: string,
+  targetDictionaryKey?: string,
+) {
+  return mappings.some((item) => {
+    const mapping = recordValue(item);
+    return (
+      mapping?.targetPath === targetPath &&
+      (!targetDictionaryKey || mapping.targetDictionaryKey === targetDictionaryKey)
+    );
+  });
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionWebhookEvidence(
+  webhookValue: unknown,
+  adapterValue: unknown,
+) {
+  const webhook = recordValue(webhookValue);
+  const adapter = recordValue(adapterValue);
+  return (
+    webhook !== null &&
+    hasText(webhook.webhookId) &&
+    webhook.adapterId === adapter?.adapterId &&
+    webhook.signatureAlgorithm === "HMAC-SHA256" &&
+    webhook.canonicalPayloadIncludesTraceId === true &&
+    webhook.previewGenerated === true
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionTerminologyGate(value: unknown) {
+  const terminology = recordValue(value);
+  return (
+    terminology?.assetType === "TERMINOLOGY" &&
+    hasText(terminology.assetIdentity) &&
+    hasText(terminology.versionId) &&
+    hasText(terminology.versionNo) &&
+    isSha256(terminology.contentHash) &&
+    terminology.standardSystem === "ICD-9-CM-3" &&
+    terminology.standardCode === "47.0901" &&
+    terminology.localCode === "OR-LAP-APP" &&
+    terminology.sourceSystem === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    terminology.category === "PROCEDURE" &&
+    typeof terminology.mappingId === "number" &&
+    terminology.mappingId > 0 &&
+    hasCompleteSurgeryAnesthesiaTransfusionConfirmedMapping(terminology.confirmedMapping, terminology)
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionConfirmedMapping(
+  value: unknown,
+  terminology: Record<string, unknown>,
+) {
+  const mapping = recordValue(value);
+  return (
+    mapping !== null &&
+    mapping.mappingId === terminology.mappingId &&
+    mapping.localTermId === terminology.localTermId &&
+    mapping.standardTermId === terminology.standardTermId &&
+    mapping.sourceSystem === terminology.sourceSystem &&
+    mapping.category === terminology.category
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionSafetyRedline(value: unknown) {
+  const redline = recordValue(value);
+  return (
+    redline?.assetType === "SAFETY" &&
+    hasText(redline.assetIdentity) &&
+    String(redline.assetIdentity).startsWith("SAFETY.RDL-SURGERY") &&
+    redline.category === "SURGERY_ANESTHESIA_TRANSFUSION" &&
+    redline.hazardSeverity === "CRITICAL" &&
+    redline.reviewRequirement === "PHYSICIAN_CONFIRMATION" &&
+    redline.noAutoTransfusion === true &&
+    redline.noAutoSurgery === true
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionRiskMatrix(value: unknown) {
+  const risk = recordValue(value);
+  return (
+    risk?.assetType === "CDSS_RISK" &&
+    risk.assetIdentity === "CDSS.RISK.MATRIX" &&
+    risk.triggerPoint === "order-sign" &&
+    risk.riskLevel === "CRITICAL" &&
+    risk.reviewRequirement === "PHYSICIAN_CONFIRMATION" &&
+    risk.automationLevel === "INFORM_ONLY" &&
+    risk.autoExecutionAllowed === false
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionActionCard(value: unknown) {
+  const actionCard = recordValue(value);
+  return (
+    actionCard?.assetType === "ACTION_CARD" &&
+    hasText(actionCard.assetIdentity) &&
+    String(actionCard.assetIdentity).startsWith("ACTION_CARD.SURGERY.") &&
+    actionCard.requiresPhysicianConfirmation === true &&
+    actionCard.noAutoOrder === true &&
+    actionCard.noAutoTransfusion === true &&
+    actionCard.noAutoSurgery === true
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionRuleAsset(value: unknown) {
+  const rule = recordValue(value);
+  return (
+    rule?.assetType === "RULE" &&
+    hasText(rule.assetIdentity) &&
+    String(rule.assetIdentity).startsWith("RULE.SURGERY.") &&
+    hasText(rule.ruleId) &&
+    hasText(rule.ruleVersionId)
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionActivationRequest(
+  value: unknown,
+  runtime: {
+    terminologyAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+    safetyAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+    cdssRiskAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+    ruleAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+    actionCardAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+  },
+) {
+  return [
+    runtime.terminologyAsset,
+    runtime.safetyAsset,
+    runtime.cdssRiskAsset,
+    runtime.ruleAsset,
+    runtime.actionCardAsset,
+  ].every((asset) =>
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: asset.versionId,
+    }),
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
+  value: unknown,
+  runtimeReleaseId: string,
+) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const procedures = Array.isArray(resources?.procedures) ? resources.procedures : [];
+  const observations = Array.isArray(resources?.observations) ? resources.observations : [];
+  const medications = Array.isArray(resources?.medications) ? resources.medications : [];
+  const documents = Array.isArray(resources?.documents) ? resources.documents : [];
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const surgeryPlan = recordValue(local?.surgeryPlan);
+  const anesthesiaAssessment = recordValue(local?.anesthesiaAssessment);
+  const transfusionRequest = recordValue(local?.transfusionRequest);
+  return (
+    hasText(context?.patientId) &&
+    hasText(context?.encounterId) &&
+    hasText(context?.contextSnapshotId) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    procedures.some((item) => {
+      const procedure = recordValue(item);
+      return (
+        procedure?.code === "47.0901" &&
+        hasText(procedure.displayName) &&
+        procedure.anesthesiaType === "GENERAL"
+      );
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "ASA_CLASS" && observation.valueString === "III";
+    }) &&
+    medications.some((item) => {
+      const medication = recordValue(item);
+      return medication?.code === "N01AB06" || medication?.standardCode === "N01AB06";
+    }) &&
+    documents.some((item) => {
+      const document = recordValue(item);
+      return (
+        document?.documentType === "SURGERY_SAFETY_CHECKLIST" &&
+        hasText(document.contentDigest)
+      );
+    }) &&
+    surgeryPlan?.surgeryLevel === "LEVEL_3" &&
+    surgeryPlan.timeOutRequired === true &&
+    anesthesiaAssessment?.airwayRisk === "DIFFICULT_AIRWAY" &&
+    anesthesiaAssessment.anesthesiologistReviewRequired === true &&
+    transfusionRequest?.crossmatchStatus === "MATCHED" &&
+    transfusionRequest.transfusionConsentConfirmed === true &&
+    transfusionRequest.noAutoTransfusion === true
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionOutbound(
+  value: unknown,
+  adapterValue: unknown,
+  contextValue: unknown,
+) {
+  const outbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const context = recordValue(contextValue);
+  const payload = recordValue(outbound?.payload);
+  return (
+    outbound !== null &&
+    payload !== null &&
+    hasText(outbound.messageId) &&
+    hasText(outbound.traceId) &&
+    outbound.adapterId === adapter?.adapterId &&
+    outbound.targetSystem === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    outbound.protocolType === "Webhook" &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(outbound.status)) &&
+    outbound.compensationStatus === "NOT_CONNECTED" &&
+    hasText(outbound.compensationMessageId) &&
+    outbound.blocksMainFlow === false &&
+    outbound.compensationRequired === true &&
+    payload.patientId === context?.patientId &&
+    payload.contextSnapshotId === context?.contextSnapshotId &&
+    payload.noAutoTransfusion === true &&
+    payload.noAutoSurgery === true
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionInbound(
+  value: unknown,
+  adapterValue: unknown,
+  webhookValue: unknown,
+  outboundValue: unknown,
+  runtimeReleaseId: string,
+) {
+  const inbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const webhook = recordValue(webhookValue);
+  const outbound = recordValue(outboundValue);
+  const outboundPayload = recordValue(outbound?.payload);
+  const mappedPayload = recordValue(inbound?.mappedPayload);
+  const signedPayload = recordValue(inbound?.signedPayload);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  const procedures = Array.isArray(mappedPayload?.procedures) ? mappedPayload.procedures : [];
+  const observations = Array.isArray(mappedPayload?.observations) ? mappedPayload.observations : [];
+  const medications = Array.isArray(mappedPayload?.medications) ? mappedPayload.medications : [];
+  const documents = Array.isArray(mappedPayload?.documents) ? mappedPayload.documents : [];
+  const surgeryPlan = recordValue(mappedPayload?.surgeryPlan);
+  const anesthesiaAssessment = recordValue(mappedPayload?.anesthesiaAssessment);
+  const transfusionRequest = recordValue(mappedPayload?.transfusionRequest);
+  return (
+    inbound !== null &&
+    mappedPayload !== null &&
+    hasText(inbound.messageId) &&
+    inbound.traceId === outbound?.traceId &&
+    inbound.adapterId === adapter?.adapterId &&
+    inbound.webhookId === webhook?.webhookId &&
+    inbound.patientId === outboundPayload?.patientId &&
+    inbound.contextSnapshotId === outboundPayload?.contextSnapshotId &&
+    inbound.sourceSystem === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    inbound.status === "SUCCESS" &&
+    inbound.clinicalEventStatus === "RECEIVED" &&
+    hasProcessedSurgeryAnesthesiaTransfusionClinicalEvent(clinicalEvent, runtimeReleaseId) &&
+    typeof inbound.mappedFieldCount === "number" &&
+    inbound.mappedFieldCount >= 18 &&
+    signedPayload?.procedureCode === "OR-LAP-APP" &&
+    signedPayload.asaClass === "III" &&
+    recordValue(signedPayload.transfusionRequest)?.noAutoTransfusion === true &&
+    procedures.some((item) => {
+      const procedure = recordValue(item);
+      return (
+        procedure?.standardCode === "47.0901" &&
+        procedure.codeSystem === "ICD-9-CM-3" &&
+        procedure.sourceSystem === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+        procedure.runtimeReleaseId === runtimeReleaseId
+      );
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "ASA_CLASS" && observation.valueString === "III";
+    }) &&
+    medications.some((item) => recordValue(item)?.standardCode === "N01AB06") &&
+    documents.some((item) => {
+      const document = recordValue(item);
+      return (
+        document?.documentType === "SURGERY_SAFETY_CHECKLIST" &&
+        hasText(document.contentDigest)
+      );
+    }) &&
+    surgeryPlan?.timeOutRequired === true &&
+    anesthesiaAssessment?.airwayRisk === "DIFFICULT_AIRWAY" &&
+    anesthesiaAssessment.anesthesiologistReviewRequired === true &&
+    transfusionRequest?.crossmatchStatus === "MATCHED" &&
+    transfusionRequest.transfusionConsentConfirmed === true &&
+    transfusionRequest.noAutoTransfusion === true
+  );
+}
+
+function hasProcessedSurgeryAnesthesiaTransfusionClinicalEvent(
+  clinicalEvent: Record<string, unknown> | null,
+  runtimeReleaseId: string,
+) {
+  return (
+    clinicalEvent !== null &&
+    hasText(clinicalEvent.eventId) &&
+    clinicalEvent.status === "PROCESSED" &&
+    clinicalEvent.runtimeReleaseId === runtimeReleaseId &&
+    (clinicalEvent.errorCode === null || clinicalEvent.errorCode === undefined) &&
+    (clinicalEvent.errorClass === null || clinicalEvent.errorClass === undefined)
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionTrigger(value: unknown, runtimeReleaseId: string) {
+  const trigger = recordValue(value);
+  return (
+    trigger !== null &&
+    hasText(trigger.triggerId) &&
+    hasText(trigger.contextSnapshotId) &&
+    trigger.runtimeReleaseId === runtimeReleaseId &&
+    trigger.triggerType === "order-sign" &&
+    hasText(trigger.cardId) &&
+    Array.isArray(trigger.relatedCardIds) &&
+    trigger.relatedCardIds.includes(trigger.cardId)
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    safetyAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+    ruleAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+    actionCardAsset: SurgeryAnesthesiaTransfusionRuntimeAsset;
+  },
+  triggerValue: unknown,
+  ruleValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const trigger = recordValue(triggerValue);
+  const rule = recordValue(ruleValue);
+  if (
+    !recommendation ||
+    !trigger ||
+    !rule ||
+    !hasText(recommendation.cardId) ||
+    recommendation.cardId !== trigger.cardId ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardStatus !== "PENDING" ||
+    recommendation.requiresPhysicianConfirmation !== true ||
+    recommendation.aiGenerated !== false
+  ) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const runtimeRelease = recordValue(explanation?.runtimeRelease);
+  const ruleExplanation = recordValue(explanation?.ruleExplanation);
+  const conditionEvidence = Array.isArray(ruleExplanation?.conditionEvidence)
+    ? ruleExplanation.conditionEvidence
+    : [];
+  const runtimeAssetEvidence = Array.isArray(ruleExplanation?.runtimeAssetEvidence)
+    ? ruleExplanation.runtimeAssetEvidence
+    : [];
+  return (
+    explanation?.matchType === "RULE" &&
+    explanation.ruleId === rule.ruleId &&
+    explanation.ruleCode === rule.assetIdentity &&
+    explanation.ruleVersionId === rule.ruleVersionId &&
+    runtimeRelease?.runtimeReleaseId === runtime.releaseId &&
+    runtimeRelease.assetVersionId === runtime.ruleAsset.versionId &&
+    runtimeRelease.assetVersionNo === runtime.ruleAsset.versionNo &&
+    runtimeRelease.contentHash === runtime.ruleAsset.contentHash &&
+    surgeryAnesthesiaTransfusionConditionMatched(conditionEvidence, "procedures[].code") &&
+    surgeryAnesthesiaTransfusionConditionMatched(conditionEvidence, "observations[].valueString") &&
+    surgeryAnesthesiaTransfusionConditionMatched(
+      conditionEvidence,
+      "extensions.local.transfusionRequest.noAutoTransfusion",
+    ) &&
+    runtimeAssetEvidence.some((item) => {
+      const evidence = recordValue(item);
+      return (
+        evidence?.assetType === "ACTION_CARD" &&
+        evidence.assetIdentity === runtime.actionCardAsset.assetIdentity &&
+        evidence.assetVersion === runtime.actionCardAsset.versionNo &&
+        evidence.contentHash === runtime.actionCardAsset.contentHash
+      );
+    })
+  );
+}
+
+function surgeryAnesthesiaTransfusionConditionMatched(values: unknown[], fact: string) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    return evidence?.fact === fact && evidence.matched === true;
+  });
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionManualConfirmation(
+  value: unknown,
+  actionCardAsset: SurgeryAnesthesiaTransfusionRuntimeAsset,
+) {
+  const confirmation = recordValue(value);
+  const persisted = recordValue(confirmation?.persisted);
+  const actionCardEvidence = recordValue(confirmation?.actionCardEvidence);
+  return (
+    confirmation !== null &&
+    persisted !== null &&
+    hasText(confirmation.feedbackId) &&
+    confirmation.cardStatus === "ACCEPTED" &&
+    confirmation.canonicalSessionRole === "clinical-user" &&
+    confirmation.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
+    persisted.feedbackId === confirmation.feedbackId &&
+    persisted.feedbackType === "ACCEPT" &&
+    persisted.operatorRole === "DOCTOR" &&
+    persisted.reasonCode === "CONFIRMED" &&
+    confirmation.noAutoOrder === true &&
+    confirmation.noAutoTransfusion === true &&
+    confirmation.noAutoSurgery === true &&
+    actionCardEvidence?.assetType === "ACTION_CARD" &&
+    actionCardEvidence.assetIdentity === actionCardAsset.assetIdentity &&
+    actionCardEvidence.versionId === actionCardAsset.versionId &&
+    actionCardEvidence.versionNo === actionCardAsset.versionNo &&
+    actionCardEvidence.contentHash === actionCardAsset.contentHash &&
+    actionCardEvidence.entryState === "ACTIVE" &&
+    actionCardEvidence.noAutoOrder === true &&
+    actionCardEvidence.noAutoTransfusion === true &&
+    actionCardEvidence.noAutoSurgery === true
+  );
+}
+
+function hasCompleteSurgeryAnesthesiaTransfusionRectification(
+  value: unknown,
+  recommendationValue: unknown,
+) {
+  const rectification = recordValue(value);
+  const recommendation = recordValue(recommendationValue);
+  return (
+    rectification !== null &&
+    recommendation !== null &&
+    hasText(rectification.findingId) &&
+    rectification.sourceType === "SURGERY_TIMELINE" &&
+    rectification.sourceId === recommendation.cardId &&
+    ["P0", "P1"].includes(String(rectification.severity)) &&
+    rectification.findingStatus === "CLOSED" &&
+    hasText(rectification.taskId) &&
+    rectification.taskStatus === "CLOSED" &&
+    rectification.submittedByRole === "engine-operator" &&
+    rectification.reviewedByRole === "engine-operator" &&
+    rectification.roleEvidence === "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW" &&
+    hasText(rectification.submittedEvidenceRef) &&
+    rectification.reviewDecision === "APPROVED"
+  );
+}
+
+function hasSurgeryAnesthesiaTransfusionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedSurgeryAnesthesiaTransfusionScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整围手术期系统") &&
+    hasNegatedScopeTerm(statement, "完整手麻系统") &&
+    hasNegatedScopeTerm(statement, "完整手术室系统") &&
+    hasNegatedScopeTerm(statement, "完整输血系统") &&
+    hasNegatedScopeTerm(statement, "护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedSurgeryAnesthesiaTransfusionScopeClaim(statement: string) {
+  return [
+    "完整围手术期系统",
+    "完整手麻系统",
+    "完整手术室系统",
+    "完整输血系统",
+    "器械耗材系统族完整覆盖",
+    "完整S0-S40",
+    "完整 S0-S40",
+    "完整上线",
+    "完整上线验收",
+    "完整S26",
+    "完整 S26",
+    "完整S33",
+    "完整 S33",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整手麻手术室输血系统",
+    "完整手麻手术室输血系统族",
+    "护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasScopeCompletionClaimWithoutNegation(statement: string, term: string) {
+  const segments = statement
+    .split(/[。；;.!?！？\n]/u)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  return segments.some((segment) => {
+    const termIndex = segment.indexOf(term);
+    if (termIndex < 0) return false;
+    const suffix = segment.slice(termIndex + term.length);
+    if (!/(?:已上线|完整上线|完成上线|已完成|完成|完整覆盖|全面覆盖)/u.test(suffix)) {
+      return false;
+    }
+    const prefix = segment.slice(0, termIndex);
+    return !/(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix);
+  });
 }
 
 function parseExplanationObject(value: unknown) {

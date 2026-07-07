@@ -1171,6 +1171,181 @@ class IntegrationServiceTest {
     }
 
     @Test
+    void inboundWebhookMapsSurgeryAnesthesiaTransfusionEvent() throws Exception {
+        insertTerminologyRuntimeOrgTree();
+        Long procedureStandardTermId = insertStandardTerm("ICD-9-CM-3", "47.0901", "腹腔镜阑尾切除术", "PROCEDURE");
+        Long procedureLocalTermId = insertLocalTerm(
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU", "OR-LAP-APP", "手术室腹腔镜阑尾切除");
+        Long procedureMappingId = insertConfirmedTermMapping(
+            procedureLocalTermId, procedureStandardTermId, "NURSING_ANESTHESIA_TRANSFUSION_ICU", "PROCEDURE");
+        TerminologyRuntimeAsset procedureTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE",
+            "V1",
+            procedureMappingId,
+            procedureLocalTermId,
+            procedureStandardTermId,
+            "47.0901",
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            "OR-LAP-APP",
+            "ICD-9-CM-3",
+            "PROCEDURE");
+        String runtimeReleaseId = "runtime-release-surgery-anesthesia-transfusion";
+        insertCurrentRuntimeRelease(runtimeReleaseId, procedureTerminology);
+
+        service.createAdapter(tenantId, new AdapterCreateDto(
+            "surgery-anesthesia-transfusion-adapter",
+            "手麻手术室输血入站适配器",
+            "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/procedureCode",
+                  "targetPath": "/procedures/0",
+                  "targetDictionaryKey": "ICD-9-CM-3",
+                  "category": "PROCEDURE"
+                },
+                {"sourcePath": "/procedureName", "targetPath": "/procedures/0/displayName"},
+                {"sourcePath": "/anesthesiaType", "targetPath": "/procedures/0/anesthesiaType"},
+                {"sourcePath": "/surgeonId", "targetPath": "/procedures/0/surgeonId"},
+                {"sourcePath": "/performedAt", "targetPath": "/procedures/0/performedAt"},
+                {"sourcePath": "/asaClass", "targetPath": "/observations/0/valueString"},
+                {"sourcePath": "/asaCode", "targetPath": "/observations/0/code"},
+                {"sourcePath": "/anesthesiaDrugCode", "targetPath": "/medications/0/standardCode"},
+                {"sourcePath": "/anesthesiaDrugName", "targetPath": "/medications/0/displayName"},
+                {"sourcePath": "/checklistDigest", "targetPath": "/documents/0/contentDigest"},
+                {"sourcePath": "/checklistType", "targetPath": "/documents/0/documentType"},
+                {"sourcePath": "/surgeryPlan/surgeryLevel", "targetPath": "/surgeryPlan/surgeryLevel"},
+                {
+                  "sourcePath": "/surgeryPlan/preOpAssessmentStatus",
+                  "targetPath": "/surgeryPlan/preOpAssessmentStatus"
+                },
+                {"sourcePath": "/surgeryPlan/timeOutRequired", "targetPath": "/surgeryPlan/timeOutRequired"},
+                {"sourcePath": "/anesthesiaAssessment/airwayRisk", "targetPath": "/anesthesiaAssessment/airwayRisk"},
+                {
+                  "sourcePath": "/anesthesiaAssessment/anesthesiologistReviewRequired",
+                  "targetPath": "/anesthesiaAssessment/anesthesiologistReviewRequired"
+                },
+                {"sourcePath": "/transfusionRequest/crossmatchStatus", "targetPath": "/transfusionRequest/crossmatchStatus"},
+                {
+                  "sourcePath": "/transfusionRequest/transfusionConsentConfirmed",
+                  "targetPath": "/transfusionRequest/transfusionConsentConfirmed"
+                },
+                {"sourcePath": "/transfusionRequest/noAutoTransfusion", "targetPath": "/transfusionRequest/noAutoTransfusion"}
+              ]
+            }
+            """));
+        service.createWebhook(tenantId, new WebhookCreateDto(
+            "whk-surgery-anesthesia-transfusion",
+            "手麻手术室输血回传",
+            "http://localhost/inbound",
+            "SURGERY_ANESTHESIA_TRANSFUSION_EVENT"));
+        IntegrationWebhookConfig webhook = webhookRepository
+            .findByWebhookIdAndTenantId("whk-surgery-anesthesia-transfusion", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "msg-surgery-anesthesia-transfusion-1",
+            "trace-surgery-anesthesia-transfusion-1",
+            "surgery-anesthesia-transfusion-adapter",
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            ClinicalEventType.ORDER,
+            "P-260",
+            "encounter-260",
+            ClinicalSetting.INPATIENT,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            Instant.parse("2026-07-07T02:15:00Z"),
+            objectMapper.readTree("""
+            {
+              "patientId": "P-260",
+              "procedureCode": "OR-LAP-APP",
+              "procedureName": "腹腔镜阑尾切除术",
+              "anesthesiaType": "GENERAL",
+              "surgeonId": "doctor-surgery-1",
+              "performedAt": "2026-07-07T02:30:00Z",
+              "asaCode": "ASA_CLASS",
+              "asaClass": "III",
+              "anesthesiaDrugCode": "N01AB06",
+              "anesthesiaDrugName": "七氟烷",
+              "checklistDigest": "sha256:surgery-safety-checklist",
+              "checklistType": "SURGERY_SAFETY_CHECKLIST",
+              "surgeryPlan": {
+                "surgeryLevel": "LEVEL_3",
+                "preOpAssessmentStatus": "PASSED_WITH_RISK",
+                "timeOutRequired": true
+              },
+              "anesthesiaAssessment": {
+                "airwayRisk": "DIFFICULT_AIRWAY",
+                "anesthesiologistReviewRequired": true
+              },
+              "transfusionRequest": {
+                "crossmatchStatus": "MATCHED",
+                "transfusionConsentConfirmed": true,
+                "noAutoTransfusion": true
+              }
+            }
+            """));
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        WebhookInboundResultDto result = RequestContext.callWith(
+            new RequestContext.Snapshot(
+                "trace-surgery-anesthesia-transfusion-1",
+                new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                "integration-test"),
+            () -> service.ingestWebhook(
+                tenantId, "whk-surgery-anesthesia-transfusion", timestamp, signature, inbound));
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(20, result.mappedFieldCount());
+        assertEquals(1, result.normalizedCodeCount());
+        assertEquals("P-260", result.mappedPayload().at("/patient/mpi").asText());
+        assertEquals("47.0901", result.mappedPayload().at("/procedures/0/standardCode").asText());
+        assertEquals("ICD-9-CM-3", result.mappedPayload().at("/procedures/0/codeSystem").asText());
+        assertEquals("OR-LAP-APP", result.mappedPayload().at("/procedures/0/localCode").asText());
+        assertEquals("NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            result.mappedPayload().at("/procedures/0/localCodeSystem").asText());
+        assertEquals(procedureMappingId.longValue(), result.mappedPayload().at("/procedures/0/mappingId").asLong());
+        assertEquals(procedureStandardTermId.longValue(),
+            result.mappedPayload().at("/procedures/0/standardTermId").asLong());
+        assertEquals(runtimeReleaseId, result.mappedPayload().at("/procedures/0/runtimeReleaseId").asText());
+        assertEquals("腹腔镜阑尾切除术", result.mappedPayload().at("/procedures/0/displayName").asText());
+        assertEquals("GENERAL", result.mappedPayload().at("/procedures/0/anesthesiaType").asText());
+        assertEquals("ASA_CLASS", result.mappedPayload().at("/observations/0/code").asText());
+        assertEquals("III", result.mappedPayload().at("/observations/0/valueString").asText());
+        assertEquals("N01AB06", result.mappedPayload().at("/medications/0/standardCode").asText());
+        assertEquals("SURGERY_SAFETY_CHECKLIST", result.mappedPayload().at("/documents/0/documentType").asText());
+        assertEquals("LEVEL_3", result.mappedPayload().at("/surgeryPlan/surgeryLevel").asText());
+        assertEquals("DIFFICULT_AIRWAY", result.mappedPayload().at("/anesthesiaAssessment/airwayRisk").asText());
+        assertTrue(result.mappedPayload().at("/transfusionRequest/noAutoTransfusion").asBoolean());
+        assertNotNull(result.clinicalEventId());
+        assertEquals("RECEIVED", result.clinicalEventStatus());
+
+        ClinicalEvent clinicalEvent = clinicalEventRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        assertEquals(ClinicalEventType.ORDER, clinicalEvent.eventType());
+        assertEquals(ClinicalEventTriggerPoint.ORDER_SIGN, clinicalEvent.triggerPoint());
+        assertEquals("NURSING_ANESTHESIA_TRANSFUSION_ICU", clinicalEvent.sourceSystem());
+        assertEquals(runtimeReleaseId, clinicalEvent.runtimeReleaseId());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+        assertEquals("47.0901", persistedPayload.at("/procedures/0/standardCode").asText());
+        assertEquals("NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            persistedPayload.at("/procedures/0/sourceSystem").asText());
+        assertEquals("III", persistedPayload.at("/observations/0/valueString").asText());
+        assertEquals("N01AB06", persistedPayload.at("/medications/0/standardCode").asText());
+        assertEquals("SURGERY_SAFETY_CHECKLIST", persistedPayload.at("/documents/0/documentType").asText());
+        assertEquals("PASSED_WITH_RISK", persistedPayload.at("/surgeryPlan/preOpAssessmentStatus").asText());
+        assertTrue(persistedPayload.at("/anesthesiaAssessment/anesthesiologistReviewRequired").asBoolean());
+        assertEquals("MATCHED", persistedPayload.at("/transfusionRequest/crossmatchStatus").asText());
+        assertTrue(persistedPayload.at("/transfusionRequest/noAutoTransfusion").asBoolean());
+    }
+
+    @Test
     void inboundWebhookRejectsStaleTimestampEvenWhenSignatureMatches() throws Exception {
         service.createWebhook(tenantId,
             new WebhookCreateDto("whk-stale", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));

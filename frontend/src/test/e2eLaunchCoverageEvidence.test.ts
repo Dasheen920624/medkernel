@@ -2580,6 +2580,429 @@ function expectNoInfectionPublicHealthSafetyCoverage(body: Record<string, unknow
   );
 }
 
+const surgeryAnesthesiaTransfusionEvidence = {
+  scenarioCodes: ["S26"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+  versionedAssets: ["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"],
+  deliveryShapes: ["API_EVENT"],
+  serviceCombinations: [
+    "THIRD_PARTY_INTERFACE",
+    "CLINICAL_RUNTIME",
+    "PROFESSIONAL_COLLABORATION",
+    "QUALITY_IMPROVEMENT",
+  ],
+  scopeStatement:
+    "围手术期、麻醉与输血代表切片：NURSING_ANESTHESIA_TRANSFUSION_ICU 入站、术前核查、麻醉风险、用血确认、人工确认和时序质控整改闭环，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收。",
+  apiEvidence: {
+    surgeryAdapterCreatedThroughRealService: true,
+    surgeryWebhookCreatedThroughRealService: true,
+    webhookSignaturePreviewGenerated: true,
+    surgeryTerminologyActivated: true,
+    surgerySafetyAssetPromoted: true,
+    surgeryRiskMatrixCreated: true,
+    surgeryActionCardPublished: true,
+    surgeryRuleCreated: true,
+    runtimeActivatedWithSurgeryAssets: true,
+    contextSnapshotCreatedFromFrontdesk: true,
+    outboundChecklistRequested: true,
+    inboundSurgeryEventAccepted: true,
+    clinicalEvaluationTriggeredFromFrontdesk: true,
+    humanRiskConfirmationRecorded: true,
+    qualityRectificationSubmittedAndReviewed: true,
+  },
+  adapter: {
+    adapterId: "adapter-surgery-anesthesia-transfusion",
+    systemFamilyCode: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    targetSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    protocolType: "Webhook",
+    fieldMappings: [
+      { sourcePath: "/patientId", targetPath: "/patient/mpi" },
+      { sourcePath: "/procedureCode", targetPath: "/procedures/0", targetDictionaryKey: "ICD-9-CM-3" },
+      { sourcePath: "/asaCode", targetPath: "/observations/0/code" },
+      { sourcePath: "/asaClass", targetPath: "/observations/0/valueString" },
+      { sourcePath: "/anesthesiaDrugCode", targetPath: "/medications/0/standardCode" },
+      { sourcePath: "/checklistType", targetPath: "/documents/0/documentType" },
+      { sourcePath: "/checklistDigest", targetPath: "/documents/0/contentDigest" },
+      { sourcePath: "/surgeryPlan/surgeryLevel", targetPath: "/surgeryPlan/surgeryLevel" },
+      { sourcePath: "/anesthesiaAssessment/airwayRisk", targetPath: "/anesthesiaAssessment/airwayRisk" },
+      {
+        sourcePath: "/transfusionRequest/noAutoTransfusion",
+        targetPath: "/transfusionRequest/noAutoTransfusion",
+      },
+    ],
+  },
+  webhookSignature: {
+    webhookId: "webhook-surgery-anesthesia-transfusion",
+    adapterId: "adapter-surgery-anesthesia-transfusion",
+    signatureAlgorithm: "HMAC-SHA256",
+    canonicalPayloadIncludesTraceId: true,
+    previewGenerated: true,
+  },
+  terminologyGate: {
+    assetType: "TERMINOLOGY",
+    assetIdentity: "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE",
+    versionId: "av-term-surgery",
+    versionNo: "V1",
+    contentHash: "a".repeat(64),
+    standardSystem: "ICD-9-CM-3",
+    standardCode: "47.0901",
+    localCode: "OR-LAP-APP",
+    localTermId: 5201,
+    standardTermId: 470901,
+    sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    category: "PROCEDURE",
+    mappingId: 52,
+    confirmedMapping: {
+      mappingId: 52,
+      localTermId: 5201,
+      standardTermId: 470901,
+      sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      category: "PROCEDURE",
+    },
+  },
+  safetyRedline: {
+    assetType: "SAFETY",
+    assetIdentity: "SAFETY.RDL-SURGERY-ANESTHESIA-TRANSFUSION",
+    versionId: "av-safety-surgery",
+    versionNo: "V1",
+    contentHash: "b".repeat(64),
+    entryState: "ACTIVE",
+    category: "SURGERY_ANESTHESIA_TRANSFUSION",
+    hazardSeverity: "CRITICAL",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    noAutoTransfusion: true,
+    noAutoSurgery: true,
+  },
+  riskMatrix: {
+    assetType: "CDSS_RISK",
+    assetIdentity: "CDSS.RISK.MATRIX",
+    versionId: "av-risk-surgery",
+    versionNo: "V1",
+    contentHash: "f".repeat(64),
+    entryState: "ACTIVE",
+    triggerPoint: "order-sign",
+    riskLevel: "CRITICAL",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    automationLevel: "INFORM_ONLY",
+    autoExecutionAllowed: false,
+  },
+  actionCard: {
+    assetType: "ACTION_CARD",
+    assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+    versionId: "av-action-surgery",
+    versionNo: "V1",
+    contentHash: "c".repeat(64),
+    entryState: "ACTIVE",
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoTransfusion: true,
+    noAutoSurgery: true,
+  },
+  ruleAsset: {
+    assetType: "RULE",
+    assetIdentity: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+    versionId: "av-rule-surgery",
+    versionNo: "V1",
+    contentHash: "d".repeat(64),
+    ruleId: "rule-surgery-checklist",
+    ruleVersionId: "rv-surgery-checklist",
+  },
+  runtime: {
+    releaseId: "runtime-surgery",
+    revisionNo: 26,
+    manifestSha256: "e".repeat(64),
+    assets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE",
+        versionId: "av-term-surgery",
+        versionNo: "V1",
+        contentHash: "a".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-SURGERY-ANESTHESIA-TRANSFUSION",
+        versionId: "av-safety-surgery",
+        versionNo: "V1",
+        contentHash: "b".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+        versionId: "av-rule-surgery",
+        versionNo: "V1",
+        contentHash: "d".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "av-risk-surgery",
+        versionNo: "V1",
+        contentHash: "f".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+        versionId: "av-action-surgery",
+        versionNo: "V1",
+        contentHash: "c".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    terminologyAsset: {
+      assetType: "TERMINOLOGY",
+      assetIdentity: "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE",
+      versionId: "av-term-surgery",
+      versionNo: "V1",
+      contentHash: "a".repeat(64),
+      entryState: "ACTIVE",
+    },
+    safetyAsset: {
+      assetType: "SAFETY",
+      assetIdentity: "SAFETY.RDL-SURGERY-ANESTHESIA-TRANSFUSION",
+      versionId: "av-safety-surgery",
+      versionNo: "V1",
+      contentHash: "b".repeat(64),
+      entryState: "ACTIVE",
+    },
+    cdssRiskAsset: {
+      assetType: "CDSS_RISK",
+      assetIdentity: "CDSS.RISK.MATRIX",
+      versionId: "av-risk-surgery",
+      versionNo: "V1",
+      contentHash: "f".repeat(64),
+      entryState: "ACTIVE",
+    },
+    ruleAsset: {
+      assetType: "RULE",
+      assetIdentity: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+      versionId: "av-rule-surgery",
+      versionNo: "V1",
+      contentHash: "d".repeat(64),
+      entryState: "ACTIVE",
+    },
+    actionCardAsset: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+      versionId: "av-action-surgery",
+      versionNo: "V1",
+      contentHash: "c".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      { assetType: "TERMINOLOGY", assetIdentity: "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE", versionId: "av-term-surgery" },
+      { assetType: "SAFETY", assetIdentity: "SAFETY.RDL-SURGERY-ANESTHESIA-TRANSFUSION", versionId: "av-safety-surgery" },
+      { assetType: "CDSS_RISK", assetIdentity: "CDSS.RISK.MATRIX", versionId: "av-risk-surgery" },
+      { assetType: "RULE", assetIdentity: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST", versionId: "av-rule-surgery" },
+      { assetType: "ACTION_CARD", assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST", versionId: "av-action-surgery" },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-surgery",
+    encounterId: "enc-surgery",
+    contextSnapshotId: "ctx-surgery",
+    runtimeReleaseId: "runtime-surgery",
+    resources: {
+      procedures: [{ code: "47.0901", displayName: "腹腔镜阑尾切除术", anesthesiaType: "GENERAL" }],
+      observations: [{ code: "ASA_CLASS", valueString: "III" }],
+      medications: [{ code: "N01AB06", displayName: "七氟烷" }],
+      documents: [{ documentType: "SURGERY_SAFETY_CHECKLIST", contentDigest: "sha256:surgery-safety-checklist" }],
+      extensions: {
+        local: {
+          surgeryPlan: { surgeryLevel: "LEVEL_3", preOpAssessmentStatus: "PASSED_WITH_RISK", timeOutRequired: true },
+          anesthesiaAssessment: { airwayRisk: "DIFFICULT_AIRWAY", anesthesiologistReviewRequired: true },
+          transfusionRequest: { crossmatchStatus: "MATCHED", transfusionConsentConfirmed: true, noAutoTransfusion: true },
+        },
+      },
+    },
+  },
+  outboundChecklist: {
+    messageId: "out-surgery-checklist",
+    traceId: "trace-surgery",
+    adapterId: "adapter-surgery-anesthesia-transfusion",
+    targetSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    protocolType: "Webhook",
+    status: "RETRYING",
+    compensationStatus: "NOT_CONNECTED",
+    compensationMessageId: "out-surgery-checklist",
+    blocksMainFlow: false,
+    compensationRequired: true,
+    payload: { patientId: "mpi-surgery", contextSnapshotId: "ctx-surgery", noAutoTransfusion: true, noAutoSurgery: true },
+  },
+  inboundSurgeryEvent: {
+    messageId: "in-surgery",
+    traceId: "trace-surgery",
+    adapterId: "adapter-surgery-anesthesia-transfusion",
+    webhookId: "webhook-surgery-anesthesia-transfusion",
+    patientId: "mpi-surgery",
+    encounterId: "enc-surgery",
+    contextSnapshotId: "ctx-surgery",
+    sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    status: "SUCCESS",
+    clinicalEventStatus: "RECEIVED",
+    clinicalEvent: {
+      eventId: "evt-wh-surgery",
+      status: "PROCESSED",
+      errorCode: null,
+      errorClass: null,
+      retryCount: 0,
+      runtimeReleaseId: "runtime-surgery",
+    },
+    mappedFieldCount: 20,
+    mappedPayload: {
+      procedures: [{ standardCode: "47.0901", codeSystem: "ICD-9-CM-3", sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU", runtimeReleaseId: "runtime-surgery" }],
+      observations: [{ code: "ASA_CLASS", valueString: "III" }],
+      medications: [{ standardCode: "N01AB06" }],
+      documents: [{ documentType: "SURGERY_SAFETY_CHECKLIST", contentDigest: "sha256:surgery-safety-checklist" }],
+      surgeryPlan: { timeOutRequired: true },
+      anesthesiaAssessment: { airwayRisk: "DIFFICULT_AIRWAY", anesthesiologistReviewRequired: true },
+      transfusionRequest: { crossmatchStatus: "MATCHED", transfusionConsentConfirmed: true, noAutoTransfusion: true },
+    },
+    signedPayload: {
+      procedureCode: "OR-LAP-APP",
+      asaClass: "III",
+      transfusionRequest: { noAutoTransfusion: true },
+    },
+  },
+  clinicalTrigger: {
+    triggerId: "trigger-surgery",
+    contextSnapshotId: "ctx-surgery",
+    runtimeReleaseId: "runtime-surgery",
+    triggerType: "order-sign",
+    cardId: "card-surgery",
+    relatedCardIds: ["card-surgery"],
+  },
+  recommendation: {
+    cardId: "card-surgery",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-surgery",
+    cardType: "WARNING",
+    requiresPhysicianConfirmation: true,
+    aiGenerated: false,
+    explanation: {
+      matchType: "RULE",
+      ruleId: "rule-surgery-checklist",
+      ruleCode: "RULE.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+      ruleVersionId: "rv-surgery-checklist",
+      runtimeRelease: {
+        runtimeReleaseId: "runtime-surgery",
+        assetVersionId: "av-rule-surgery",
+        assetVersionNo: "V1",
+        contentHash: "d".repeat(64),
+      },
+      ruleExplanation: {
+        conditionEvidence: [
+          { fact: "procedures[].code", matched: true },
+          { fact: "observations[].valueString", matched: true },
+          { fact: "extensions.local.transfusionRequest.noAutoTransfusion", matched: true },
+        ],
+        runtimeAssetEvidence: [
+          {
+            assetType: "ACTION_CARD",
+            assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+            assetVersion: "V1",
+            contentHash: "c".repeat(64),
+            noAutoOrder: true,
+            noAutoTransfusion: true,
+            noAutoSurgery: true,
+          },
+        ],
+      },
+    },
+  },
+  manualConfirmation: {
+    feedbackId: "rf-surgery",
+    cardStatus: "ACCEPTED",
+    canonicalSessionRole: "clinical-user",
+    roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+    persisted: {
+      feedbackId: "rf-surgery",
+      feedbackType: "ACCEPT",
+      operatorRole: "DOCTOR",
+      reasonCode: "CONFIRMED",
+    },
+    noAutoOrder: true,
+    noAutoTransfusion: true,
+    noAutoSurgery: true,
+    actionCardEvidence: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.SURGERY.ANESTHESIA.TRANSFUSION.CHECKLIST",
+      versionId: "av-action-surgery",
+      versionNo: "V1",
+      contentHash: "c".repeat(64),
+      entryState: "ACTIVE",
+      noAutoOrder: true,
+      noAutoTransfusion: true,
+      noAutoSurgery: true,
+    },
+  },
+  qualityRectification: {
+    findingId: "finding-surgery",
+    sourceType: "SURGERY_TIMELINE",
+    sourceId: "card-surgery",
+    severity: "P1",
+    findingStatus: "CLOSED",
+    taskId: "task-surgery",
+    taskStatus: "CLOSED",
+    submittedByRole: "engine-operator",
+    reviewedByRole: "engine-operator",
+    roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
+    submittedEvidenceRef: "surgery-evidence",
+    reviewDecision: "APPROVED",
+  },
+  scenarioEvidence: [
+    {
+      code: "S26",
+      observedStages: [
+        "平台管理员访问真实前台并经真实服务创建 NURSING_ANESTHESIA_TRANSFUSION_ICU 适配器、回调通道和签名预览",
+        "运营员发布手术操作术语、高危安全红线、麻醉用血风险矩阵、术前核查规则和动作卡资产",
+        "当前机构生效版本包含围手术期五类运行资产",
+        "签名入站事件生成 Procedure、Observation、Medication、Document 和手麻输血本地扩展上下文",
+        "系统向 NURSING_ANESTHESIA_TRANSFUSION_ICU 发出核查确认回传并诚实断连降级",
+        "临床用户从真实前台触发 order-sign 推荐评估",
+        "推荐卡证明术前核查规则、安全红线和动作卡按当前机构生效版本消费",
+        "临床用户人工确认围手术期风险，系统不自动输血、不自动开嘱、不自动手术",
+        "围手术期时序质控形成整改任务并由固定职责账号复核关闭",
+      ],
+    },
+  ],
+};
+
+function surgeryAnesthesiaTransfusionEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts",
+        title: "临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "surgery-anesthesia-transfusion-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoSurgeryAnesthesiaTransfusionCoverage(body: Record<string, unknown>) {
+  const evidence = surgeryAnesthesiaTransfusionEvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S26");
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["TERMINOLOGY", "SAFETY", "RULE", "ACTION_CARD"]),
+  );
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -4990,6 +5413,197 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare infection public-health safety coverage when $name", ({ body }) => {
     expectNoInfectionPublicHealthSafetyCoverage(body);
+  });
+
+  it("declares S26 surgery anesthesia transfusion coverage only with signed inbound, runtime assets, manual confirmation and rectification closure", () => {
+    const evidence = surgeryAnesthesiaTransfusionEvidenceResult(
+      surgeryAnesthesiaTransfusionEvidence,
+    );
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S26"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+      "DATA_INTEROPERABILITY",
+      "QUALITY_IMPROVEMENT",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "TERMINOLOGY",
+      "SAFETY",
+      "CDSS_RISK",
+      "RULE",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+      "PROFESSIONAL_COLLABORATION",
+      "QUALITY_IMPROVEMENT",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺 CDSS_RISK 风险矩阵资产",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        versionedAssets: ["TERMINOLOGY", "SAFETY", "RULE", "ACTION_CARD"],
+      },
+    },
+    {
+      name: "术语 mappingId 未绑定本轮 localTermId/standardTermId/sourceSystem",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        terminologyGate: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.terminologyGate),
+          confirmedMapping: {
+            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.terminologyGate.confirmedMapping),
+            localTermId: 9999,
+          },
+        },
+      },
+    },
+    {
+      name: "缺 Procedure 标准资源",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        clinicalContext: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.clinicalContext.resources),
+            procedures: [],
+          },
+        },
+      },
+    },
+    {
+      name: "入站临床事件未处理完成",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        inboundSurgeryEvent: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent),
+          clinicalEvent: {
+            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent.clinicalEvent),
+            status: "FAILED",
+            errorCode: "ENG-API-002",
+          },
+        },
+      },
+    },
+    {
+      name: "出站断连阻断主流程",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        outboundChecklist: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.outboundChecklist),
+          blocksMainFlow: true,
+        },
+      },
+    },
+    {
+      name: "人工确认缺少禁止自动输血证据",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        manualConfirmation: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.manualConfirmation),
+          noAutoTransfusion: false,
+        },
+      },
+    },
+    {
+      name: "动作卡资产缺少禁止自动手术治理要求",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        actionCard: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.actionCard),
+          noAutoSurgery: false,
+        },
+      },
+    },
+    {
+      name: "人工确认把手术医生业务任职写成系统角色",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        manualConfirmation: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.manualConfirmation),
+          persisted: {
+            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.manualConfirmation.persisted),
+            operatorRole: "SURGEON",
+          },
+        },
+      },
+    },
+    {
+      name: "整改任务未关闭",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        qualityRectification: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.qualityRectification),
+          taskStatus: "OPEN",
+        },
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，完整手麻系统已上线、完整输血系统已上线、完整上线验收已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称护理手麻手术室输血 ICU 第三方系统族完整覆盖",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统或完整上线验收；护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线完成",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收；完整上线已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整 S0-S40 已上线",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收；完整 S0-S40 已上线。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整第三方系统族覆盖已完成",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收；完整第三方系统族覆盖已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称所有第三方系统族完整覆盖已完成",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收；所有第三方系统族完整覆盖已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整手麻手术室输血系统已上线",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scopeStatement:
+          "围手术期、麻醉与输血代表切片，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收；完整手麻手术室输血系统已上线。",
+      },
+    },
+  ])("does not declare surgery anesthesia transfusion coverage when $name", ({ body }) => {
+    expectNoSurgeryAnesthesiaTransfusionCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {
