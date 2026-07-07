@@ -42,11 +42,13 @@ export function ContextSnapshotSelector({
       dataSource={snapshots}
       renderItem={(snapshot, index) => {
         const createdAtText = formatClinicalDateTimeWithSeconds(snapshot.createdAt, "");
-        const selectLabel = evidenceDetailsEnabled
-          ? `选择 ${snapshot.snapshotId}`
-          : createdAtText
-            ? `选择 ${createdAtText} 建立的${noun}`
-            : `选择第 ${index + 1} 个${noun}`;
+        let selectLabel = `选择第 ${index + 1} 个${noun}`;
+        if (createdAtText) {
+          selectLabel = `选择 ${createdAtText} 建立的${noun}`;
+        }
+        if (evidenceDetailsEnabled) {
+          selectLabel = `选择 ${snapshot.snapshotId}`;
+        }
         return (
           <List.Item
             actions={[

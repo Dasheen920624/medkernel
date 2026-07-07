@@ -317,13 +317,16 @@ export default function PatientPathways() {
     value: candidate.templateId,
     label: `${candidate.name} · ${candidate.diseaseCode}`,
   }));
-  const entryCandidateStatusMessage = !selectedContextSnapshotId
-    ? "请先选择已生效临床快照，再读取当前机构生效候选路径。"
-    : entryCandidatesQuery.isLoading
-      ? "正在读取当前机构生效候选路径。"
-      : entryCandidateCount > 0
-        ? `已读取 ${entryCandidateCount} 条当前机构生效候选路径，确认后才会入径。`
-        : "当前机构生效版本无可用候选路径。";
+  let entryCandidateStatusMessage = "请先选择已生效临床快照，再读取当前机构生效候选路径。";
+  if (selectedContextSnapshotId) {
+    if (entryCandidatesQuery.isLoading) {
+      entryCandidateStatusMessage = "正在读取当前机构生效候选路径。";
+    } else if (entryCandidateCount > 0) {
+      entryCandidateStatusMessage = `已读取 ${entryCandidateCount} 条当前机构生效候选路径，确认后才会入径。`;
+    } else {
+      entryCandidateStatusMessage = "当前机构生效版本无可用候选路径。";
+    }
+  }
 
   const {
     data: patientPathwaysData,

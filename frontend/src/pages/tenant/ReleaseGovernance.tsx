@@ -739,126 +739,126 @@ export default function ReleaseGovernance() {
     );
   }
 
-  const platformUpgradeContent =
-    hospitalId && currentRuntime && baseline ? (
-      needsPlatformUpgradeAnalysis ? (
-        <Card
-          title="平台升级差异与冲突分析"
-          extra={
-            <Button
-              aria-label="分析平台升级影响"
-              icon={<SafetyCertificateOutlined />}
-              loading={platformUpgradeQuery.isFetching}
-              onClick={() => void refreshPlatformUpgradeAnalysis()}
-            >
-              分析平台升级影响
-            </Button>
-          }
-        >
-          <Space direction="vertical" className={styles.fullWidth}>
-            {platformUpgradeQuery.error && (
-              <Alert
-                type="warning"
-                showIcon
-                message="平台升级分析未完成"
-                description={getApiErrorMessage(platformUpgradeQuery.error, "平台升级分析失败")}
-              />
-            )}
-            {platformUpgradeAnalysis ? (
-              <>
-                <Descriptions size="small" column={3}>
-                  <Descriptions.Item label="目标平台标准版本">
-                    {revision("A", platformUpgradeAnalysis.targetBaseline.revisionNo)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="当前机构基线">
-                    {evidenceText(
-                      platformUpgradeAnalysis.currentRuntime.platformBaselineReleaseId,
-                      evidenceDetailsEnabled,
-                      "机构当前已锁定历史平台标准版本",
-                    )}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="分析结论">
-                    {platformUpgradeAnalysis.diffSummary.conflictCount > 0
-                      ? "发现覆盖冲突，需处理"
-                      : "差异与冲突分析已完成"}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="差异摘要" span={2}>
-                    {platformUpgradeSummary(platformUpgradeAnalysis)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="运行版本">
-                    {platformUpgradeAnalysis.runtimeMutation ? "异常改写" : "分析不改写当前机构生效版本"}
-                  </Descriptions.Item>
-                  {evidenceDetailsEnabled && (
-                    <Descriptions.Item label="分析摘要" span={3}>
-                      <Text className={styles.digest}>
-                        {platformUpgradeAnalysis.analysisDigest}
-                      </Text>
-                    </Descriptions.Item>
+  let platformUpgradeContent = null;
+  if (hospitalId && currentRuntime && baseline) {
+    platformUpgradeContent = needsPlatformUpgradeAnalysis ? (
+      <Card
+        title="平台升级差异与冲突分析"
+        extra={
+          <Button
+            aria-label="分析平台升级影响"
+            icon={<SafetyCertificateOutlined />}
+            loading={platformUpgradeQuery.isFetching}
+            onClick={() => void refreshPlatformUpgradeAnalysis()}
+          >
+            分析平台升级影响
+          </Button>
+        }
+      >
+        <Space direction="vertical" className={styles.fullWidth}>
+          {platformUpgradeQuery.error && (
+            <Alert
+              type="warning"
+              showIcon
+              message="平台升级分析未完成"
+              description={getApiErrorMessage(platformUpgradeQuery.error, "平台升级分析失败")}
+            />
+          )}
+          {platformUpgradeAnalysis ? (
+            <>
+              <Descriptions size="small" column={3}>
+                <Descriptions.Item label="目标平台标准版本">
+                  {revision("A", platformUpgradeAnalysis.targetBaseline.revisionNo)}
+                </Descriptions.Item>
+                <Descriptions.Item label="当前机构基线">
+                  {evidenceText(
+                    platformUpgradeAnalysis.currentRuntime.platformBaselineReleaseId,
+                    evidenceDetailsEnabled,
+                    "机构当前已锁定历史平台标准版本",
                   )}
-                </Descriptions>
-                <Table
-                  rowKey={(item) => `${item.assetType}|${item.assetIdentity}`}
-                  size="small"
-                  pagination={false}
-                  dataSource={platformUpgradeAnalysis.items}
-                  columns={[
-                    {
-                      title: "内容",
-                      render: (_value, item) => (
-                        <Space direction="vertical" size={0}>
-                          <Text strong>
-                            {assetSummaryText(
-                              item.assetType,
-                              evidenceDetailsEnabled,
-                              item.assetIdentity,
-                              "升级差异项",
-                            )}
-                          </Text>
-                          <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
-                        </Space>
-                      ),
-                    },
-                    {
-                      title: "差异",
-                      width: 100,
-                      render: (_value, item) => platformUpgradeChangeLabel(item.changeType),
-                    },
-                    {
-                      title: "版本变化",
-                      render: (_value, item) =>
-                        evidenceDetailsEnabled
-                          ? `${item.currentVersionNo ?? "无"} -> ${item.targetVersionNo ?? "停用"}`
-                          : "已完成版本差异比对",
-                    },
-                    {
-                      title: "冲突",
-                      render: (_value, item) =>
-                        item.conflicts.length > 0
-                          ? `${item.conflicts.length} 个机构覆盖冲突`
-                          : "未发现覆盖冲突",
-                    },
-                  ]}
-                />
-              </>
-            ) : (
-              <Alert
-                type="info"
-                showIcon
-                message="平台标准版本已更新"
-                description="生成新的机构生效版本前，需要先完成差异、冲突和影响分析。"
+                </Descriptions.Item>
+                <Descriptions.Item label="分析结论">
+                  {platformUpgradeAnalysis.diffSummary.conflictCount > 0
+                    ? "发现覆盖冲突，需处理"
+                    : "差异与冲突分析已完成"}
+                </Descriptions.Item>
+                <Descriptions.Item label="差异摘要" span={2}>
+                  {platformUpgradeSummary(platformUpgradeAnalysis)}
+                </Descriptions.Item>
+                <Descriptions.Item label="运行版本">
+                  {platformUpgradeAnalysis.runtimeMutation ? "异常改写" : "分析不改写当前机构生效版本"}
+                </Descriptions.Item>
+                {evidenceDetailsEnabled && (
+                  <Descriptions.Item label="分析摘要" span={3}>
+                    <Text className={styles.digest}>
+                      {platformUpgradeAnalysis.analysisDigest}
+                    </Text>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+              <Table
+                rowKey={(item) => `${item.assetType}|${item.assetIdentity}`}
+                size="small"
+                pagination={false}
+                dataSource={platformUpgradeAnalysis.items}
+                columns={[
+                  {
+                    title: "内容",
+                    render: (_value, item) => (
+                      <Space direction="vertical" size={0}>
+                        <Text strong>
+                          {assetSummaryText(
+                            item.assetType,
+                            evidenceDetailsEnabled,
+                            item.assetIdentity,
+                            "升级差异项",
+                          )}
+                        </Text>
+                        <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
+                      </Space>
+                    ),
+                  },
+                  {
+                    title: "差异",
+                    width: 100,
+                    render: (_value, item) => platformUpgradeChangeLabel(item.changeType),
+                  },
+                  {
+                    title: "版本变化",
+                    render: (_value, item) =>
+                      evidenceDetailsEnabled
+                        ? `${item.currentVersionNo ?? "无"} -> ${item.targetVersionNo ?? "停用"}`
+                        : "已完成版本差异比对",
+                  },
+                  {
+                    title: "冲突",
+                    render: (_value, item) =>
+                      item.conflicts.length > 0
+                        ? `${item.conflicts.length} 个机构覆盖冲突`
+                        : "未发现覆盖冲突",
+                  },
+                ]}
               />
-            )}
-          </Space>
-        </Card>
-      ) : (
-        <Alert
-          type="success"
-          showIcon
-          message="当前机构生效版本已对齐平台标准版本"
-          description="如需加入集团或本院内容，仍需完成对应发布影响评估。"
-        />
-      )
-    ) : null;
+            </>
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message="平台标准版本已更新"
+              description="生成新的机构生效版本前，需要先完成差异、冲突和影响分析。"
+            />
+          )}
+        </Space>
+      </Card>
+    ) : (
+      <Alert
+        type="success"
+        showIcon
+        message="当前机构生效版本已对齐平台标准版本"
+        description="如需加入集团或本院内容，仍需完成对应发布影响评估。"
+      />
+    );
+  }
 
   const platformContent = (
     <Space direction="vertical" size="large" className={styles.fullWidth}>

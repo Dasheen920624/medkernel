@@ -10,6 +10,24 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十四批本地收尾：继续按上线级代码 / 契约 / 前端 / 构建核查推进；本批不是新业务场景、
+  不是完整上线、不是 134 清库部署复演，也不是每页核心业务动作闭环，而是把第一百六十三批遗留的
+  **前端 lint 门禁** 从红转绿。复现命令 `npm --prefix frontend run lint` 原失败于 8 个 warning：
+  `PatientPathways.tsx` 与 `ContextSnapshotSelector.tsx`、`ReleaseGovernance.tsx` 的嵌套三元，
+  `AdapterHub.tsx` 中 `useMemo` 依赖每次渲染创建新数组，以及 `shared/api/hooks.ts` 的对象属性未用简写。
+  已做最小等价改写：患者路径候选提示和临床快照选择按钮标签改为条件赋值；系统接入页把 onboarding / webhook
+  空数组兜底移入 `useMemo`；机构生效版本页把平台升级外层渲染条件拆为 `let platformUpgradeContent`；
+  前台快照请求使用 `nursingAssessments` / `carePlans` 属性简写。未改变接口请求、页面文案、权限、运行链路或证据口径。
+- 第一百六十四批验证证据：`npm --prefix frontend run lint` 通过；`npm --prefix frontend run test --
+  PatientPathways AdapterHub ReleaseGovernance ContextSnapshotSelector hooks` 通过（5 files，189 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run build` 通过；
+  `git diff --check` 退出码 0，但仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，
+  本批不处理、不暂存。
+- 第一百六十四批边界与下一步：前端 lint / typecheck / build 门禁已恢复为可验证状态，但仍未证明
+  完整 S0-S40、13 类版本化资产逐类真实消费者、13 类标准患者资源逐类真实接入、专业系统族真实消费者链路、
+  每页核心业务动作全闭环、移动端全菜单、隐藏 / embedded / API-only 能力或 134 fresh deploy / 清库 / 重启 /
+  备份恢复。下一步继续按完整产品范围推进剩余专业链路与目标环境复演；当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单文案优化、
   不是完整上线、不是 134 清库部署复演、不是每页核心业务动作全闭环，也不是完整 S0-S40 收口，而是补齐
   **四职责 34 个产品入口真实前台可达门禁**。`product-role-journeys.spec.ts` 新增桌面 1440 全菜单入口用例：

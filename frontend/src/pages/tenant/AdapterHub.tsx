@@ -485,8 +485,8 @@ export default function AdapterHub() {
   const adapters = adaptersQuery.data?.items ?? [];
   const status = statusQuery.data;
   const logs = logsQuery.data?.items ?? [];
-  const onboardings = onboardingsQuery.data?.items ?? [];
   const visibleOnboardings = useMemo(() => {
+    const onboardings = onboardingsQuery.data?.items ?? [];
     const merged = lastCreatedOnboarding ? [lastCreatedOnboarding, ...onboardings] : onboardings;
     const seen = new Set<string>();
     return merged.filter((item) => {
@@ -494,9 +494,9 @@ export default function AdapterHub() {
       seen.add(item.onboardingId);
       return true;
     });
-  }, [lastCreatedOnboarding, onboardings]);
-  const webhooks = webhooksQuery.data?.items ?? [];
+  }, [lastCreatedOnboarding, onboardingsQuery.data?.items]);
   const visibleWebhooks = useMemo(() => {
+    const webhooks = webhooksQuery.data?.items ?? [];
     const merged = lastCreatedWebhook ? [lastCreatedWebhook, ...webhooks] : webhooks;
     const seen = new Set<string>();
     return merged.filter((item) => {
@@ -504,7 +504,7 @@ export default function AdapterHub() {
       seen.add(item.webhookId);
       return true;
     });
-  }, [lastCreatedWebhook, webhooks]);
+  }, [lastCreatedWebhook, webhooksQuery.data?.items]);
   const firstWebhookId = visibleWebhooks[0]?.webhookId;
   const regionalSources = regionalSourcesQuery.data?.items ?? [];
   const totalAdapters = status?.totalAdapters ?? adapters.length;
