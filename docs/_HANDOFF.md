@@ -10,6 +10,48 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单文案优化、
+  不是完整上线、不是 134 清库部署复演、不是每页核心业务动作全闭环，也不是完整 S0-S40 收口，而是补齐
+  **四职责 34 个产品入口真实前台可达门禁**。`product-role-journeys.spec.ts` 新增桌面 1440 全菜单入口用例：
+  四个 canonical 账号逐一读取真实后端 `/security/me` 菜单画像后，按 `expectedMenus` 的每个授权 `menuKey`
+  从 `routeMetas` 解析真实路由并直接打开页面，校验停留在目标路径、应用主内容 `main.mk-app-content` 可见、
+  无“当前权限不足”、无根横向溢出、无 HTTP 4xx/5xx、无网络失败、无浏览器错误，并把
+  `role-menu-reachability-codes` 附件作为 49 次角色-入口访问证据。只读复核确认 `expectedMenus`
+  与 `docs/audit/product-role-journeys.md` 和功能目录的 34 个后端菜单一致，无遗漏或额外。
+- 第一百六十三批真实红点与修复：目标 E2E 在污染的 18080 运行时曾卡在服务机构页，根因是该进程使用
+  `medkernel-backend-1.0.0-SNAPSHOT.jar.original` 薄 jar，JVM 反复报 H2 / logback `NoClassDefFoundError`，
+  不作为业务红点。改用干净 18084 后端后，原红点消失，新的真实红点暴露在 `engine-operator / sandbox`：
+  沙盘页面在应用壳 `main` 内又声明内部 `<main className={styles.mainArea}>`，导致 Playwright strict mode
+  和页面 landmark 语义冲突。已用 TDD 新增 `SandboxHost` 测试证明内部不应再声明 page main landmark，
+  并把沙盘工作区改为 `section[aria-label="沙盘运行工作区"]`。随后收紧 E2E helper：主动作按钮和主内容等待均锚定
+  AppShell 的 `main.mk-app-content`，并用静态契约锁定全菜单门禁必须逐路由打开真实页面、检查服务端/浏览器/网络错误。
+- 第一百六十三批验证证据：
+  - 红绿与定向：`npm --prefix frontend run test -- SandboxHost -t "nested page main landmark"` 曾先红后绿；
+    `npm --prefix frontend run test -- e2eAuthCredentialContract -t "product-role journeys"` 在要求
+    `main.mk-app-content` 后先红，收紧 helper 后绿。
+  - 单测、类型与构建：`npm --prefix frontend run test -- SandboxHost e2eAuthCredentialContract` 通过
+    （2 files，58 tests）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+    `npm --prefix frontend run build` 通过；`git diff --check` 退出码 0，但仍提示无关
+    `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+  - 目标真实 E2E：`E2E_API_BASE_URL=http://localhost:18084/medkernel/api/v1
+    MEDKERNEL_API_PROXY_TARGET=http://localhost:18084
+    E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-role-menu-reachability-20260708-r4
+    npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts -g "完整菜单入口"`
+    通过；`/tmp/medkernel-e2e-role-menu-reachability-20260708-r4/report/results.json` 为 `PASSED`
+    （1 expected，0 unexpected，duration=40556ms）。随后全文件复跑
+    `/tmp/medkernel-e2e-product-role-journeys-20260708-r1/report/results.json` 为 `PASSED`
+    （6 expected，0 unexpected，duration=82273ms），附件显示 `platform-admin=13`、`engine-operator=21`、
+    `clinical-user=9`、`auditor=6`，合计 49 次角色-入口访问。
+  - 已知未清门禁：`npm --prefix frontend run lint` 失败于当前工作树之外既有 8 个 warning：
+    `PatientPathways.tsx` 嵌套三元、`AdapterHub.tsx` hooks 依赖 warning、`ReleaseGovernance.tsx` 嵌套三元、
+    `shared/api/hooks.ts` object-shorthand、`ContextSnapshotSelector.tsx` 嵌套三元。本批未扩大修改面处理这些 warning。
+- 第一百六十三批边界与下一步：本批只证明四职责 34 个菜单入口在桌面 1440 下可由 canonical 账号真实打开、
+  页面不报错且无权限死路；不证明每页核心业务动作、表单提交流、导入导出、分页筛选、六态全量、移动端全菜单、
+  隐藏 / embedded / API-only 能力、完整 S0-S40、13 类版本化资产逐类真实消费者、13 类标准患者资源逐类真实接入、
+  PACS/RIS / 病理 / 内镜 / 心电等专业系统族真实消费者链路，也不证明 134 fresh deploy / 清库 / 重启 / 备份恢复。
+  下一步继续按完整产品范围推进剩余专业链路和目标环境 134 清库复演；同时若要收敛前端全量门禁，需单独处理上述
+  既有 lint warning。当前 18084 干净验证后端仍在监听（PID 47008），无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是完整上线、
   不是 134 清库部署复演，也不是 13 类第三方系统族真实消费者全部完成，而是修正
   `third-party-system-families-rehearsal.spec.ts` 与 `launchCoverageEvidence` 的证据口径，停止把“逐类接入申请、

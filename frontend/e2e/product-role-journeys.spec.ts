@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { PRODUCT_ROLE_JOURNEYS } from "../src/shared/config/productRoleJourneys";
+import { routeMetas } from "../src/shared/config/routes";
 import {
   apiBase,
   ensureReadySession,
@@ -76,6 +77,12 @@ const viewports = [
   { name: "mobile", width: 390, height: 844 },
 ] as const;
 
+const routeByMenuKey = new Map(
+  routeMetas
+    .filter((route) => route.menuKey)
+    .map((route) => [route.menuKey as string, route]),
+);
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("四个客户职责角色任务旅程", () => {
@@ -106,7 +113,7 @@ test.describe("四个客户职责角色任务旅程", () => {
         await page.goto("/dashboard", { waitUntil: "networkidle" });
 
         await expect(page.getByRole("heading", { name: journey?.title })).toBeVisible();
-        const primaryButtons = page.locator("main .ant-btn-primary");
+        const primaryButtons = appMainContent(page).locator(".ant-btn-primary");
         await expect(primaryButtons, `${role} 只能有一个主动作`).toHaveCount(1);
         await expect(primaryButtons).toContainText(journey?.primaryAction.label ?? "");
         await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
@@ -140,6 +147,71 @@ test.describe("四个客户职责角色任务旅程", () => {
       });
     });
   }
+
+  test("desktop-1440 下四职责完整菜单入口均可由 canonical 账号真实打开", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(900_000);
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    const roleMenuReachability: Array<{
+      role: RoleAccount;
+      menuKey: string;
+      path: string;
+      title: string;
+      status: "REACHABLE";
+    }> = [];
+    const browserErrors = collectBrowserErrors(page);
+    const serverErrors = collectServerErrors(page);
+    const networkFailures = collectNetworkFailures(page);
+
+    for (const role of roleAccounts) {
+      await ensureReadySession(page, role);
+      for (const menuKey of expectedMenus[role]) {
+        const route = routeByMenuKey.get(menuKey);
+        expect(route, `${role} 菜单 ${menuKey} 必须存在真实路由`).toBeDefined();
+        browserErrors.length = 0;
+        serverErrors.length = 0;
+        networkFailures.length = 0;
+
+        await page.goto(route.path, { waitUntil: "networkidle" });
+        await expect
+          .poll(() => new URL(page.url()).pathname, {
+            message: `${role} 菜单 ${menuKey} 应停留在真实目标路由`,
+          })
+          .toBe(route.path);
+        await waitForMainContent(page, `${role} 菜单 ${menuKey}`);
+        await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+        await expectNoRootOverflow(page, `${role} 菜单 ${menuKey}`);
+        expect(serverErrors, `${role} 菜单 ${menuKey} 不应产生 HTTP 错误`).toEqual([]);
+        expect(networkFailures, `${role} 菜单 ${menuKey} 不应产生网络失败`).toEqual([]);
+        expect(browserErrors, `${role} 菜单 ${menuKey} 不应产生浏览器错误`).toEqual([]);
+
+        roleMenuReachability.push({
+          role,
+          menuKey,
+          path: route.path,
+          title: route.title,
+          status: "REACHABLE",
+        });
+      }
+    }
+
+    await testInfo.attach("role-menu-reachability-codes", {
+      contentType: "application/json",
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            viewport: "desktop-1440",
+            expectedMenus,
+            roleMenuReachability,
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      ),
+    });
+  });
 });
 
 async function loadProfile(page: Page, role: RoleAccount) {
@@ -201,7 +273,11 @@ async function waitForMainContent(page: Page, label: string) {
   await expect(page.locator(".ant-spin-spinning"), `${label} 不应停留在加载中`).toHaveCount(0, {
     timeout: 30_000,
   });
-  await expect(page.locator("main"), `${label} 应展示主内容`).toBeVisible({
+  await expect(appMainContent(page), `${label} 应展示主内容`).toBeVisible({
     timeout: 30_000,
   });
+}
+
+function appMainContent(page: Page) {
+  return page.locator("main.mk-app-content");
 }

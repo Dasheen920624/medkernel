@@ -1335,6 +1335,22 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("完整上线验收已完成");
   });
 
+  it("requires product-role journeys to open every granted menu route with canonical accounts", () => {
+    const e2eSource = readFileSync("e2e/product-role-journeys.spec.ts", "utf8");
+
+    expect(e2eSource).toContain("routeMetas");
+    expect(e2eSource).toContain("roleMenuReachability");
+    expect(e2eSource).toContain("for (const menuKey of expectedMenus[role])");
+    expect(e2eSource).toContain("routeByMenuKey.get(menuKey)");
+    expect(e2eSource).toContain("await page.goto(route.path");
+    expect(e2eSource).toContain("main.mk-app-content");
+    expect(e2eSource).toContain("role-menu-reachability-codes");
+    expect(e2eSource).toContain("当前权限不足");
+    expect(e2eSource).toContain("serverErrors");
+    expect(e2eSource).toContain("browserErrors");
+    expect(e2eSource).toContain("networkFailures");
+  });
+
   it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
     const e2eSource = readFileSync(
       "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",

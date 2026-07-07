@@ -433,7 +433,7 @@ export default function SandboxHost() {
           </Typography.Paragraph>
         </aside>
 
-        <main className={styles.mainArea}>
+        <section className={styles.mainArea} aria-label="沙盘运行工作区">
           <section className={styles.runtimePanel} aria-label="沙盘运行基线">
             <Space direction="vertical" size="small">
               <Typography.Text strong>运行口径</Typography.Text>
@@ -801,7 +801,7 @@ export default function SandboxHost() {
             steps={result?.steps ?? []}
             evidenceDetailsEnabled={evidenceDetailsEnabled}
           />
-        </main>
+        </section>
       </div>
     </PageExperienceShell>
   );

@@ -304,6 +304,12 @@ describe("SandboxHost", () => {
     expect(sandboxHostCss).not.toContain("@media (max-width: 78rem)");
   });
 
+  it("does not declare a nested page main landmark inside the application shell", () => {
+    renderSandboxHost();
+
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+  });
+
   it("keeps a truthful failure state when orchestration cannot complete", async () => {
     sandboxHookMocks.run.mockRejectedValue(new Error("沙盘编排服务暂不可用"));
 
