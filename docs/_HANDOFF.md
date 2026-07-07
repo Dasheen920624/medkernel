@@ -10,6 +10,37 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是 134 清库部署、完整 S15、完整 S0-S40 或完整上线验收收口，而是关闭
+  `docs/audit/deferred-issues.md` 中已不再成立的本机 Docker/Testcontainers 外部环境缺口。当前工作机已可用
+  Docker/Testcontainers，且本机已有 PostgreSQL 与 Oracle 测试镜像，已真实重跑
+  `FirstDeployEmptyPostgresSmokeTest` 与 `FlywayMultiDialectSmokeTest`，不再把 PostgreSQL 与容器化多方言
+  smoke 标记为“本机条件跳过”。
+- 第一百五十三批验证证据：
+  `mvn -f medkernel-backend/pom.xml -Dtest=FirstDeployEmptyPostgresSmokeTest,FlywayMultiDialectSmokeTest test`
+  通过（6 tests，0 failures，0 errors，0 skipped，BUILD SUCCESS，总耗时 01:14）。Testcontainers 连接
+  Docker Desktop `29.5.3`；`FirstDeployEmptyPostgresSmokeTest` 在真实空 PostgreSQL `15.18` 上执行 V1
+  Flyway 迁移并验证首读播种、重复读取幂等和指派主键空表首写；`FlywayMultiDialectSmokeTest` 分别在
+  PostgreSQL `15.18`、H2 `2.2`、Oracle `21.3` 上执行单一 V1 baseline、重复 migrate 零新增，并验证
+  `mk_config_item` / `mk_config_history` 的 NULL 配置值合同。脱敏 surefire 证据位于
+  `medkernel-backend/target/surefire-reports/com.medkernel.migration.FirstDeployEmptyPostgresSmokeTest.txt`
+  与 `medkernel-backend/target/surefire-reports/com.medkernel.migration.FlywayMultiDialectSmokeTest.txt`，
+  XML 报告中 `postgresFlywayBaselineMigrates`、`h2FlywayBaselineMigrates`、`oracleFlywayBaselineMigrates`
+  均有 testcase 记录；Oracle 镜像为 amd64，在本机 arm64 Docker 上经仿真运行但最终通过。
+- 第一百五十三批边界说明：本批只关闭“当前本机未提供 Docker/Testcontainers 环境”的待处理项；
+  不等同于人大金仓 / 达梦真实库接入，不等同于 134 服务器清库、systemd/Nginx/TLS/正式域名、重启后全功能、
+  全知识和全角色真实前台验收，也不改变 134 `/zoesoft/mimoModel` 公网模型凭据 401 的事实。
+  `docs/audit/deferred-issues.md` 仍保留 DEFER-001 与 DEFER-003。下一步继续按完整产品范围推进：
+  134 目标环境 fresh deploy 与 `medkernel-post-rehearsal-verify.sh`、S0-S40 全流程、13 类标准患者资源真实接入、
+  13 类 runtime 资产逐类消费者、第三方系统族业务闭环、全角色真实前台体验和服务降级复演。
+- 第一百五十三批旁路只读梳理：已有 E2E 覆盖了四职责菜单、十二类业务视角代表动作、S1/S14、S2/S4、
+  S5、S6、S10/S11/S12、S13、系统运行保障和第三方系统族登记 / 断连诚实降级等代表性切片；但下一批不应继续做
+  局部页面优化，而应优先补“业务角色 + 标准患者资源 + 版本化资产消费者 + 第三方系统闭环”的真实前台闭环。
+  建议优先级：P0 用药安全与药事治理（Medication / AllergyIntolerance + SAFETY / CDSS_RISK / RULE +
+  药房或审方链路）；P1 医技报告解读与危急值（DiagnosticReport / Observation + KNOWLEDGE /
+  FIELD_CATALOG / ACTION_CARD + LIS/PACS/RIS/病理/心电链路）；P1 护理评估、护理计划与连续照护
+  （NursingAssessment / CarePlan / FollowUp + FOLLOWUP / PATHWAY / RULE / ACTION_CARD）；P2 院感公卫与安全事件；
+  P2 区域互认、远程与跨机构协同。上述均只是候选下一批，不得写成已完成上线覆盖。
 - 第一百五十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是 134 清库部署、完整 S15、完整 S0-S40 或完整上线验收收口，而是在第 151 批
   H2 `NOT_AVAILABLE` 诚实门禁基础上，补跑本地 Docker/PostgreSQL 隔离恢复演练，并让同一
