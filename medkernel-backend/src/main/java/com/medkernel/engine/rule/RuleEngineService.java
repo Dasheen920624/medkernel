@@ -620,7 +620,7 @@ public class RuleEngineService {
         ensureEditableDraft(rule, version);
         ensureGovernanceDraft(tenantId, version.versionId());
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
-        if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
+        if (snapshot == null || snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
             throw new ApiException(ErrorCode.ENG_RULE_006, "规则验证用例只能基于已生效标准上下文生成");
         }
         String caseId = "rtc-" + UUID.randomUUID();
@@ -1708,7 +1708,8 @@ public class RuleEngineService {
             return null;
         }
         ContextSnapshotResponse snapshot = contextSnapshots.findById(snapshotId);
-        if (snapshot.status() != ContextSnapshotStatus.ACTIVE
+        if (snapshot == null
+                || snapshot.status() != ContextSnapshotStatus.ACTIVE
                 || snapshot.runtimeReleaseId() == null
                 || snapshot.runtimeReleaseId().isBlank()) {
             throw new ApiException(

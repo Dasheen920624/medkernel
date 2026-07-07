@@ -15,16 +15,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
-import com.medkernel.compliance.evidence.dto.EvidenceResponse;
-import com.medkernel.compliance.evidence.dto.EvidenceVerifyResult;
-import com.medkernel.compliance.evidence.service.EvidenceService;
 import com.medkernel.engine.context.ClinicalRuntimeRelease;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseOfflineRestoreCommand;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.evidence.EvidenceSnapshotCreateCommand;
+import com.medkernel.shared.evidence.EvidenceSnapshotPort;
+import com.medkernel.shared.evidence.EvidenceSnapshotView;
+import com.medkernel.shared.evidence.EvidenceVerificationView;
 import com.medkernel.shared.ids.Ulid;
 
 /**
@@ -42,7 +42,7 @@ public class RuntimeReleaseOfflineDeliveryService {
         "离线交付文件仅用于完整性校验和导入预检，不作为临床运行指针";
 
     private final RuntimeReleaseQueryService queries;
-    private final EvidenceService evidence;
+    private final EvidenceSnapshotPort evidence;
     private final ClinicalRuntimeReleaseRepository releases;
     private final ClinicalRuntimeReleaseService runtimes;
     private final ObjectMapper objectMapper;
@@ -51,7 +51,7 @@ public class RuntimeReleaseOfflineDeliveryService {
     @Autowired
     public RuntimeReleaseOfflineDeliveryService(
             RuntimeReleaseQueryService queries,
-            EvidenceService evidence,
+            EvidenceSnapshotPort evidence,
             ClinicalRuntimeReleaseRepository releases,
             ClinicalRuntimeReleaseService runtimes,
             ObjectMapper objectMapper) {
@@ -60,7 +60,7 @@ public class RuntimeReleaseOfflineDeliveryService {
 
     RuntimeReleaseOfflineDeliveryService(
             RuntimeReleaseQueryService queries,
-            EvidenceService evidence,
+            EvidenceSnapshotPort evidence,
             ClinicalRuntimeReleaseRepository releases,
             ClinicalRuntimeReleaseService runtimes) {
         this(
@@ -75,7 +75,7 @@ public class RuntimeReleaseOfflineDeliveryService {
 
     RuntimeReleaseOfflineDeliveryService(
             RuntimeReleaseQueryService queries,
-            EvidenceService evidence,
+            EvidenceSnapshotPort evidence,
             ClinicalRuntimeReleaseRepository releases,
             ClinicalRuntimeReleaseService runtimes,
             ObjectMapper objectMapper,
@@ -105,7 +105,7 @@ public class RuntimeReleaseOfflineDeliveryService {
         String payload = writeSnapshot(snapshot);
         String evidenceId = "runtime-offline-" + releaseDigestToken(detail.release().releaseId())
             + "-" + Ulid.newUlid();
-        EvidenceResponse evidenceResponse = evidence.createSnapshot(tenantId, new EvidenceCreateDto(
+        EvidenceSnapshotView evidenceResponse = evidence.createSnapshot(tenantId, new EvidenceSnapshotCreateCommand(
             evidenceId,
             traceId,
             EVIDENCE_TYPE,
@@ -136,11 +136,11 @@ public class RuntimeReleaseOfflineDeliveryService {
             RuntimeReleaseOfflineImportPreviewRequest request) {
         String normalizedTenant = required(tenantId, "租户");
         String evidenceId = required(request.evidenceId(), "证据 ID");
-        EvidenceVerifyResult verify = evidence.verifyEvidence(normalizedTenant, evidenceId);
-        if (!verify.isValid() || !verify.signatureValid()) {
+        EvidenceVerificationView verify = evidence.verifyEvidence(normalizedTenant, evidenceId);
+        if (!verify.valid() || !verify.signatureValid()) {
             throw new ApiException(ErrorCode.CONFLICT, "离线交付文件验签失败");
         }
-        EvidenceResponse stored = evidence.getEvidenceById(normalizedTenant, evidenceId);
+        EvidenceSnapshotView stored = evidence.getEvidenceById(normalizedTenant, evidenceId);
         RuntimeReleaseOfflineDeliverySnapshot snapshot = readSnapshot(stored.payloadSnapshot());
         if (!DELIVERY_KIND.equals(snapshot.deliveryKind()) || snapshot.runtimeMutation()) {
             throw new ApiException(ErrorCode.CONFLICT, "离线交付文件类型不合法");
@@ -189,15 +189,15 @@ public class RuntimeReleaseOfflineDeliveryService {
             String traceId) {
         String normalizedTenant = required(tenantId, "租户");
         String evidenceId = required(request.evidenceId(), "证据 ID");
-        EvidenceVerifyResult verify = evidence.verifyEvidence(normalizedTenant, evidenceId);
-        if (!verify.isValid() || !verify.signatureValid()) {
+        EvidenceVerificationView verify = evidence.verifyEvidence(normalizedTenant, evidenceId);
+        if (!verify.valid() || !verify.signatureValid()) {
             throw new ApiException(ErrorCode.CONFLICT, "离线交付文件验签失败");
         }
         String confirmedFileDigest = required(request.confirmedFileDigest(), "确认文件摘要");
         if (!confirmedFileDigest.equals(required(verify.fileDigest(), "验签文件摘要"))) {
             throw new ApiException(ErrorCode.CONFLICT, "离线交付文件摘要已变化，请重新下载后确认");
         }
-        EvidenceResponse stored = evidence.getEvidenceById(normalizedTenant, evidenceId);
+        EvidenceSnapshotView stored = evidence.getEvidenceById(normalizedTenant, evidenceId);
         RuntimeReleaseOfflineDeliverySnapshot snapshot = readSnapshot(stored.payloadSnapshot());
         if (!DELIVERY_KIND.equals(snapshot.deliveryKind()) || snapshot.runtimeMutation()) {
             throw new ApiException(ErrorCode.CONFLICT, "离线交付文件类型不合法");
@@ -276,7 +276,7 @@ public class RuntimeReleaseOfflineDeliveryService {
     private static void assertOfflineDeliveryEvidenceMetadata(
             String tenantId,
             String evidenceId,
-            EvidenceResponse stored,
+            EvidenceSnapshotView stored,
             String releaseId) {
         if (stored == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "离线交付证据不存在");

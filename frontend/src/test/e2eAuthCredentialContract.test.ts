@@ -1379,10 +1379,16 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("routeMetas");
     expect(e2eSource).toContain("roleMenuReachability");
     expect(e2eSource).toContain("for (const menuKey of expectedMenus[role])");
+    expect(e2eSource).toContain("menuReachabilityViewports");
+    expect(e2eSource).toContain('name: "desktop-1440"');
+    expect(e2eSource).toContain('name: "mobile-390"');
+    expect(e2eSource).toContain("openGrantedMenuRoutesForViewport");
+    expect(e2eSource).toContain("授权路由直达可达性");
+    expect(e2eSource).not.toContain("完整菜单入口均可由 canonical 账号真实打开");
     expect(e2eSource).toContain("routeByMenuKey.get(menuKey)");
     expect(e2eSource).toContain("await page.goto(route.path");
     expect(e2eSource).toContain("main.mk-app-content");
-    expect(e2eSource).toContain("role-menu-reachability-codes");
+    expect(e2eSource).toContain("role-route-reachability-codes");
     expect(e2eSource).toContain("当前权限不足");
     expect(e2eSource).toContain("serverErrors");
     expect(e2eSource).toContain("browserErrors");

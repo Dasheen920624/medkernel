@@ -2348,7 +2348,7 @@ class RuleEngineServiceTest {
             boolean expectedHit,
             JsonNode input,
             String expectedActionCode) {
-        return testCase(type, expectedHit, input, expectedActionCode, "ctx-" + type);
+        return testCase(type, expectedHit, input, expectedActionCode, null);
     }
 
     private RuleTestCase testCase(

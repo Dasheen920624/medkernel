@@ -660,17 +660,25 @@ export default function QcEvalSets() {
           </Space>
 
           <Card title="指标台账">
-            <Table
-              rowKey={(record) => record.indicatorId}
-              columns={columns}
-              dataSource={indicators}
-              loading={indicatorsQuery.isLoading}
-              pagination={{ pageSize: 20, total, showSizeChanger: false }}
-              locale={{ emptyText: <Empty description="当前筛选下暂无评价指标" /> }}
-            />
+            <div className={styles.tableViewport} data-testid="evaluation-indicator-table-viewport">
+              <Table
+                rowKey={(record) => record.indicatorId}
+                columns={columns}
+                dataSource={indicators}
+                loading={indicatorsQuery.isLoading}
+                pagination={{ pageSize: 20, total, showSizeChanger: false }}
+                locale={{ emptyText: <Empty description="当前筛选下暂无评价指标" /> }}
+                tableLayout="fixed"
+              />
+            </div>
           </Card>
 
-          <StepFlow currentStep={stepForIndicator(visibleIndicator)} panelByStep={stepPanels} />
+          <div
+            className={styles.mobileSafeViewport}
+            data-testid="evaluation-indicator-release-flow-viewport"
+          >
+            <StepFlow currentStep={stepForIndicator(visibleIndicator)} panelByStep={stepPanels} />
+          </div>
         </Space>
       </PageShell>
 

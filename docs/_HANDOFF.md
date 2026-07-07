@@ -10,6 +10,58 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十六批本地收尾：继续按上线级全角色真实前台、真实服务链路和门禁核查推进；本批不是菜单文案优化、
+  不是完整上线、不是 134 清库部署复演，也不是每页核心业务动作全闭环，而是收敛当前未提交改动中的后端架构红点、
+  四职责授权路由直达可达性、移动端真实页面溢出红点和真实性门禁开口。使用只读子代理复核两轮，结论均为无 P0；
+  已按复核意见把“完整菜单入口”口径收敛为“授权路由直达可达性”，并明确该证据不覆盖移动端真实菜单展开、抽屉点击、
+  底部导航或每页表单/提交动作。
+- 第一百六十六批后端修复：`RuntimeReleaseOfflineDeliveryService` 原直接依赖
+  `com.medkernel.compliance.evidence.*`，违反 SYS-02 / ArchUnit 边界；本批改为新增
+  `com.medkernel.shared.evidence` 共享端口、创建命令和只读视图，由 compliance 模块提供
+  `ComplianceEvidenceSnapshotAdapter` 适配，engine release 侧只依赖 shared 端口，不放宽 ArchUnit。
+  `RuleEngineService` 对缺失标准上下文补充领域错误防线，避免 NPE；`addTestCase` 仍要求新验证用例基于已生效标准上下文，
+  但历史 / 测试侧 `contextSnapshotId == null` 的存量用例仍走无 runtime evaluator，不能宣称所有规则验证用例都绑定机构生效版本。
+  `ContextSnapshotTraceEndToEndTest` 与 `EngineEndToEndIntegrationTest` 补真实组织树和 `org_closure`，
+  避免术语解析因组织上下文不在租户组织树而红。
+- 第一百六十六批前端与门禁修复：`product-role-journeys.spec.ts` 把四职责授权路由直达检查扩展到
+  `desktop-1440` 与 `mobile-390`；用 canonical 账号读取真实 `/security/me` 菜单画像后，按 `routeMetas`
+  直接打开授权路由并检查停留目标路径、`main.mk-app-content`、无“当前权限不足”、无根横向溢出、无 HTTP 4xx/5xx、
+  无网络失败和浏览器错误。首轮目标 E2E 在 `mobile-390 / engine-operator / qc-eval-sets` 暴露真实页面红点：
+  根节点宽度 417px，大于 390px 视口；已在 `QcEvalSets` 为指标台账和 7 步发布流增加移动安全容器，保持表格内容和
+  “查看指标详情 / 选来源/导入 / 留证据/可回滚”等关键内容可见，不把问题改成隐藏内容。`QcAlerts` 清理一处客户面技术化文案。
+  `authenticity-guard` 只允许真实 E2E 用药闭环中合理医学术语，不再把“头孢”一刀切当假验收；同时补负例阻断
+  “头孢病例剧本”。第三方系统族标签仅精确放行 `LIS_MONITORING_CRITICAL` 的产品范围枚举标签行，
+  同一行夹带 `I10` 或非精确行“危急值”仍被 `frontend.hardcoded-medical-constant` 阻断。
+- 第一百六十六批验证证据：
+  - 后端全量：`mvn -f medkernel-backend/pom.xml test` 通过，`Tests run: 3167, Failures: 0, Errors: 0, Skipped: 2`，
+    `BUILD SUCCESS`，耗时 05:56；其中 Testcontainers PostgreSQL / Oracle / H2 多方言迁移烟测均通过。
+  - 后端定向：`mvn -f medkernel-backend/pom.xml -Dtest=ModuleBoundaryArchTest,RuntimeReleaseOfflineDeliveryServiceTest,ComplianceEvidenceSnapshotAdapterTest,RuleEngineServiceTest#peerReviewFailsWhenAnyTestCaseExpectationDiffersAndStoresResult test`
+    通过（19 tests）；`mvn -f medkernel-backend/pom.xml -Dtest=ContextSnapshotTraceEndToEndTest,EngineEndToEndIntegrationTest test`
+    通过（2 tests）。
+  - 目标真实 E2E：使用当前源码构建 jar 在 18086 启动 dev/H2 空库后端，健康检查
+    `http://localhost:18086/medkernel/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`。
+    首轮
+    `E2E_API_BASE_URL=http://localhost:18086/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18086 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-role-menu-reachability-mobile-20260708-r1 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts -g "完整菜单入口"`
+    失败，`desktop-1440` 通过，`mobile-390` 红于 `qc-eval-sets` 根横向溢出（Expected <=390, Received 417）。
+    修复后复跑
+    `E2E_API_BASE_URL=http://localhost:18086/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18086 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-role-route-reachability-mobile-20260708-r2 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts -g "授权路由直达可达性"`
+    通过；`/tmp/medkernel-e2e-role-route-reachability-mobile-20260708-r2/report/results.json` 为 `PASSED`
+    （2 expected，0 unexpected，0 flaky，0 skipped，duration=78348ms），附件为
+    `role-route-reachability-codes-desktop-1440` 与 `role-route-reachability-codes-mobile-390`。
+  - 前端 / T-GATE：`npm --prefix frontend run test -- QcEvalSets e2eAuthCredentialContract` 通过（2 files，56 tests）；
+    `node --test scripts/authenticity-guard.test.mjs` 通过（56 tests）；`node scripts/authenticity-guard.mjs --mode=inventory`
+    通过（扫描 2153 个文件，0 阻断）；`npm --prefix frontend run verify` 通过：
+    `lint`、`stylelint`、`test:lint-rules`、`format:check`、`typecheck` 和全量 Vitest 均通过，
+    最终 `116 passed` test files、`1236 passed` tests。`git diff --check` 退出码 0，但仍提示无关
+    `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百六十六批边界与下一步：本批仍未证明完整 S0-S40、13 类版本化资产逐类真实消费者、
+  13 类标准患者资源逐类真实接入、专业系统族真实消费者链路、每页核心业务动作、移动端真实菜单展开 / 点击交互、
+  隐藏 / embedded / API-only 能力或 134 fresh deploy / 清库 / 重启 / 备份恢复。`activeAssets: []` 处理范围仍只限
+  本地 E2E bootstrap/helper：helper 检测平台 baseline 与医院 current runtime 是否覆盖 13 类资产，缺失时重新发起带
+  baseline active assets 的激活请求；后端 `ClinicalRuntimeReleaseService.activate` 不会自动补齐空 `activeAssets`，
+  空请求仍不应表述为后端自愈能力。下一步继续按完整产品范围推进剩余专业链路、四职责真实菜单交互和 134 目标环境复演；
+  134 清库 / 重部署属于 destructive 外向操作，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十五批本地收尾：继续按上线级前端组合门禁和文档同步推进；本批不是新业务场景、
   不是完整上线、不是 134 清库部署复演，而是把前端组合 `verify` 门禁从红转绿。首次执行
   `npm --prefix frontend run verify` 时，`lint`、`stylelint`、T-GATE lint rules 已过，但 `format:check`
@@ -53,7 +105,7 @@
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单文案优化、
   不是完整上线、不是 134 清库部署复演、不是每页核心业务动作全闭环，也不是完整 S0-S40 收口，而是补齐
-  **四职责 34 个产品入口真实前台可达门禁**。`product-role-journeys.spec.ts` 新增桌面 1440 全菜单入口用例：
+  **四职责 34 个授权路由直达可达性门禁**。`product-role-journeys.spec.ts` 当时新增桌面 1440 授权路由直达用例：
   四个 canonical 账号逐一读取真实后端 `/security/me` 菜单画像后，按 `expectedMenus` 的每个授权 `menuKey`
   从 `routeMetas` 解析真实路由并直接打开页面，校验停留在目标路径、应用主内容 `main.mk-app-content` 可见、
   无“当前权限不足”、无根横向溢出、无 HTTP 4xx/5xx、无网络失败、无浏览器错误，并把
@@ -65,7 +117,7 @@
   沙盘页面在应用壳 `main` 内又声明内部 `<main className={styles.mainArea}>`，导致 Playwright strict mode
   和页面 landmark 语义冲突。已用 TDD 新增 `SandboxHost` 测试证明内部不应再声明 page main landmark，
   并把沙盘工作区改为 `section[aria-label="沙盘运行工作区"]`。随后收紧 E2E helper：主动作按钮和主内容等待均锚定
-  AppShell 的 `main.mk-app-content`，并用静态契约锁定全菜单门禁必须逐路由打开真实页面、检查服务端/浏览器/网络错误。
+  AppShell 的 `main.mk-app-content`，并用静态契约锁定授权路由直达门禁必须逐路由打开真实页面、检查服务端/浏览器/网络错误。
 - 第一百六十三批验证证据：
   - 红绿与定向：`npm --prefix frontend run test -- SandboxHost -t "nested page main landmark"` 曾先红后绿；
     `npm --prefix frontend run test -- e2eAuthCredentialContract -t "product-role journeys"` 在要求
@@ -78,7 +130,7 @@
     MEDKERNEL_API_PROXY_TARGET=http://localhost:18084
     E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-role-menu-reachability-20260708-r4
     npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts -g "完整菜单入口"`
-    通过；`/tmp/medkernel-e2e-role-menu-reachability-20260708-r4/report/results.json` 为 `PASSED`
+    通过；这里的 `完整菜单入口` 是当时旧用例名，实际检查口径为授权路由直达。`/tmp/medkernel-e2e-role-menu-reachability-20260708-r4/report/results.json` 为 `PASSED`
     （1 expected，0 unexpected，duration=40556ms）。随后全文件复跑
     `/tmp/medkernel-e2e-product-role-journeys-20260708-r1/report/results.json` 为 `PASSED`
     （6 expected，0 unexpected，duration=82273ms），附件显示 `platform-admin=13`、`engine-operator=21`、
@@ -86,8 +138,8 @@
   - 已知未清门禁：`npm --prefix frontend run lint` 失败于当前工作树之外既有 8 个 warning：
     `PatientPathways.tsx` 嵌套三元、`AdapterHub.tsx` hooks 依赖 warning、`ReleaseGovernance.tsx` 嵌套三元、
     `shared/api/hooks.ts` object-shorthand、`ContextSnapshotSelector.tsx` 嵌套三元。本批未扩大修改面处理这些 warning。
-- 第一百六十三批边界与下一步：本批只证明四职责 34 个菜单入口在桌面 1440 下可由 canonical 账号真实打开、
-  页面不报错且无权限死路；不证明每页核心业务动作、表单提交流、导入导出、分页筛选、六态全量、移动端全菜单、
+- 第一百六十三批边界与下一步：本批只证明四职责 34 个授权路由在桌面 1440 下可由 canonical 账号直达打开、
+  页面不报错且无权限死路；不证明每页核心业务动作、表单提交流、导入导出、分页筛选、六态全量、移动端真实菜单交互、
   隐藏 / embedded / API-only 能力、完整 S0-S40、13 类版本化资产逐类真实消费者、13 类标准患者资源逐类真实接入、
   PACS/RIS / 病理 / 内镜 / 心电等专业系统族真实消费者链路，也不证明 134 fresh deploy / 清库 / 重启 / 备份恢复。
   下一步继续按完整产品范围推进剩余专业链路和目标环境 134 清库复演；同时若要收敛前端全量门禁，需单独处理上述
@@ -108,7 +160,7 @@
   通过（4 selected），`npm --prefix frontend run typecheck -- --pretty false` 通过。
 - 第一百六十二批下一步：只读角色旅程复核指出 `product-role-journeys.spec.ts` 只证明四职责菜单画像和 dashboard
   主动作可起步，`real-frontdesk-rehearsal.spec.ts` 只声明 S10/S11/S12 代表切片，仍未证明四职责 34 个入口逐项真实可达。
-  下一步优先补四职责全菜单真实前台可达门禁：用四个 canonical 账号按当前职责菜单逐项打开真实页面，校验无权限死路、
+  下一步优先补四职责授权路由直达可达性门禁：用四个 canonical 账号按当前职责菜单逐项直达打开真实页面，校验无权限死路、
   无 4xx/5xx、无浏览器错误、页面不长期加载；同时继续为 PACS/RIS、病理、内镜、心电等专业系统族补真实消费者链路，
   不要把现有 S36/S40 或系统族登记演练外推成完整上线。
 - 第一百六十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
@@ -2319,10 +2371,11 @@ e2eAuthCredentialContract Login pages.smoke` 通过（3 files，61 tests）；
   未合并 `main`；用户已允许使用子代理，但本批现有长门禁和修复均在当前线程完成，未实际使用子代理。
 - 第一百一十六批修复范围：`frontend/e2e/support/auth.ts` 已补齐本地上线演练平台基线资产解析，
   从当前平台标准版本收集 active `FIELD_CATALOG`、`RULE` 等资产并传入医院运行时激活；若当前医院
-  运行时缺少 active 字段目录或规则资产，会基于现有 release 重新激活带完整基线资产的新医院生效版本，
+  运行时缺少 active 字段目录或规则资产，E2E bootstrap/helper 会基于现有 release 重新激活带完整基线资产的新医院生效版本，
   避免旧 `activeAssets: []` 生成的空资产医院 release 卡住真实 E2E。同步补充
   `e2eAuthCredentialContract.test.ts`，覆盖本地演练租户、演练医院、四职责账号、平台标准版本资产和
-  医院 runtime 自愈契约；后端新增知识与规则发布状态同步器及测试，保证平台权威资产发布状态进入版本链。
+  E2E bootstrap/helper 的医院 runtime 补齐契约；后端新增知识与规则发布状态同步器及测试，保证平台权威资产发布状态进入版本链。
+  注意：这不是后端 `activate` 对空 `activeAssets` 的自动补齐能力。
 - 第一百一十六批前台体验与真实链路修复：`ProviderSetupPanel` 从静态 `message` 切到 Ant Design
   `App.useApp()`，仅对登记/编辑模型服务弹窗启用 `forceRender`，修复真实浏览器打开表单时的
   `useForm not connected` 警告，同时避免高风险密钥/启停/移除表单被隐藏预挂载；对应测试已包

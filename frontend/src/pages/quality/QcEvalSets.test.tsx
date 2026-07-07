@@ -243,6 +243,21 @@ describe("QcEvalSets", () => {
     expect(screen.queryByText("当前查询返回 0 个真实指标版本。")).not.toBeInTheDocument();
   });
 
+  it("keeps table and release flow inside mobile-safe viewports", () => {
+    renderPage();
+
+    const tableViewport = screen.getByTestId("evaluation-indicator-table-viewport");
+    const releaseFlowViewport = screen.getByTestId("evaluation-indicator-release-flow-viewport");
+
+    expect(tableViewport).toBeInTheDocument();
+    expect(releaseFlowViewport).toBeInTheDocument();
+    expect(tableViewport).toHaveTextContent("指标名称");
+    expect(tableViewport).toHaveTextContent("外科 VTE 风险评估率");
+    expect(tableViewport).toHaveTextContent("查看指标详情");
+    expect(releaseFlowViewport).toHaveTextContent("选来源/导入");
+    expect(releaseFlowViewport).toHaveTextContent("留证据/可回滚");
+  });
+
   it("uses business wording while loading evaluation indicators", () => {
     mockUseEvaluationIndicators.mockReturnValue({
       data: undefined,

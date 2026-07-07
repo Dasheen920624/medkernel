@@ -596,7 +596,7 @@ export default function QcAlerts() {
                 type="success"
                 showIcon
                 message={`整改任务 ${rectificationTaskId} ${rectificationTaskStatusText(rectificationTaskStatus)}`}
-                description="本页后续操作将调用整改任务 ID 版真实服务入口，状态以后端返回为准。"
+                description="本页后续操作将按已关联的整改任务推进，处置状态以最新任务事实为准。"
               />
             )}
 

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,11 +32,16 @@ import com.medkernel.engine.knowledge.SourceFragment;
 import com.medkernel.engine.llm.ModelGatewayService;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
+import com.medkernel.engine.org.OrgFacilityType;
+import com.medkernel.engine.org.OrgHierarchyRepository;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.recommendation.*;
 import com.medkernel.engine.release.ReleaseManifestHash;
 import com.medkernel.engine.release.PlatformBaselineRelease;
 import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -89,6 +95,12 @@ class EngineEndToEndIntegrationTest {
     @Autowired
     private ClinicalRuntimeReleaseRepository runtimeReleases;
 
+    @Autowired
+    private OrgHierarchyRepository orgHierarchy;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private final String tenantId = "tenant-hospital-01";
     private final String doctorId = "DOC-STROKE-101";
     private final String traceId = "tr-e2e-stroke-999";
@@ -102,6 +114,7 @@ class EngineEndToEndIntegrationTest {
             new OrgScope(tenantId, "GROUP-1", hospitalId, "CAMPUS-1", "SITE-1", "DEPT-01", null, "NEURO"),
             doctorId));
         Instant now = Instant.now();
+        seedOrganizationTree(now);
         String emptyManifest = ReleaseManifestHash.sha256(List.of());
         platformBaselineReleases.save(new PlatformBaselineRelease(
             null, "baseline-e2e", 1L, emptyManifest,
@@ -110,6 +123,59 @@ class EngineEndToEndIntegrationTest {
             null, "runtime-release-e2e", tenantId, hospitalId, 1L,
             "baseline-e2e", emptyManifest, null,
             now, doctorId, now, doctorId, traceId));
+    }
+
+    private void seedOrganizationTree(Instant now) {
+        saveOrg(new OrgUnit(
+            tenantId, null, tenantId, "/TENANT-HOSPITAL-01", OrgLevel.TENANT,
+            "TENANT-HOSPITAL-01", "端到端演练租户", null, null, null, OrgUnitStatus.ACTIVE,
+            now, doctorId, now, doctorId));
+        orgHierarchy.insertClosureForNewNode(tenantId, tenantId, null);
+        saveOrg(new OrgUnit(
+            "GROUP-1", tenantId, tenantId, "/TENANT-HOSPITAL-01/GROUP-1", OrgLevel.REGION,
+            "GROUP-1", "端到端演练医联体", null, null, null, OrgUnitStatus.ACTIVE,
+            now, doctorId, now, doctorId));
+        orgHierarchy.insertClosureForNewNode(tenantId, "GROUP-1", tenantId);
+        saveOrg(new OrgUnit(
+            "HOSP-1", "GROUP-1", tenantId, "/TENANT-HOSPITAL-01/GROUP-1/HOSP-1",
+            OrgLevel.FACILITY, "HOSP-1", "端到端演练医院", null, OrgFacilityType.HOSPITAL,
+            null, OrgUnitStatus.ACTIVE, now, doctorId, now, doctorId));
+        orgHierarchy.insertClosureForNewNode(tenantId, "HOSP-1", "GROUP-1");
+        saveOrg(new OrgUnit(
+            "CAMPUS-1", "HOSP-1", tenantId, "/TENANT-HOSPITAL-01/GROUP-1/HOSP-1/CAMPUS-1",
+            OrgLevel.CAMPUS, "CAMPUS-1", "端到端演练院区", null, null, null,
+            OrgUnitStatus.ACTIVE, now, doctorId, now, doctorId));
+        orgHierarchy.insertClosureForNewNode(tenantId, "CAMPUS-1", "HOSP-1");
+        saveOrg(new OrgUnit(
+            "DEPT-01", "CAMPUS-1", tenantId,
+            "/TENANT-HOSPITAL-01/GROUP-1/HOSP-1/CAMPUS-1/DEPT-01",
+            OrgLevel.DEPARTMENT, "DEPT-01", "神经内科", null, null, "NEURO",
+            OrgUnitStatus.ACTIVE, now, doctorId, now, doctorId));
+        orgHierarchy.insertClosureForNewNode(tenantId, "DEPT-01", "CAMPUS-1");
+    }
+
+    private void saveOrg(OrgUnit unit) {
+        jdbc.update("""
+            INSERT INTO org_unit
+                (id, parent_id, tenant_id, org_path, level_code, code, name, name_pinyin,
+                 facility_type, specialty_id, status, created_at, created_by, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            unit.id(),
+            unit.parentId(),
+            unit.tenantId(),
+            unit.orgPath(),
+            unit.level().name(),
+            unit.code(),
+            unit.name(),
+            unit.namePinyin(),
+            unit.facilityType() == null ? null : unit.facilityType().name(),
+            unit.specialtyId(),
+            unit.status().name(),
+            unit.createdAt(),
+            unit.createdBy(),
+            unit.updatedAt(),
+            unit.updatedBy());
     }
 
     @Test

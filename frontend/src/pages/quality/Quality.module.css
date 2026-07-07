@@ -201,6 +201,33 @@
   max-width: 100%;
 }
 
+.mobileSafeViewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.mobileSafeViewport :global(.ant-steps),
+.mobileSafeViewport :global(.ant-card),
+.mobileSafeViewport :global(.ant-card-extra),
+.mobileSafeViewport :global(.ant-space) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobileSafeViewport :global(.ant-card-head-wrapper),
+.mobileSafeViewport :global(.ant-card-extra .ant-space) {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.mobileSafeViewport :global(.ant-steps-item-title),
+.mobileSafeViewport :global(.ant-steps-item-description),
+.mobileSafeViewport :global(.ant-card-extra) {
+  white-space: normal;
+}
+
 .wrapCell {
   display: inline-block;
   max-width: 100%;
@@ -491,6 +518,11 @@
   .statsGrid,
   .formGrid {
     grid-template-columns: 1fr;
+  }
+
+  .controlSm,
+  .controlMd {
+    width: 100%;
   }
 
   .rowBetween {

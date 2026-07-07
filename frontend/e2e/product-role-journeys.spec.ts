@@ -77,6 +77,11 @@ const viewports = [
   { name: "mobile", width: 390, height: 844 },
 ] as const;
 
+const menuReachabilityViewports = [
+  { name: "desktop-1440", width: 1440, height: 1100 },
+  { name: "mobile-390", width: 390, height: 844 },
+] as const;
+
 const routeByMenuKey = new Map(
   routeMetas
     .filter((route) => route.menuKey)
@@ -148,70 +153,30 @@ test.describe("四个客户职责角色任务旅程", () => {
     });
   }
 
-  test("desktop-1440 下四职责完整菜单入口均可由 canonical 账号真实打开", async ({
-    page,
-  }, testInfo) => {
-    test.setTimeout(900_000);
-    await page.setViewportSize({ width: 1440, height: 1100 });
-    const roleMenuReachability: Array<{
-      role: RoleAccount;
-      menuKey: string;
-      path: string;
-      title: string;
-      status: "REACHABLE";
-    }> = [];
-    const browserErrors = collectBrowserErrors(page);
-    const serverErrors = collectServerErrors(page);
-    const networkFailures = collectNetworkFailures(page);
+  for (const viewport of menuReachabilityViewports) {
+    test(`${viewport.name} 下四职责授权路由直达可达性`, async ({
+      page,
+    }, testInfo) => {
+      test.setTimeout(1_200_000);
+      const roleMenuReachability = await openGrantedMenuRoutesForViewport(page, viewport);
 
-    for (const role of roleAccounts) {
-      await ensureReadySession(page, role);
-      for (const menuKey of expectedMenus[role]) {
-        const route = routeByMenuKey.get(menuKey);
-        expect(route, `${role} 菜单 ${menuKey} 必须存在真实路由`).toBeDefined();
-        browserErrors.length = 0;
-        serverErrors.length = 0;
-        networkFailures.length = 0;
-
-        await page.goto(route.path, { waitUntil: "networkidle" });
-        await expect
-          .poll(() => new URL(page.url()).pathname, {
-            message: `${role} 菜单 ${menuKey} 应停留在真实目标路由`,
-          })
-          .toBe(route.path);
-        await waitForMainContent(page, `${role} 菜单 ${menuKey}`);
-        await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-        await expectNoRootOverflow(page, `${role} 菜单 ${menuKey}`);
-        expect(serverErrors, `${role} 菜单 ${menuKey} 不应产生 HTTP 错误`).toEqual([]);
-        expect(networkFailures, `${role} 菜单 ${menuKey} 不应产生网络失败`).toEqual([]);
-        expect(browserErrors, `${role} 菜单 ${menuKey} 不应产生浏览器错误`).toEqual([]);
-
-        roleMenuReachability.push({
-          role,
-          menuKey,
-          path: route.path,
-          title: route.title,
-          status: "REACHABLE",
-        });
-      }
-    }
-
-    await testInfo.attach("role-menu-reachability-codes", {
-      contentType: "application/json",
-      body: Buffer.from(
-        JSON.stringify(
-          {
-            viewport: "desktop-1440",
-            expectedMenus,
-            roleMenuReachability,
-          },
-          null,
-          2,
+      await testInfo.attach(`role-route-reachability-codes-${viewport.name}`, {
+        contentType: "application/json",
+        body: Buffer.from(
+          JSON.stringify(
+            {
+              viewport: viewport.name,
+              expectedMenus,
+              roleMenuReachability,
+            },
+            null,
+            2,
+          ),
+          "utf8",
         ),
-        "utf8",
-      ),
+      });
     });
-  });
+  }
 });
 
 async function loadProfile(page: Page, role: RoleAccount) {
@@ -256,6 +221,64 @@ function collectNetworkFailures(page: Page) {
     }
   });
   return errors;
+}
+
+async function openGrantedMenuRoutesForViewport(
+  page: Page,
+  viewport: (typeof menuReachabilityViewports)[number],
+) {
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  const roleMenuReachability: Array<{
+    role: RoleAccount;
+    menuKey: string;
+    path: string;
+    title: string;
+    status: "REACHABLE";
+  }> = [];
+  const browserErrors = collectBrowserErrors(page);
+  const serverErrors = collectServerErrors(page);
+  const networkFailures = collectNetworkFailures(page);
+
+  for (const role of roleAccounts) {
+    await ensureReadySession(page, role);
+    for (const menuKey of expectedMenus[role]) {
+      const route = routeByMenuKey.get(menuKey);
+      expect(route, `${role} 菜单 ${menuKey} 必须存在真实路由`).toBeDefined();
+      browserErrors.length = 0;
+      serverErrors.length = 0;
+      networkFailures.length = 0;
+
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await expect
+        .poll(() => new URL(page.url()).pathname, {
+          message: `${role} 菜单 ${menuKey} 应停留在真实目标路由`,
+        })
+        .toBe(route.path);
+      await waitForMainContent(page, `${role} 菜单 ${menuKey} · ${viewport.name}`);
+      await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+      await expectNoRootOverflow(page, `${role} 菜单 ${menuKey} · ${viewport.name}`);
+      expect(serverErrors, `${role} 菜单 ${menuKey} · ${viewport.name} 不应产生 HTTP 错误`).toEqual(
+        [],
+      );
+      expect(
+        networkFailures,
+        `${role} 菜单 ${menuKey} · ${viewport.name} 不应产生网络失败`,
+      ).toEqual([]);
+      expect(browserErrors, `${role} 菜单 ${menuKey} · ${viewport.name} 不应产生浏览器错误`).toEqual(
+        [],
+      );
+
+      roleMenuReachability.push({
+        role,
+        menuKey,
+        path: route.path,
+        title: route.title,
+        status: "REACHABLE",
+      });
+    }
+  }
+
+  return roleMenuReachability;
 }
 
 async function expectNoRootOverflow(page: Page, label: string) {

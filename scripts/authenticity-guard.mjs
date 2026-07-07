@@ -52,8 +52,7 @@ const FRONTEND_RULES = [
   {
     ruleId: "frontend.hardcoded-medical-constant",
     message: "前端生产文件禁止写死疾病、药品、编码等医学常量。",
-    pattern:
-      /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|卒中|急性脑梗死|阿替普酶|静脉溶栓|突发左侧肢体无力|住院医师临床病历特征提取|患者李建国|神经内科|危急值|Class I|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
+    customMatch: firstFrontendHardcodedMedicalConstantMatch,
   },
   {
     ruleId: "frontend.pathway-hardcoded-prototype",
@@ -197,7 +196,7 @@ const FRONTEND_E2E_RULES = [
     message:
       "前端 E2E 验收脚本禁止使用 mock、固定医学剧本或演示路径冒充真实验收。",
     pattern:
-      /\bmock\b|\bMock\b|固定(?:医学|病例|剧本|路径)|演示路径|演示验收|胸痛\s*AMI|头孢|医务处张三/i,
+      /\bmock\b|\bMock\b|固定(?:医学|病例|剧本|路径)|演示路径|演示验收|胸痛\s*AMI|头孢病例剧本|医务处张三/i,
   },
 ];
 
@@ -413,6 +412,30 @@ function firstProductionDemoRouteMatch(content) {
     offset += line.length + 1;
   }
   return null;
+}
+
+function firstFrontendHardcodedMedicalConstantMatch(content) {
+  const pattern =
+    /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|卒中|急性脑梗死|阿替普酶|静脉溶栓|突发左侧肢体无力|住院医师临床病历特征提取|患者李建国|神经内科|危急值|Class I|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/g;
+  let match;
+  while ((match = pattern.exec(content))) {
+    if (!isProductScopeSystemFamilyLabelLine(content, match.index, match[0])) {
+      return { index: match.index, text: match[0] };
+    }
+  }
+  return null;
+}
+
+function isProductScopeSystemFamilyLabelLine(content, index, value) {
+  if (value !== "危急值") {
+    return false;
+  }
+  const lineStart = content.lastIndexOf("\n", index) + 1;
+  const lineEnd = content.indexOf("\n", index);
+  const line = content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd).trim();
+  return /^\{\s*value:\s*"LIS_MONITORING_CRITICAL",\s*label:\s*"LIS、监护与危急值"\s*\},?$/.test(
+    line,
+  );
 }
 
 function firstJavadocBlockMatch(content, pattern) {

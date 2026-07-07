@@ -15,10 +15,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
-import com.medkernel.compliance.evidence.dto.EvidenceResponse;
-import com.medkernel.compliance.evidence.dto.EvidenceVerifyResult;
-import com.medkernel.compliance.evidence.service.EvidenceService;
 import com.medkernel.engine.context.ClinicalRuntimeRelease;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
@@ -26,6 +22,10 @@ import com.medkernel.engine.context.ClinicalRuntimeReleaseService;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.evidence.EvidenceSnapshotCreateCommand;
+import com.medkernel.shared.evidence.EvidenceSnapshotPort;
+import com.medkernel.shared.evidence.EvidenceSnapshotView;
+import com.medkernel.shared.evidence.EvidenceVerificationView;
 
 class RuntimeReleaseOfflineDeliveryServiceTest {
 
@@ -36,7 +36,7 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         "4c81f69ad2574d28e5e8a4b12afe565b3448dbf7bbfc496329bc6af87ffe3414";
 
     private final RuntimeReleaseQueryService queries = mock(RuntimeReleaseQueryService.class);
-    private final EvidenceService evidence = mock(EvidenceService.class);
+    private final EvidenceSnapshotPort evidence = mock(EvidenceSnapshotPort.class);
     private final ClinicalRuntimeReleaseRepository releases =
         mock(ClinicalRuntimeReleaseRepository.class);
     private final ClinicalRuntimeReleaseService runtimes =
@@ -49,7 +49,7 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         ClinicalRuntimeReleaseDetailResponse detail = detail();
         when(queries.currentHospitalRuntime(TENANT, HOSPITAL)).thenReturn(Optional.of(detail));
         when(evidence.createSnapshot(any(), any())).thenAnswer(invocation -> {
-            EvidenceCreateDto dto = invocation.getArgument(1);
+            EvidenceSnapshotCreateCommand dto = invocation.getArgument(1);
             return evidenceResponse(dto.evidenceId(), dto.payloadSnapshot());
         });
 
@@ -70,7 +70,8 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         assertThat(result.release().releaseId()).isEqualTo(RELEASE_ID);
         assertThat(result.items()).hasSize(2);
 
-        ArgumentCaptor<EvidenceCreateDto> dto = ArgumentCaptor.forClass(EvidenceCreateDto.class);
+        ArgumentCaptor<EvidenceSnapshotCreateCommand> dto =
+            ArgumentCaptor.forClass(EvidenceSnapshotCreateCommand.class);
         org.mockito.Mockito.verify(evidence).createSnapshot(org.mockito.Mockito.eq(TENANT), dto.capture());
         assertThat(dto.getValue().evidenceType()).isEqualTo("RUNTIME_RELEASE_OFFLINE_DELIVERY");
         assertThat(dto.getValue().action()).isEqualTo("EXPORT");
@@ -95,7 +96,7 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         );
         when(queries.currentHospitalRuntime(TENANT, HOSPITAL)).thenReturn(Optional.of(detail));
         when(evidence.createSnapshot(any(), any())).thenAnswer(invocation -> {
-            EvidenceCreateDto dto = invocation.getArgument(1);
+            EvidenceSnapshotCreateCommand dto = invocation.getArgument(1);
             return evidenceResponse(dto.evidenceId(), dto.subjectId(), dto.payloadSnapshot());
         });
 
@@ -106,7 +107,8 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
             .startsWith("runtime-offline-")
             .hasSizeLessThanOrEqualTo(64)
             .matches("[A-Za-z0-9._-]+");
-        ArgumentCaptor<EvidenceCreateDto> dto = ArgumentCaptor.forClass(EvidenceCreateDto.class);
+        ArgumentCaptor<EvidenceSnapshotCreateCommand> dto =
+            ArgumentCaptor.forClass(EvidenceSnapshotCreateCommand.class);
         org.mockito.Mockito.verify(evidence).createSnapshot(org.mockito.Mockito.eq(TENANT), dto.capture());
         assertThat(dto.getValue().evidenceId()).isEqualTo(result.evidenceId());
         assertThat(dto.getValue().evidenceId()).hasSizeLessThanOrEqualTo(64);
@@ -116,7 +118,7 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
     @Test
     void validateImportPreviewVerifiesSignatureAndKeepsRuntimeImmutable() {
         when(evidence.verifyEvidence(TENANT, "ev-runtime"))
-            .thenReturn(new EvidenceVerifyResult(
+            .thenReturn(new EvidenceVerificationView(
                 "ev-runtime",
                 true,
                 "sm3:" + "1".repeat(64),
@@ -149,7 +151,7 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
     @Test
     void validateImportPreviewRejectsSignedEvidenceWhoseMetadataIsNotOfflineDeliveryExport() {
         when(evidence.verifyEvidence(TENANT, "ev-runtime"))
-            .thenReturn(new EvidenceVerifyResult(
+            .thenReturn(new EvidenceVerificationView(
                 "ev-runtime",
                 true,
                 "sm3:" + "1".repeat(64),
@@ -181,7 +183,7 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
     @Test
     void restoreImportRejectsInvalidSignatureBeforeRuntimeMutation() {
         when(evidence.verifyEvidence(TENANT, "ev-runtime"))
-            .thenReturn(new EvidenceVerifyResult(
+            .thenReturn(new EvidenceVerificationView(
                 "ev-runtime",
                 true,
                 "sm3:" + "1".repeat(64),
@@ -456,11 +458,11 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         );
     }
 
-    private EvidenceResponse evidenceResponse(String evidenceId, String payloadSnapshot) {
+    private EvidenceSnapshotView evidenceResponse(String evidenceId, String payloadSnapshot) {
         return evidenceResponse(evidenceId, RELEASE_ID, payloadSnapshot);
     }
 
-    private EvidenceResponse evidenceResponse(String evidenceId, String subjectId, String payloadSnapshot) {
+    private EvidenceSnapshotView evidenceResponse(String evidenceId, String subjectId, String payloadSnapshot) {
         return evidenceResponse(
             evidenceId,
             "RUNTIME_RELEASE_OFFLINE_DELIVERY",
@@ -471,15 +473,14 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         );
     }
 
-    private EvidenceResponse evidenceResponse(
+    private EvidenceSnapshotView evidenceResponse(
             String evidenceId,
             String evidenceType,
             String action,
             String subjectType,
             String subjectId,
             String payloadSnapshot) {
-        return new EvidenceResponse(
-            1L,
+        return new EvidenceSnapshotView(
             evidenceId,
             TENANT,
             "trace-offline",
@@ -489,12 +490,9 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
             subjectId,
             "机构生效版本离线交付文件",
             payloadSnapshot,
-            "sm3:" + "1".repeat(64),
             "/api/v1/compliance/evidence/snapshots/" + evidenceId + "/file",
             "sm3:" + "2".repeat(64),
             "SM3_WITH_SM2",
-            "signature",
-            "public-key",
             true,
             Instant.EPOCH,
             "system"
@@ -505,9 +503,9 @@ class RuntimeReleaseOfflineDeliveryServiceTest {
         stubValidRestoreEvidence(evidenceResponse("ev-runtime", payloadSnapshot));
     }
 
-    private void stubValidRestoreEvidence(EvidenceResponse storedEvidence) {
+    private void stubValidRestoreEvidence(EvidenceSnapshotView storedEvidence) {
         when(evidence.verifyEvidence(TENANT, "ev-runtime"))
-            .thenReturn(new EvidenceVerifyResult(
+            .thenReturn(new EvidenceVerificationView(
                 "ev-runtime",
                 true,
                 "sm3:" + "1".repeat(64),
