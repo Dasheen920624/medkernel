@@ -1047,6 +1047,272 @@ function expectNoMedicationSafetyCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S5");
 }
 
+const diagnosticCriticalValueEvidence = {
+  scenarioCodes: ["S36"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
+  versionedAssets: ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"],
+  deliveryShapes: ["API_EVENT"],
+  serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"],
+  scopeStatement:
+    "医技危急值代表切片：LIS/FHIR 入站 Observation 与 DiagnosticReport 后完成人工报告解读闭环，不代表完整 LIS/PACS/RIS/病理/心电全链路或完整危急值制度。",
+  apiEvidence: {
+    fhirObservationAccepted: true,
+    fhirDiagnosticReportAccepted: true,
+    contextSnapshotContainsInboundResources: true,
+    currentRuntimeContainsDiagnosticAssets: true,
+    reportInterpretationTriggeredFromFrontdesk: true,
+    criticalRecommendationPersisted: true,
+    workflowTodoCompletedByHuman: true,
+  },
+  inboundObservation: {
+    fhirResourceType: "Observation",
+    fhirId: "obs-critical-k",
+    canonicalResourceType: "OBSERVATION",
+    snapshotId: "ctx-critical-report",
+    runtimeReleaseId: "runtime-critical-report",
+    patientId: "mpi-critical-report",
+    sourceSystem: "FHIR_R4",
+    code: "LAB.POTASSIUM",
+    displayName: "血钾",
+    valueNumeric: 6.3,
+    unit: "mmol/L",
+    criticalFlag: "CRITICAL",
+    integrationStatus: "NOT_CONNECTED",
+    operationOutcomeContainsNotConnected: true,
+    compensationStatus: "NOT_CONNECTED",
+    compensationRequired: true,
+    compensationMessageId: "fhir-observation-obs-critical-k",
+  },
+  inboundDiagnosticReport: {
+    fhirResourceType: "DiagnosticReport",
+    fhirId: "dr-critical-k",
+    canonicalResourceType: "DIAGNOSTIC_REPORT",
+    snapshotId: "ctx-critical-report",
+    runtimeReleaseId: "runtime-critical-report",
+    patientId: "mpi-critical-report",
+    sourceSystem: "FHIR_R4",
+    reportType: "血钾检验",
+    conclusion: "血钾 6.3 mmol/L，危急值，已复核并签发。",
+    signedStatus: "FINAL",
+    integrationStatus: "RETRYING",
+    operationOutcomeContainsNotConnected: true,
+    compensationStatus: "NOT_CONNECTED",
+    compensationRequired: true,
+    compensationMessageId: "fhir-diagnosticreport-dr-critical-k",
+  },
+  runtime: {
+    releaseId: "runtime-critical-report",
+    platformBaselineReleaseId: "baseline-critical-report",
+    revisionNo: 16,
+    manifestSha256: "9".repeat(64),
+    assets: [
+      {
+        assetType: "KNOWLEDGE",
+        assetIdentity: "plat:diagnostic_item:lab-potassium",
+        sourceLayer: "PLATFORM",
+        versionId: "kv-critical-report",
+        versionNo: "V1",
+        contentHash: "1".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        sourceLayer: "PLATFORM",
+        versionId: "fc-critical-report",
+        versionNo: "V1",
+        contentHash: "2".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+        sourceLayer: "HOSPITAL",
+        versionId: "ac-critical-report",
+        versionNo: "V1",
+        contentHash: "3".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    knowledgeAsset: {
+      assetType: "KNOWLEDGE",
+      assetIdentity: "plat:diagnostic_item:lab-potassium",
+      sourceLayer: "PLATFORM",
+      versionId: "kv-critical-report",
+      versionNo: "V1",
+      contentHash: "1".repeat(64),
+      entryState: "ACTIVE",
+    },
+    fieldCatalogAsset: {
+      assetType: "FIELD_CATALOG",
+      assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+      sourceLayer: "PLATFORM",
+      versionId: "fc-critical-report",
+      versionNo: "V1",
+      contentHash: "2".repeat(64),
+      entryState: "ACTIVE",
+    },
+    actionCardAsset: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+      sourceLayer: "HOSPITAL",
+      versionId: "ac-critical-report",
+      versionNo: "V1",
+      contentHash: "3".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    platformBaselineReleaseId: "baseline-critical-report",
+    activeAssets: [
+      {
+        assetType: "KNOWLEDGE",
+        assetIdentity: "plat:diagnostic_item:lab-potassium",
+        versionId: null,
+      },
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        versionId: null,
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+        versionId: "ac-critical-report",
+      },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-critical-report",
+    contextSnapshotId: "ctx-critical-report",
+    runtimeReleaseId: "runtime-critical-report",
+    resources: {
+      observations: [
+        {
+          observationId: "obs-critical-k",
+          code: "LAB.POTASSIUM",
+          valueNumeric: 6.3,
+          unit: "mmol/L",
+          criticalFlag: "CRITICAL",
+          sourceSystem: "FHIR_R4",
+        },
+      ],
+      diagnosticReports: [
+        {
+          reportId: "dr-critical-k",
+          reportType: "血钾检验",
+          conclusion: "血钾 6.3 mmol/L，危急值，已复核并签发。",
+          sourceSystem: "FHIR_R4",
+        },
+      ],
+    },
+  },
+  interpretation: {
+    contextSnapshotId: "ctx-critical-report",
+    runtimeReleaseId: "runtime-critical-report",
+    advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+    interpretations: [
+      {
+        reportId: "dr-critical-k",
+        itemCode: "plat:diagnostic_item:lab-potassium",
+        sourceVersionId: 21,
+        versionNo: "V1",
+        criticalRisk: true,
+        abnormalHighlights: ["血钾升高", "危急值"],
+        recommendations: [
+          "请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。",
+          "医师结合症状、体征、既往趋势和医技项目说明书判断后续处理，系统不自动开立医嘱。",
+        ],
+      },
+    ],
+  },
+  recommendation: {
+    cardId: "card-critical-report",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-critical-report",
+    cardType: "LAB",
+    requiresPhysicianConfirmation: true,
+    aiGenerated: false,
+    explanation: {
+      reportId: "dr-critical-k",
+      runtimeReleaseId: "runtime-critical-report",
+      itemCode: "plat:diagnostic_item:lab-potassium",
+      sourceVersionId: 21,
+      sourceContentHash: "1".repeat(64),
+      criticalRisk: true,
+      recommendations: [
+        "请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。",
+      ],
+      runtimeAssetEvidence: [
+        {
+          assetType: "FIELD_CATALOG",
+          assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+          assetVersion: "V1",
+          contentHash: "2".repeat(64),
+          fields: ["observations[].criticalFlag", "diagnosticReports[].conclusion"],
+        },
+        {
+          assetType: "ACTION_CARD",
+          assetIdentity: "ACTION_CARD.REPORT.CRITICAL_VALUE",
+          assetVersion: "V1",
+          contentHash: "3".repeat(64),
+          requiresPhysicianConfirmation: true,
+        },
+      ],
+    },
+  },
+  workflowTodo: {
+    todoId: "todo-critical-report",
+    status: "COMPLETED",
+    category: "REPORT_INTERPRETATION",
+    sourceId: "card-critical-report",
+    completedBy: "medical-technician",
+    completionReason: "医技已复核危急值报告解读提示，确认仅作辅助，不改写已签发报告。",
+    noAutoOrder: true,
+  },
+  scenarioEvidence: [
+    {
+      code: "S36",
+      observedStages: [
+        "外部 FHIR/LIS 入站 Observation 危急值并落标准资源",
+        "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源",
+        "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本",
+        "当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD",
+        "临床用户从真实前台生成医技报告解读",
+        "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
+        "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
+      ],
+    },
+  ],
+};
+
+function diagnosticCriticalValueEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/diagnostic-critical-value-frontdesk.spec.ts",
+        title: "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "diagnostic-critical-value-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoDiagnosticCriticalValueCoverage(body: Record<string, unknown>) {
+  const evidence = diagnosticCriticalValueEvidenceResult(body);
+  const assets = evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? [];
+  expect(assets).not.toEqual(expect.arrayContaining(["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]));
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S36");
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -2617,6 +2883,171 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare medication safety representative coverage when $name", ({ body }) => {
     expectNoMedicationSafetyCoverage(body);
+  });
+
+  it("declares S36 diagnostic critical-value coverage only with inbound resources, runtime assets and human closure", () => {
+    const evidence = diagnosticCriticalValueEvidenceResult(diagnosticCriticalValueEvidence);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S36"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+      "DATA_INTEROPERABILITY",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "KNOWLEDGE",
+      "FIELD_CATALOG",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S36 diagnostic critical-value coverage when FHIR retry compensation reaches NOT_CONNECTED", () => {
+    const evidence = diagnosticCriticalValueEvidenceResult({
+      ...diagnosticCriticalValueEvidence,
+      inboundObservation: {
+        ...diagnosticCriticalValueEvidence.inboundObservation,
+        integrationStatus: "RETRYING",
+        operationOutcomeContainsNotConnected: false,
+        compensationStatus: "NOT_CONNECTED",
+        compensationRequired: null,
+      },
+      inboundDiagnosticReport: {
+        ...diagnosticCriticalValueEvidence.inboundDiagnosticReport,
+        integrationStatus: "RETRYING",
+        operationOutcomeContainsNotConnected: false,
+        compensationStatus: "NOT_CONNECTED",
+        compensationRequired: null,
+      },
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S36"]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少外部 Observation 危急值标准资源",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        inboundObservation: undefined,
+      },
+    },
+    {
+      name: "上下文未回读入站 DiagnosticReport",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        clinicalContext: {
+          ...diagnosticCriticalValueEvidence.clinicalContext,
+          resources: {
+            ...diagnosticCriticalValueEvidence.clinicalContext.resources,
+            diagnosticReports: [],
+          },
+        },
+      },
+    },
+    {
+      name: "当前机构生效版本缺少 FIELD_CATALOG 物化证据",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        runtime: {
+          ...diagnosticCriticalValueEvidence.runtime,
+          fieldCatalogAsset: {
+            ...diagnosticCriticalValueEvidence.runtime.fieldCatalogAsset,
+            entryState: "DISABLED",
+          },
+        },
+      },
+    },
+    {
+      name: "FIELD_CATALOG 被当作本地版本激活而不是选择平台标准版本",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        activationRequest: {
+          ...diagnosticCriticalValueEvidence.activationRequest,
+          activeAssets: diagnosticCriticalValueEvidence.activationRequest.activeAssets.map((asset) =>
+            asset.assetType === "FIELD_CATALOG"
+              ? { ...asset, versionId: "fc-critical-report" }
+              : asset,
+          ),
+        },
+      },
+    },
+    {
+      name: "推荐解释缺少 ACTION_CARD 运行资产证据",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        recommendation: {
+          ...diagnosticCriticalValueEvidence.recommendation,
+          explanation: {
+            ...diagnosticCriticalValueEvidence.recommendation.explanation,
+            runtimeAssetEvidence:
+              diagnosticCriticalValueEvidence.recommendation.explanation.runtimeAssetEvidence.filter(
+                (item) => item.assetType !== "ACTION_CARD",
+              ),
+          },
+        },
+      },
+    },
+    {
+      name: "报告解读不是危急风险",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        interpretation: {
+          ...diagnosticCriticalValueEvidence.interpretation,
+          interpretations: [
+            {
+              ...diagnosticCriticalValueEvidence.interpretation.interpretations[0],
+              criticalRisk: false,
+            },
+          ],
+        },
+      },
+    },
+    {
+      name: "协同待办未由人工完成",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        workflowTodo: {
+          ...diagnosticCriticalValueEvidence.workflowTodo,
+          status: "PENDING",
+        },
+      },
+    },
+    {
+      name: "完成的协同待办未绑定本轮推荐卡",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        workflowTodo: {
+          ...diagnosticCriticalValueEvidence.workflowTodo,
+          sourceId: "card-from-previous-rehearsal",
+        },
+      },
+    },
+    {
+      name: "FHIR 异步补偿日志未收敛到 NOT_CONNECTED",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        inboundDiagnosticReport: {
+          ...diagnosticCriticalValueEvidence.inboundDiagnosticReport,
+          integrationStatus: "RETRYING",
+          operationOutcomeContainsNotConnected: false,
+          compensationStatus: "RETRYING",
+        },
+      },
+    },
+  ])("does not declare diagnostic critical-value coverage when $name", ({ body }) => {
+    expectNoDiagnosticCriticalValueCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

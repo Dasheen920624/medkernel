@@ -10,6 +10,83 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整上线、134 清库部署复演、完整 LIS/PACS/RIS/超声/病理/内镜/心电链路、
+  完整 S0-S40、完整危急值制度或完整医技闭环收口，而是完成 **P1 医技报告解读与危急值代表切片 S36**：
+  `Observation / DiagnosticReport + KNOWLEDGE / FIELD_CATALOG / ACTION_CARD + API_EVENT +
+  THIRD_PARTY_INTERFACE / CLINICAL_RUNTIME`。当前 coverage 只声明 `scenarios:S36`、
+  `productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、`versionedAssets:KNOWLEDGE/FIELD_CATALOG/ACTION_CARD`、
+  `deliveryShapes:API_EVENT`、`serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME`；不声明第三方系统族、
+  不声明完整 LIS/PACS/RIS/病理/心电覆盖，也不声明完整上线。
+- 第一百五十五批真实链路说明：新增目标真实 E2E `diagnostic-critical-value-frontdesk.spec.ts`。医疗引擎运营员
+  从真实服务链路读取本地演练平台 baseline 的 active 资产版本，创建本轮医院级
+  `ACTION_CARD.REPORT.CRITICAL_VALUE`，并激活本地上线演练医院当前机构生效版本，确保平台
+  `KNOWLEDGE plat:diagnostic_item:lab-potassium`、平台 `FIELD_CATALOG FIELD.CATALOG.CLINICAL_CONTEXT`
+  与本轮医院 `ACTION_CARD` 均进入 runtime。临床用户从真实前台 `/mpi` 建立脱敏患者 360 上下文；
+  平台管理员登记 FHIR R4 入站适配器后，E2E 以 HMAC 签名方式入站 `Observation` 危急值与已签发
+  `DiagnosticReport`，回读上下文确认二者均落入标准患者资源并绑定同一 `runtimeReleaseId`。随后临床用户
+  从真实前台触发报告解读，后端在推荐卡解释中输出 `runtimeAssetEvidence`，证明字段目录消费
+  `observations[].criticalFlag`、`diagnosticReports[].conclusion`，动作卡要求人工确认；最后从真实
+  `/workflow/todos` 完成本轮推荐卡绑定的报告解读待办，证据明确 `sourceId == recommendation.cardId`、
+  `noAutoOrder=true`、不改写已签发报告。
+- 第一百五十五批代码修复与护栏：`resolveBaselineRuntimeAssets` 不再只返回空版本选择，同时保留
+  `activeAssetVersions` 供演练 runtime 自愈和证据比对使用，避免本地医院激活时 `activeAssets: []`
+  造成字段目录、规则或平台 baseline 未启用。`FhirCanonicalMapperSupport` 读取 FHIR R4
+  `Observation.interpretation` 到 canonical `criticalFlag`，不再依赖硬编码医学阈值。
+  `ReportInterpretationService` 在持久化报告解读推荐卡时必须从当前机构生效版本解析
+  `FIELD_CATALOG.CLINICAL_CONTEXT` 与 `ACTION_CARD.REPORT.CRITICAL_VALUE`，缺失则以
+  `ENG_ASSET_002` 诚实失败；危急值动作卡必须要求人工确认。`launchCoverageEvidence` 对 S36 附件加严：
+  只有外部 FHIR/LIS 入站资源、当前上下文回读、runtime 三类资产、激活请求、推荐解释、人工待办闭环和
+  `workflowTodo.sourceId == recommendation.cardId` 全部成立时才声明 S36；FHIR 同步响应为 `RETRYING`
+  时，仍必须由异步补偿日志收敛到 `NOT_CONNECTED` 才承认第三方断连诚实降级。`e2eAuthCredentialContract`
+  固化 FHIR R4 补偿 messageId 前缀、上下文身份读取路径、当前卡待办定位和平台 baseline 资产合同。
+- 第一百五十五批红点与处理：目标 E2E 曾红于本地演练医院 runtime 激活使用 `activeAssets: []`，
+  根因是平台 baseline active 资产解析只保留空版本选择，已通过 `activeAssetVersions` 与真实 runtime
+  资产回读修复。FHIR 入站证据曾因同步 OperationOutcome 返回 `RETRYING` 而不是直接 `NOT_CONNECTED`
+  造成 coverage 空报，已改为要求补偿日志最终 `NOT_CONNECTED`；补偿 messageId 统一为后端真实
+  `fhir-r4-${resourceType}-${fhirId}`。上下文快照真实 DTO 不提供顶层 `patientId/encounterId`，
+  E2E 改读 `resources.patient.mpi` 与 `resources.encounters[0].encounterId`。DiagnosticReport
+  canonical `reportType` 来自 FHIR `code.text`，真实值为 `血钾检验`。目标 E2E r10 又红于同标题
+  报告解读待办重复，旧定位按“报告解读 + 报告类型第一行”误完成历史卡；已改为定位
+  `a[href*="cardId=${options.cardId}"]` 所在表格行，并新增 coverage 负例防止“完成的待办未绑定本轮推荐卡”
+  仍被声明通过。
+- 第一百五十五批验证证据：
+  - 红灯：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "完成的协同待办未绑定本轮推荐卡"`
+    在 parser 未要求 `workflowTodo.sourceId == recommendation.cardId` 时失败，证明 coverage 仍会错误接受历史卡待办；
+    目标 E2E r10 曾失败，错误为 `完成响应必须绑定本轮推荐卡`，期望本轮 `rc-7bd0fc13-...` 但实际完成
+    历史 `rc-4098b651-...`。
+  - 绿灯：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "diagnostic critical-value"` 通过
+    （11 selected，75 skipped）；`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+    "collects all active platform baseline assets|diagnostic-item knowledge|report interpretation E2E|diagnostic critical-value|context identity|current card"`
+    通过（7 selected，31 skipped）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+    `mvn -f medkernel-backend/pom.xml -Dtest=FhirR4CanonicalMapperTest#mapsR4ObservationCriticalInterpretationToCanonicalCriticalFlagWithoutThresholds,ReportInterpretationServiceTest#persistsInterpretationAsRecommendationCardWithoutChangingSignedReport,ReportInterpretationServiceTest#rejectsInterpretationWhenCurrentRuntimeMissingDiagnosticFieldCatalogOrActionCard test`
+    通过（3 tests，0 failures，0 errors）；`mvn -f medkernel-backend/pom.xml -DskipTests package` 通过；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+  - 目标真实 E2E：先执行 `mvn -f medkernel-backend/pom.xml -DskipTests package`，重启本地 18080 到最新
+    `medkernel-backend-1.0.0-SNAPSHOT.jar` 后，执行
+    `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-diagnostic-critical-value-20260707-r13 npm --prefix frontend run e2e -- --project=chromium diagnostic-critical-value-frontdesk.spec.ts`
+    通过；`/tmp/medkernel-e2e-diagnostic-critical-value-20260707-r13/report/results.json` 为 `PASSED`
+    （1 expected，0 unexpected，0 flaky，duration=14207ms）。`launchCoverage` 只含 `S36`、
+    `CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、`KNOWLEDGE/FIELD_CATALOG/ACTION_CARD`、`API_EVENT`、
+    `THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME`。附件记录 runtime
+    `releaseId=runtime-01KWXXB2DHA5N8DCKRJ106KBYQ/revisionNo=3/manifestSha256=cb1cbe2fd84921272805db0d1a17865f583621a8ee782ef656bca757cf4037e1`；
+    知识资产 `plat:diagnostic_item:lab-potassium/versionId=av-01KWXX44WV9XGRPHKQR5HWS1FK/contentHash=2900193bf46119d837bb3521bf2747e9fff3cdd47adf1fe3cf04e3083df7a309`；
+    字段目录 `FIELD.CATALOG.CLINICAL_CONTEXT/versionId=av-01KWXX44RTET9QJG416CASG82M/contentHash=5913ab3e00bbc13b21a1edd59888c33c4e065ff7e268ed26f43d017da1e4cd84`；
+    动作卡 `ACTION_CARD.REPORT.CRITICAL_VALUE/versionId=av-01KWXXB2C7MZKGH4AYNVCWWYSQ/versionNo=V2/contentHash=4591744345c5b141de732cc9fcf1b009ce7cd606753512c90e31cfa78452473b`。
+    入站 Observation 与 DiagnosticReport 均为 `integrationStatus=RETRYING`、`operationOutcomeContainsNotConnected=false`、
+    `compensationStatus=NOT_CONNECTED`、`compensationRequired=null`，messageId 分别为
+    `fhir-r4-observation-obs-critical-k-mrafeq2y-0` 与
+    `fhir-r4-diagnosticreport-dr-critical-k-mrafeq2y-0`。推荐卡
+    `cardId=rc-197883d4-0fde-4c61-b860-98c46275ca6a`，待办
+    `todoId=todo-e63808ea-2651-4d42-9945-fa96e7b0bd7e/sourceId=rc-197883d4-0fde-4c61-b860-98c46275ca6a/status=COMPLETED`。
+- 第一百五十五批边界与下一步：本批只证明血钾危急值报告的 FHIR/LIS 入站、报告解读、当前机构生效版本资产消费和
+  人工待办闭环代表切片；不代表完整医技报告、完整危急值制度、完整 LIS/PACS/RIS/超声/病理/内镜/心电闭环、
+  完整第三方系统族、完整四职责全菜单体验、完整 S0-S40 或 134 清库上线验收。用户已允许使用子代理，但本批尝试启动
+  只读复核子代理时达到 agent 数量上限，未实际产生子代理改动；全部修复、验证和提交均在本地完成。
+  下一步继续按完整产品范围推进：补 PACS/RIS/病理/心电报告资源与互认/远程协同，补护理评估 / 护理计划 /
+  连续照护，补院感公卫与安全事件，继续推进 13 类标准患者资源、13 类版本化资产逐类真实消费者、多第三方系统族
+  闭环、全角色真实前台体验和 134 目标环境 fresh deploy / 清库 / 重启 / 恢复复演。不要把本批 S36 代表切片
+  包装成完整上线。
 - 第一百五十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整用药安全、完整药事治理、抗菌药物治理、第三方药房 / 审方系统双向闭环、
   完整四职责 / 全业务任职闭环、完整 S0-S40、13 类标准患者资源、13 类版本化资产、完整上线验收或

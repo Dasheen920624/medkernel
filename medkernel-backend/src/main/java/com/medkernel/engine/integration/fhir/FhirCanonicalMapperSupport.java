@@ -158,7 +158,7 @@ final class FhirCanonicalMapperSupport {
             quantity.path("value").isNumber() ? null : firstNonBlank(text(resource.path("valueString"))),
             firstNonBlank(text(quantity.path("unit")), text(quantity.path("code"))),
             null,
-            null,
+            observationInterpretation(resource.path("interpretation")),
             sourceSystem,
             sourceRecordId,
             mappedVersion,
@@ -702,6 +702,23 @@ final class FhirCanonicalMapperSupport {
             return text(array.get(0));
         }
         return "";
+    }
+
+    private static String observationInterpretation(JsonNode interpretations) {
+        if (!(interpretations instanceof ArrayNode array) || array.isEmpty()) {
+            return null;
+        }
+        for (JsonNode interpretation : array) {
+            String code = text(interpretation.path("coding").path(0).path("code"));
+            if (!code.isBlank()) {
+                return code;
+            }
+            String text = text(interpretation.path("text"));
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return null;
     }
 
     private static String patientName(JsonNode resource) {

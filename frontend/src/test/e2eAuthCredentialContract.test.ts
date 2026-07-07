@@ -176,18 +176,24 @@ describe("E2E credential contract", () => {
       assetType: string;
       assetIdentity: string;
       versionId: string;
+      versionNo: string;
+      contentHash: string;
       entryState: string;
     }> = [
-      ...runtimeAssetTypes.map((assetType) => ({
+      ...runtimeAssetTypes.map((assetType, index) => ({
         assetType,
         assetIdentity: runtimeAssetIdentities[assetType],
         versionId: `${assetType.toLowerCase()}-v1`,
+        versionNo: `V${index + 1}`,
+        contentHash: String(index + 1).repeat(64).slice(0, 64),
         entryState: "ACTIVE",
       })),
       {
         assetType: "RULE",
         assetIdentity: "RULE.DISABLED",
         versionId: "rule-disabled",
+        versionNo: "V0",
+        contentHash: "0".repeat(64),
         entryState: "DISABLED",
       },
     ];
@@ -202,6 +208,14 @@ describe("E2E credential contract", () => {
         assetType,
         assetIdentity: runtimeAssetIdentities[assetType],
         versionId: null,
+      })),
+      activeAssetVersions: runtimeAssetTypes.map((assetType, index) => ({
+        assetType,
+        assetIdentity: runtimeAssetIdentities[assetType],
+        versionId: `${assetType.toLowerCase()}-v1`,
+        versionNo: `V${index + 1}`,
+        contentHash: String(index + 1).repeat(64).slice(0, 64),
+        entryState: "ACTIVE",
       })),
     });
     expect(auth.runtimeAssetsCoverRequiredTypes(baseline.activeAssets)).toBe(true);
@@ -327,6 +341,30 @@ describe("E2E credential contract", () => {
     expect(source).toContain("summary");
     expect(source).not.toContain("assertCurrentRuntimeKnowledgeForReportInterpretation");
     expect(source).not.toContain("/engine/integration/knowledge-runtime/runtime-release/current");
+  });
+
+  it("requires diagnostic critical-value E2E to use backend FHIR R4 compensation message ids", () => {
+    const source = readFileSync("e2e/diagnostic-critical-value-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("fhir-r4-${options.resourceType.toLowerCase()}-${fhirId}");
+    expect(source).not.toContain("fhir-${options.resourceType.toLowerCase()}-${fhirId}");
+  });
+
+  it("requires diagnostic critical-value E2E to read context identity from snapshot resources", () => {
+    const source = readFileSync("e2e/diagnostic-critical-value-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain('textFieldAtPath(context, "resources.patient.mpi")');
+    expect(source).toContain('textFieldAtPath(context, "resources.encounters[0].encounterId")');
+    expect(source).not.toContain('textField(context, "patientId")');
+    expect(source).not.toContain('textField(context, "encounterId")');
+  });
+
+  it("requires diagnostic critical-value E2E to complete the todo linked to the current card", () => {
+    const source = readFileSync("e2e/diagnostic-critical-value-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain('a[href*="cardId=${options.cardId}"]');
+    expect(source).toContain('locator("xpath=ancestor::tr")');
+    expect(source).not.toContain('.filter({ hasText: options.reportType })\\n    .first()');
   });
 
   it("keeps third-party family evidence API readback on the real backend API base", () => {

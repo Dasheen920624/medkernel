@@ -59,9 +59,15 @@ type RuntimeAssetCandidate = {
   assetIdentity: string;
   versionId: string;
 };
+type RuntimeAssetVersion = RuntimeAssetCandidate & {
+  versionNo: string;
+  contentHash: string;
+  entryState: string;
+};
 type BaselineRuntimeAssets = {
   baselineReleaseId: string | null;
   activeAssets: RuntimeAssetSelection[];
+  activeAssetVersions: RuntimeAssetVersion[];
 };
 type SafetyRiskMatrixBinding = {
   matrixId: string;
@@ -1375,23 +1381,40 @@ async function platformUpgradeAnalysisDigest(
 
 export function resolveBaselineRuntimeAssets(value: unknown): BaselineRuntimeAssets {
   const baselineReleaseId = textField(recordField(value, "release"), "baselineReleaseId");
-  const activeAssets = pageItems(value)
+  const activeItems = pageItems(value)
     .filter((item) => textField(item, "entryState") === "ACTIVE")
     .map((item) => ({
       assetType: textField(item, "assetType"),
       assetIdentity: textField(item, "assetIdentity"),
-    }))
-    .filter((item): item is { assetType: string; assetIdentity: string } =>
-      Boolean(item.assetType && item.assetIdentity),
-    )
-    .map((item) => ({
-      assetType: item.assetType,
-      assetIdentity: item.assetIdentity,
-      versionId: null,
+      versionId: textField(item, "versionId"),
+      versionNo: textField(item, "versionNo"),
+      contentHash: textField(item, "contentHash"),
+      entryState: textField(item, "entryState"),
     }));
+  const activeAssets = activeItems.flatMap((item): RuntimeAssetSelection[] => {
+    if (!item.assetType || !item.assetIdentity) return [];
+    return [
+      {
+        assetType: item.assetType,
+        assetIdentity: item.assetIdentity,
+        versionId: null,
+      },
+    ];
+  });
+  const activeAssetVersions = activeItems.filter((item): item is RuntimeAssetVersion =>
+    Boolean(
+      item.assetType &&
+        item.assetIdentity &&
+        item.versionId &&
+        item.versionNo &&
+        item.contentHash &&
+        item.entryState,
+    ),
+  );
   return {
     baselineReleaseId,
     activeAssets: uniqueRuntimeAssets(activeAssets),
+    activeAssetVersions: uniqueRuntimeAssetVersions(activeAssetVersions),
   };
 }
 
@@ -1543,6 +1566,16 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 }
 
 function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
+  const seen = new Set<string>();
+  return assets.filter((asset) => {
+    const key = `${asset.assetType}:${asset.assetIdentity}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function uniqueRuntimeAssetVersions(assets: RuntimeAssetVersion[]) {
   const seen = new Set<string>();
   return assets.filter((asset) => {
     const key = `${asset.assetType}:${asset.assetIdentity}`;

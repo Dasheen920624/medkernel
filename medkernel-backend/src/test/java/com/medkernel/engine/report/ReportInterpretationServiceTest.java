@@ -26,6 +26,9 @@ import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
+import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
@@ -42,6 +45,7 @@ class ReportInterpretationServiceTest {
     private ContextSnapshotService snapshots;
     private RuntimeReleaseDiagnosticItemSelector diagnosticItems;
     private RecommendationEngineService recommendationEngine;
+    private DeclarativeAssetRuntimePort declarativeAssets;
     private ReportInterpretationService service;
 
     @BeforeEach
@@ -49,10 +53,12 @@ class ReportInterpretationServiceTest {
         snapshots = mock(ContextSnapshotService.class);
         diagnosticItems = mock(RuntimeReleaseDiagnosticItemSelector.class);
         recommendationEngine = mock(RecommendationEngineService.class);
+        declarativeAssets = diagnosticReportDeclarativeAssets();
         service = new ReportInterpretationService(
             snapshots,
             diagnosticItems,
             recommendationEngine,
+            declarativeAssets,
             new ObjectMapper());
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-report",
@@ -134,12 +140,50 @@ class ReportInterpretationServiceTest {
             assertThat(card.suggestedAction()).contains("不改写已签发报告", "不自动开立医嘱");
             assertThat(card.sourceSummary()).contains("医技项目说明书", "v1.0");
             assertThat(card.explanationJson()).contains("report-k-1", "runtime-release-report", "hash-potassium");
+            assertThat(card.explanationJson()).contains(
+                "\"runtimeAssetEvidence\"",
+                "FIELD.CATALOG.CLINICAL_CONTEXT",
+                "ACTION_CARD.REPORT.CRITICAL_VALUE",
+                "observations[].criticalFlag",
+                "diagnosticReports[].conclusion",
+                "\"requiresPhysicianConfirmation\":true");
             assertThat(card.sources()).singleElement().satisfies(source -> {
                 assertThat(source.sourceRefId()).isEqualTo("LAB.POTASSIUM");
                 assertThat(source.citationLocator())
                     .isEqualTo("knowledge_version:" + PlatformTenant.ID + ":21");
             });
         });
+    }
+
+    @Test
+    void rejectsInterpretationWhenCurrentRuntimeMissingDiagnosticFieldCatalogOrActionCard() {
+        declarativeAssets = DeclarativeAssetRuntimePort.unavailable();
+        service = new ReportInterpretationService(
+            snapshots,
+            diagnosticItems,
+            recommendationEngine,
+            declarativeAssets,
+            new ObjectMapper());
+        when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(report(
+            "report-k-1",
+            "LAB.POTASSIUM",
+            "血钾 6.3 mmol/L，危急值，已复核",
+            List.of("血钾升高", "危急值")))));
+        when(diagnosticItems.select("t-1", "runtime-release-report")).thenReturn(List.of(
+            new RuntimeDiagnosticItemReference(
+                "t-1",
+                100L,
+                "LAB.POTASSIUM",
+                "血钾检验说明书",
+                21L,
+                "v1.0",
+                SourceAuthorityLevel.B_GUIDELINE.name(),
+                "hash-potassium")));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.interpret(new ReportInterpretationRequest("snap-report")))
+            .isInstanceOf(com.medkernel.shared.api.error.ApiException.class)
+            .hasMessageContaining("机构生效版本缺少报告解读运行资产");
     }
 
     @Test
@@ -269,5 +313,70 @@ class ReportInterpretationServiceTest {
             NOW,
             NOW,
             QualityStatus.VALID);
+    }
+
+    private DeclarativeAssetRuntimePort diagnosticReportDeclarativeAssets() {
+        return (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+            if (assetType == VersionedAssetType.FIELD_CATALOG
+                    && "FIELD.CATALOG.CLINICAL_CONTEXT".equals(assetIdentity)) {
+                return java.util.Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V1",
+                    runtimeReleaseId,
+                    """
+                    {
+                      "fields": [
+                        {
+                          "category": "检验检查",
+                          "group": "检验/体征结果",
+                          "resourceType": "Observation",
+                          "fieldPath": "observations[].criticalFlag",
+                          "displayName": "危急值标记",
+                          "dataType": "string",
+                          "description": "来源系统声明的危急值标记",
+                          "derived": false
+                        },
+                        {
+                          "category": "检验检查",
+                          "group": "检查报告",
+                          "resourceType": "DiagnosticReport",
+                          "fieldPath": "diagnosticReports[].conclusion",
+                          "displayName": "报告结论",
+                          "dataType": "string",
+                          "description": "已签发报告结论",
+                          "derived": false
+                        }
+                      ]
+                    }
+                    """,
+                    "f".repeat(64)));
+            }
+            if (assetType == VersionedAssetType.ACTION_CARD
+                    && "ACTION_CARD.REPORT.CRITICAL_VALUE".equals(assetIdentity)) {
+                return java.util.Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V1",
+                    runtimeReleaseId,
+                    """
+                    {
+                      "schemaVersion": "1.0",
+                      "title": "危急值报告人工复核提示",
+                      "actionCode": "REMIND",
+                      "atSeverity": "HIGH",
+                      "indicator": "critical",
+                      "summary": "危急值报告需人工复核",
+                      "detail": "报告解读仅作辅助，不改写已签发报告，不自动开嘱。",
+                      "source": {"label": "MedKernel 本地上线演练"},
+                      "suggestions": [],
+                      "overrideReasons": [],
+                      "requiresPhysicianConfirmation": true
+                    }
+                    """,
+                    "e".repeat(64)));
+            }
+            return java.util.Optional.empty();
+        };
     }
 }

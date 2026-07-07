@@ -58,6 +58,7 @@ type CoverageProof = {
   requiresS2S4RuntimeMappingAttachment?: boolean;
   requiresCdssDeclarativeRuntimeAssetAttachment?: boolean;
   requiresMedicationSafetyFrontdeskAttachment?: boolean;
+  requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -148,6 +149,18 @@ const medicationSafetyFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
 ];
 
+const diagnosticCriticalValueFrontdeskClaims = [
+  "scenarios:S36",
+  "productLayers:CLINICAL_EXECUTION",
+  "productLayers:DATA_INTEROPERABILITY",
+  "versionedAssets:KNOWLEDGE",
+  "versionedAssets:FIELD_CATALOG",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -205,6 +218,7 @@ const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
+const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -246,6 +260,18 @@ const requiredMedicationSafetyFrontdeskScenarioEvidence: Record<string, string[]
     "临床用户从真实前台开立用药触发推荐评估",
     "药师登记红线复核且不关闭医生确认链路",
     "医生逐条确认采纳，系统不自动开嘱",
+  ],
+};
+
+const requiredDiagnosticCriticalValueFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S36: [
+    "外部 FHIR/LIS 入站 Observation 危急值并落标准资源",
+    "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源",
+    "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本",
+    "当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD",
+    "临床用户从真实前台生成医技报告解读",
+    "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
+    "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
   ],
 };
 
@@ -457,6 +483,12 @@ const coverageProofs: CoverageProof[] = [
     requiresMedicationSafetyFrontdeskAttachment: true,
   },
   {
+    file: "diagnostic-critical-value-frontdesk.spec.ts",
+    titleIncludes: "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
+    claims: diagnosticCriticalValueFrontdeskClaims,
+    requiresDiagnosticCriticalValueFrontdeskAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -566,6 +598,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredCdssDeclarativeRuntimeAssetAttachment(test)) &&
       (!proof.requiresMedicationSafetyFrontdeskAttachment ||
         hasRequiredMedicationSafetyFrontdeskAttachment(test)) &&
+      (!proof.requiresDiagnosticCriticalValueFrontdeskAttachment ||
+        hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -811,6 +845,86 @@ function hasRequiredMedicationSafetyFrontdeskAttachment(test: BrowserE2eTestResu
     return requiredMedicationSafetyFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredMedicationSafetyFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnostic-critical-value-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      inboundObservation?: unknown;
+      inboundDiagnosticReport?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      interpretation?: unknown;
+      recommendation?: unknown;
+      workflowTodo?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseDiagnosticCriticalValueRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredDiagnosticCriticalValueFrontdeskScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
+      !arrayEquals(parsed.versionedAssets, ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]) ||
+      !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"]) ||
+      !hasText(parsed.scopeStatement) ||
+      !String(parsed.scopeStatement).includes("代表切片") ||
+      !String(parsed.scopeStatement).includes("不代表完整") ||
+      !hasCompleteDiagnosticCriticalValueApiEvidence(parsed.apiEvidence) ||
+      !runtime ||
+      !hasCompleteDiagnosticCriticalValueActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompleteDiagnosticCriticalValueInboundObservation(
+        parsed.inboundObservation,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteDiagnosticCriticalValueInboundReport(
+        parsed.inboundDiagnosticReport,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteDiagnosticCriticalValueClinicalContext(
+        parsed.clinicalContext,
+        runtime.releaseId,
+        parsed.inboundObservation,
+        parsed.inboundDiagnosticReport,
+      ) ||
+      !hasCompleteDiagnosticCriticalValueInterpretation(parsed.interpretation, runtime) ||
+      !hasCompleteDiagnosticCriticalValueRecommendation(parsed.recommendation, runtime) ||
+      !hasCompleteDiagnosticCriticalValueWorkflowTodo(parsed.workflowTodo, parsed.recommendation) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredDiagnosticCriticalValueFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredDiagnosticCriticalValueFrontdeskScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -1974,6 +2088,350 @@ function hasCompleteMedicationSafetyFeedbackEvidence(value: unknown) {
   );
 }
 
+type DiagnosticCriticalValueRuntimeAsset = {
+  assetType: "KNOWLEDGE" | "FIELD_CATALOG" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+  sourceLayer: "PLATFORM" | "GROUP" | "HOSPITAL";
+};
+
+function hasCompleteDiagnosticCriticalValueApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "fhirObservationAccepted",
+    "fhirDiagnosticReportAccepted",
+    "contextSnapshotContainsInboundResources",
+    "currentRuntimeContainsDiagnosticAssets",
+    "reportInterpretationTriggeredFromFrontdesk",
+    "criticalRecommendationPersisted",
+    "workflowTodoCompletedByHuman",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function parseDiagnosticCriticalValueRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    !hasText(runtime.platformBaselineReleaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const knowledgeAsset = parseDiagnosticCriticalValueRuntimeAsset(
+    runtime.knowledgeAsset,
+    "KNOWLEDGE",
+    "PLATFORM",
+  );
+  const fieldCatalogAsset = parseDiagnosticCriticalValueRuntimeAsset(
+    runtime.fieldCatalogAsset,
+    "FIELD_CATALOG",
+    "PLATFORM",
+  );
+  const actionCardAsset = parseDiagnosticCriticalValueRuntimeAsset(
+    runtime.actionCardAsset,
+    "ACTION_CARD",
+    "HOSPITAL",
+  );
+  if (!knowledgeAsset || !fieldCatalogAsset || !actionCardAsset) return null;
+  const runtimeAssets = runtime.assets;
+  if (
+    ![knowledgeAsset, fieldCatalogAsset, actionCardAsset].every((asset) =>
+      runtimeAssets.some((item) =>
+        diagnosticCriticalValueRuntimeAssetMatches(item, asset, { requireActive: true }),
+      ),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    platformBaselineReleaseId: String(runtime.platformBaselineReleaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    knowledgeAsset,
+    fieldCatalogAsset,
+    actionCardAsset,
+  };
+}
+
+function parseDiagnosticCriticalValueRuntimeAsset(
+  value: unknown,
+  assetType: DiagnosticCriticalValueRuntimeAsset["assetType"],
+  sourceLayer: DiagnosticCriticalValueRuntimeAsset["sourceLayer"],
+): DiagnosticCriticalValueRuntimeAsset | null {
+  const asset = recordValue(value);
+  if (
+    !asset ||
+    asset.assetType !== assetType ||
+    !hasText(asset.assetIdentity) ||
+    !hasText(asset.versionId) ||
+    !hasText(asset.versionNo) ||
+    !isSha256(asset.contentHash) ||
+    asset.entryState !== "ACTIVE" ||
+    asset.sourceLayer !== sourceLayer
+  ) {
+    return null;
+  }
+  return {
+    assetType,
+    assetIdentity: String(asset.assetIdentity),
+    versionId: String(asset.versionId),
+    versionNo: String(asset.versionNo),
+    contentHash: String(asset.contentHash),
+    sourceLayer,
+  };
+}
+
+function diagnosticCriticalValueRuntimeAssetMatches(
+  value: unknown,
+  asset: DiagnosticCriticalValueRuntimeAsset,
+  options: { requireActive?: boolean } = {},
+) {
+  const candidate = recordValue(value);
+  return (
+    candidate?.assetType === asset.assetType &&
+    candidate.assetIdentity === asset.assetIdentity &&
+    candidate.versionId === asset.versionId &&
+    candidate.versionNo === asset.versionNo &&
+    candidate.contentHash === asset.contentHash &&
+    (!options.requireActive || candidate.entryState === "ACTIVE")
+  );
+}
+
+function hasCompleteDiagnosticCriticalValueActivationRequest(
+  value: unknown,
+  runtime: {
+    platformBaselineReleaseId: string;
+    knowledgeAsset: DiagnosticCriticalValueRuntimeAsset;
+    fieldCatalogAsset: DiagnosticCriticalValueRuntimeAsset;
+    actionCardAsset: DiagnosticCriticalValueRuntimeAsset;
+  },
+) {
+  const request = recordValue(value);
+  return Boolean(
+    request?.platformBaselineReleaseId === runtime.platformBaselineReleaseId &&
+      [runtime.knowledgeAsset, runtime.fieldCatalogAsset].every((asset) =>
+        runtimeReleasePayloadContainsPlatformSelection(value, "activeAssets", asset),
+      ) &&
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: runtime.actionCardAsset.assetType,
+        assetIdentity: runtime.actionCardAsset.assetIdentity,
+        versionId: runtime.actionCardAsset.versionId,
+      }),
+  );
+}
+
+function hasCompleteDiagnosticCriticalValueInboundObservation(value: unknown, runtimeReleaseId: string) {
+  const observation = recordValue(value);
+  return (
+    observation?.fhirResourceType === "Observation" &&
+    observation.canonicalResourceType === "OBSERVATION" &&
+    hasText(observation.fhirId) &&
+    hasText(observation.snapshotId) &&
+    observation.runtimeReleaseId === runtimeReleaseId &&
+    hasText(observation.patientId) &&
+    observation.sourceSystem === "FHIR_R4" &&
+    hasText(observation.code) &&
+    typeof observation.valueNumeric === "number" &&
+    hasText(observation.unit) &&
+    hasText(observation.criticalFlag) &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(observation.integrationStatus)) &&
+    hasDiagnosticCriticalValueNotConnectedEvidence(observation) &&
+    observation.compensationStatus === "NOT_CONNECTED" &&
+    hasText(observation.compensationMessageId)
+  );
+}
+
+function hasCompleteDiagnosticCriticalValueInboundReport(value: unknown, runtimeReleaseId?: string) {
+  const report = recordValue(value);
+  return (
+    report?.fhirResourceType === "DiagnosticReport" &&
+    report.canonicalResourceType === "DIAGNOSTIC_REPORT" &&
+    hasText(report.fhirId) &&
+    hasText(report.snapshotId) &&
+    (!runtimeReleaseId || report.runtimeReleaseId === runtimeReleaseId) &&
+    hasText(report.patientId) &&
+    report.sourceSystem === "FHIR_R4" &&
+    hasText(report.reportType) &&
+    hasText(report.conclusion) &&
+    String(report.conclusion).includes("危急") &&
+    report.signedStatus === "FINAL" &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(report.integrationStatus)) &&
+    hasDiagnosticCriticalValueNotConnectedEvidence(report) &&
+    report.compensationStatus === "NOT_CONNECTED" &&
+    hasText(report.compensationMessageId)
+  );
+}
+
+function hasDiagnosticCriticalValueNotConnectedEvidence(value: Record<string, unknown>) {
+  return (
+    value.operationOutcomeContainsNotConnected === true ||
+    value.compensationStatus === "NOT_CONNECTED"
+  );
+}
+
+function hasCompleteDiagnosticCriticalValueClinicalContext(
+  value: unknown,
+  runtimeReleaseId: string,
+  observationValue: unknown,
+  reportValue: unknown,
+) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const observation = recordValue(observationValue);
+  const report = recordValue(reportValue);
+  const observations = Array.isArray(resources?.observations) ? resources.observations : [];
+  const reports = Array.isArray(resources?.diagnosticReports) ? resources.diagnosticReports : [];
+  return (
+    hasText(context?.patientId) &&
+    hasText(context?.contextSnapshotId) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    context.contextSnapshotId === observation?.snapshotId &&
+    context.contextSnapshotId === report?.snapshotId &&
+    context.patientId === observation?.patientId &&
+    context.patientId === report?.patientId &&
+    observations.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        row.observationId === observation?.fhirId &&
+        row.code === observation?.code &&
+        hasText(row.criticalFlag) &&
+        row.sourceSystem === "FHIR_R4"
+      );
+    }) &&
+    reports.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        row.reportId === report?.fhirId &&
+        row.reportType === report?.reportType &&
+        hasText(row.conclusion) &&
+        String(row.conclusion).includes("危急") &&
+        row.sourceSystem === "FHIR_R4"
+      );
+    })
+  );
+}
+
+function hasCompleteDiagnosticCriticalValueInterpretation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    knowledgeAsset: DiagnosticCriticalValueRuntimeAsset;
+  },
+) {
+  const interpretation = recordValue(value);
+  const items = Array.isArray(interpretation?.interpretations)
+    ? interpretation.interpretations
+    : [];
+  return (
+    interpretation?.runtimeReleaseId === runtime.releaseId &&
+    hasText(interpretation?.contextSnapshotId) &&
+    hasText(interpretation?.advisoryNote) &&
+    String(interpretation.advisoryNote).includes("不改写已签发报告") &&
+    items.some((item) => {
+      const row = recordValue(item);
+      const recommendations = Array.isArray(row?.recommendations) ? row.recommendations : [];
+      return (
+        hasText(row?.reportId) &&
+        row?.itemCode === runtime.knowledgeAsset.assetIdentity &&
+        typeof row.sourceVersionId === "number" &&
+        row.versionNo === runtime.knowledgeAsset.versionNo &&
+        row.criticalRisk === true &&
+        recommendations.some((text) => typeof text === "string" && text.includes("不自动"))
+      );
+    })
+  );
+}
+
+function hasCompleteDiagnosticCriticalValueRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    knowledgeAsset: DiagnosticCriticalValueRuntimeAsset;
+    fieldCatalogAsset: DiagnosticCriticalValueRuntimeAsset;
+    actionCardAsset: DiagnosticCriticalValueRuntimeAsset;
+  },
+) {
+  const recommendation = recordValue(value);
+  const explanation = recordValue(recommendation?.explanation);
+  const runtimeAssetEvidence = Array.isArray(explanation?.runtimeAssetEvidence)
+    ? explanation.runtimeAssetEvidence
+    : [];
+  return (
+    hasText(recommendation?.cardId) &&
+    recommendation?.cardStatus === "PENDING" &&
+    recommendation.triggerRuntimeReleaseId === runtime.releaseId &&
+    recommendation.cardType === "LAB" &&
+    recommendation.requiresPhysicianConfirmation === true &&
+    recommendation.aiGenerated === false &&
+    explanation?.runtimeReleaseId === runtime.releaseId &&
+    explanation.itemCode === runtime.knowledgeAsset.assetIdentity &&
+    explanation.sourceContentHash === runtime.knowledgeAsset.contentHash &&
+    explanation.criticalRisk === true &&
+    diagnosticCriticalValueRuntimeAssetEvidenceMatches(
+      runtimeAssetEvidence,
+      runtime.fieldCatalogAsset,
+    ) &&
+    diagnosticCriticalValueRuntimeAssetEvidenceMatches(
+      runtimeAssetEvidence,
+      runtime.actionCardAsset,
+    )
+  );
+}
+
+function diagnosticCriticalValueRuntimeAssetEvidenceMatches(
+  values: unknown[],
+  asset: DiagnosticCriticalValueRuntimeAsset,
+) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    if (
+      evidence?.assetType !== asset.assetType ||
+      evidence.assetIdentity !== asset.assetIdentity ||
+      evidence.assetVersion !== asset.versionNo ||
+      evidence.contentHash !== asset.contentHash
+    ) {
+      return false;
+    }
+    if (asset.assetType === "FIELD_CATALOG") {
+      const fields = Array.isArray(evidence.fields) ? evidence.fields : [];
+      return (
+        fields.includes("observations[].criticalFlag") &&
+        fields.includes("diagnosticReports[].conclusion")
+      );
+    }
+    if (asset.assetType === "ACTION_CARD") {
+      return evidence.requiresPhysicianConfirmation === true;
+    }
+    return true;
+  });
+}
+
+function hasCompleteDiagnosticCriticalValueWorkflowTodo(value: unknown, recommendationValue: unknown) {
+  const todo = recordValue(value);
+  const recommendation = recordValue(recommendationValue);
+  return (
+    hasText(todo?.todoId) &&
+    todo?.status === "COMPLETED" &&
+    todo.category === "REPORT_INTERPRETATION" &&
+    recommendation !== null &&
+    hasText(recommendation.cardId) &&
+    todo.sourceId === recommendation.cardId &&
+    hasText(todo.completedBy) &&
+    hasText(todo.completionReason) &&
+    String(todo.completionReason).includes("不改写") &&
+    todo.noAutoOrder === true
+  );
+}
+
 function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
@@ -2481,6 +2939,21 @@ function runtimeReleasePayloadContainsCandidate(
   const assets = (value as Record<string, unknown>)[assetField];
   if (!Array.isArray(assets)) return false;
   return assets.some((item) => runtimeReleaseAssetMatchesCandidate(item, candidate, options));
+}
+
+function runtimeReleasePayloadContainsPlatformSelection(
+  value: unknown,
+  assetField: "activeAssets" | "assets",
+  candidate: { assetType: string; assetIdentity: string },
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const assets = (value as Record<string, unknown>)[assetField];
+  if (!Array.isArray(assets)) return false;
+  return assets.some((item) => {
+    if (!runtimeReleaseAssetMatchesIdentity(item, candidate)) return false;
+    const asset = item as Record<string, unknown>;
+    return asset.versionId == null || asset.versionId === "";
+  });
 }
 
 function runtimeReleasePayloadContainsIdentity(

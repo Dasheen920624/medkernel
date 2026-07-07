@@ -177,6 +177,62 @@ class FhirR4CanonicalMapperTest {
     }
 
     @Test
+    void mapsR4ObservationCriticalInterpretationToCanonicalCriticalFlagWithoutThresholds() throws Exception {
+        JsonNode observation = json.readTree("""
+            {
+              "resourceType": "Observation",
+              "id": "obs-critical-k",
+              "status": "final",
+              "code": {
+                "coding": [
+                  {
+                    "system": "urn:local:lis",
+                    "code": "K",
+                    "display": "血钾"
+                  }
+                ],
+                "text": "血钾"
+              },
+              "interpretation": [
+                {
+                  "coding": [
+                    {
+                      "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                      "code": "HH",
+                      "display": "Critical high"
+                    }
+                  ],
+                  "text": "危急值"
+                }
+              ],
+              "effectiveDateTime": "2026-06-03T00:00:00Z",
+              "valueQuantity": {
+                "value": 6.3,
+                "unit": "mmol/L",
+                "system": "http://unitsofmeasure.org",
+                "code": "mmol/L"
+              }
+            }
+            """);
+
+        CanonicalResourceMappingResult result = mapper.fromR4(new FhirCanonicalMappingRequest(
+            "tenant-A",
+            "runtime-release-1",
+            "snapshot-fhir-critical",
+            5,
+            "trace-fhir-critical",
+            Instant.parse("2026-06-03T00:00:10Z"),
+            observation));
+
+        JsonNode payload = json.readTree(result.resource().resourcePayloadJson());
+        assertThat(payload.path("observationId").asText()).isEqualTo("obs-critical-k");
+        assertThat(payload.path("criticalFlag").asText()).isEqualTo("HH");
+        assertThat(payload.path("valueNumeric").decimalValue()).isEqualByComparingTo("6.3");
+        assertThat(payload.path("unit").asText()).isEqualTo("mmol/L");
+        assertThat(payload.path("qualityStatus").asText()).isEqualTo("PARTIAL");
+    }
+
+    @Test
     void mapsR4AllergyIntoleranceToCanonicalResourceAndPreservesDrugTerminologyWarning() throws Exception {
         JsonNode allergy = json.readTree("""
             {
