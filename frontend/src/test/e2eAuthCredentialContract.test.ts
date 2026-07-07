@@ -415,6 +415,28 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain("page.waitForTimeout");
   });
 
+  it("requires S21/S32 frontdesk rehearsal to choose the actual result-review option label", () => {
+    const source = readFileSync(
+      "e2e/infection-public-health-safety-frontdesk.spec.ts",
+      "utf8",
+    );
+    const triggerOptions = readFileSync("src/shared/config/clinicalTriggerPoints.ts", "utf8");
+
+    expect(triggerOptions).toContain('{ value: "result-review", label: "审核结果" }');
+    expect(source).toContain('await chooseDialogOption(page, dialog, "触发时点", "审核结果")');
+    expect(source).toContain('payload.triggerType === "result-review"');
+    expect(source).toContain("localRehearsalQualityDepartmentId");
+    expect(source).toContain(
+      'const departmentId = await localRehearsalQualityDepartmentId(page, options.suffix);\n  await ensureReadySession(page, "engine-operator");',
+    );
+    expect(source).toContain(
+      'await ensureReadySession(page, "platform-admin");\n  const created = await postApi(page, "/engine/org/org-units", {',
+    );
+    expect(source).not.toContain('...apiContext(suffix, "evaluation-indicator-create")');
+    expect(source).not.toContain("...apiContext(suffix, `evaluation-indicator-${action}`)");
+    expect(source).not.toContain('await chooseDialogOption(page, dialog, "触发时点", "检验结果复核")');
+  });
+
   it("requires S2/S4 signature preview to choose and submit the current webhook channel", () => {
     const source = readFileSync(
       "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",

@@ -61,6 +61,7 @@ type CoverageProof = {
   requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
   requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
+  requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -189,6 +190,22 @@ const pharmacyReviewAntimicrobialFrontdeskClaims = [
   "serviceCombinations:QUALITY_IMPROVEMENT",
 ];
 
+const infectionPublicHealthSafetyFrontdeskClaims = [
+  "scenarios:S21",
+  "scenarios:S32",
+  "productLayers:CLINICAL_EXECUTION",
+  "productLayers:DATA_INTEROPERABILITY",
+  "productLayers:QUALITY_IMPROVEMENT",
+  "versionedAssets:TERMINOLOGY",
+  "versionedAssets:RULE",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:PROFESSIONAL_COLLABORATION",
+  "serviceCombinations:QUALITY_IMPROVEMENT",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -249,6 +266,7 @@ const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
 const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
 const requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes = ["S18", "S31"];
+const requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes = ["S21", "S32"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -335,6 +353,25 @@ const requiredPharmacyReviewAntimicrobialFrontdeskScenarioEvidence: Record<strin
     "PHARMACY_REVIEW 签名回传审方结果并生成标准临床事件",
     "药事治理问题形成整改任务",
     "固定四职责账号提交并复核关闭本轮整改任务",
+  ],
+};
+
+const requiredInfectionPublicHealthSafetyFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S21: [
+    "平台管理员访问真实前台并经真实服务创建 PUBLIC_HEALTH_INFECTION_REGULATORY 适配器、回调通道和签名预览",
+    "运营员发布院感公卫术语、上报预填规则和动作卡资产",
+    "当前机构生效版本包含院感公卫三类运行资产",
+    "临床用户从患者 360 建立脱敏患者，签名入站事件生成感染诊断、检验结果和上报预填上下文",
+    "系统向 PUBLIC_HEALTH_INFECTION_REGULATORY 发出上报预填回传并诚实断连降级",
+    "PUBLIC_HEALTH_INFECTION_REGULATORY 签名回传感染监测结果并生成标准临床事件",
+    "临床用户从真实前台触发 result-review 推荐评估",
+    "推荐卡证明上报预填规则和动作卡按当前机构生效版本消费",
+    "临床用户人工确认上报预填，系统不替代法定上报",
+  ],
+  S32: [
+    "入站安全事件保留风险、原因和整改要求扩展证据",
+    "医疗安全事件形成整改任务",
+    "固定四职责账号提交并复核关闭本轮安全事件整改任务",
   ],
 };
 
@@ -565,6 +602,12 @@ const coverageProofs: CoverageProof[] = [
     requiresPharmacyReviewAntimicrobialFrontdeskAttachment: true,
   },
   {
+    file: "infection-public-health-safety-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成院感公卫上报预填和医疗安全事件整改代表闭环",
+    claims: infectionPublicHealthSafetyFrontdeskClaims,
+    requiresInfectionPublicHealthSafetyFrontdeskAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -680,6 +723,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredNursingContinuityFrontdeskAttachment(test)) &&
       (!proof.requiresPharmacyReviewAntimicrobialFrontdeskAttachment ||
         hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test)) &&
+      (!proof.requiresInfectionPublicHealthSafetyFrontdeskAttachment ||
+        hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -1214,6 +1259,131 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
     return requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredPharmacyReviewAntimicrobialFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "infection-public-health-safety-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      adapter?: unknown;
+      webhookSignature?: unknown;
+      terminologyGate?: unknown;
+      actionCard?: unknown;
+      ruleAsset?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      outboundPrefill?: unknown;
+      inboundReport?: unknown;
+      clinicalTrigger?: unknown;
+      recommendation?: unknown;
+      manualReview?: unknown;
+      qualityRectification?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseInfectionPublicHealthRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(
+        parsed.scenarioCodes,
+        requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes,
+      ) ||
+      !arrayEquals(parsed.productLayers, [
+        "CLINICAL_EXECUTION",
+        "DATA_INTEROPERABILITY",
+        "QUALITY_IMPROVEMENT",
+      ]) ||
+      !arrayEquals(parsed.versionedAssets, ["TERMINOLOGY", "RULE", "ACTION_CARD"]) ||
+      !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "THIRD_PARTY_INTERFACE",
+        "CLINICAL_RUNTIME",
+        "PROFESSIONAL_COLLABORATION",
+        "QUALITY_IMPROVEMENT",
+      ]) ||
+      !hasText(parsed.scopeStatement) ||
+      !hasInfectionPublicHealthSafetyScopeBoundary(parsed.scopeStatement) ||
+      !hasCompleteInfectionPublicHealthApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteInfectionPublicHealthAdapterEvidence(parsed.adapter) ||
+      !hasCompleteInfectionPublicHealthWebhookEvidence(
+        parsed.webhookSignature,
+        parsed.adapter,
+      ) ||
+      !runtime ||
+      !infectionPublicHealthRuntimeAssetMatches(
+        parsed.terminologyGate,
+        runtime.terminologyAsset,
+      ) ||
+      !infectionPublicHealthRuntimeAssetMatches(parsed.ruleAsset, runtime.ruleAsset) ||
+      !infectionPublicHealthRuntimeAssetMatches(parsed.actionCard, runtime.actionCardAsset) ||
+      !hasCompleteInfectionPublicHealthTerminologyGate(parsed.terminologyGate) ||
+      !hasCompleteInfectionPublicHealthActionCard(parsed.actionCard) ||
+      !hasCompleteInfectionPublicHealthRuleAsset(parsed.ruleAsset) ||
+      !hasCompleteInfectionPublicHealthActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompleteInfectionPublicHealthClinicalContext(
+        parsed.clinicalContext,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteInfectionPublicHealthOutbound(
+        parsed.outboundPrefill,
+        parsed.adapter,
+        parsed.clinicalContext,
+      ) ||
+      !hasCompleteInfectionPublicHealthInbound(
+        parsed.inboundReport,
+        parsed.adapter,
+        parsed.webhookSignature,
+        parsed.outboundPrefill,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteInfectionPublicHealthTrigger(parsed.clinicalTrigger, runtime.releaseId) ||
+      !hasCompleteInfectionPublicHealthRecommendation(
+        parsed.recommendation,
+        runtime,
+        parsed.clinicalTrigger,
+        parsed.ruleAsset,
+      ) ||
+      !hasCompleteInfectionPublicHealthManualReview(
+        parsed.manualReview,
+        runtime.actionCardAsset,
+      ) ||
+      !hasCompleteInfectionPublicHealthRectification(
+        parsed.qualityRectification,
+        parsed.recommendation,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const stages = Array.isArray(row?.observedStages) ? row.observedStages : [];
+      if (!code) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredInfectionPublicHealthSafetyFrontdeskScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -3696,6 +3866,533 @@ function hasCompletePharmacyReviewRectification(value: unknown, recommendationVa
     rectification.roleEvidence === "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW" &&
     hasText(rectification.submittedEvidenceRef) &&
     rectification.reviewDecision === "APPROVED"
+  );
+}
+
+type InfectionPublicHealthRuntimeAsset = {
+  assetType: "TERMINOLOGY" | "RULE" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+function hasCompleteInfectionPublicHealthApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "publicHealthAdapterCreatedThroughRealService",
+    "publicHealthWebhookCreatedThroughRealService",
+    "webhookSignaturePreviewGenerated",
+    "infectionTerminologyActivated",
+    "publicHealthActionCardPublished",
+    "publicHealthRuleCreated",
+    "runtimeActivatedWithPublicHealthAssets",
+    "contextSnapshotCreatedFromFrontdesk",
+    "prefillOutboundRequested",
+    "inboundPublicHealthReportAccepted",
+    "clinicalEvaluationTriggeredFromFrontdesk",
+    "humanReportReviewRecorded",
+    "safetyRectificationSubmittedAndReviewed",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function parseInfectionPublicHealthRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const terminologyAsset = parseInfectionPublicHealthRuntimeAsset(
+    runtime.terminologyAsset,
+    "TERMINOLOGY",
+  );
+  const ruleAsset = parseInfectionPublicHealthRuntimeAsset(runtime.ruleAsset, "RULE");
+  const actionCardAsset = parseInfectionPublicHealthRuntimeAsset(
+    runtime.actionCardAsset,
+    "ACTION_CARD",
+  );
+  const runtimeAssets = runtime.assets;
+  const assets = [terminologyAsset, ruleAsset, actionCardAsset];
+  if (
+    assets.some((asset) => asset === null) ||
+    !assets.every((asset) =>
+      runtimeAssets.some((item) =>
+        infectionPublicHealthRuntimeAssetMatches(item, asset as InfectionPublicHealthRuntimeAsset, {
+          requireActive: true,
+        }),
+      ),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    terminologyAsset: terminologyAsset as InfectionPublicHealthRuntimeAsset,
+    ruleAsset: ruleAsset as InfectionPublicHealthRuntimeAsset,
+    actionCardAsset: actionCardAsset as InfectionPublicHealthRuntimeAsset,
+  };
+}
+
+function parseInfectionPublicHealthRuntimeAsset(
+  value: unknown,
+  assetType: InfectionPublicHealthRuntimeAsset["assetType"],
+): InfectionPublicHealthRuntimeAsset | null {
+  const asset = recordValue(value);
+  if (
+    !asset ||
+    asset.assetType !== assetType ||
+    !hasText(asset.assetIdentity) ||
+    !hasText(asset.versionId) ||
+    !hasText(asset.versionNo) ||
+    !isSha256(asset.contentHash) ||
+    asset.entryState !== "ACTIVE"
+  ) {
+    return null;
+  }
+  return {
+    assetType,
+    assetIdentity: String(asset.assetIdentity),
+    versionId: String(asset.versionId),
+    versionNo: String(asset.versionNo),
+    contentHash: String(asset.contentHash),
+  };
+}
+
+function infectionPublicHealthRuntimeAssetMatches(
+  value: unknown,
+  asset: InfectionPublicHealthRuntimeAsset,
+  options: { requireActive?: boolean } = {},
+) {
+  const candidate = recordValue(value);
+  return (
+    candidate?.assetType === asset.assetType &&
+    candidate.assetIdentity === asset.assetIdentity &&
+    candidate.versionId === asset.versionId &&
+    candidate.versionNo === asset.versionNo &&
+    candidate.contentHash === asset.contentHash &&
+    (!options.requireActive || candidate.entryState === "ACTIVE")
+  );
+}
+
+function hasCompleteInfectionPublicHealthAdapterEvidence(value: unknown) {
+  const adapter = recordValue(value);
+  const mappings = Array.isArray(adapter?.fieldMappings) ? adapter.fieldMappings : [];
+  return (
+    hasText(adapter?.adapterId) &&
+    adapter?.systemFamilyCode === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    adapter.sourceSystem === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    adapter.targetSystem === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    adapter.protocolType === "Webhook" &&
+    infectionPublicHealthMappingTargets(mappings, "/conditions/0", "ICD-10") &&
+    infectionPublicHealthMappingTargets(mappings, "/observations/0/code") &&
+    infectionPublicHealthMappingTargets(mappings, "/observations/0/valueString") &&
+    infectionPublicHealthMappingTargets(mappings, "/documents/0/documentType") &&
+    infectionPublicHealthMappingTargets(mappings, "/documents/0/contentDigest") &&
+    infectionPublicHealthMappingTargets(mappings, "/publicHealthReport/reportType") &&
+    infectionPublicHealthMappingTargets(mappings, "/publicHealthReport/manualSubmitRequired") &&
+    infectionPublicHealthMappingTargets(mappings, "/publicHealthReport/legalSubmissionDelegated") &&
+    infectionPublicHealthMappingTargets(mappings, "/safetyEvent/eventType") &&
+    infectionPublicHealthMappingTargets(mappings, "/safetyEvent/riskLevel") &&
+    infectionPublicHealthMappingTargets(mappings, "/safetyEvent/rectificationRequired")
+  );
+}
+
+function infectionPublicHealthMappingTargets(
+  mappings: unknown[],
+  targetPath: string,
+  targetDictionaryKey?: string,
+) {
+  return mappings.some((item) => {
+    const mapping = recordValue(item);
+    return (
+      mapping?.targetPath === targetPath &&
+      (!targetDictionaryKey || mapping.targetDictionaryKey === targetDictionaryKey)
+    );
+  });
+}
+
+function hasCompleteInfectionPublicHealthWebhookEvidence(
+  webhookValue: unknown,
+  adapterValue: unknown,
+) {
+  const webhook = recordValue(webhookValue);
+  const adapter = recordValue(adapterValue);
+  return (
+    webhook !== null &&
+    hasText(webhook.webhookId) &&
+    webhook.adapterId === adapter?.adapterId &&
+    webhook.signatureAlgorithm === "HMAC-SHA256" &&
+    webhook.canonicalPayloadIncludesTraceId === true &&
+    webhook.previewGenerated === true
+  );
+}
+
+function hasCompleteInfectionPublicHealthTerminologyGate(value: unknown) {
+  const terminology = recordValue(value);
+  return (
+    terminology?.assetType === "TERMINOLOGY" &&
+    hasText(terminology.assetIdentity) &&
+    hasText(terminology.versionId) &&
+    hasText(terminology.versionNo) &&
+    isSha256(terminology.contentHash) &&
+    terminology.standardSystem === "ICD-10" &&
+    terminology.standardCode === "U07.100" &&
+    terminology.localCode === "PH-COVID-19" &&
+    terminology.sourceSystem === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    terminology.category === "DIAGNOSIS" &&
+    typeof terminology.mappingId === "number" &&
+    terminology.mappingId > 0
+  );
+}
+
+function hasCompleteInfectionPublicHealthActionCard(value: unknown) {
+  const actionCard = recordValue(value);
+  return (
+    actionCard?.assetType === "ACTION_CARD" &&
+    hasText(actionCard.assetIdentity) &&
+    String(actionCard.assetIdentity).startsWith("ACTION_CARD.PUBLIC_HEALTH.INFECTION.") &&
+    actionCard.requiresHumanReportReview === true &&
+    actionCard.noLegalAutoSubmit === true
+  );
+}
+
+function hasCompleteInfectionPublicHealthRuleAsset(value: unknown) {
+  const rule = recordValue(value);
+  return (
+    rule?.assetType === "RULE" &&
+    hasText(rule.assetIdentity) &&
+    String(rule.assetIdentity).startsWith("RULE.PUBLIC_HEALTH.INFECTION.") &&
+    hasText(rule.ruleId) &&
+    hasText(rule.ruleVersionId)
+  );
+}
+
+function hasCompleteInfectionPublicHealthActivationRequest(
+  value: unknown,
+  runtime: {
+    terminologyAsset: InfectionPublicHealthRuntimeAsset;
+    ruleAsset: InfectionPublicHealthRuntimeAsset;
+    actionCardAsset: InfectionPublicHealthRuntimeAsset;
+  },
+) {
+  return [runtime.terminologyAsset, runtime.ruleAsset, runtime.actionCardAsset].every((asset) =>
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: asset.versionId,
+    }),
+  );
+}
+
+function hasCompleteInfectionPublicHealthClinicalContext(value: unknown, runtimeReleaseId: string) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const conditions = Array.isArray(resources?.conditions) ? resources.conditions : [];
+  const observations = Array.isArray(resources?.observations) ? resources.observations : [];
+  const documents = Array.isArray(resources?.documents) ? resources.documents : [];
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const publicHealthReport = recordValue(local?.publicHealthReport);
+  const safetyEvent = recordValue(local?.safetyEvent);
+  return (
+    hasText(context?.patientId) &&
+    hasText(context?.encounterId) &&
+    hasText(context?.contextSnapshotId) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    conditions.some((item) => {
+      const condition = recordValue(item);
+      return condition?.code === "U07.100" && condition.codeSystem === "ICD-10";
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "NAT_RESULT" && observation.valueString === "POSITIVE";
+    }) &&
+    documents.some((item) => {
+      const document = recordValue(item);
+      return (
+        document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" &&
+        hasText(document.contentDigest)
+      );
+    }) &&
+    publicHealthReport?.manualSubmitRequired === true &&
+    publicHealthReport.legalSubmissionDelegated === false &&
+    publicHealthReport.prefillStatus === "READY_FOR_HUMAN_REVIEW" &&
+    safetyEvent?.eventType === "OCCUPATIONAL_EXPOSURE" &&
+    hasText(safetyEvent.riskLevel) &&
+    hasText(safetyEvent.rootCause) &&
+    safetyEvent.rectificationRequired === true &&
+    safetyEvent.reviewRequired === true
+  );
+}
+
+function hasCompleteInfectionPublicHealthOutbound(
+  value: unknown,
+  adapterValue: unknown,
+  contextValue: unknown,
+) {
+  const outbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const context = recordValue(contextValue);
+  const payload = recordValue(outbound?.payload);
+  return (
+    outbound !== null &&
+    payload !== null &&
+    hasText(outbound.messageId) &&
+    hasText(outbound.traceId) &&
+    outbound.adapterId === adapter?.adapterId &&
+    outbound.targetSystem === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    outbound.protocolType === "Webhook" &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(outbound.status)) &&
+    outbound.compensationStatus === "NOT_CONNECTED" &&
+    hasText(outbound.compensationMessageId) &&
+    outbound.blocksMainFlow === false &&
+    outbound.compensationRequired === true &&
+    payload.patientId === context?.patientId &&
+    payload.contextSnapshotId === context?.contextSnapshotId &&
+    payload.reportType === "INFECTIOUS_DISEASE_PREFILL" &&
+    payload.manualSubmitRequired === true &&
+    payload.legalSubmissionDelegated === false
+  );
+}
+
+function hasCompleteInfectionPublicHealthInbound(
+  value: unknown,
+  adapterValue: unknown,
+  webhookValue: unknown,
+  outboundValue: unknown,
+  runtimeReleaseId: string,
+) {
+  const inbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const webhook = recordValue(webhookValue);
+  const outbound = recordValue(outboundValue);
+  const outboundPayload = recordValue(outbound?.payload);
+  const mappedPayload = recordValue(inbound?.mappedPayload);
+  const signedPayload = recordValue(inbound?.signedPayload);
+  const publicHealthReport = recordValue(mappedPayload?.publicHealthReport);
+  const safetyEvent = recordValue(mappedPayload?.safetyEvent);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  const conditions = Array.isArray(mappedPayload?.conditions) ? mappedPayload.conditions : [];
+  const observations = Array.isArray(mappedPayload?.observations) ? mappedPayload.observations : [];
+  const documents = Array.isArray(mappedPayload?.documents) ? mappedPayload.documents : [];
+  return (
+    inbound !== null &&
+    mappedPayload !== null &&
+    hasText(inbound.messageId) &&
+    inbound.traceId === outbound?.traceId &&
+    inbound.adapterId === adapter?.adapterId &&
+    inbound.webhookId === webhook?.webhookId &&
+    inbound.patientId === outboundPayload?.patientId &&
+    inbound.contextSnapshotId === outboundPayload?.contextSnapshotId &&
+    inbound.sourceSystem === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    inbound.status === "SUCCESS" &&
+    inbound.clinicalEventStatus === "RECEIVED" &&
+    hasProcessedInfectionPublicHealthClinicalEvent(clinicalEvent, runtimeReleaseId) &&
+    typeof inbound.mappedFieldCount === "number" &&
+    inbound.mappedFieldCount >= 12 &&
+    signedPayload?.infectionCode === "PH-COVID-19" &&
+    signedPayload.labCode === "NAT_RESULT" &&
+    signedPayload.labResult === "POSITIVE" &&
+    publicHealthReport?.manualSubmitRequired === true &&
+    publicHealthReport.legalSubmissionDelegated === false &&
+    publicHealthReport.prefillStatus === "READY_FOR_HUMAN_REVIEW" &&
+    safetyEvent?.eventType === "OCCUPATIONAL_EXPOSURE" &&
+    safetyEvent.rectificationRequired === true &&
+    safetyEvent.reviewRequired === true &&
+    conditions.some((item) => {
+      const condition = recordValue(item);
+      return (
+        condition?.standardCode === "U07.100" &&
+        condition.codeSystem === "ICD-10" &&
+        condition.sourceSystem === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+        condition.runtimeReleaseId === runtimeReleaseId
+      );
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "NAT_RESULT" && observation.valueString === "POSITIVE";
+    }) &&
+    documents.some((item) => {
+      const document = recordValue(item);
+      return (
+        document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" &&
+        hasText(document.contentDigest)
+      );
+    })
+  );
+}
+
+function hasProcessedInfectionPublicHealthClinicalEvent(
+  clinicalEvent: Record<string, unknown> | null,
+  runtimeReleaseId: string,
+) {
+  return (
+    clinicalEvent !== null &&
+    hasText(clinicalEvent.eventId) &&
+    clinicalEvent.status === "PROCESSED" &&
+    clinicalEvent.runtimeReleaseId === runtimeReleaseId &&
+    (clinicalEvent.errorCode === null || clinicalEvent.errorCode === undefined) &&
+    (clinicalEvent.errorClass === null || clinicalEvent.errorClass === undefined)
+  );
+}
+
+function hasCompleteInfectionPublicHealthTrigger(value: unknown, runtimeReleaseId: string) {
+  const trigger = recordValue(value);
+  return (
+    trigger !== null &&
+    hasText(trigger.triggerId) &&
+    hasText(trigger.contextSnapshotId) &&
+    trigger.runtimeReleaseId === runtimeReleaseId &&
+    hasText(trigger.cardId) &&
+    Array.isArray(trigger.relatedCardIds) &&
+    trigger.relatedCardIds.includes(trigger.cardId)
+  );
+}
+
+function hasCompleteInfectionPublicHealthRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    ruleAsset: InfectionPublicHealthRuntimeAsset;
+    actionCardAsset: InfectionPublicHealthRuntimeAsset;
+  },
+  triggerValue: unknown,
+  ruleValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const trigger = recordValue(triggerValue);
+  const rule = recordValue(ruleValue);
+  if (
+    !recommendation ||
+    !trigger ||
+    !rule ||
+    !hasText(recommendation.cardId) ||
+    recommendation.cardId !== trigger.cardId ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardStatus !== "PENDING" ||
+    recommendation.requiresPhysicianConfirmation !== true ||
+    recommendation.aiGenerated !== false
+  ) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const runtimeRelease = recordValue(explanation?.runtimeRelease);
+  const ruleExplanation = recordValue(explanation?.ruleExplanation);
+  const conditionEvidence = Array.isArray(ruleExplanation?.conditionEvidence)
+    ? ruleExplanation.conditionEvidence
+    : [];
+  const runtimeAssetEvidence = Array.isArray(ruleExplanation?.runtimeAssetEvidence)
+    ? ruleExplanation.runtimeAssetEvidence
+    : [];
+  return (
+    explanation?.matchType === "RULE" &&
+    explanation.ruleId === rule.ruleId &&
+    explanation.ruleCode === rule.assetIdentity &&
+    explanation.ruleVersionId === rule.ruleVersionId &&
+    runtimeRelease?.runtimeReleaseId === runtime.releaseId &&
+    runtimeRelease.assetVersionId === runtime.ruleAsset.versionId &&
+    runtimeRelease.assetVersionNo === runtime.ruleAsset.versionNo &&
+    runtimeRelease.contentHash === runtime.ruleAsset.contentHash &&
+    infectionPublicHealthConditionMatched(conditionEvidence, "conditions[].code") &&
+    infectionPublicHealthConditionMatched(conditionEvidence, "observations[].valueString") &&
+    infectionPublicHealthConditionMatched(
+      conditionEvidence,
+      "extensions.local.publicHealthReport.manualSubmitRequired",
+    ) &&
+    runtimeAssetEvidence.some((item) => {
+      const evidence = recordValue(item);
+      return (
+        evidence?.assetType === "ACTION_CARD" &&
+        evidence.assetIdentity === runtime.actionCardAsset.assetIdentity &&
+        evidence.assetVersion === runtime.actionCardAsset.versionNo &&
+        evidence.contentHash === runtime.actionCardAsset.contentHash &&
+        (evidence.requiresHumanReportReview === true ||
+          evidence.requiresPhysicianConfirmation === true)
+      );
+    })
+  );
+}
+
+function infectionPublicHealthConditionMatched(values: unknown[], fact: string) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    return evidence?.fact === fact && evidence.matched === true;
+  });
+}
+
+function hasCompleteInfectionPublicHealthManualReview(
+  value: unknown,
+  actionCardAsset: InfectionPublicHealthRuntimeAsset,
+) {
+  const review = recordValue(value);
+  const persisted = recordValue(review?.persisted);
+  const actionCardEvidence = recordValue(review?.actionCardEvidence);
+  return (
+    review !== null &&
+    persisted !== null &&
+    hasText(review.feedbackId) &&
+    review.cardStatus === "ACCEPTED" &&
+    review.canonicalSessionRole === "clinical-user" &&
+    review.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
+    persisted.feedbackId === review.feedbackId &&
+    persisted.feedbackType === "ACCEPT" &&
+    hasText(persisted.operatorRole) &&
+    review.noLegalAutoSubmit === true &&
+    actionCardEvidence?.assetType === "ACTION_CARD" &&
+    actionCardEvidence.assetIdentity === actionCardAsset.assetIdentity &&
+    actionCardEvidence.versionId === actionCardAsset.versionId &&
+    actionCardEvidence.versionNo === actionCardAsset.versionNo &&
+    actionCardEvidence.contentHash === actionCardAsset.contentHash &&
+    actionCardEvidence.entryState === "ACTIVE" &&
+    actionCardEvidence.requiresHumanReportReview === true &&
+    actionCardEvidence.noLegalAutoSubmit === true
+  );
+}
+
+function hasCompleteInfectionPublicHealthRectification(
+  value: unknown,
+  recommendationValue: unknown,
+) {
+  const rectification = recordValue(value);
+  const recommendation = recordValue(recommendationValue);
+  return (
+    rectification !== null &&
+    recommendation !== null &&
+    hasText(rectification.findingId) &&
+    rectification.sourceType === "SAFETY_EVENT" &&
+    rectification.sourceId === recommendation.cardId &&
+    ["P0", "P1"].includes(String(rectification.severity)) &&
+    rectification.findingStatus === "CLOSED" &&
+    hasText(rectification.taskId) &&
+    rectification.taskStatus === "CLOSED" &&
+    rectification.submittedByRole === "engine-operator" &&
+    rectification.reviewedByRole === "engine-operator" &&
+    rectification.roleEvidence === "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW" &&
+    hasText(rectification.submittedEvidenceRef) &&
+    rectification.reviewDecision === "APPROVED"
+  );
+}
+
+function hasInfectionPublicHealthSafetyScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !/完整(?:院感系统|公卫法定上报|不良事件系统|第三方公卫院感监管系统族完整覆盖)(?:已上线|完整上线|完成上线|已完成|完整覆盖|全面覆盖)/u.test(
+      statement,
+    ) &&
+    hasNegatedScopeTerm(statement, "完整院感系统") &&
+    hasNegatedScopeTerm(statement, "完整公卫法定上报") &&
+    hasNegatedScopeTerm(statement, "完整不良事件系统") &&
+    hasNegatedScopeTerm(statement, "第三方公卫院感监管系统族完整覆盖")
   );
 }
 

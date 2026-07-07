@@ -326,15 +326,23 @@ public class ClinicalEventContextFactory {
         ObjectNode extensions = payload.path("extensions").isObject()
             ? (ObjectNode) payload.path("extensions").deepCopy()
             : json.createObjectNode();
-        JsonNode pharmacyReview = payload.path("pharmacyReview");
-        if (pharmacyReview.isObject()) {
-            ObjectNode local = extensions.path("local").isObject()
-                ? (ObjectNode) extensions.path("local")
-                : json.createObjectNode();
-            local.set("pharmacyReview", pharmacyReview.deepCopy());
+        ObjectNode local = extensions.path("local").isObject()
+            ? (ObjectNode) extensions.path("local")
+            : json.createObjectNode();
+        projectLocalExtension(payload, local, "pharmacyReview");
+        projectLocalExtension(payload, local, "publicHealthReport");
+        projectLocalExtension(payload, local, "safetyEvent");
+        if (!local.isEmpty()) {
             extensions.set("local", local);
         }
         return extensions;
+    }
+
+    private void projectLocalExtension(JsonNode payload, ObjectNode local, String fieldName) {
+        JsonNode value = payload.path(fieldName);
+        if (value.isObject()) {
+            local.set(fieldName, value.deepCopy());
+        }
     }
 
     private void addPayloadAnchors(List<ClinicalCodeMappingAnchor> anchors,

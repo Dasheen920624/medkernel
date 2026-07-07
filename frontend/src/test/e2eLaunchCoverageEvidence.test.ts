@@ -2118,6 +2118,468 @@ function expectNoPharmacyReviewAntimicrobialCoverage(body: Record<string, unknow
   );
 }
 
+const infectionPublicHealthSafetyEvidence = {
+  scenarioCodes: ["S21", "S32"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+  versionedAssets: ["TERMINOLOGY", "RULE", "ACTION_CARD"],
+  deliveryShapes: ["API_EVENT"],
+  serviceCombinations: [
+    "THIRD_PARTY_INTERFACE",
+    "CLINICAL_RUNTIME",
+    "PROFESSIONAL_COLLABORATION",
+    "QUALITY_IMPROVEMENT",
+  ],
+  scopeStatement:
+    "院感公卫与医疗安全事件代表切片：PUBLIC_HEALTH_INFECTION_REGULATORY 入站、感染监测、上报预填、人工确认和安全事件整改闭环，不代表完整院感系统、完整公卫法定上报、完整不良事件系统或第三方公卫院感监管系统族完整覆盖。",
+  apiEvidence: {
+    publicHealthAdapterCreatedThroughRealService: true,
+    publicHealthWebhookCreatedThroughRealService: true,
+    webhookSignaturePreviewGenerated: true,
+    infectionTerminologyActivated: true,
+    publicHealthActionCardPublished: true,
+    publicHealthRuleCreated: true,
+    runtimeActivatedWithPublicHealthAssets: true,
+    contextSnapshotCreatedFromFrontdesk: true,
+    prefillOutboundRequested: true,
+    inboundPublicHealthReportAccepted: true,
+    clinicalEvaluationTriggeredFromFrontdesk: true,
+    humanReportReviewRecorded: true,
+    safetyRectificationSubmittedAndReviewed: true,
+  },
+  adapter: {
+    adapterId: "adapter-public-health-infection",
+    systemFamilyCode: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    targetSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    protocolType: "Webhook",
+    fieldMappings: [
+      { sourcePath: "/patientId", targetPath: "/patient/mpi" },
+      { sourcePath: "/infectionCode", targetPath: "/conditions/0", targetDictionaryKey: "ICD-10" },
+      { sourcePath: "/labCode", targetPath: "/observations/0/code" },
+      { sourcePath: "/labResult", targetPath: "/observations/0/valueString" },
+      { sourcePath: "/reportCardType", targetPath: "/documents/0/documentType" },
+      { sourcePath: "/reportCardDigest", targetPath: "/documents/0/contentDigest" },
+      { sourcePath: "/publicHealthReport/reportType", targetPath: "/publicHealthReport/reportType" },
+      {
+        sourcePath: "/publicHealthReport/manualSubmitRequired",
+        targetPath: "/publicHealthReport/manualSubmitRequired",
+      },
+      {
+        sourcePath: "/publicHealthReport/legalSubmissionDelegated",
+        targetPath: "/publicHealthReport/legalSubmissionDelegated",
+      },
+      { sourcePath: "/safetyEvent/eventType", targetPath: "/safetyEvent/eventType" },
+      { sourcePath: "/safetyEvent/riskLevel", targetPath: "/safetyEvent/riskLevel" },
+      {
+        sourcePath: "/safetyEvent/rectificationRequired",
+        targetPath: "/safetyEvent/rectificationRequired",
+      },
+    ],
+  },
+  webhookSignature: {
+    webhookId: "webhook-public-health-infection",
+    adapterId: "adapter-public-health-infection",
+    signatureAlgorithm: "HMAC-SHA256",
+    canonicalPayloadIncludesTraceId: true,
+    previewGenerated: true,
+  },
+  terminologyGate: {
+    assetType: "TERMINOLOGY",
+    assetIdentity: "TERM.PUBLIC_HEALTH.INFECTION",
+    versionId: "av-term-public-health-infection",
+    versionNo: "V1",
+    contentHash: "a".repeat(64),
+    standardSystem: "ICD-10",
+    standardCode: "U07.100",
+    localCode: "PH-COVID-19",
+    sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    category: "DIAGNOSIS",
+    mappingId: 41,
+  },
+  actionCard: {
+    assetType: "ACTION_CARD",
+    assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+    versionId: "av-action-public-health-infection",
+    versionNo: "V1",
+    contentHash: "b".repeat(64),
+    entryState: "ACTIVE",
+    requiresHumanReportReview: true,
+    noLegalAutoSubmit: true,
+  },
+  ruleAsset: {
+    assetType: "RULE",
+    assetIdentity: "RULE.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+    versionId: "av-rule-public-health-infection",
+    versionNo: "V1",
+    contentHash: "c".repeat(64),
+    ruleId: "rule-public-health-infection",
+    ruleVersionId: "rv-public-health-infection",
+  },
+  runtime: {
+    releaseId: "runtime-public-health-infection",
+    revisionNo: 32,
+    manifestSha256: "e".repeat(64),
+    assets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.PUBLIC_HEALTH.INFECTION",
+        versionId: "av-term-public-health-infection",
+        versionNo: "V1",
+        contentHash: "a".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+        versionId: "av-rule-public-health-infection",
+        versionNo: "V1",
+        contentHash: "c".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+        versionId: "av-action-public-health-infection",
+        versionNo: "V1",
+        contentHash: "b".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    terminologyAsset: {
+      assetType: "TERMINOLOGY",
+      assetIdentity: "TERM.PUBLIC_HEALTH.INFECTION",
+      versionId: "av-term-public-health-infection",
+      versionNo: "V1",
+      contentHash: "a".repeat(64),
+      entryState: "ACTIVE",
+    },
+    ruleAsset: {
+      assetType: "RULE",
+      assetIdentity: "RULE.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+      versionId: "av-rule-public-health-infection",
+      versionNo: "V1",
+      contentHash: "c".repeat(64),
+      entryState: "ACTIVE",
+    },
+    actionCardAsset: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+      versionId: "av-action-public-health-infection",
+      versionNo: "V1",
+      contentHash: "b".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.PUBLIC_HEALTH.INFECTION",
+        versionId: "av-term-public-health-infection",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+        versionId: "av-rule-public-health-infection",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+        versionId: "av-action-public-health-infection",
+      },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-public-health-infection",
+    encounterId: "enc-public-health-infection",
+    contextSnapshotId: "ctx-public-health-infection",
+    runtimeReleaseId: "runtime-public-health-infection",
+    resources: {
+      conditions: [
+        {
+          code: "U07.100",
+          codeSystem: "ICD-10",
+          displayName: "新型冠状病毒感染",
+          sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+        },
+      ],
+      observations: [
+        {
+          observationId: "obs-nat-result",
+          code: "NAT_RESULT",
+          valueString: "POSITIVE",
+          sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+        },
+      ],
+      documents: [
+        {
+          documentId: "doc-public-health-report",
+          documentType: "PUBLIC_HEALTH_REPORT_PREFILL",
+          contentDigest: "sha256:public-health-report-prefill",
+          sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+        },
+      ],
+      extensions: {
+        local: {
+          publicHealthReport: {
+            reportType: "INFECTIOUS_DISEASE_PREFILL",
+            reportableCondition: "SUSPECTED_COVID_19",
+            manualSubmitRequired: true,
+            legalSubmissionDelegated: false,
+            prefillStatus: "READY_FOR_HUMAN_REVIEW",
+          },
+          safetyEvent: {
+            eventType: "OCCUPATIONAL_EXPOSURE",
+            riskLevel: "HIGH",
+            rootCause: "ISOLATION_PROTOCOL_GAP",
+            rectificationRequired: true,
+            reviewRequired: true,
+          },
+        },
+      },
+    },
+  },
+  outboundPrefill: {
+    messageId: "out-public-health-prefill",
+    traceId: "trace-public-health-infection",
+    adapterId: "adapter-public-health-infection",
+    targetSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    protocolType: "Webhook",
+    status: "RETRYING",
+    compensationStatus: "NOT_CONNECTED",
+    compensationMessageId: "out-public-health-prefill",
+    blocksMainFlow: false,
+    compensationRequired: true,
+    payload: {
+      patientId: "mpi-public-health-infection",
+      contextSnapshotId: "ctx-public-health-infection",
+      reportType: "INFECTIOUS_DISEASE_PREFILL",
+      manualSubmitRequired: true,
+      legalSubmissionDelegated: false,
+    },
+  },
+  inboundReport: {
+    messageId: "in-public-health-report",
+    traceId: "trace-public-health-infection",
+    adapterId: "adapter-public-health-infection",
+    webhookId: "webhook-public-health-infection",
+    patientId: "mpi-public-health-infection",
+    encounterId: "enc-public-health-infection",
+    contextSnapshotId: "ctx-public-health-infection",
+    sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    status: "SUCCESS",
+    clinicalEventStatus: "RECEIVED",
+    clinicalEvent: {
+      eventId: "evt-wh-public-health-infection",
+      status: "PROCESSED",
+      errorCode: null,
+      errorClass: null,
+      retryCount: 0,
+      runtimeReleaseId: "runtime-public-health-infection",
+    },
+    mappedFieldCount: 16,
+    mappedPayload: {
+      conditions: [
+        {
+          standardCode: "U07.100",
+          codeSystem: "ICD-10",
+          sourceSystem: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+          runtimeReleaseId: "runtime-public-health-infection",
+        },
+      ],
+      observations: [{ code: "NAT_RESULT", valueString: "POSITIVE" }],
+      documents: [
+        {
+          documentType: "PUBLIC_HEALTH_REPORT_PREFILL",
+          contentDigest: "sha256:public-health-report-prefill",
+        },
+      ],
+      publicHealthReport: {
+        reportType: "INFECTIOUS_DISEASE_PREFILL",
+        manualSubmitRequired: true,
+        legalSubmissionDelegated: false,
+        prefillStatus: "READY_FOR_HUMAN_REVIEW",
+      },
+      safetyEvent: {
+        eventType: "OCCUPATIONAL_EXPOSURE",
+        riskLevel: "HIGH",
+        rootCause: "ISOLATION_PROTOCOL_GAP",
+        rectificationRequired: true,
+        reviewRequired: true,
+      },
+    },
+    signedPayload: {
+      patientId: "mpi-public-health-infection",
+      contextSnapshotId: "ctx-public-health-infection",
+      infectionCode: "PH-COVID-19",
+      labCode: "NAT_RESULT",
+      labResult: "POSITIVE",
+      publicHealthReport: {
+        manualSubmitRequired: true,
+        legalSubmissionDelegated: false,
+      },
+      safetyEvent: {
+        rectificationRequired: true,
+        reviewRequired: true,
+      },
+    },
+  },
+  clinicalTrigger: {
+    triggerId: "trigger-public-health-infection",
+    contextSnapshotId: "ctx-public-health-infection",
+    runtimeReleaseId: "runtime-public-health-infection",
+    cardId: "card-public-health-infection",
+    relatedCardIds: ["card-public-health-infection"],
+  },
+  recommendation: {
+    cardId: "card-public-health-infection",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-public-health-infection",
+    cardType: "REPORT",
+    requiresPhysicianConfirmation: true,
+    aiGenerated: false,
+    explanation: {
+      matchType: "RULE",
+      ruleId: "rule-public-health-infection",
+      ruleCode: "RULE.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+      ruleVersionId: "rv-public-health-infection",
+      runtimeRelease: {
+        runtimeReleaseId: "runtime-public-health-infection",
+        assetVersionId: "av-rule-public-health-infection",
+        assetVersionNo: "V1",
+        contentHash: "c".repeat(64),
+      },
+      ruleExplanation: {
+        title: "院感公卫上报预填代表切片规则",
+        reason: "感染诊断、检验结果和上报预填事实均来自当前临床上下文。",
+        conditionEvidence: [
+          {
+            fact: "conditions[].code",
+            operator: "equals",
+            expected: "U07.100",
+            actual: ["U07.100"],
+            matched: true,
+          },
+          {
+            fact: "observations[].valueString",
+            operator: "equals",
+            expected: "POSITIVE",
+            actual: ["POSITIVE"],
+            matched: true,
+          },
+          {
+            fact: "extensions.local.publicHealthReport.manualSubmitRequired",
+            operator: "equals",
+            expected: true,
+            actual: true,
+            matched: true,
+          },
+        ],
+        runtimeAssetEvidence: [
+          {
+            assetType: "ACTION_CARD",
+            assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+            assetVersion: "V1",
+            contentHash: "b".repeat(64),
+            requiresHumanReportReview: true,
+            noLegalAutoSubmit: true,
+          },
+        ],
+      },
+    },
+  },
+  manualReview: {
+    feedbackId: "rf-public-health-review",
+    cardStatus: "ACCEPTED",
+    canonicalSessionRole: "clinical-user",
+    roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+    persisted: {
+      feedbackId: "rf-public-health-review",
+      feedbackType: "ACCEPT",
+      operatorRole: "DOCTOR",
+    },
+    noLegalAutoSubmit: true,
+    actionCardEvidence: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+      versionId: "av-action-public-health-infection",
+      versionNo: "V1",
+      contentHash: "b".repeat(64),
+      entryState: "ACTIVE",
+      requiresHumanReportReview: true,
+      noLegalAutoSubmit: true,
+    },
+  },
+  qualityRectification: {
+    findingId: "finding-public-health-safety",
+    sourceType: "SAFETY_EVENT",
+    sourceId: "card-public-health-infection",
+    severity: "P1",
+    findingStatus: "CLOSED",
+    taskId: "task-public-health-safety",
+    taskStatus: "CLOSED",
+    submittedByRole: "engine-operator",
+    reviewedByRole: "engine-operator",
+    roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
+    submittedEvidenceRef: "public-health-safety-evidence",
+    reviewDecision: "APPROVED",
+  },
+  scenarioEvidence: [
+    {
+      code: "S21",
+      observedStages: [
+        "平台管理员访问真实前台并经真实服务创建 PUBLIC_HEALTH_INFECTION_REGULATORY 适配器、回调通道和签名预览",
+        "运营员发布院感公卫术语、上报预填规则和动作卡资产",
+        "当前机构生效版本包含院感公卫三类运行资产",
+        "临床用户从患者 360 建立脱敏患者，签名入站事件生成感染诊断、检验结果和上报预填上下文",
+        "系统向 PUBLIC_HEALTH_INFECTION_REGULATORY 发出上报预填回传并诚实断连降级",
+        "PUBLIC_HEALTH_INFECTION_REGULATORY 签名回传感染监测结果并生成标准临床事件",
+        "临床用户从真实前台触发 result-review 推荐评估",
+        "推荐卡证明上报预填规则和动作卡按当前机构生效版本消费",
+        "临床用户人工确认上报预填，系统不替代法定上报",
+      ],
+    },
+    {
+      code: "S32",
+      observedStages: [
+        "入站安全事件保留风险、原因和整改要求扩展证据",
+        "医疗安全事件形成整改任务",
+        "固定四职责账号提交并复核关闭本轮安全事件整改任务",
+      ],
+    },
+  ],
+};
+
+function infectionPublicHealthSafetyEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/infection-public-health-safety-frontdesk.spec.ts",
+        title: "临床用户与运营员、平台管理员完成院感公卫上报预填和医疗安全事件整改代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "infection-public-health-safety-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoInfectionPublicHealthSafetyCoverage(body: Record<string, unknown>) {
+  const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["S21", "S32"]),
+  );
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["TERMINOLOGY", "RULE", "ACTION_CARD"]),
+  );
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -4355,6 +4817,179 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare pharmacy-review antimicrobial coverage when $name", ({ body }) => {
     expectNoPharmacyReviewAntimicrobialCoverage(body);
+  });
+
+  it("declares S21/S32 infection public-health safety coverage only with signed inbound, runtime assets and rectification closure", () => {
+    const evidence = infectionPublicHealthSafetyEvidenceResult(
+      infectionPublicHealthSafetyEvidence,
+    );
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S21", "S32"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+      "DATA_INTEROPERABILITY",
+      "QUALITY_IMPROVEMENT",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "TERMINOLOGY",
+      "RULE",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+      "PROFESSIONAL_COLLABORATION",
+      "QUALITY_IMPROVEMENT",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S21/S32 coverage when legal auto-submit evidence is carried by action card and manual review", () => {
+    const runtimeAssetEvidence = [
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+        actionCardRef: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+        assetVersion: "V1",
+        resolvedActionCardVersion: "V1",
+        runtimeReleaseId: "runtime-public-health-infection",
+        contentHash: "b".repeat(64),
+        resolvedActionCardHash: "b".repeat(64),
+        requiresPhysicianConfirmation: true,
+      },
+    ];
+    const evidence = infectionPublicHealthSafetyEvidenceResult({
+      ...infectionPublicHealthSafetyEvidence,
+      recommendation: {
+        ...infectionPublicHealthSafetyEvidence.recommendation,
+        explanation: {
+          ...infectionPublicHealthSafetyEvidence.recommendation.explanation,
+          ruleExplanation: {
+            ...infectionPublicHealthSafetyEvidence.recommendation.explanation.ruleExplanation,
+            runtimeAssetEvidence,
+          },
+        },
+      },
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S21", "S32"]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "TERMINOLOGY",
+      "RULE",
+      "ACTION_CARD",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺少 PUBLIC_HEALTH_INFECTION_REGULATORY 适配器证据",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        adapter: {
+          ...infectionPublicHealthSafetyEvidence.adapter,
+          systemFamilyCode: "PHARMACY_REVIEW",
+        },
+      },
+    },
+    {
+      name: "入站报告缺少上报预填人工审核边界",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        inboundReport: {
+          ...infectionPublicHealthSafetyEvidence.inboundReport,
+          mappedPayload: {
+            ...infectionPublicHealthSafetyEvidence.inboundReport.mappedPayload,
+            publicHealthReport: {
+              reportType: "INFECTIOUS_DISEASE_PREFILL",
+              manualSubmitRequired: false,
+              legalSubmissionDelegated: true,
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "临床上下文缺少 safetyEvent 整改扩展证据",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        clinicalContext: {
+          ...infectionPublicHealthSafetyEvidence.clinicalContext,
+          resources: {
+            ...infectionPublicHealthSafetyEvidence.clinicalContext.resources,
+            extensions: {
+              local: {
+                publicHealthReport:
+                  infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local
+                    .publicHealthReport,
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "入站临床事件未处理到 PROCESSED",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        inboundReport: {
+          ...infectionPublicHealthSafetyEvidence.inboundReport,
+          clinicalEvent: {
+            ...infectionPublicHealthSafetyEvidence.inboundReport.clinicalEvent,
+            status: "FAILED",
+            errorCode: "ENG-EVENT-005",
+            errorClass: "DOWNSTREAM",
+          },
+        },
+      },
+    },
+    {
+      name: "推荐卡没有动作卡物化证据",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        recommendation: {
+          ...infectionPublicHealthSafetyEvidence.recommendation,
+          explanation: {
+            ...infectionPublicHealthSafetyEvidence.recommendation.explanation,
+            ruleExplanation: {
+              ...infectionPublicHealthSafetyEvidence.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence: [],
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "人工确认声称系统已替代法定上报",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        manualReview: {
+          ...infectionPublicHealthSafetyEvidence.manualReview,
+          noLegalAutoSubmit: false,
+        },
+      },
+    },
+    {
+      name: "医疗安全事件整改任务未关闭",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          taskStatus: "SUBMITTED",
+        },
+      },
+    },
+    {
+      name: "scopeStatement 过度声明完整法定上报",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        scopeStatement: "完整院感系统和完整公卫法定上报已上线。",
+      },
+    },
+  ])("does not declare infection public-health safety coverage when $name", ({ body }) => {
+    expectNoInfectionPublicHealthSafetyCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

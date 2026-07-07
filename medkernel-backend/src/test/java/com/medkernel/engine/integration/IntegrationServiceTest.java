@@ -999,9 +999,176 @@ class IntegrationServiceTest {
 	            "REQUIRES_PHYSICIAN_CONFIRMATION",
 	            persistedPayload.at("/pharmacyReview/reviewResult").asText());
 	        assertEquals(
-	            "抗菌药物使用需结合感染指标与病原学复核。",
-	            persistedPayload.at("/pharmacyReview/pharmacistOpinion").asText());
-	    }
+            "抗菌药物使用需结合感染指标与病原学复核。",
+            persistedPayload.at("/pharmacyReview/pharmacistOpinion").asText());
+    }
+
+    @Test
+    void inboundWebhookMapsPublicHealthInfectionReportAndSafetyEvent() throws Exception {
+        insertTerminologyRuntimeOrgTree();
+        Long diagnosisStandardTermId = insertStandardTerm("ICD-10", "U07.100", "新型冠状病毒感染");
+        Long diagnosisLocalTermId = insertLocalTerm(
+            "PUBLIC_HEALTH_INFECTION_REGULATORY", "PH-COVID-19", "院感公卫新冠疑似病例");
+        Long diagnosisMappingId = insertConfirmedTermMapping(
+            diagnosisLocalTermId, diagnosisStandardTermId, "PUBLIC_HEALTH_INFECTION_REGULATORY");
+        TerminologyRuntimeAsset diagnosisTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.PUBLIC_HEALTH_INFECTION.DIAGNOSIS", "V1", diagnosisMappingId, diagnosisLocalTermId,
+            diagnosisStandardTermId, "U07.100", "PUBLIC_HEALTH_INFECTION_REGULATORY", "PH-COVID-19",
+            "ICD-10", "DIAGNOSIS");
+        String runtimeReleaseId = "runtime-release-public-health-infection";
+        insertCurrentRuntimeRelease(runtimeReleaseId, diagnosisTerminology);
+
+        service.createAdapter(tenantId, new AdapterCreateDto(
+            "public-health-infection-adapter",
+            "院感公卫监管入站适配器",
+            "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/infectionCode",
+                  "targetPath": "/conditions/0",
+                  "targetDictionaryKey": "ICD-10",
+                  "category": "DIAGNOSIS"
+                },
+                {"sourcePath": "/labCode", "targetPath": "/observations/0/code"},
+                {"sourcePath": "/labResult", "targetPath": "/observations/0/valueString"},
+                {"sourcePath": "/reportCardDigest", "targetPath": "/documents/0/contentDigest"},
+                {"sourcePath": "/reportCardType", "targetPath": "/documents/0/documentType"},
+                {
+                  "sourcePath": "/publicHealthReport/reportType",
+                  "targetPath": "/publicHealthReport/reportType"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/reportableCondition",
+                  "targetPath": "/publicHealthReport/reportableCondition"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/manualSubmitRequired",
+                  "targetPath": "/publicHealthReport/manualSubmitRequired"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/legalSubmissionDelegated",
+                  "targetPath": "/publicHealthReport/legalSubmissionDelegated"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/prefillStatus",
+                  "targetPath": "/publicHealthReport/prefillStatus"
+                },
+                {"sourcePath": "/safetyEvent/eventType", "targetPath": "/safetyEvent/eventType"},
+                {"sourcePath": "/safetyEvent/riskLevel", "targetPath": "/safetyEvent/riskLevel"},
+                {"sourcePath": "/safetyEvent/rootCause", "targetPath": "/safetyEvent/rootCause"},
+                {
+                  "sourcePath": "/safetyEvent/rectificationRequired",
+                  "targetPath": "/safetyEvent/rectificationRequired"
+                },
+                {"sourcePath": "/safetyEvent/reviewRequired", "targetPath": "/safetyEvent/reviewRequired"}
+              ]
+            }
+            """));
+        service.createWebhook(tenantId, new WebhookCreateDto(
+            "whk-public-health-infection",
+            "院感公卫监管回传",
+            "http://localhost/inbound",
+            "PUBLIC_HEALTH_INFECTION_REPORT SAFETY_EVENT"));
+        IntegrationWebhookConfig webhook = webhookRepository
+            .findByWebhookIdAndTenantId("whk-public-health-infection", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "msg-public-health-infection-1",
+            "trace-public-health-infection-1",
+            "public-health-infection-adapter",
+            "PUBLIC_HEALTH_INFECTION_REGULATORY",
+            ClinicalEventType.REPORT,
+            "P-200",
+            "encounter-200",
+            ClinicalSetting.INPATIENT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            Instant.parse("2026-07-07T01:15:00Z"),
+            objectMapper.readTree("""
+            {
+              "patientId": "P-200",
+              "infectionCode": "PH-COVID-19",
+              "labCode": "NAT_RESULT",
+              "labResult": "POSITIVE",
+              "reportCardDigest": "sha256:public-health-report-prefill",
+              "reportCardType": "PUBLIC_HEALTH_REPORT_PREFILL",
+              "publicHealthReport": {
+                "reportType": "INFECTIOUS_DISEASE_PREFILL",
+                "reportableCondition": "SUSPECTED_COVID_19",
+                "manualSubmitRequired": true,
+                "legalSubmissionDelegated": false,
+                "prefillStatus": "READY_FOR_HUMAN_REVIEW"
+              },
+              "safetyEvent": {
+                "eventType": "OCCUPATIONAL_EXPOSURE",
+                "riskLevel": "HIGH",
+                "rootCause": "ISOLATION_PROTOCOL_GAP",
+                "rectificationRequired": true,
+                "reviewRequired": true
+              }
+            }
+            """));
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        WebhookInboundResultDto result = RequestContext.callWith(
+            new RequestContext.Snapshot(
+                "trace-public-health-infection-1",
+                new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                "integration-test"),
+            () -> service.ingestWebhook(tenantId, "whk-public-health-infection", timestamp, signature, inbound));
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(16, result.mappedFieldCount());
+        assertEquals(1, result.normalizedCodeCount());
+        assertEquals("P-200", result.mappedPayload().at("/patient/mpi").asText());
+        assertEquals("U07.100", result.mappedPayload().at("/conditions/0/standardCode").asText());
+        assertEquals("ICD-10", result.mappedPayload().at("/conditions/0/codeSystem").asText());
+        assertEquals("PH-COVID-19", result.mappedPayload().at("/conditions/0/localCode").asText());
+        assertEquals("PUBLIC_HEALTH_INFECTION_REGULATORY",
+            result.mappedPayload().at("/conditions/0/localCodeSystem").asText());
+        assertEquals(diagnosisMappingId.longValue(), result.mappedPayload().at("/conditions/0/mappingId").asLong());
+        assertEquals(diagnosisStandardTermId.longValue(),
+            result.mappedPayload().at("/conditions/0/standardTermId").asLong());
+        assertEquals(runtimeReleaseId, result.mappedPayload().at("/conditions/0/runtimeReleaseId").asText());
+        assertEquals("NAT_RESULT", result.mappedPayload().at("/observations/0/code").asText());
+        assertEquals("POSITIVE", result.mappedPayload().at("/observations/0/valueString").asText());
+        assertEquals("PUBLIC_HEALTH_REPORT_PREFILL", result.mappedPayload().at("/documents/0/documentType").asText());
+        assertEquals("sha256:public-health-report-prefill",
+            result.mappedPayload().at("/documents/0/contentDigest").asText());
+        assertTrue(result.mappedPayload().at("/publicHealthReport/manualSubmitRequired").asBoolean());
+        assertFalse(result.mappedPayload().at("/publicHealthReport/legalSubmissionDelegated").asBoolean());
+        assertEquals("READY_FOR_HUMAN_REVIEW",
+            result.mappedPayload().at("/publicHealthReport/prefillStatus").asText());
+        assertEquals("OCCUPATIONAL_EXPOSURE", result.mappedPayload().at("/safetyEvent/eventType").asText());
+        assertTrue(result.mappedPayload().at("/safetyEvent/rectificationRequired").asBoolean());
+        assertNotNull(result.clinicalEventId());
+        assertEquals("RECEIVED", result.clinicalEventStatus());
+
+        ClinicalEvent clinicalEvent = clinicalEventRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        assertEquals(ClinicalEventType.REPORT, clinicalEvent.eventType());
+        assertEquals(ClinicalEventTriggerPoint.RESULT_REVIEW, clinicalEvent.triggerPoint());
+        assertEquals("PUBLIC_HEALTH_INFECTION_REGULATORY", clinicalEvent.sourceSystem());
+        assertEquals(runtimeReleaseId, clinicalEvent.runtimeReleaseId());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+        assertEquals("U07.100", persistedPayload.at("/conditions/0/standardCode").asText());
+        assertEquals("PUBLIC_HEALTH_INFECTION_REGULATORY",
+            persistedPayload.at("/conditions/0/sourceSystem").asText());
+        assertEquals("NAT_RESULT", persistedPayload.at("/observations/0/code").asText());
+        assertEquals("PUBLIC_HEALTH_REPORT_PREFILL", persistedPayload.at("/documents/0/documentType").asText());
+        assertTrue(persistedPayload.at("/publicHealthReport/manualSubmitRequired").asBoolean());
+        assertFalse(persistedPayload.at("/publicHealthReport/legalSubmissionDelegated").asBoolean());
+        assertEquals("OCCUPATIONAL_EXPOSURE", persistedPayload.at("/safetyEvent/eventType").asText());
+        assertTrue(persistedPayload.at("/safetyEvent/reviewRequired").asBoolean());
+    }
 
     @Test
     void inboundWebhookRejectsStaleTimestampEvenWhenSignatureMatches() throws Exception {

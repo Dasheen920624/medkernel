@@ -353,8 +353,119 @@ class ClinicalEventProcessorTest {
 	            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
 	        assertThat(context.payload().at("/extensions/local/sourceTraceId").asText())
 	            .isEqualTo("pharmacy-review-request-1");
-	        assertThat(context.payload().at("/extensions/local/existingFlag").asText()).isEqualTo("Y");
-	    }
+        assertThat(context.payload().at("/extensions/local/existingFlag").asText()).isEqualTo("Y");
+    }
+
+    @Test
+    void processProjectsInfectionPublicHealthPayloadToCanonicalResourcesAndLocalExtensions() {
+        ClinicalEvent event = event(
+            "evt-infection-public-health",
+            ClinicalEventType.REPORT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            ClinicalEventStatus.RECEIVED,
+            "PUBLIC_HEALTH_INFECTION_REGULATORY");
+        when(events.findByEventIdAndTenantId("evt-infection-public-health", "tenant-A"))
+            .thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-infection-public-health", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-infection-public-health", """
+                {
+                  "patient": {
+                    "mpi": "MPI-1"
+                  },
+                  "conditions": [
+                    {
+                      "standardCode": "U07.100",
+                      "codeSystem": "ICD-10",
+                      "displayName": "新型冠状病毒感染",
+                      "localCode": "PH-COVID-19",
+                      "localCodeSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "sourceSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "observations": [
+                    {
+                      "observationId": "obs-nat-1",
+                      "code": "NAT_RESULT",
+                      "displayName": "核酸检测结果",
+                      "valueString": "POSITIVE",
+                      "sourceSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "documents": [
+                    {
+                      "documentId": "doc-report-card-1",
+                      "documentType": "PUBLIC_HEALTH_REPORT_PREFILL",
+                      "contentDigest": "sha256:public-health-report-prefill",
+                      "sourceSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "extensions": {
+                    "local": {
+                      "existingFlag": "Y",
+                      "sourceTraceId": "infection-public-health-trace-1"
+                    }
+                  },
+                  "publicHealthReport": {
+                    "reportType": "INFECTIOUS_DISEASE_PREFILL",
+                    "reportableCondition": "SUSPECTED_COVID_19",
+                    "manualSubmitRequired": true,
+                    "legalSubmissionDelegated": false,
+                    "prefillStatus": "READY_FOR_HUMAN_REVIEW"
+                  },
+                  "safetyEvent": {
+                    "eventType": "OCCUPATIONAL_EXPOSURE",
+                    "riskLevel": "HIGH",
+                    "rootCause": "ISOLATION_PROTOCOL_GAP",
+                    "rectificationRequired": true,
+                    "reviewRequired": true
+                  }
+                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-infection-public-health", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-infection-public-health"), anyString());
+        ContextSnapshotResources resources = snapshotCap.getValue().resources();
+        assertThat(resources.conditions()).singleElement().satisfies(condition -> {
+            assertThat(condition.code()).isEqualTo("U07.100");
+            assertThat(condition.sourceSystem()).isEqualTo("PUBLIC_HEALTH_INFECTION_REGULATORY");
+        });
+        assertThat(resources.observations()).singleElement().satisfies(observation -> {
+            assertThat(observation.code()).isEqualTo("NAT_RESULT");
+            assertThat(observation.valueString()).isEqualTo("POSITIVE");
+            assertThat(observation.sourceSystem()).isEqualTo("PUBLIC_HEALTH_INFECTION_REGULATORY");
+        });
+        assertThat(resources.documents()).singleElement().satisfies(document -> {
+            assertThat(document.documentType()).isEqualTo("PUBLIC_HEALTH_REPORT_PREFILL");
+            assertThat(document.contentDigest()).isEqualTo("sha256:public-health-report-prefill");
+        });
+        assertThat(resources.extensions().at("/local/publicHealthReport/manualSubmitRequired").asBoolean())
+            .isTrue();
+        assertThat(resources.extensions().at("/local/publicHealthReport/legalSubmissionDelegated").asBoolean())
+            .isFalse();
+        assertThat(resources.extensions().at("/local/publicHealthReport/prefillStatus").asText())
+            .isEqualTo("READY_FOR_HUMAN_REVIEW");
+        assertThat(resources.extensions().at("/local/safetyEvent/eventType").asText())
+            .isEqualTo("OCCUPATIONAL_EXPOSURE");
+        assertThat(resources.extensions().at("/local/safetyEvent/rectificationRequired").asBoolean())
+            .isTrue();
+        assertThat(resources.extensions().at("/local/sourceTraceId").asText())
+            .isEqualTo("infection-public-health-trace-1");
+
+        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+        assertThat(context.payload().at("/extensions/local/publicHealthReport/reportableCondition").asText())
+            .isEqualTo("SUSPECTED_COVID_19");
+        assertThat(context.payload().at("/extensions/local/safetyEvent/reviewRequired").asBoolean())
+            .isTrue();
+        assertThat(context.payload().path("eventPayload").path("publicHealthReport")
+            .path("legalSubmissionDelegated").asBoolean()).isFalse();
+    }
 
     @Test
     void processMarksEventFailedWhenAnEngineIsUnavailable() {

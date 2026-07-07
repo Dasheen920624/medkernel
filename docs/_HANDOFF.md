@@ -10,6 +10,85 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整上线、134 清库部署复演、完整院感系统、完整公卫法定上报、
+  完整医疗安全 / 不良事件系统、完整第三方公卫院感监管系统族、完整 S21/S32 或完整 S0-S40 收口，
+  而是完成 **P1 院感公卫与医疗安全事件代表切片 S21/S32**：
+  `PUBLIC_HEALTH_INFECTION_REGULATORY + Condition / Observation / Document /
+  extensions.local.publicHealthReport / extensions.local.safetyEvent + TERMINOLOGY / RULE /
+  ACTION_CARD + API_EVENT + THIRD_PARTY_INTERFACE / CLINICAL_RUNTIME /
+  PROFESSIONAL_COLLABORATION / QUALITY_IMPROVEMENT`。当前 coverage 只声明 `scenarios:S21/S32`、
+  `productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY/QUALITY_IMPROVEMENT`、
+  `versionedAssets:TERMINOLOGY/RULE/ACTION_CARD`、`deliveryShapes:API_EVENT`、
+  `serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION/
+  QUALITY_IMPROVEMENT`；不声明完整院感系统、完整公卫法定上报、完整不良事件系统、第三方公卫院感监管
+  系统族完整覆盖、完整四职责全菜单体验或完整上线验收。
+- 第一百五十八批真实链路说明：新增目标真实 E2E
+  `infection-public-health-safety-frontdesk.spec.ts`。平台管理员经真实 `/adapter/hub` 服务登记
+  `PUBLIC_HEALTH_INFECTION_REGULATORY` Webhook 适配器、回调通道和 HMAC 签名预览；医疗引擎运营员
+  创建院感公卫 ICD-10 术语映射、上报预填动作卡和规则，规则发布前用真实入站形成的阳性 / 阴性患者上下文完成
+  规则验证，再把平台 baseline 资产与本轮 `TERMINOLOGY/RULE/ACTION_CARD` 激活到本地上线演练医院当前机构
+  生效版本。随后以签名 Webhook 入站感染监测和安全事件消息，映射生成 Condition、Observation、
+  Document 以及 `extensions.local.publicHealthReport/safetyEvent`，异步临床事件必须处理到
+  `PROCESSED` 并绑定本轮 runtime；系统向公卫院感监管系统发出上报预填回传，断连时以
+  `RETRYING/NOT_CONNECTED` 诚实降级且不阻断主链路。临床用户从真实 `/cdss/fatigue` 前台选择
+  “审核结果”触发 `result-review` 推荐评估，推荐卡证明本轮规则和动作卡按当前机构生效版本消费；
+  临床用户人工确认上报预填，证据明确 `clinical-user` 只是业务任职承载，系统不替代法定上报。
+  最后医疗引擎运营员创建 S32 医疗安全事件评价指标、手工样本、质量问题和整改任务，并用 canonical 固定职责账号
+  提交、复核关闭本轮整改。
+- 第一百五十八批代码修复与护栏：后端 `ClinicalEventContextFactory` 在保留已有
+  `extensions.local` 的同时，把入站 `payload.publicHealthReport` 与 `payload.safetyEvent`
+  投影到本地扩展，不新增伪标准资源类型；`ClinicalEventProcessorTest` 固化院感公卫 payload 到
+  Condition / Observation / Document 和本地扩展的投影；`IntegrationServiceTest` 固化
+  `PUBLIC_HEALTH_INFECTION_REGULATORY` Webhook 入站对 ICD-10 感染诊断、核酸结果、上报预填和安全事件
+  的真实映射与临床事件持久化。`launchCoverageEvidence` 对 S21/S32 附件加严：必须证明适配器与签名回调、
+  三类 runtime 资产与激活请求一致、上下文标准资源和本地扩展、出站诚实断连降级、入站临床事件
+  `PROCESSED/errorCode=null/errorClass=null`、真实前台 `result-review` 触发、推荐卡绑定本轮规则 / 动作卡、
+  人工确认不替代法定上报、医疗安全事件整改关闭和 scope 边界；缺任一环节均不声明覆盖。
+  本批还修复真实 reporter 红点：r11 目标 E2E 附件完整但顶层 `launchCoverage` 为空，根因为 coverage parser
+  要求推荐解释的 ACTION_CARD 证据同时携带 `noLegalAutoSubmit`，而真实服务把“不替代法定上报”分别落在动作卡资产
+  与人工确认回读证据；已新增红绿单测并把推荐解释门禁收敛为动作卡版本 / 哈希 / 人工确认，`noLegalAutoSubmit`
+  仍由动作卡资产和人工确认门禁强校验。`e2eAuthCredentialContract` 同步固化真实前台文案“审核结果”、
+  请求 payload `triggerType === "result-review"`、缺科室时由 `platform-admin` 创建组织、评价指标请求不得混入
+  `apiContext`、无 `page.route` / `page.waitForTimeout`。
+- 第一百五十八批验证证据：
+  - 静态与单测：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "legal auto-submit evidence"` 先红后绿，红灯证明 r11 同形态真实附件不会声明 S21/S32；修复后同命令通过。
+    `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "infection public-health safety|S21/S32|人工确认声称系统已替代法定上报|推荐卡没有动作卡物化证据"`
+    通过（10 selected）；`npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence`
+    通过（2 files，176 tests）；`npm --prefix frontend run typecheck -- --pretty false` 通过。
+    `mvn -f medkernel-backend/pom.xml -Dtest=ClinicalEventProcessorTest#processProjectsInfectionPublicHealthPayloadToCanonicalResourcesAndLocalExtensions,IntegrationServiceTest#inboundWebhookMapsPublicHealthInfectionReportAndSafetyEvent test`
+    通过（2 tests，0 failures，0 errors）。
+  - 构建：`npm --prefix frontend run build` 通过；`mvn -f medkernel-backend/pom.xml -DskipTests package`
+    通过；`git diff --check` 通过（仅无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 提示）。
+  - 目标真实 E2E：先执行 `mvn -f medkernel-backend/pom.xml -DskipTests package`，在未触碰既有 18080 进程的前提下
+    用当前 jar 单独启动 `SERVER_PORT=18081` dev/H2 空库后端，健康检查
+    `http://localhost:18081/medkernel/actuator/health` 为 `UP`，H2 空库执行 V1 baseline；执行
+    `E2E_API_BASE_URL=http://localhost:18081/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18081 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-infection-public-health-safety-20260707-r12 npm --prefix frontend run e2e -- --project=chromium infection-public-health-safety-frontdesk.spec.ts`
+    通过；`/tmp/medkernel-e2e-infection-public-health-safety-20260707-r12/report/results.json` 为 `PASSED`
+    （1 expected，0 unexpected，0 flaky，duration=30718ms），顶层 `launchCoverage` 正确声明 `S21/S32`、
+    `CLINICAL_EXECUTION/DATA_INTEROPERABILITY/QUALITY_IMPROVEMENT`、`TERMINOLOGY/RULE/ACTION_CARD`、
+    `API_EVENT`、`THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION/QUALITY_IMPROVEMENT`。
+    附件 `infection-public-health-safety-frontdesk-codes` 记录 runtime
+    `releaseId=runtime-01KWYM1215S7SS8STRGV5YRN4X/revisionNo=5/manifestSha256=9fe40352c0aeb0a8fe690606ac652d45fb86f410d7f2764a67e9b955da056cc1`；
+    术语资产 `TERM.PUBLIC_HEALTH.INFECTION.MRATKBG1-0/versionId=av-01KWYM0QCVWTJY8WDG2248T46S/contentHash=b5110296fee7e67673c2c58357c10e178560a01a782cbf5f5832a9f436c65afa`；
+    规则资产 `RULE.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL.MRATKBG1-0/versionId=av-01KWYM11YCQ345MFN8ZKS6KRN6/contentHash=745121d02dfb2b18854cbfbc810edcf02b94cb70abdf38e2c852264104169cc0`；
+    动作卡 `ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL.MRATKBG1-0/versionId=av-01KWYM0QD02SNPV7D2AKANJNVQ/contentHash=58e9ffbf2fc12ad5d4c0cd1e8929eca206b6ddbfc20b04a710950c6b1351311d`。
+    上下文 `contextSnapshotId=ctx-db81733b-aaef-4398-993e-99fc8d77a700/patientId=mpi-01KWYM14JVN6F3857XC87K63VS/encounterId=enc-public-health-mratkbg1-0`；
+    入站报告 `messageId=in-public-health-MRATKBG1-0/status=SUCCESS/clinicalEventStatus=RECEIVED/mappedFieldCount=16`，
+    异步临床事件 `eventId=evt-wh-393f76bf4f006598adf23b98c730897d44e0cc351c78d4ea9a5f32f0/status=PROCESSED/errorCode=null/errorClass=null/retryCount=0/runtimeReleaseId=runtime-01KWYM1215S7SS8STRGV5YRN4X`。
+    推荐卡 `cardId=rc-4f48ebb2-f1f7-4065-8e09-46adef624479/cardStatus=PENDING/requiresPhysicianConfirmation=true/aiGenerated=false`；
+    人工确认 `feedbackId=rf-e7f91976-5782-4a93-926f-c8058fe96f38/cardStatus=ACCEPTED/canonicalSessionRole=clinical-user/noLegalAutoSubmit=true`；
+    整改 `findingId=qf-507f2d8a-cb30-438e-98d4-2eeb9591e83f/taskId=rct-b028a247-5b41-4c71-b202-f057de074c19/taskStatus=CLOSED/reviewDecision=APPROVED`。
+    本次临时 18081 后端已在验证后停止。
+- 第一百五十八批边界与下一步：用户已允许子代理，但本批尝试启动只读复核子代理时仍遇到 agent 数量上限，
+  未产生子代理改动；全部修复、复核和验证在本地完成。即便本批 S21/S32 代表切片目标 E2E 已绿，
+  仍未完成 134 fresh deploy / 清库 / 重启 / 全功能全知识复演，仍未证明完整 S0-S40、完整院感系统、
+  完整公卫法定上报、完整医疗安全 / 不良事件系统、完整第三方公卫院感监管系统族、13 类标准患者资源逐类真实消费者、
+  13 类版本化资产逐类真实消费者或完整四职责全菜单体验。下一步继续按完整产品范围推进：更多第三方系统族真实闭环、
+  PACS/RIS/病理/心电/输血/手麻/手术室等剩余专业链路、全角色前台体验收敛和 134 目标环境 fresh deploy /
+  清库 / 恢复复演；不要把本批代表切片包装成完整上线。
 - 第一百五十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整药事治理、完整抗菌药物分级管理、
   完整第三方药房审方系统族、完整 S18/S31 或完整 S0-S40 收口，而是完成 **P1 药房审方与抗菌药物治理代表切片 S18/S31**：
