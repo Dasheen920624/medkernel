@@ -136,6 +136,46 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
     }
 
     @Test
+    void resolvesPathwayBodyForRuntimeRuleReferenceEvidence() throws Exception {
+        String body = """
+            {"schemaVersion":"1.0","pathwayCode":"PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION","entryMode":"MANUAL_CONFIRM","nodes":[{"nodeCode":"TRIAGE","nodeType":"MANUAL_GATE"}]}
+            """.trim();
+        String hash = sha256(body);
+        ClinicalRuntimeReleaseItem item = item(
+            VersionedAssetType.PATHWAY,
+            "tenant-A",
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+            "av-pathway-critical",
+            "V1",
+            hash);
+        when(runtime.resolve("tenant-A", "release-4")).thenReturn(content(item));
+        when(versions.findByVersionIdAndTenantId("av-pathway-critical", "tenant-A"))
+            .thenReturn(Optional.of(version(
+                VersionedAssetType.PATHWAY,
+                "tenant-A",
+                "av-pathway-critical",
+                "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+                "V1",
+                hash,
+                AssetVersionStatus.PUBLISHED)));
+        when(contents.findByTenantIdAndVersionId("tenant-A", "av-pathway-critical"))
+            .thenReturn(Optional.of(new AssetVersionContent(
+                3L, "av-pathway-critical", "tenant-A", body, hash,
+                NOW, "operator", NOW, "operator", "trace")));
+
+        ResolvedDeclarativeAsset resolved = resolver.resolve(
+            "tenant-A",
+            "release-4",
+            VersionedAssetType.PATHWAY,
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION").orElseThrow();
+
+        assertThat(resolved.assetType()).isEqualTo(VersionedAssetType.PATHWAY);
+        assertThat(resolved.assetVersion()).isEqualTo("V1");
+        assertThat(resolved.contentHash()).isEqualTo(hash);
+        assertThat(resolved.contentJson()).isEqualTo(body);
+    }
+
+    @Test
     void returnsEmptyForAssetOutsideReleaseAndRejectsNonPublishedBody() {
         ClinicalRuntimeReleaseItem item =
             item("tenant-A", "VS.DRAFT", "av-draft", "V1", "a".repeat(64));

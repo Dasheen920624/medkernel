@@ -10,6 +10,129 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整上线、134 清库部署复演、完整急诊系统、完整 ICU 系统、
+  完整生命支持系统、生命支持设备控制、完整 S19/S24/S27 或完整 S0-S40 收口，而是完成
+  **P1 急诊分诊与 ICU 生命支持风险代表切片 S19/S24/S27**：
+  `LIS_MONITORING_CRITICAL + Observation / Procedure / Condition /
+  extensions.local.emergencyTriage / extensions.local.criticalCare + TERMINOLOGY /
+  CDSS_RISK / RULE / PATHWAY / ACTION_CARD + API_EVENT + THIRD_PARTY_INTERFACE /
+  CLINICAL_RUNTIME / PROFESSIONAL_COLLABORATION`。当前 coverage 只声明 `scenarios:S19/S24/S27`、
+  `productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、
+  `versionedAssets:TERMINOLOGY/CDSS_RISK/RULE/PATHWAY/ACTION_CARD`、`deliveryShapes:API_EVENT`、
+  `serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION`；
+  不声明完整急诊系统、完整 ICU 系统、完整生命支持系统、生命支持设备控制、完整 S19/S24/S27、
+  完整 S0-S40、完整四职责全菜单体验、完整上线验收或 134 fresh deploy。
+- 第一百六十一批真实链路说明：新增目标真实 E2E
+  `critical-emergency-icu-frontdesk.spec.ts`。平台管理员经真实 `/adapter/hub` 服务登记
+  `LIS_MONITORING_CRITICAL` Webhook 适配器、回调通道、签名预览和接入申请；医疗引擎运营员创建
+  ICU 乳酸 `TERMINOLOGY` 映射、急危重症 `CDSS_RISK` 风险矩阵、要求人工确认且禁止自动转 ICU /
+  自动开嘱 / 设备控制 / 呼吸机参数变更的 `ACTION_CARD`，并创建包含人工门、时钟 SLA 和升级路径证据的
+  `PATHWAY`。规则发布前先用真实入站形成阳性 / 阴性患者上下文完成规则用例验证，再把平台 baseline、
+  本轮 `TERMINOLOGY/CDSS_RISK/RULE/PATHWAY/ACTION_CARD` 激活到本地上线演练医院当前机构生效版本。
+  随后平台管理员以 HMAC 签名入站监护事实，异步临床事件必须处理到 `PROCESSED`，标准上下文必须包含
+  休克 Condition、休克指数 Observation、LOINC 乳酸危急 Observation、机械通气 Procedure、
+  `extensions.local.emergencyTriage` 和 `extensions.local.criticalCare`，并绑定本轮 runtime。临床用户从真实
+  `/cdss/fatigue` 前台选择“查看患者”触发 `patient-view` 推荐评估，推荐卡证明本轮规则、动作卡和路径按当前机构
+  生效版本消费，且 `requiresPhysicianConfirmation=true/aiGenerated=false`。之后临床用户先从真实
+  `/workflow/todos` 完成本轮推荐卡绑定的升级协同待办，再从推荐详情提交医生人工采纳反馈；证据明确系统只提示，
+  不自动转 ICU、不自动开嘱、不控制呼吸机或生命支持设备。
+- 第一百六十一批代码修复与护栏：修复 r10/r11/r12/r13 连续真实 E2E 红点链路。后端 `PATHWAY`
+  资产加入统一正文存储类型，`ClinicalRuntimeDeclarativeAssetResolver` 可按当前机构生效版本解析路径正文；
+  `RuleDslAssetMaterializer` 支持 `pathwayRef`，只写入 `resolvedPathwayVersion/resolvedPathwayHash`
+  与 `runtimeAssetEvidence`，不复制路径节点正文到规则动作。前端 S19/S24/S27 真实 E2E 新增全链路：
+  平台管理员、医疗引擎运营员、临床用户三类 canonical 账号真实前台操作，覆盖签名入站、医院 runtime 激活、
+  前台推荐触发、真实待办完成和人工确认。r13 根因是先执行人工采纳使推荐卡变为 `ACCEPTED`，而协同待办页只投影
+  `PENDING/VIEWED/DEFERRED` open 推荐卡，导致本轮 `cardId` 链接不可见；已按真实投影规则调整为先完成待办，
+  再提交医师确认反馈，并新增静态顺序护栏。`launchCoverageEvidence` 新增 S19/S24/S27 专用附件门禁：
+  必须校验真实适配器和 HMAC 预览、接入申请诚实 `NOT_CONNECTED`、五类 runtime 资产和激活请求一致、
+  入站临床事件 `PROCESSED` 且绑定本轮 runtime、上下文标准资源和本地扩展、前台 `patient-view` 触发、
+  推荐解释绑定本轮 `RULE/ACTION_CARD/PATHWAY` 版本与哈希、动作卡和人工确认 no-auto 证据、真实待办完成、
+  以及 scope 边界。r14 目标 E2E 一度业务通过但顶层 `launchCoverage={}`，根因是 coverage parser 仍按旧形态期待
+  根级 `criticalCare`、`CRITICAL` 待办优先级和推荐解释内重复 no-auto；已用红绿测试固化真实附件形态：
+  `extensions.local.criticalCare`、服务实际 `HIGH/CRITICAL` 待办优先级、no-auto 由动作卡资产与人工反馈强校验。
+  随后按只读复核意见继续加固 coverage parser：人工确认反馈必须绑定本轮 `recommendation.cardId`，
+  升级待办必须绑定本轮 `clinicalContext.patientId/encounterId`。只读复核指出 r16 中间实现仍在附件层合成
+  `manualEscalation.persisted.cardId` 和 `escalationTodo.patientId/encounterId`；已改为在真实 E2E 中直接断言
+  推荐详情回读的 `persisted.cardId`、待办完成响应的 `patientId/encounterId`，并把这些服务端字段原样写入附件。
+- 第一百六十一批验证证据：
+  - 红绿与单测：`mvn -f medkernel-backend/pom.xml
+    -Dtest=ClinicalRuntimeDeclarativeAssetResolverTest#resolvesPathwayBodyForRuntimeRuleReferenceEvidence test`
+    曾先红，错误为“运行解析器不支持该声明式资产类型：PATHWAY”，加入 `PATHWAY` 统一正文存储后绿；
+    `mvn -f medkernel-backend/pom.xml
+    -Dtest=ClinicalRuntimeDeclarativeAssetResolverTest#resolvesPathwayBodyForRuntimeRuleReferenceEvidence,
+    RuleDslAssetMaterializerTest#recordsPathwayReferenceAsRuntimeEvidenceWithoutCopyingPathwayBody test` 通过。
+    新增静态顺序门禁后，`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+    "critical emergency ICU"` 先红（`completeCriticalEscalationTodo` 位于 `completeCriticalManualEscalation`
+    之后）后绿。新增真实附件形态 coverage 门禁后，`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t
+    "real frontdesk attachment shape"` 先红（S19/S24/S27 coverage 未声明）后随 parser 修复转绿。新增反馈 / 待办绑定
+    负向用例后，`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "critical emergency ICU"`
+    先红（正向 fixture 缺 `manualEscalation.persisted.cardId`）后绿，最终通过（15 selected）。新增真实附件
+    `cardId` 静态护栏后，`npm --prefix frontend run test -- e2eAuthCredentialContract -t "critical emergency ICU"`
+    先红（`critical-emergency-icu-frontdesk.spec.ts` 不含 `cardId: options.cardId`）后绿。只读复核指出附件仍有
+    合成绑定后，新增更严格静态护栏，要求 `persisted.cardId`、`completed.patientId`、`completed.encounterId`
+    均来自服务端回读 / 响应，并禁止 `persistedWithCard`、`patientId: options.snapshot.patientId`、
+    `encounterId: options.snapshot.encounterId`；该护栏先红后绿。
+  - 后端定向：`mvn -f medkernel-backend/pom.xml
+    -Dtest=ClinicalRuntimeDeclarativeAssetResolverTest,RuleDslAssetMaterializerTest,PathwayVersionedAssetAdapterTest,
+    AssetVersionServiceTest test` 通过（27 tests）；`mvn -f medkernel-backend/pom.xml
+    -Dtest=ClinicalRuntimeDeclarativeAssetResolverTest,RuleDslAssetMaterializerTest,AssetVersionServiceTest,
+    AssetTechnicalValidationServiceTest,PathwayVersionedAssetAdapterTest,PathwayEngineServiceTest,
+    ClinicalRuntimeReleaseServiceTest test` 通过（106 tests，0 failures，0 errors）。
+  - 前端静态、类型与构建：`npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence -t
+    "critical emergency ICU|S19/S24/S27"` 通过（2 files，16 selected，210 skipped）；`npm --prefix frontend run
+    typecheck -- --pretty false` 通过；`npm --prefix frontend run build` 通过。
+  - 后端构建与 diff：`mvn -f medkernel-backend/pom.xml -DskipTests package` 通过；`git diff --check`
+    退出码 0，但仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、
+    不暂存该文件。
+  - 目标真实 E2E：当前 18084 dev/H2 后端健康检查曾为 `UP`，用当前源码运行；r14
+    `/tmp/medkernel-e2e-critical-emergency-icu-20260708-r14` 业务通过但顶层 `launchCoverage={}`，已作为
+    parser 红点证据保留。修复 parser 后执行
+    `E2E_API_BASE_URL=http://localhost:18084/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18084
+    E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-critical-emergency-icu-20260708-r15 npm --prefix frontend run e2e --
+    --project=chromium critical-emergency-icu-frontdesk.spec.ts` 通过；`/tmp/medkernel-e2e-critical-emergency-icu-20260708-r15/report/results.json`
+    为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=31443ms），顶层 `launchCoverage` 只含
+    `S19/S24/S27`、`CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、
+    `TERMINOLOGY/CDSS_RISK/RULE/PATHWAY/ACTION_CARD`、`API_EVENT`、
+    `THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION`。附件记录 runtime
+    `releaseId=runtime-01KWZ7G5KSK2Y9DYNXJ0GJ9K3D/revisionNo=11/manifestSha256=8d2a5c4b2fe7a731eadefee03e7c8d323321a9c3e7abd383d09d8ba668855f94`；
+    术语资产
+    `TERM.CRITICAL.EMERGENCY.ICU.LACTATE.MRB5PWLS-0/versionId=av-01KWZ7FRFZ3F9G0J37SKPQ1YQ4/contentHash=8cfed483dc862ddd60cb756f8ef9e752941943078ba52dde5c6b6ba29ade705c`；
+    风险矩阵 `CDSS.RISK.MATRIX/versionId=av-01KWZ7FRF5KYPAG3EZG69JJ1N8/contentHash=d1d30ea7c0dc309746b085a7e19368f63c398ceb668a98c9a445d943dee69589`；
+    规则
+    `RULE.CRITICAL.EMERGENCY.ICU.ESCALATION.MRB5PWLS-0/versionId=av-01KWZ7G5FNH6QC1CH5J8CD5S44/contentHash=e48c3f2d9137715a523d4fe597cb281eb15721322e55f15f6a9fe8a3da539bc8`；
+    路径
+    `PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION.MRB5PWLS-0/versionId=av-01KWZ7FTN5VTN37HHZ1DREV4JE/contentHash=eb6dfd13d28b0f16c9b6bb3d806adc393e8eb77069ed1a67e8416884b129d184`；
+    动作卡
+    `ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION.MRB5PWLS-0/versionId=av-01KWZ7FRG5XH36PK93ZPJ8KY1T/contentHash=962f472c7215bf3d9d74ad877cc3705c5a925e8c90ec2f31fbf03c9023c79cb0`。
+    入站事件 `eventId=evt-wh-287bc67e8b2dd6745e88654da3bad663995e2b13119141cd03b3f057/status=PROCESSED/runtimeReleaseId=runtime-01KWZ7G5KSK2Y9DYNXJ0GJ9K3D/mappedFieldCount=20`；
+    上下文 `snapshotId=ctx-ba4217e8-8def-42a5-b39b-d9fc35340220/patientId=mpi-01KWZ7G8627Y5VXMWH5M4P9MBJ/encounterId=enc-critical-mrb5pwls-0`；
+    推荐卡 `cardId=rc-20d29743-caa5-4093-8161-bfb218dd6ff3/status=PENDING/requiresPhysicianConfirmation=true/aiGenerated=false`；
+    待办 `todoId=todo-d42034b3-3e99-45cc-99ae-88584019859f/status=COMPLETED/priority=HIGH/sourceId=rc-20d29743-caa5-4093-8161-bfb218dd6ff3`；
+    人工确认 `feedbackId=rf-83c32355-59b9-495c-b346-1422114346ac/cardStatus=ACCEPTED/operatorRole=DOCTOR/reasonCode=CONFIRMED`。
+    r15 后 18084 临时后端已停止。只读复核指出 r16 中间实现的附件绑定字段仍有测试侧合成风险后，改为只使用
+    服务端推荐详情 / 待办完成响应字段，并重新用最新 jar 启动 18084 dev/H2 空库后端，健康检查 `UP`，执行
+    `E2E_API_BASE_URL=http://localhost:18084/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18084
+    E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-critical-emergency-icu-20260708-r17 npm --prefix frontend run e2e --
+    --project=chromium critical-emergency-icu-frontdesk.spec.ts` 通过；`/tmp/medkernel-e2e-critical-emergency-icu-20260708-r17/report/results.json`
+    为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=33836ms），顶层 `launchCoverage` 仍只含
+    `S19/S24/S27`、`CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、
+    `TERMINOLOGY/CDSS_RISK/RULE/PATHWAY/ACTION_CARD`、`API_EVENT`、
+    `THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION`。附件记录 runtime
+    `releaseId=runtime-01KWZ8NET6YWZ3TVB634F143F6/revisionNo=3/manifestSha256=ee65ab10edce9030a0c349030f5cb1cfa36d57fa5dcbb57b29bfce93fc9430c9`；
+    推荐卡 `cardId=rc-a753572f-01bc-4876-b0d1-72d6457fead8/status=PENDING/requiresPhysicianConfirmation=true/aiGenerated=false`；
+    待办 `todoId=todo-0f908208-dc81-43b0-a1bb-a5303af06ab6/status=COMPLETED/priority=HIGH/sourceId=rc-a753572f-01bc-4876-b0d1-72d6457fead8/patientId=mpi-01KWZ8NHC92YS0HMC983N04N5V/encounterId=enc-critical-mrb6g1h4-0`；
+    人工确认 `feedbackId=rf-ce9a1597-92ae-4ad5-8a47-69474ff04675/cardStatus=ACCEPTED/persisted.cardId=rc-a753572f-01bc-4876-b0d1-72d6457fead8/operatorRole=DOCTOR/reasonCode=CONFIRMED`。
+    r17 后 18084 临时后端已停止。
+- 第一百六十一批边界与下一步：本批使用只读子代理复核 PATHWAY 统一正文存储与规则引用方向，结论是
+  `PathwayEngineService`、`PathwayVersionedAssetAdapter`、`AssetVersionService` 与技术校验链路一致，未发现另一个会继续报
+  “不支持 PATHWAY 类型”的 resolver；另有只读 coverage 复核确认“先待办、再人工确认”仍满足 S19/S24/S27 附件门禁，
+  并指出不要覆盖采纳前 `PENDING` 推荐卡快照。最终只读复核又指出附件层合成绑定字段风险，已按真实服务回读修复并以 r17
+  复跑通过。本批仍未完成 134 fresh deploy / 清库 / 重启 / 全功能全知识复演，
+  仍未证明完整 S0-S40、完整急诊系统、完整 ICU 系统、完整生命支持系统、生命支持设备控制、13 类标准患者资源逐类真实消费者、
+  13 类版本化资产逐类真实消费者或完整四职责全菜单体验。下一步继续按完整产品范围推进 PACS/RIS/病理/心电/ICU
+  等剩余专业链路、全角色真实前台体验收敛和 134 目标环境 fresh deploy / 清库 / 恢复复演；不要把本批代表切片包装成完整上线。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，本批不要回滚、不要暂存。
 - 第一百六十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整区域平台、完整远程医疗、
   完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整 S40 或完整 S0-S40 收口，而是完成

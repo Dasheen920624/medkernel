@@ -49,7 +49,7 @@ public enum VersionedAssetType {
      */
     public boolean usesUnifiedContentStore() {
         return switch (this) {
-            case FIELD_CATALOG, VALUE_SET, FORMULA, ORDER_SET, ACTION_CARD -> true;
+            case PATHWAY, FIELD_CATALOG, VALUE_SET, FORMULA, ORDER_SET, ACTION_CARD -> true;
             default -> false;
         };
     }

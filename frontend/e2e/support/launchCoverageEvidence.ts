@@ -64,6 +64,7 @@ type CoverageProof = {
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
+  requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
@@ -238,6 +239,23 @@ const surgeryAnesthesiaTransfusionFrontdeskClaims = [
   "serviceCombinations:QUALITY_IMPROVEMENT",
 ];
 
+const criticalEmergencyIcuFrontdeskClaims = [
+  "scenarios:S19",
+  "scenarios:S24",
+  "scenarios:S27",
+  "productLayers:CLINICAL_EXECUTION",
+  "productLayers:DATA_INTEROPERABILITY",
+  "versionedAssets:TERMINOLOGY",
+  "versionedAssets:CDSS_RISK",
+  "versionedAssets:RULE",
+  "versionedAssets:PATHWAY",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:PROFESSIONAL_COLLABORATION",
+];
+
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
@@ -301,6 +319,7 @@ const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
 const requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes = ["S18", "S31"];
 const requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes = ["S21", "S32"];
 const requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes = ["S26"];
+const requiredCriticalEmergencyIcuFrontdeskScenarioCodes = ["S19", "S24", "S27"];
 
 const requiredS2S4RuntimeMappingScenarioEvidence: Record<string, string[]> = {
   S2: [
@@ -433,6 +452,27 @@ const requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioEvidence: Record<stri
     "推荐卡证明术前核查规则、安全红线和动作卡按当前机构生效版本消费",
     "临床用户人工确认围手术期风险，系统不自动输血、不自动开嘱、不自动手术",
     "围手术期时序质控形成整改任务并由固定职责账号复核关闭",
+  ],
+};
+
+const requiredCriticalEmergencyIcuFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S19: [
+    "平台管理员登记 LIS_MONITORING_CRITICAL 监护入站适配器、回调通道和签名预览",
+    "运营员发布乳酸术语、急危重症风险矩阵、预警规则、升级路径和动作卡资产",
+    "当前机构生效版本包含急危重症五类运行资产",
+    "签名入站监护事件生成生命体征和检验 Observation 并处理到 PROCESSED",
+    "临床用户从真实前台触发 patient-view 急危重症预警评估",
+    "推荐卡证明风险规则和动作卡按当前机构生效版本消费",
+  ],
+  S24: [
+    "临床用户从患者 360 建立急诊分诊上下文和去向候选",
+    "推荐卡证明分诊等级和留观或入 ICU 候选仅为人工确认建议",
+    "医生人工确认升级候选，系统不自动转科、不自动开嘱",
+  ],
+  S27: [
+    "入站上下文保留生命支持模式、升压药运行和不控制设备证据",
+    "推荐卡证明 ICU 生命支持风险与升级路径按当前机构生效版本消费",
+    "临床用户从真实待办完成升级协同，系统不控制呼吸机或生命支持设备",
   ],
 };
 
@@ -681,6 +721,12 @@ const coverageProofs: CoverageProof[] = [
     requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment: true,
   },
   {
+    file: "critical-emergency-icu-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
+    claims: criticalEmergencyIcuFrontdeskClaims,
+    requiresCriticalEmergencyIcuFrontdeskAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -802,6 +848,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test)) &&
       (!proof.requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment ||
         hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test)) &&
+      (!proof.requiresCriticalEmergencyIcuFrontdeskAttachment ||
+        hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
@@ -1695,6 +1743,130 @@ function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: Browse
     return requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "critical-emergency-icu-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      versionedAssets?: unknown;
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      scopeStatement?: unknown;
+      apiEvidence?: unknown;
+      monitoringAdapter?: unknown;
+      emergencyOnboarding?: unknown;
+      webhookSignature?: unknown;
+      terminologyGate?: unknown;
+      riskMatrix?: unknown;
+      actionCard?: unknown;
+      ruleAsset?: unknown;
+      pathwayAsset?: unknown;
+      runtime?: unknown;
+      activationRequest?: unknown;
+      clinicalContext?: unknown;
+      inboundMonitoringEvent?: unknown;
+      clinicalTrigger?: unknown;
+      recommendation?: unknown;
+      manualEscalation?: unknown;
+      escalationTodo?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const runtime = parseCriticalEmergencyIcuRuntimeEvidence(parsed.runtime);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredCriticalEmergencyIcuFrontdeskScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
+      !arrayEquals(parsed.versionedAssets, [
+        "TERMINOLOGY",
+        "CDSS_RISK",
+        "RULE",
+        "PATHWAY",
+        "ACTION_CARD",
+      ]) ||
+      !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "THIRD_PARTY_INTERFACE",
+        "CLINICAL_RUNTIME",
+        "PROFESSIONAL_COLLABORATION",
+      ]) ||
+      !hasText(parsed.scopeStatement) ||
+      !hasCriticalEmergencyIcuScopeBoundary(parsed.scopeStatement) ||
+      !hasCompleteCriticalEmergencyIcuApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteCriticalEmergencyIcuAdapterEvidence(parsed.monitoringAdapter) ||
+      !hasCompleteCriticalEmergencyIcuOnboarding(
+        parsed.emergencyOnboarding,
+        parsed.monitoringAdapter,
+      ) ||
+      !hasCompleteCriticalEmergencyIcuWebhookEvidence(
+        parsed.webhookSignature,
+        parsed.monitoringAdapter,
+      ) ||
+      !runtime ||
+      !criticalEmergencyIcuRuntimeAssetMatches(parsed.terminologyGate, runtime.terminologyAsset) ||
+      !criticalEmergencyIcuRuntimeAssetMatches(parsed.riskMatrix, runtime.cdssRiskAsset) ||
+      !criticalEmergencyIcuRuntimeAssetMatches(parsed.ruleAsset, runtime.ruleAsset) ||
+      !criticalEmergencyIcuRuntimeAssetMatches(parsed.pathwayAsset, runtime.pathwayAsset) ||
+      !criticalEmergencyIcuRuntimeAssetMatches(parsed.actionCard, runtime.actionCardAsset) ||
+      !hasCompleteCriticalEmergencyIcuTerminologyGate(parsed.terminologyGate) ||
+      !hasCompleteCriticalEmergencyIcuRiskMatrix(parsed.riskMatrix) ||
+      !hasCompleteCriticalEmergencyIcuActionCard(parsed.actionCard) ||
+      !hasCompleteCriticalEmergencyIcuRuleAsset(parsed.ruleAsset) ||
+      !hasCompleteCriticalEmergencyIcuPathwayAsset(parsed.pathwayAsset) ||
+      !hasCompleteCriticalEmergencyIcuActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompleteCriticalEmergencyIcuClinicalContext(parsed.clinicalContext, runtime.releaseId) ||
+      !hasCompleteCriticalEmergencyIcuInbound(
+        parsed.inboundMonitoringEvent,
+        parsed.monitoringAdapter,
+        parsed.webhookSignature,
+        parsed.clinicalContext,
+        runtime.releaseId,
+      ) ||
+      !hasCompleteCriticalEmergencyIcuTrigger(parsed.clinicalTrigger, runtime.releaseId) ||
+      !hasCompleteCriticalEmergencyIcuRecommendation(
+        parsed.recommendation,
+        runtime,
+        parsed.clinicalTrigger,
+        parsed.ruleAsset,
+      ) ||
+      !hasCompleteCriticalEmergencyIcuManualEscalation(
+        parsed.manualEscalation,
+        runtime.actionCardAsset,
+        parsed.recommendation,
+      ) ||
+      !hasCompleteCriticalEmergencyIcuTodo(
+        parsed.escalationTodo,
+        parsed.recommendation,
+        parsed.clinicalContext,
+      ) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const stages = Array.isArray(row?.observedStages) ? row.observedStages : [];
+      if (!code) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredCriticalEmergencyIcuFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredCriticalEmergencyIcuFrontdeskScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });
@@ -5707,6 +5879,633 @@ function hasUnnegatedSurgeryAnesthesiaTransfusionScopeClaim(statement: string) {
     "完整手麻手术室输血系统",
     "完整手麻手术室输血系统族",
     "护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+type CriticalEmergencyIcuRuntimeAsset = {
+  assetType: "TERMINOLOGY" | "CDSS_RISK" | "RULE" | "PATHWAY" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+function hasCompleteCriticalEmergencyIcuApiEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return [
+    "monitoringAdapterCreatedThroughRealService",
+    "monitoringWebhookCreatedThroughRealService",
+    "emergencyOnboardingCreatedThroughRealService",
+    "webhookSignaturePreviewGenerated",
+    "terminologyActivated",
+    "riskMatrixCreated",
+    "ruleCreated",
+    "pathwayCreated",
+    "actionCardPublished",
+    "runtimeActivatedWithCriticalAssets",
+    "triageContextCreatedFromFrontdesk",
+    "inboundMonitoringEventAccepted",
+    "clinicalEvaluationTriggeredFromFrontdesk",
+    "humanEscalationConfirmationRecorded",
+    "workflowEscalationTodoCompleted",
+  ].every((field) => evidence?.[field] === true);
+}
+
+function parseCriticalEmergencyIcuRuntimeEvidence(value: unknown) {
+  const runtime = recordValue(value);
+  if (
+    !runtime ||
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo < 1 ||
+    !isSha256(runtime.manifestSha256) ||
+    !Array.isArray(runtime.assets)
+  ) {
+    return null;
+  }
+  const terminologyAsset = parseCriticalEmergencyIcuRuntimeAsset(
+    runtime.terminologyAsset,
+    "TERMINOLOGY",
+  );
+  const cdssRiskAsset = parseCriticalEmergencyIcuRuntimeAsset(
+    runtime.cdssRiskAsset,
+    "CDSS_RISK",
+  );
+  const ruleAsset = parseCriticalEmergencyIcuRuntimeAsset(runtime.ruleAsset, "RULE");
+  const pathwayAsset = parseCriticalEmergencyIcuRuntimeAsset(runtime.pathwayAsset, "PATHWAY");
+  const actionCardAsset = parseCriticalEmergencyIcuRuntimeAsset(
+    runtime.actionCardAsset,
+    "ACTION_CARD",
+  );
+  const runtimeAssets = runtime.assets;
+  const assets = [terminologyAsset, cdssRiskAsset, ruleAsset, pathwayAsset, actionCardAsset];
+  if (
+    assets.some((asset) => asset === null) ||
+    !assets.every((asset) =>
+      runtimeAssets.some((item) =>
+        criticalEmergencyIcuRuntimeAssetMatches(
+          item,
+          asset as CriticalEmergencyIcuRuntimeAsset,
+          { requireActive: true },
+        ),
+      ),
+    )
+  ) {
+    return null;
+  }
+  return {
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    terminologyAsset: terminologyAsset as CriticalEmergencyIcuRuntimeAsset,
+    cdssRiskAsset: cdssRiskAsset as CriticalEmergencyIcuRuntimeAsset,
+    ruleAsset: ruleAsset as CriticalEmergencyIcuRuntimeAsset,
+    pathwayAsset: pathwayAsset as CriticalEmergencyIcuRuntimeAsset,
+    actionCardAsset: actionCardAsset as CriticalEmergencyIcuRuntimeAsset,
+  };
+}
+
+function parseCriticalEmergencyIcuRuntimeAsset(
+  value: unknown,
+  assetType: CriticalEmergencyIcuRuntimeAsset["assetType"],
+): CriticalEmergencyIcuRuntimeAsset | null {
+  const asset = recordValue(value);
+  if (
+    !asset ||
+    asset.assetType !== assetType ||
+    !hasText(asset.assetIdentity) ||
+    !hasText(asset.versionId) ||
+    !hasText(asset.versionNo) ||
+    !isSha256(asset.contentHash) ||
+    asset.entryState !== "ACTIVE"
+  ) {
+    return null;
+  }
+  return {
+    assetType,
+    assetIdentity: String(asset.assetIdentity),
+    versionId: String(asset.versionId),
+    versionNo: String(asset.versionNo),
+    contentHash: String(asset.contentHash),
+  };
+}
+
+function criticalEmergencyIcuRuntimeAssetMatches(
+  value: unknown,
+  asset: CriticalEmergencyIcuRuntimeAsset,
+  options: { requireActive?: boolean } = {},
+) {
+  const candidate = recordValue(value);
+  return (
+    candidate?.assetType === asset.assetType &&
+    candidate.assetIdentity === asset.assetIdentity &&
+    candidate.versionId === asset.versionId &&
+    candidate.versionNo === asset.versionNo &&
+    candidate.contentHash === asset.contentHash &&
+    (!options.requireActive || candidate.entryState === "ACTIVE")
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuAdapterEvidence(value: unknown) {
+  const adapter = recordValue(value);
+  const mappings = Array.isArray(adapter?.fieldMappings) ? adapter.fieldMappings : [];
+  return (
+    hasText(adapter?.adapterId) &&
+    adapter?.systemFamilyCode === "LIS_MONITORING_CRITICAL" &&
+    adapter.sourceSystem === "LIS_MONITORING_CRITICAL" &&
+    adapter.targetSystem === "LIS_MONITORING_CRITICAL" &&
+    adapter.protocolType === "Webhook" &&
+    criticalEmergencyIcuMappingTargets(mappings, "/patient/mpi") &&
+    criticalEmergencyIcuMappingTargets(mappings, "/observations/0/code") &&
+    criticalEmergencyIcuMappingTargets(mappings, "/observations/0/valueNumeric") &&
+    criticalEmergencyIcuMappingTargets(mappings, "/observations/1", "LOINC") &&
+    criticalEmergencyIcuMappingTargets(mappings, "/observations/1/valueNumeric") &&
+    criticalEmergencyIcuMappingTargets(
+      mappings,
+      "/extensions/local/criticalCare/ventilatorMode",
+    ) &&
+    criticalEmergencyIcuMappingTargets(
+      mappings,
+      "/extensions/local/criticalCare/vasopressorRunning",
+    ) &&
+    criticalEmergencyIcuMappingTargets(
+      mappings,
+      "/extensions/local/criticalCare/noDeviceControl",
+    )
+  );
+}
+
+function criticalEmergencyIcuMappingTargets(
+  mappings: unknown[],
+  targetPath: string,
+  targetDictionaryKey?: string,
+) {
+  return mappings.some((item) => {
+    const mapping = recordValue(item);
+    return (
+      mapping?.targetPath === targetPath &&
+      (!targetDictionaryKey || mapping.targetDictionaryKey === targetDictionaryKey)
+    );
+  });
+}
+
+function hasCompleteCriticalEmergencyIcuOnboarding(value: unknown, adapterValue: unknown) {
+  const onboarding = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  return (
+    onboarding !== null &&
+    hasText(onboarding.onboardingId) &&
+    onboarding.accessMode === "ADAPTER" &&
+    onboarding.adapterId === adapter?.adapterId &&
+    onboarding.systemFamilyCode === "LIS_MONITORING_CRITICAL" &&
+    onboarding.sourceSystem === "LIS_MONITORING_CRITICAL" &&
+    String(onboarding.businessScenario ?? "").includes("S19") &&
+    String(onboarding.businessScenario ?? "").includes("S24") &&
+    String(onboarding.businessScenario ?? "").includes("S27") &&
+    onboarding.healthStatus === "NOT_CONNECTED"
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuWebhookEvidence(
+  webhookValue: unknown,
+  adapterValue: unknown,
+) {
+  const webhook = recordValue(webhookValue);
+  const adapter = recordValue(adapterValue);
+  return (
+    webhook !== null &&
+    hasText(webhook.webhookId) &&
+    webhook.adapterId === adapter?.adapterId &&
+    webhook.signatureAlgorithm === "HMAC-SHA256" &&
+    webhook.canonicalPayloadIncludesTraceId === true &&
+    webhook.previewGenerated === true
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuTerminologyGate(value: unknown) {
+  const terminology = recordValue(value);
+  return (
+    terminology?.assetType === "TERMINOLOGY" &&
+    hasText(terminology.assetIdentity) &&
+    hasText(terminology.versionId) &&
+    hasText(terminology.versionNo) &&
+    isSha256(terminology.contentHash) &&
+    terminology.standardSystem === "LOINC" &&
+    terminology.standardCode === "2524-7" &&
+    terminology.localCode === "ICU-LAC" &&
+    terminology.sourceSystem === "LIS_MONITORING_CRITICAL" &&
+    terminology.category === "LAB" &&
+    typeof terminology.mappingId === "number" &&
+    terminology.mappingId > 0 &&
+    hasCompleteCriticalEmergencyIcuConfirmedMapping(terminology.confirmedMapping, terminology)
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuConfirmedMapping(
+  value: unknown,
+  terminology: Record<string, unknown>,
+) {
+  const mapping = recordValue(value);
+  return (
+    mapping !== null &&
+    mapping.mappingId === terminology.mappingId &&
+    mapping.localTermId === terminology.localTermId &&
+    mapping.standardTermId === terminology.standardTermId &&
+    mapping.sourceSystem === terminology.sourceSystem &&
+    mapping.category === terminology.category
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuRiskMatrix(value: unknown) {
+  const risk = recordValue(value);
+  return (
+    risk?.assetType === "CDSS_RISK" &&
+    risk.assetIdentity === "CDSS.RISK.MATRIX" &&
+    risk.triggerPoint === "patient-view" &&
+    risk.riskLevel === "CRITICAL" &&
+    risk.reviewRequirement === "PHYSICIAN_CONFIRMATION" &&
+    risk.automationLevel === "INFORM_ONLY" &&
+    risk.autoExecutionAllowed === false
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuActionCard(value: unknown) {
+  const actionCard = recordValue(value);
+  return (
+    actionCard?.assetType === "ACTION_CARD" &&
+    hasText(actionCard.assetIdentity) &&
+    String(actionCard.assetIdentity).startsWith("ACTION_CARD.CRITICAL.") &&
+    actionCard.requiresPhysicianConfirmation === true &&
+    actionCard.noAutoOrder === true &&
+    actionCard.noAutoTransfer === true &&
+    actionCard.noDeviceControl === true &&
+    actionCard.noAutoVentilatorChange === true
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuRuleAsset(value: unknown) {
+  const rule = recordValue(value);
+  return (
+    rule?.assetType === "RULE" &&
+    hasText(rule.assetIdentity) &&
+    String(rule.assetIdentity).startsWith("RULE.CRITICAL.") &&
+    hasText(rule.ruleId) &&
+    hasText(rule.ruleVersionId)
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuPathwayAsset(value: unknown) {
+  const pathway = recordValue(value);
+  return (
+    pathway?.assetType === "PATHWAY" &&
+    hasText(pathway.assetIdentity) &&
+    String(pathway.assetIdentity).startsWith("PATHWAY.CRITICAL.") &&
+    hasText(pathway.templateId)
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuActivationRequest(
+  value: unknown,
+  runtime: {
+    terminologyAsset: CriticalEmergencyIcuRuntimeAsset;
+    cdssRiskAsset: CriticalEmergencyIcuRuntimeAsset;
+    ruleAsset: CriticalEmergencyIcuRuntimeAsset;
+    pathwayAsset: CriticalEmergencyIcuRuntimeAsset;
+    actionCardAsset: CriticalEmergencyIcuRuntimeAsset;
+  },
+) {
+  return [
+    runtime.terminologyAsset,
+    runtime.cdssRiskAsset,
+    runtime.ruleAsset,
+    runtime.pathwayAsset,
+    runtime.actionCardAsset,
+  ].every((asset) =>
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: asset.versionId,
+    }),
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuClinicalContext(
+  value: unknown,
+  runtimeReleaseId: string,
+) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const encounters = Array.isArray(resources?.encounters) ? resources.encounters : [];
+  const conditions = Array.isArray(resources?.conditions) ? resources.conditions : [];
+  const observations = Array.isArray(resources?.observations) ? resources.observations : [];
+  const procedures = Array.isArray(resources?.procedures) ? resources.procedures : [];
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const emergencyTriage = recordValue(local?.emergencyTriage);
+  const criticalCare = recordValue(local?.criticalCare);
+  return (
+    hasText(context?.patientId) &&
+    hasText(context?.encounterId) &&
+    hasText(context?.contextSnapshotId) &&
+    context?.runtimeReleaseId === runtimeReleaseId &&
+    context.clinicalSetting === "ED" &&
+    encounters.some((item) => {
+      const encounter = recordValue(item);
+      return encounter?.encounterType === "ED" && hasText(encounter.departmentId);
+    }) &&
+    conditions.some((item) => {
+      const condition = recordValue(item);
+      return condition?.code === "R57.900" && hasText(condition.displayName);
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "SHOCK_INDEX" && Number(observation.valueNumeric) >= 1.3;
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return (
+        observation?.code === "2524-7" &&
+        Number(observation.valueNumeric) >= 4 &&
+        observation.criticalFlag === "CRITICAL"
+      );
+    }) &&
+    procedures.some((item) => {
+      const procedure = recordValue(item);
+      return procedure?.code === "5A1955Z" && hasText(procedure.displayName);
+    }) &&
+    emergencyTriage?.triageLevel === "LEVEL_1" &&
+    emergencyTriage.destinationCandidate === "ICU" &&
+    emergencyTriage.manualEscalationRequired === true &&
+    criticalCare?.ventilatorMode === "SIMV" &&
+    criticalCare.vasopressorRunning === true &&
+    criticalCare.noDeviceControl === true
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuInbound(
+  value: unknown,
+  adapterValue: unknown,
+  webhookValue: unknown,
+  contextValue: unknown,
+  runtimeReleaseId: string,
+) {
+  const inbound = recordValue(value);
+  const adapter = recordValue(adapterValue);
+  const webhook = recordValue(webhookValue);
+  const context = recordValue(contextValue);
+  const mappedPayload = recordValue(inbound?.mappedPayload);
+  const signedPayload = recordValue(inbound?.signedPayload);
+  const signedCriticalCare = recordValue(signedPayload?.criticalCare) ?? signedPayload;
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  const observations = Array.isArray(mappedPayload?.observations) ? mappedPayload.observations : [];
+  const mappedExtensions = recordValue(mappedPayload?.extensions);
+  const mappedLocal = recordValue(mappedExtensions?.local);
+  const criticalCare =
+    recordValue(mappedPayload?.criticalCare) ?? recordValue(mappedLocal?.criticalCare);
+  return (
+    inbound !== null &&
+    mappedPayload !== null &&
+    hasText(inbound.messageId) &&
+    hasText(inbound.traceId) &&
+    inbound.adapterId === adapter?.adapterId &&
+    inbound.webhookId === webhook?.webhookId &&
+    inbound.patientId === context?.patientId &&
+    inbound.contextSnapshotId === context?.contextSnapshotId &&
+    inbound.sourceSystem === "LIS_MONITORING_CRITICAL" &&
+    inbound.status === "SUCCESS" &&
+    inbound.clinicalEventStatus === "RECEIVED" &&
+    hasProcessedCriticalEmergencyIcuClinicalEvent(clinicalEvent, runtimeReleaseId) &&
+    typeof inbound.mappedFieldCount === "number" &&
+    inbound.mappedFieldCount >= 7 &&
+    Number(signedPayload?.shockIndexValue) >= 1.3 &&
+    signedPayload?.lactateCode === "ICU-LAC" &&
+    Number(signedPayload.lactateValue) >= 4 &&
+    signedCriticalCare?.noDeviceControl === true &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return observation?.code === "SHOCK_INDEX" && Number(observation.valueNumeric) >= 1.3;
+    }) &&
+    observations.some((item) => {
+      const observation = recordValue(item);
+      return (
+        observation?.standardCode === "2524-7" &&
+        observation.codeSystem === "LOINC" &&
+        observation.sourceSystem === "LIS_MONITORING_CRITICAL" &&
+        observation.runtimeReleaseId === runtimeReleaseId &&
+        Number(observation.valueNumeric) >= 4 &&
+        observation.criticalFlag === "CRITICAL"
+      );
+    }) &&
+    criticalCare?.ventilatorMode === "SIMV" &&
+    criticalCare.vasopressorRunning === true &&
+    criticalCare.noDeviceControl === true
+  );
+}
+
+function hasProcessedCriticalEmergencyIcuClinicalEvent(
+  clinicalEvent: Record<string, unknown> | null,
+  runtimeReleaseId: string,
+) {
+  return (
+    clinicalEvent !== null &&
+    hasText(clinicalEvent.eventId) &&
+    clinicalEvent.status === "PROCESSED" &&
+    clinicalEvent.runtimeReleaseId === runtimeReleaseId &&
+    (clinicalEvent.errorCode === null || clinicalEvent.errorCode === undefined) &&
+    (clinicalEvent.errorClass === null || clinicalEvent.errorClass === undefined)
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuTrigger(value: unknown, runtimeReleaseId: string) {
+  const trigger = recordValue(value);
+  return (
+    trigger !== null &&
+    hasText(trigger.triggerId) &&
+    hasText(trigger.contextSnapshotId) &&
+    trigger.runtimeReleaseId === runtimeReleaseId &&
+    trigger.triggerType === "patient-view" &&
+    hasText(trigger.cardId) &&
+    Array.isArray(trigger.relatedCardIds) &&
+    trigger.relatedCardIds.includes(trigger.cardId)
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+    ruleAsset: CriticalEmergencyIcuRuntimeAsset;
+    pathwayAsset: CriticalEmergencyIcuRuntimeAsset;
+    actionCardAsset: CriticalEmergencyIcuRuntimeAsset;
+  },
+  triggerValue: unknown,
+  ruleValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const trigger = recordValue(triggerValue);
+  const rule = recordValue(ruleValue);
+  if (
+    !recommendation ||
+    !trigger ||
+    !rule ||
+    !hasText(recommendation.cardId) ||
+    recommendation.cardId !== trigger.cardId ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardStatus !== "PENDING" ||
+    recommendation.requiresPhysicianConfirmation !== true ||
+    recommendation.aiGenerated !== false
+  ) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const runtimeRelease = recordValue(explanation?.runtimeRelease);
+  const ruleExplanation = recordValue(explanation?.ruleExplanation);
+  const conditionEvidence = Array.isArray(ruleExplanation?.conditionEvidence)
+    ? ruleExplanation.conditionEvidence
+    : [];
+  const runtimeAssetEvidence = Array.isArray(ruleExplanation?.runtimeAssetEvidence)
+    ? ruleExplanation.runtimeAssetEvidence
+    : [];
+  return (
+    explanation?.matchType === "RULE" &&
+    explanation.ruleId === rule.ruleId &&
+    explanation.ruleCode === rule.assetIdentity &&
+    explanation.ruleVersionId === rule.ruleVersionId &&
+    runtimeRelease?.runtimeReleaseId === runtime.releaseId &&
+    runtimeRelease.assetVersionId === runtime.ruleAsset.versionId &&
+    runtimeRelease.assetVersionNo === runtime.ruleAsset.versionNo &&
+    runtimeRelease.contentHash === runtime.ruleAsset.contentHash &&
+    criticalEmergencyIcuConditionMatched(conditionEvidence, "observations[].criticalFlag") &&
+    criticalEmergencyIcuConditionMatched(
+      conditionEvidence,
+      "extensions.local.emergencyTriage.triageLevel",
+    ) &&
+    criticalEmergencyIcuConditionMatched(
+      conditionEvidence,
+      "extensions.local.criticalCare.vasopressorRunning",
+    ) &&
+    runtimeAssetEvidence.some((item) => {
+      const evidence = recordValue(item);
+      return (
+        evidence?.assetType === "ACTION_CARD" &&
+        evidence.assetIdentity === runtime.actionCardAsset.assetIdentity &&
+        evidence.assetVersion === runtime.actionCardAsset.versionNo &&
+        evidence.contentHash === runtime.actionCardAsset.contentHash
+      );
+    }) &&
+    runtimeAssetEvidence.some((item) => {
+      const evidence = recordValue(item);
+      return (
+        evidence?.assetType === "PATHWAY" &&
+        evidence.assetIdentity === runtime.pathwayAsset.assetIdentity &&
+        evidence.assetVersion === runtime.pathwayAsset.versionNo &&
+        evidence.contentHash === runtime.pathwayAsset.contentHash
+      );
+    })
+  );
+}
+
+function criticalEmergencyIcuConditionMatched(values: unknown[], fact: string) {
+  return values.some((item) => {
+    const evidence = recordValue(item);
+    return evidence?.fact === fact && evidence.matched === true;
+  });
+}
+
+function hasCompleteCriticalEmergencyIcuManualEscalation(
+  value: unknown,
+  actionCardAsset: CriticalEmergencyIcuRuntimeAsset,
+  recommendationValue: unknown,
+) {
+  const escalation = recordValue(value);
+  const persisted = recordValue(escalation?.persisted);
+  const actionCardEvidence = recordValue(escalation?.actionCardEvidence);
+  const recommendation = recordValue(recommendationValue);
+  return (
+    escalation !== null &&
+    persisted !== null &&
+    recommendation !== null &&
+    hasText(escalation.feedbackId) &&
+    escalation.cardStatus === "ACCEPTED" &&
+    escalation.canonicalSessionRole === "clinical-user" &&
+    persisted.feedbackId === escalation.feedbackId &&
+    persisted.cardId === recommendation.cardId &&
+    persisted.feedbackType === "ACCEPT" &&
+    persisted.operatorRole === "DOCTOR" &&
+    persisted.reasonCode === "CONFIRMED" &&
+    escalation.noAutoOrder === true &&
+    escalation.noAutoTransfer === true &&
+    escalation.noDeviceControl === true &&
+    escalation.noAutoVentilatorChange === true &&
+    actionCardEvidence?.assetType === "ACTION_CARD" &&
+    actionCardEvidence.assetIdentity === actionCardAsset.assetIdentity &&
+    actionCardEvidence.versionId === actionCardAsset.versionId &&
+    actionCardEvidence.versionNo === actionCardAsset.versionNo &&
+    actionCardEvidence.contentHash === actionCardAsset.contentHash &&
+    actionCardEvidence.entryState === "ACTIVE" &&
+    actionCardEvidence.noAutoOrder === true &&
+    actionCardEvidence.noAutoTransfer === true &&
+    actionCardEvidence.noDeviceControl === true &&
+    actionCardEvidence.noAutoVentilatorChange === true
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuTodo(
+  value: unknown,
+  recommendationValue: unknown,
+  contextValue: unknown,
+) {
+  const todo = recordValue(value);
+  const recommendation = recordValue(recommendationValue);
+  const context = recordValue(contextValue);
+  return (
+    todo !== null &&
+    recommendation !== null &&
+    context !== null &&
+    hasText(todo.todoId) &&
+    todo.sourceType === "RECOMMENDATION_CARD" &&
+    todo.sourceId === recommendation.cardId &&
+    (todo.priority === "CRITICAL" || todo.priority === "HIGH") &&
+    todo.status === "COMPLETED" &&
+    todo.completedByRole === "clinical-user" &&
+    hasText(todo.completionReason) &&
+    String(todo.completionReason).includes("不自动转 ICU") &&
+    String(todo.completionReason).includes("不自动开嘱") &&
+    String(todo.completionReason).includes("不控制设备") &&
+    todo.patientId === context.patientId &&
+    todo.encounterId === context.encounterId
+  );
+}
+
+function hasCriticalEmergencyIcuScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedCriticalEmergencyIcuScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整急诊系统") &&
+    hasNegatedScopeTerm(statement, "完整 ICU 系统") &&
+    hasNegatedScopeTerm(statement, "完整生命支持系统") &&
+    hasNegatedScopeTerm(statement, "生命支持设备控制") &&
+    hasNegatedScopeTerm(statement, "完整 S19/S24/S27") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedCriticalEmergencyIcuScopeClaim(statement: string) {
+  return [
+    "完整急诊系统",
+    "完整 ICU 系统",
+    "完整ICU系统",
+    "完整生命支持系统",
+    "生命支持设备控制",
+    "完整S19/S24/S27",
+    "完整 S19/S24/S27",
+    "完整S0-S40",
+    "完整 S0-S40",
+    "完整上线",
+    "完整上线验收",
   ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 

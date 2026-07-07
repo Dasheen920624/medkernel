@@ -86,6 +86,10 @@ public class RuleDslAssetMaterializer {
         if (actionCardRef != null) {
             materializeActionCard(object, tenantId, runtimeReleaseId, actionCardRef, runtimeEvidence);
         }
+        String pathwayRef = text(object, "pathwayRef");
+        if (pathwayRef != null) {
+            materializePathway(object, tenantId, runtimeReleaseId, pathwayRef, runtimeEvidence);
+        }
         Iterator<Map.Entry<String, JsonNode>> fields = object.fields();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> field = fields.next();
@@ -187,6 +191,25 @@ public class RuleDslAssetMaterializer {
             "requiresPhysicianConfirmation",
             target.path("requiresPhysicianConfirmation").asBoolean(false)
         );
+    }
+
+    private void materializePathway(
+            ObjectNode target,
+            String tenantId,
+            String runtimeReleaseId,
+            String identity,
+            ArrayNode runtimeEvidence) {
+        ResolvedDeclarativeAsset resolved = resolve(
+            tenantId, runtimeReleaseId, VersionedAssetType.PATHWAY, identity, "临床路径");
+        target.put("resolvedPathwayVersion", resolved.assetVersion());
+        target.put("resolvedPathwayHash", resolved.contentHash());
+        ObjectNode evidence = runtimeEvidence.addObject();
+        evidence.put("assetType", resolved.assetType().name());
+        evidence.put("assetIdentity", identity);
+        evidence.put("pathwayRef", identity);
+        evidence.put("assetVersion", resolved.assetVersion());
+        evidence.put("runtimeReleaseId", resolved.runtimeReleaseId());
+        evidence.put("contentHash", resolved.contentHash());
     }
 
     private void copyRequired(JsonNode content, ObjectNode target, String field, String identity) {

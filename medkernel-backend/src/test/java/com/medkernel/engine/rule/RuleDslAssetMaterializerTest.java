@@ -181,6 +181,60 @@ class RuleDslAssetMaterializerTest {
     }
 
     @Test
+    void recordsPathwayReferenceAsRuntimeEvidenceWithoutCopyingPathwayBody() throws Exception {
+        DeclarativeAssetRuntimePort assets = (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+            assertThat(assetType).isEqualTo(VersionedAssetType.PATHWAY);
+            assertThat(assetIdentity).isEqualTo("PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION");
+            return Optional.of(new ResolvedDeclarativeAsset(
+                assetType,
+                assetIdentity,
+                "V7",
+                runtimeReleaseId,
+                """
+                    {
+                      "schemaVersion": "1.0",
+                      "pathwayCode": "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+                      "name": "急危重症升级路径",
+                      "entryMode": "MANUAL_CONFIRM",
+                      "nodes": [
+                        {"nodeCode": "TRIAGE", "nodeType": "MANUAL_GATE"},
+                        {"nodeCode": "ICU_REVIEW", "nodeType": "MANUAL_GATE"}
+                      ]
+                    }
+                    """,
+                "d".repeat(64)
+            ));
+        };
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(json, assets);
+        JsonNode dsl = json.readTree("""
+            {
+              "when": {"fact": "extensions.local.emergencyTriage.triageLevel", "operator": "equals", "value": "LEVEL_1"},
+              "then": [{
+                "pathwayRef": "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+                "actionCode": "STRONG_REMINDER"
+              }]
+            }
+            """);
+
+        JsonNode materialized = materializer.materialize("tenant-A", "release-critical", dsl);
+        JsonNode action = materialized.path("then").get(0);
+        JsonNode evidence = materialized.path("runtimeAssetEvidence");
+
+        assertThat(action.path("pathwayRef").asText()).isEqualTo(
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION");
+        assertThat(action.path("resolvedPathwayVersion").asText()).isEqualTo("V7");
+        assertThat(action.path("resolvedPathwayHash").asText()).isEqualTo("d".repeat(64));
+        assertThat(action.has("nodes")).isFalse();
+        assertThat(evidence).hasSize(1);
+        assertThat(evidence.get(0).path("assetType").asText()).isEqualTo("PATHWAY");
+        assertThat(evidence.get(0).path("assetIdentity").asText()).isEqualTo(
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION");
+        assertThat(evidence.get(0).path("assetVersion").asText()).isEqualTo("V7");
+        assertThat(evidence.get(0).path("runtimeReleaseId").asText()).isEqualTo("release-critical");
+        assertThat(evidence.get(0).path("contentHash").asText()).isEqualTo("d".repeat(64));
+    }
+
+    @Test
     void appendsRuntimeAssetEvidenceAndOverridesAuthoredRuntimeEvidence() throws Exception {
         DeclarativeAssetRuntimePort assets = (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
             if (assetType == VersionedAssetType.VALUE_SET) {

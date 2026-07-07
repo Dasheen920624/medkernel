@@ -3279,6 +3279,456 @@ function expectNoSurgeryAnesthesiaTransfusionCoverage(body: Record<string, unkno
   );
 }
 
+const criticalEmergencyIcuEvidence = {
+  scenarioCodes: ["S19", "S24", "S27"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
+  versionedAssets: ["TERMINOLOGY", "CDSS_RISK", "RULE", "PATHWAY", "ACTION_CARD"],
+  deliveryShapes: ["API_EVENT"],
+  serviceCombinations: [
+    "THIRD_PARTY_INTERFACE",
+    "CLINICAL_RUNTIME",
+    "PROFESSIONAL_COLLABORATION",
+  ],
+  scopeStatement:
+    "急诊分诊与 ICU 生命支持风险代表切片：LIS_MONITORING_CRITICAL 入站监护事实、HIS_EMR_CDR 急诊分诊上下文、当前机构生效版本风险规则、路径升级候选、人工确认和升级待办闭环，不代表完整急诊系统、完整 ICU 系统、完整生命支持系统、生命支持设备控制、完整 S19/S24/S27、完整 S0-S40 或完整上线验收。",
+  apiEvidence: {
+    monitoringAdapterCreatedThroughRealService: true,
+    monitoringWebhookCreatedThroughRealService: true,
+    emergencyOnboardingCreatedThroughRealService: true,
+    webhookSignaturePreviewGenerated: true,
+    terminologyActivated: true,
+    riskMatrixCreated: true,
+    ruleCreated: true,
+    pathwayCreated: true,
+    actionCardPublished: true,
+    runtimeActivatedWithCriticalAssets: true,
+    triageContextCreatedFromFrontdesk: true,
+    inboundMonitoringEventAccepted: true,
+    clinicalEvaluationTriggeredFromFrontdesk: true,
+    humanEscalationConfirmationRecorded: true,
+    workflowEscalationTodoCompleted: true,
+  },
+  monitoringAdapter: {
+    adapterId: "adapter-critical-monitoring",
+    systemFamilyCode: "LIS_MONITORING_CRITICAL",
+    sourceSystem: "LIS_MONITORING_CRITICAL",
+    targetSystem: "LIS_MONITORING_CRITICAL",
+    protocolType: "Webhook",
+    fieldMappings: [
+      { sourcePath: "/patientId", targetPath: "/patient/mpi" },
+      { sourcePath: "/shockIndexCode", targetPath: "/observations/0/code" },
+      { sourcePath: "/shockIndexValue", targetPath: "/observations/0/valueNumeric" },
+      { sourcePath: "/lactateCode", targetPath: "/observations/1", targetDictionaryKey: "LOINC" },
+      { sourcePath: "/lactateValue", targetPath: "/observations/1/valueNumeric" },
+      { sourcePath: "/ventilatorMode", targetPath: "/extensions/local/criticalCare/ventilatorMode" },
+      { sourcePath: "/vasopressorRunning", targetPath: "/extensions/local/criticalCare/vasopressorRunning" },
+      { sourcePath: "/noDeviceControl", targetPath: "/extensions/local/criticalCare/noDeviceControl" },
+    ],
+  },
+  emergencyOnboarding: {
+    onboardingId: "onb-critical-emergency",
+    accessMode: "ADAPTER",
+    adapterId: "adapter-critical-monitoring",
+    systemFamilyCode: "LIS_MONITORING_CRITICAL",
+    sourceSystem: "LIS_MONITORING_CRITICAL",
+    businessScenario: "S19/S24/S27 急危重症预警",
+    healthStatus: "NOT_CONNECTED",
+  },
+  webhookSignature: {
+    webhookId: "webhook-critical-monitoring",
+    adapterId: "adapter-critical-monitoring",
+    signatureAlgorithm: "HMAC-SHA256",
+    canonicalPayloadIncludesTraceId: true,
+    previewGenerated: true,
+  },
+  terminologyGate: {
+    assetType: "TERMINOLOGY",
+    assetIdentity: "TERM.CRITICAL.EMERGENCY.ICU.LACTATE",
+    versionId: "av-term-critical",
+    versionNo: "V1",
+    contentHash: "a".repeat(64),
+    standardSystem: "LOINC",
+    standardCode: "2524-7",
+    localCode: "ICU-LAC",
+    localTermId: 1901,
+    standardTermId: 25247,
+    sourceSystem: "LIS_MONITORING_CRITICAL",
+    category: "LAB",
+    mappingId: 19,
+    confirmedMapping: {
+      mappingId: 19,
+      localTermId: 1901,
+      standardTermId: 25247,
+      sourceSystem: "LIS_MONITORING_CRITICAL",
+      category: "LAB",
+    },
+  },
+  riskMatrix: {
+    assetType: "CDSS_RISK",
+    assetIdentity: "CDSS.RISK.MATRIX",
+    versionId: "av-risk-critical",
+    versionNo: "V1",
+    contentHash: "b".repeat(64),
+    entryState: "ACTIVE",
+    triggerPoint: "patient-view",
+    riskLevel: "CRITICAL",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    automationLevel: "INFORM_ONLY",
+    autoExecutionAllowed: false,
+  },
+  actionCard: {
+    assetType: "ACTION_CARD",
+    assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION",
+    versionId: "av-action-critical",
+    versionNo: "V1",
+    contentHash: "c".repeat(64),
+    entryState: "ACTIVE",
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoTransfer: true,
+    noDeviceControl: true,
+    noAutoVentilatorChange: true,
+  },
+  ruleAsset: {
+    assetType: "RULE",
+    assetIdentity: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION",
+    versionId: "av-rule-critical",
+    versionNo: "V1",
+    contentHash: "d".repeat(64),
+    ruleId: "rule-critical-icu",
+    ruleVersionId: "rv-critical-icu",
+  },
+  pathwayAsset: {
+    assetType: "PATHWAY",
+    assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+    versionId: "av-pathway-critical",
+    versionNo: "V1",
+    contentHash: "e".repeat(64),
+    templateId: "tpl-critical-icu",
+  },
+  runtime: {
+    releaseId: "runtime-critical",
+    revisionNo: 27,
+    manifestSha256: "f".repeat(64),
+    assets: [
+      {
+        assetType: "TERMINOLOGY",
+        assetIdentity: "TERM.CRITICAL.EMERGENCY.ICU.LACTATE",
+        versionId: "av-term-critical",
+        versionNo: "V1",
+        contentHash: "a".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "av-risk-critical",
+        versionNo: "V1",
+        contentHash: "b".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-rule-critical",
+        versionNo: "V1",
+        contentHash: "d".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "PATHWAY",
+        assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-pathway-critical",
+        versionNo: "V1",
+        contentHash: "e".repeat(64),
+        entryState: "ACTIVE",
+      },
+      {
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-action-critical",
+        versionNo: "V1",
+        contentHash: "c".repeat(64),
+        entryState: "ACTIVE",
+      },
+    ],
+    terminologyAsset: {
+      assetType: "TERMINOLOGY",
+      assetIdentity: "TERM.CRITICAL.EMERGENCY.ICU.LACTATE",
+      versionId: "av-term-critical",
+      versionNo: "V1",
+      contentHash: "a".repeat(64),
+      entryState: "ACTIVE",
+    },
+    cdssRiskAsset: {
+      assetType: "CDSS_RISK",
+      assetIdentity: "CDSS.RISK.MATRIX",
+      versionId: "av-risk-critical",
+      versionNo: "V1",
+      contentHash: "b".repeat(64),
+      entryState: "ACTIVE",
+    },
+    ruleAsset: {
+      assetType: "RULE",
+      assetIdentity: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION",
+      versionId: "av-rule-critical",
+      versionNo: "V1",
+      contentHash: "d".repeat(64),
+      entryState: "ACTIVE",
+    },
+    pathwayAsset: {
+      assetType: "PATHWAY",
+      assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+      versionId: "av-pathway-critical",
+      versionNo: "V1",
+      contentHash: "e".repeat(64),
+      entryState: "ACTIVE",
+    },
+    actionCardAsset: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION",
+      versionId: "av-action-critical",
+      versionNo: "V1",
+      contentHash: "c".repeat(64),
+      entryState: "ACTIVE",
+    },
+  },
+  activationRequest: {
+    activeAssets: [
+      { assetType: "TERMINOLOGY", assetIdentity: "TERM.CRITICAL.EMERGENCY.ICU.LACTATE", versionId: "av-term-critical" },
+      { assetType: "CDSS_RISK", assetIdentity: "CDSS.RISK.MATRIX", versionId: "av-risk-critical" },
+      { assetType: "RULE", assetIdentity: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION", versionId: "av-rule-critical" },
+      { assetType: "PATHWAY", assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION", versionId: "av-pathway-critical" },
+      { assetType: "ACTION_CARD", assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION", versionId: "av-action-critical" },
+    ],
+  },
+  clinicalContext: {
+    patientId: "mpi-critical",
+    encounterId: "enc-critical-ed",
+    contextSnapshotId: "ctx-critical",
+    runtimeReleaseId: "runtime-critical",
+    clinicalSetting: "ED",
+    resources: {
+      encounters: [{ encounterType: "ED", departmentId: "ED" }],
+      conditions: [{ code: "R57.900", displayName: "休克" }],
+      observations: [
+        { code: "SHOCK_INDEX", valueNumeric: 1.4, criticalFlag: "HIGH" },
+        { code: "2524-7", valueNumeric: 5.2, unit: "mmol/L", criticalFlag: "CRITICAL" },
+      ],
+      procedures: [{ code: "5A1955Z", displayName: "机械通气" }],
+      extensions: {
+        local: {
+          emergencyTriage: {
+            triageLevel: "LEVEL_1",
+            destinationCandidate: "ICU",
+            manualEscalationRequired: true,
+          },
+          criticalCare: {
+            ventilatorMode: "SIMV",
+            vasopressorRunning: true,
+            noDeviceControl: true,
+          },
+        },
+      },
+    },
+  },
+  inboundMonitoringEvent: {
+    messageId: "in-critical-monitoring",
+    traceId: "trace-critical",
+    adapterId: "adapter-critical-monitoring",
+    webhookId: "webhook-critical-monitoring",
+    patientId: "mpi-critical",
+    encounterId: "enc-critical-ed",
+    contextSnapshotId: "ctx-critical",
+    sourceSystem: "LIS_MONITORING_CRITICAL",
+    status: "SUCCESS",
+    clinicalEventStatus: "RECEIVED",
+    clinicalEvent: {
+      eventId: "evt-wh-critical",
+      status: "PROCESSED",
+      errorCode: null,
+      errorClass: null,
+      retryCount: 0,
+      runtimeReleaseId: "runtime-critical",
+    },
+    mappedFieldCount: 7,
+    mappedPayload: {
+      observations: [
+        { code: "SHOCK_INDEX", valueNumeric: 1.4, criticalFlag: "HIGH" },
+        {
+          standardCode: "2524-7",
+          codeSystem: "LOINC",
+          sourceSystem: "LIS_MONITORING_CRITICAL",
+          runtimeReleaseId: "runtime-critical",
+          valueNumeric: 5.2,
+          criticalFlag: "CRITICAL",
+        },
+      ],
+      criticalCare: {
+        ventilatorMode: "SIMV",
+        vasopressorRunning: true,
+        noDeviceControl: true,
+      },
+    },
+    signedPayload: {
+      shockIndexValue: 1.4,
+      lactateCode: "ICU-LAC",
+      lactateValue: 5.2,
+      criticalCare: { noDeviceControl: true },
+    },
+  },
+  clinicalTrigger: {
+    triggerId: "trigger-critical",
+    contextSnapshotId: "ctx-critical",
+    runtimeReleaseId: "runtime-critical",
+    triggerType: "patient-view",
+    cardId: "card-critical",
+    relatedCardIds: ["card-critical"],
+  },
+  recommendation: {
+    cardId: "card-critical",
+    cardStatus: "PENDING",
+    triggerRuntimeReleaseId: "runtime-critical",
+    cardType: "RISK",
+    requiresPhysicianConfirmation: true,
+    aiGenerated: false,
+    explanation: {
+      matchType: "RULE",
+      ruleId: "rule-critical-icu",
+      ruleCode: "RULE.CRITICAL.EMERGENCY.ICU.ESCALATION",
+      ruleVersionId: "rv-critical-icu",
+      runtimeRelease: {
+        runtimeReleaseId: "runtime-critical",
+        assetVersionId: "av-rule-critical",
+        assetVersionNo: "V1",
+        contentHash: "d".repeat(64),
+      },
+      ruleExplanation: {
+        conditionEvidence: [
+          { fact: "observations[].criticalFlag", matched: true },
+          { fact: "extensions.local.emergencyTriage.triageLevel", matched: true },
+          { fact: "extensions.local.criticalCare.vasopressorRunning", matched: true },
+        ],
+        runtimeAssetEvidence: [
+          {
+            assetType: "ACTION_CARD",
+            assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION",
+            assetVersion: "V1",
+            contentHash: "c".repeat(64),
+            noAutoOrder: true,
+            noAutoTransfer: true,
+            noDeviceControl: true,
+          },
+          {
+            assetType: "PATHWAY",
+            assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+            assetVersion: "V1",
+            contentHash: "e".repeat(64),
+          },
+        ],
+      },
+    },
+  },
+  manualEscalation: {
+    feedbackId: "rf-critical",
+    cardStatus: "ACCEPTED",
+    canonicalSessionRole: "clinical-user",
+    persisted: {
+      feedbackId: "rf-critical",
+      cardId: "card-critical",
+      feedbackType: "ACCEPT",
+      operatorRole: "DOCTOR",
+      reasonCode: "CONFIRMED",
+    },
+    noAutoOrder: true,
+    noAutoTransfer: true,
+    noDeviceControl: true,
+    noAutoVentilatorChange: true,
+    actionCardEvidence: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.CRITICAL.EMERGENCY.ICU.ESCALATION",
+      versionId: "av-action-critical",
+      versionNo: "V1",
+      contentHash: "c".repeat(64),
+      entryState: "ACTIVE",
+      noAutoOrder: true,
+      noAutoTransfer: true,
+      noDeviceControl: true,
+      noAutoVentilatorChange: true,
+    },
+  },
+  escalationTodo: {
+    todoId: "todo-critical",
+    sourceType: "RECOMMENDATION_CARD",
+    sourceId: "card-critical",
+    priority: "CRITICAL",
+    status: "COMPLETED",
+    completedByRole: "clinical-user",
+    completionReason: "医生已人工确认升级处置候选，不自动转 ICU、不自动开嘱、不控制设备。",
+    patientId: "mpi-critical",
+    encounterId: "enc-critical-ed",
+  },
+  scenarioEvidence: [
+    {
+      code: "S19",
+      observedStages: [
+        "平台管理员登记 LIS_MONITORING_CRITICAL 监护入站适配器、回调通道和签名预览",
+        "运营员发布乳酸术语、急危重症风险矩阵、预警规则、升级路径和动作卡资产",
+        "当前机构生效版本包含急危重症五类运行资产",
+        "签名入站监护事件生成生命体征和检验 Observation 并处理到 PROCESSED",
+        "临床用户从真实前台触发 patient-view 急危重症预警评估",
+        "推荐卡证明风险规则和动作卡按当前机构生效版本消费",
+      ],
+    },
+    {
+      code: "S24",
+      observedStages: [
+        "临床用户从患者 360 建立急诊分诊上下文和去向候选",
+        "推荐卡证明分诊等级和留观或入 ICU 候选仅为人工确认建议",
+        "医生人工确认升级候选，系统不自动转科、不自动开嘱",
+      ],
+    },
+    {
+      code: "S27",
+      observedStages: [
+        "入站上下文保留生命支持模式、升压药运行和不控制设备证据",
+        "推荐卡证明 ICU 生命支持风险与升级路径按当前机构生效版本消费",
+        "临床用户从真实待办完成升级协同，系统不控制呼吸机或生命支持设备",
+      ],
+    },
+  ],
+};
+
+function criticalEmergencyIcuEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/critical-emergency-icu-frontdesk.spec.ts",
+        title: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "critical-emergency-icu-frontdesk-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoCriticalEmergencyIcuCoverage(body: Record<string, unknown>) {
+  const evidence = criticalEmergencyIcuEvidenceResult(body);
+  expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["S19", "S24", "S27"]),
+  );
+  expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
+    expect.arrayContaining(["TERMINOLOGY", "CDSS_RISK", "RULE", "PATHWAY", "ACTION_CARD"]),
+  );
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -6052,6 +6502,229 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare surgery anesthesia transfusion coverage when $name", ({ body }) => {
     expectNoSurgeryAnesthesiaTransfusionCoverage(body);
+  });
+
+  it("declares S19/S24/S27 critical emergency ICU coverage only with signed monitoring inbound, runtime assets, manual escalation and todo closure", () => {
+    const evidence = criticalEmergencyIcuEvidenceResult(criticalEmergencyIcuEvidence);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual([
+      "S19",
+      "S24",
+      "S27",
+    ]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+      "DATA_INTEROPERABILITY",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "TERMINOLOGY",
+      "CDSS_RISK",
+      "RULE",
+      "PATHWAY",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "THIRD_PARTY_INTERFACE",
+      "CLINICAL_RUNTIME",
+      "PROFESSIONAL_COLLABORATION",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S19/S24/S27 critical emergency ICU coverage for the real frontdesk attachment shape", () => {
+    const body = structuredClone(criticalEmergencyIcuEvidence);
+    const mappedPayload = {
+      ...body.inboundMonitoringEvent.mappedPayload,
+      extensions: {
+        local: {
+          criticalCare: body.inboundMonitoringEvent.mappedPayload.criticalCare,
+        },
+      },
+    } as Record<string, unknown>;
+    delete mappedPayload.criticalCare;
+    body.inboundMonitoringEvent.mappedPayload =
+      mappedPayload as typeof body.inboundMonitoringEvent.mappedPayload;
+    const signedPayload = {
+      ...body.inboundMonitoringEvent.signedPayload,
+      noDeviceControl: true,
+    } as Record<string, unknown>;
+    delete signedPayload.criticalCare;
+    body.inboundMonitoringEvent.signedPayload =
+      signedPayload as typeof body.inboundMonitoringEvent.signedPayload;
+    const actionCardRuntimeEvidence = body.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.find(
+      (item) => item.assetType === "ACTION_CARD",
+    ) as Record<string, unknown>;
+    delete actionCardRuntimeEvidence.noAutoOrder;
+    delete actionCardRuntimeEvidence.noAutoTransfer;
+    delete actionCardRuntimeEvidence.noDeviceControl;
+    body.escalationTodo.priority = "HIGH";
+
+    const evidence = criticalEmergencyIcuEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual([
+      "S19",
+      "S24",
+      "S27",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺 PATHWAY 升级路径资产",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        versionedAssets: ["TERMINOLOGY", "CDSS_RISK", "RULE", "ACTION_CARD"],
+      },
+    },
+    {
+      name: "接入系统族不是 LIS_MONITORING_CRITICAL",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        monitoringAdapter: {
+          ...structuredClone(criticalEmergencyIcuEvidence.monitoringAdapter),
+          systemFamilyCode: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+        },
+      },
+    },
+    {
+      name: "术语 mapping 未绑定本轮 localTermId/standardTermId/sourceSystem",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        terminologyGate: {
+          ...structuredClone(criticalEmergencyIcuEvidence.terminologyGate),
+          confirmedMapping: {
+            ...structuredClone(criticalEmergencyIcuEvidence.terminologyGate.confirmedMapping),
+            sourceSystem: "OTHER_SYSTEM",
+          },
+        },
+      },
+    },
+    {
+      name: "上下文缺少急诊分诊扩展",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                criticalCare: {
+                  ventilatorMode: "SIMV",
+                  vasopressorRunning: true,
+                  noDeviceControl: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "入站监护事件未处理完成",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          clinicalEvent: {
+            ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent.clinicalEvent),
+            status: "FAILED",
+            errorCode: "ENG-API-002",
+          },
+        },
+      },
+    },
+    {
+      name: "推荐解释缺少路径运行资产证据",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        recommendation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.recommendation),
+          explanation: {
+            ...structuredClone(criticalEmergencyIcuEvidence.recommendation.explanation),
+            ruleExplanation: {
+              ...structuredClone(criticalEmergencyIcuEvidence.recommendation.explanation.ruleExplanation),
+              runtimeAssetEvidence:
+                criticalEmergencyIcuEvidence.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "PATHWAY",
+                ),
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "人工确认缺少不控制设备证据",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          noDeviceControl: false,
+        },
+      },
+    },
+    {
+      name: "人工确认反馈未绑定本轮推荐卡",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          persisted: {
+            ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation.persisted),
+            cardId: "card-other",
+          },
+        },
+      },
+    },
+    {
+      name: "升级待办未完成",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      },
+    },
+    {
+      name: "升级待办未绑定本轮患者上下文",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          patientId: "mpi-other",
+        },
+      },
+    },
+    {
+      name: "scope 过度宣称完整急诊系统上线",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        scopeStatement:
+          "急诊分诊与 ICU 生命支持风险代表切片，不代表完整 ICU 系统、完整生命支持系统、生命支持设备控制、完整 S19/S24/S27、完整 S0-S40 或完整上线验收；完整急诊系统已上线。",
+      },
+    },
+    {
+      name: "scope 过度宣称生命支持设备控制",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        scopeStatement:
+          "急诊分诊与 ICU 生命支持风险代表切片，不代表完整急诊系统、完整 ICU 系统、完整生命支持系统、完整 S19/S24/S27、完整 S0-S40 或完整上线验收；生命支持设备控制已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线验收完成",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        scopeStatement:
+          "急诊分诊与 ICU 生命支持风险代表切片，不代表完整急诊系统、完整 ICU 系统、完整生命支持系统、生命支持设备控制、完整 S19/S24/S27 或完整 S0-S40；完整上线验收已完成。",
+      },
+    },
+  ])("does not declare critical emergency ICU coverage when $name", ({ body }) => {
+    expectNoCriticalEmergencyIcuCoverage(body);
   });
 
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {

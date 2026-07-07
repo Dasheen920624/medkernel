@@ -1252,6 +1252,89 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("完整上线验收已完成");
   });
 
+  it("requires critical emergency ICU rehearsal to prove real S19/S24/S27 frontdesk chain without device-control or scope inflation", () => {
+    const e2eSource = readFileSync("e2e/critical-emergency-icu-frontdesk.spec.ts", "utf8");
+
+    expect(e2eSource).toContain("critical-emergency-icu-frontdesk-codes");
+    expect(e2eSource).toContain("attachCriticalEmergencyIcuEvidence");
+    expect(e2eSource).toContain('"S19"');
+    expect(e2eSource).toContain('"S24"');
+    expect(e2eSource).toContain('"S27"');
+    expect(e2eSource).toContain("LIS_MONITORING_CRITICAL");
+    expect(e2eSource).toContain("/adapter/hub");
+    expect(e2eSource).toContain("/mpi");
+    expect(e2eSource).toContain("/cdss/fatigue");
+    expect(e2eSource).toContain("/workflow/todos");
+    expect(e2eSource).toContain("async function completeCriticalEscalationTodo");
+    expect(e2eSource).not.toContain("async function createAndCompleteCriticalEscalationTodo");
+    expect(e2eSource).not.toContain('postApi(page, "/engine/workflow/todos"');
+    expect(e2eSource.indexOf("const recommendation = await triggerCriticalRecommendationFromFrontdesk")).toBeLessThan(
+      e2eSource.indexOf("const escalationTodo = await completeCriticalEscalationTodo"),
+    );
+    expect(e2eSource.indexOf("const escalationTodo = await completeCriticalEscalationTodo")).toBeLessThan(
+      e2eSource.indexOf("const manualEscalation = await completeCriticalManualEscalation"),
+    );
+    expect(e2eSource).toContain('await chooseDialogOption(page, dialog, "触发时点", "查看患者")');
+    expect(e2eSource).not.toContain('await chooseDialogOption(page, dialog, "触发时点", "患者查看")');
+    expect(e2eSource).toContain('triggerType: "patient-view"');
+    expect(e2eSource).toContain("waitForClinicalEventProcessed");
+    expect(e2eSource).toContain('last.status === "PROCESSED"');
+    expect(e2eSource).toContain("Observation");
+    expect(e2eSource).toContain('eventType: "REPORT"');
+    expect(e2eSource).not.toContain('eventType: "OBSERVATION"');
+    expect(e2eSource).toContain('clinicalSetting: "ED"');
+    expect(e2eSource).not.toContain('clinicalSetting: "EMERGENCY"');
+    expect(e2eSource).toContain('encounterType: "ED"');
+    expect(e2eSource).not.toContain('encounterType: "EMERGENCY"');
+    expect(e2eSource).toContain("extensions.local.emergencyTriage");
+    expect(e2eSource).toContain("extensions.local.criticalCare");
+    expect(e2eSource).toContain("noAutoOrder: true");
+    expect(e2eSource).toContain("noAutoTransfer: true");
+    expect(e2eSource).toContain("noDeviceControl: true");
+    expect(e2eSource).toContain("noAutoVentilatorChange: true");
+    expect(e2eSource).toContain('canonicalSessionRole: "clinical-user"');
+    expect(e2eSource).toContain('expect(textField(persisted, "cardId"), "人工确认反馈必须绑定本轮推荐卡")');
+    expect(e2eSource).toContain('expect(textField(completed, "patientId"), "完成响应必须绑定本轮患者")');
+    expect(e2eSource).toContain('expect(textField(completed, "encounterId"), "完成响应必须绑定本轮就诊")');
+    expect(e2eSource).not.toContain("persistedWithCard");
+    expect(e2eSource).not.toContain("patientId: options.snapshot.patientId");
+    expect(e2eSource).not.toContain("encounterId: options.snapshot.encounterId");
+    expect(e2eSource).toContain('textField(item, "operatorRole") === "DOCTOR"');
+    expect(e2eSource).toContain('textField(item, "reasonCode") === "CONFIRMED"');
+    expect(e2eSource).toContain("async function createAndPublishCriticalIcuRule");
+    expect(e2eSource).toContain("async function createCriticalIcuPathwayAsset");
+    expect(e2eSource).toContain('const allowedStatuses = assetType === "PATHWAY" ? ["DRAFT", "PUBLISHED"] : ["PUBLISHED"];');
+    expect(e2eSource).toContain("minMinutes: 0");
+    expect(e2eSource).toContain("targetMinutes: timeWindowMinutes");
+    expect(e2eSource).toContain("maxMinutes: timeWindowMinutes * 2");
+    expect(e2eSource).toContain('level: "REMINDER"');
+    expect(e2eSource).toContain('level: "REPORT"');
+    expect(e2eSource).toContain('level: "QUALITY_RECORD"');
+    expect(e2eSource).toContain("afterMinutes: timeWindowMinutes");
+    expect(e2eSource).toContain('await ensureReadySession(page, "platform-admin");');
+    expect(e2eSource).toContain('await ensureReadySession(page, "engine-operator");');
+    expect(e2eSource).toContain('await ensureReadySession(page, "clinical-user");');
+    expect(e2eSource).not.toContain('await ensureReadySession(page, "icu-doctor"');
+    expect(e2eSource).not.toContain('await ensureReadySession(page, "emergency-doctor"');
+    expect(e2eSource).not.toContain('"icu-doctor"');
+    expect(e2eSource).not.toContain('"emergency-doctor"');
+    expect(e2eSource).toContain("完整急诊系统");
+    expect(e2eSource).toContain("完整 ICU 系统");
+    expect(e2eSource).toContain("完整生命支持系统");
+    expect(e2eSource).toContain("生命支持设备控制");
+    expect(e2eSource).toContain("完整 S19/S24/S27");
+    expect(e2eSource).toContain("完整 S0-S40");
+    expect(e2eSource).toContain("完整上线验收");
+    expect(e2eSource).not.toContain("page.route(");
+    expect(e2eSource).not.toContain("page.waitForTimeout");
+    expect(e2eSource).not.toContain("third-party-system-family-codes");
+    expect(e2eSource).not.toContain("完整急诊系统已上线");
+    expect(e2eSource).not.toContain("完整 ICU 系统已上线");
+    expect(e2eSource).not.toContain("完整生命支持系统已上线");
+    expect(e2eSource).not.toContain("生命支持设备控制已完成");
+    expect(e2eSource).not.toContain("完整上线验收已完成");
+  });
+
   it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
     const e2eSource = readFileSync(
       "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
