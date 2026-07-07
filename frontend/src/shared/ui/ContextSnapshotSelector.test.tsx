@@ -33,9 +33,10 @@ describe("ContextSnapshotSelector", () => {
     expect(screen.getByText("建立时间：2026年06月04日 08:00:15")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "选择 snapshot-secret-1 · 2026年06月04日 08:00:15 建立的临床快照",
+        name: "选择 2026年06月04日 08:00:15 建立的临床快照",
       }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /snapshot-secret-1/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/patient-secret-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/encounter-secret-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/snapshot-secret-1/)).not.toBeInTheDocument();
@@ -65,12 +66,12 @@ describe("ContextSnapshotSelector", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "选择 snapshot-secret-1 · 2026年06月04日 08:00:15 建立的临床快照",
+        name: "选择 2026年06月04日 08:00:15 建立的临床快照",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "选择 snapshot-secret-2 · 2026年06月04日 08:00:45 建立的临床快照",
+        name: "选择 2026年06月04日 08:00:45 建立的临床快照",
       }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/snapshot-secret-/)).not.toBeInTheDocument();

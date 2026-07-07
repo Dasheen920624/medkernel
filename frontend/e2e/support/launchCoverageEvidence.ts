@@ -637,6 +637,7 @@ function hasRequiredCdssDeclarativeRuntimeAssetAttachment(test: BrowserE2eTestRe
       serviceCombinations?: unknown;
       apiEvidence?: unknown;
       createdAssets?: unknown;
+      ruleRuntimeCandidate?: unknown;
       runtime?: unknown;
       activationRequest?: unknown;
       clinicalTrigger?: unknown;
@@ -645,6 +646,7 @@ function hasRequiredCdssDeclarativeRuntimeAssetAttachment(test: BrowserE2eTestRe
     };
     const runtime = parseCdssDeclarativeRuntimeEvidence(parsed.runtime);
     const createdAssets = parseCdssDeclarativeCreatedAssets(parsed.createdAssets);
+    const ruleRuntimeCandidate = parseCdssRuntimeRuleAsset(parsed.ruleRuntimeCandidate);
     if (
       !arrayEquals(parsed.scenarioCodes, requiredCdssDeclarativeRuntimeAssetScenarioCodes) ||
       !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
@@ -653,10 +655,17 @@ function hasRequiredCdssDeclarativeRuntimeAssetAttachment(test: BrowserE2eTestRe
       !hasCompleteCdssDeclarativeRuntimeApiEvidence(parsed.apiEvidence) ||
       !createdAssets ||
       !runtime ||
+      !ruleRuntimeCandidate ||
+      !cdssRuntimeRuleMatchesRuntime(ruleRuntimeCandidate, runtime.ruleAsset) ||
       !cdssDeclarativeCreatedAssetsMatchRuntime(createdAssets, runtime.assets) ||
-      !hasCompleteCdssDeclarativeActivationRequest(parsed.activationRequest, runtime.assets) ||
+      !hasCompleteCdssDeclarativeActivationRequest(parsed.activationRequest, runtime.assets, ruleRuntimeCandidate) ||
       !hasCompleteCdssDeclarativeTriggerEvidence(parsed.clinicalTrigger, runtime.releaseId) ||
-      !hasCompleteCdssDeclarativeRecommendationEvidence(parsed.recommendation, runtime, parsed.clinicalTrigger) ||
+      !hasCompleteCdssDeclarativeRecommendationEvidence(
+        parsed.recommendation,
+        runtime,
+        parsed.clinicalTrigger,
+        ruleRuntimeCandidate,
+      ) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -1242,6 +1251,7 @@ function parseCdssDeclarativeRuntimeEvidence(value: unknown) {
     revisionNo: runtime.revisionNo,
     manifestSha256: String(runtime.manifestSha256),
     assets,
+    ruleAsset: parseCdssRuntimeRuleAsset(runtime.ruleAsset),
   };
 }
 
@@ -1271,6 +1281,14 @@ function cdssDeclarativeCreatedAssetsMatchRuntime(
 
 type CdssDeclarativeRuntimeAsset = {
   assetType: "VALUE_SET" | "FORMULA" | "ACTION_CARD";
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  contentHash: string;
+};
+
+type CdssRuntimeRuleAsset = {
+  assetType: "RULE";
   assetIdentity: string;
   versionId: string;
   versionNo: string;
@@ -1309,13 +1327,14 @@ function parseCdssDeclarativeAsset(
 function hasCompleteCdssDeclarativeActivationRequest(
   value: unknown,
   assets: CdssDeclarativeRuntimeAsset[],
+  ruleAsset: CdssRuntimeRuleAsset,
 ) {
-  return assets.every((asset) =>
-    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-      assetType: asset.assetType,
-      assetIdentity: asset.assetIdentity,
-      versionId: asset.versionId,
-    }),
+  return [ruleAsset, ...assets].every((asset) =>
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: asset.assetType,
+        assetIdentity: asset.assetIdentity,
+        versionId: asset.versionId,
+      }),
   );
 }
 
@@ -1339,8 +1358,10 @@ function hasCompleteCdssDeclarativeRecommendationEvidence(
   runtime: {
     releaseId: string;
     assets: CdssDeclarativeRuntimeAsset[];
+    ruleAsset: CdssRuntimeRuleAsset | null;
   },
   triggerValue: unknown,
+  ruleAsset: CdssRuntimeRuleAsset,
 ) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const recommendation = value as Record<string, unknown>;
@@ -1358,9 +1379,9 @@ function hasCompleteCdssDeclarativeRecommendationEvidence(
   const ruleExplanation = recordValue(explanation?.ruleExplanation);
   if (
     runtimeRelease?.runtimeReleaseId !== runtime.releaseId ||
-    !hasText(runtimeRelease.assetVersionId) ||
-    !hasText(runtimeRelease.assetVersionNo) ||
-    !isSha256(runtimeRelease.contentHash) ||
+    runtimeRelease.assetVersionId !== ruleAsset.versionId ||
+    runtimeRelease.assetVersionNo !== ruleAsset.versionNo ||
+    runtimeRelease.contentHash !== ruleAsset.contentHash ||
     !Array.isArray(ruleExplanation?.conditionEvidence) ||
     !Array.isArray(ruleExplanation?.runtimeAssetEvidence)
   ) {
@@ -1369,6 +1390,39 @@ function hasCompleteCdssDeclarativeRecommendationEvidence(
   const runtimeAssetEvidence = ruleExplanation.runtimeAssetEvidence;
   return runtime.assets.every((asset) =>
     cdssRuntimeAssetEvidenceMatches(runtimeAssetEvidence, asset),
+  );
+}
+
+function parseCdssRuntimeRuleAsset(value: unknown): CdssRuntimeRuleAsset | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (
+    record.assetType !== "RULE" ||
+    !hasText(record.assetIdentity) ||
+    !hasText(record.versionId) ||
+    !hasText(record.versionNo) ||
+    !isSha256(record.contentHash)
+  ) {
+    return null;
+  }
+  return {
+    assetType: "RULE",
+    assetIdentity: String(record.assetIdentity),
+    versionId: String(record.versionId),
+    versionNo: String(record.versionNo),
+    contentHash: String(record.contentHash),
+  };
+}
+
+function cdssRuntimeRuleMatchesRuntime(
+  candidate: CdssRuntimeRuleAsset,
+  runtimeRule: CdssRuntimeRuleAsset | null,
+) {
+  return (
+    runtimeRule?.assetIdentity === candidate.assetIdentity &&
+    runtimeRule.versionId === candidate.versionId &&
+    runtimeRule.versionNo === candidate.versionNo &&
+    runtimeRule.contentHash === candidate.contentHash
   );
 }
 

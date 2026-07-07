@@ -815,7 +815,8 @@ describe("E2E credential contract", () => {
     expect(source).toContain("/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases");
     expect(source).toContain("/cdss/fatigue");
     expect(source).toContain("getByRole(\"button\", { name: \"登记触发评估\" })");
-    expect(source).toContain("name: `选择 ${snapshot.snapshotId}`");
+    expect(source).toContain("button[data-snapshot-id=\"");
+    expect(source).not.toContain("name: `选择 ${snapshot.snapshotId}`");
     expect(source).toContain("/engine/recommendations:evaluate");
     expect(source).toContain("readRecommendationTriggerDiagnose");
     expect(source).toContain("/engine/recommendations/triggers/${encodeURIComponent(triggerId)}/diagnose");

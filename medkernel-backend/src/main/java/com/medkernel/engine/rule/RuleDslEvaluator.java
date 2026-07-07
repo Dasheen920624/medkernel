@@ -47,9 +47,16 @@ public class RuleDslEvaluator {
     }
 
     public RuleDslEvaluator(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
+        this(json, conditionEvaluator, (RuleDslAssetMaterializer) null);
+    }
+
+    RuleDslEvaluator(
+            ObjectMapper json,
+            ConditionEvaluator conditionEvaluator,
+            RuleDslAssetMaterializer assetMaterializer) {
         this.json = json;
         this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
-        this.assetMaterializer = null;
+        this.assetMaterializer = assetMaterializer;
     }
 
     public RuleDslEvaluator(ObjectMapper json) {
@@ -64,6 +71,13 @@ public class RuleDslEvaluator {
      * {@link com.medkernel.shared.api.error.ApiException} 错误码 {@code ENG-RULE-001}。
      */
     public RuleDslEvaluation evaluate(JsonNode dsl, JsonNode context) {
+        return evaluateInternal(dsl, context, false);
+    }
+
+    private RuleDslEvaluation evaluateInternal(
+            JsonNode dsl,
+            JsonNode context,
+            boolean trustMaterializedRuntimeEvidence) {
         if (dsl == null || !dsl.isObject()) {
             throw invalid("规则 DSL 必须是 JSON 对象");
         }
@@ -89,7 +103,10 @@ public class RuleDslEvaluator {
                 .map(this::forceManualReview)
                 .toList();
         }
-        if (dsl.path("runtimeAssetEvidence").isArray() && explanation instanceof ObjectNode objectExplanation) {
+        if (
+                trustMaterializedRuntimeEvidence &&
+                dsl.path("runtimeAssetEvidence").isArray() &&
+                explanation instanceof ObjectNode objectExplanation) {
             objectExplanation.set(
                 "runtimeAssetEvidence",
                 dsl.path("runtimeAssetEvidence").deepCopy()
@@ -113,7 +130,10 @@ public class RuleDslEvaluator {
         if (assetMaterializer == null) {
             return evaluate(dsl, context);
         }
-        return evaluate(assetMaterializer.materialize(tenantId, runtimeReleaseId, dsl), context);
+        return evaluateInternal(
+            assetMaterializer.materialize(tenantId, runtimeReleaseId, dsl),
+            context,
+            true);
     }
 
     /**

@@ -1919,6 +1919,27 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
+      name: "最终机构生效版本没有包含本轮 RULE 统一资产版本",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        runtime: {
+          ...cdssRuntimeDeclarativeAssets.runtime,
+          ruleAsset: undefined,
+        },
+      },
+    },
+    {
+      name: "最终机构生效版本激活请求没有携带本轮 RULE 候选",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        activationRequest: {
+          activeAssets: cdssRuntimeDeclarativeAssets.activationRequest.activeAssets.filter(
+            (asset) => asset.assetType !== "RULE",
+          ),
+        },
+      },
+    },
+    {
       name: "解释里缺少 VALUE_SET 物化版本",
       body: {
         ...cdssRuntimeDeclarativeAssets,

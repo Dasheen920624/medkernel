@@ -32,9 +32,10 @@
   `/engine/releases/hospitals/{hospitalId}/runtime-candidates?assetType=RULE&keyword=<ruleCode>`
   读取当前医院 RULE runtime 候选，显式要求 `versionId` 为 `av-*`，再激活最终 runtime，断言当前机构生效版本同时包含
   RULE、`VALUE_SET`、`FORMULA`、`ACTION_CARD` 的 `versionId/versionNo/contentHash`。
-- 第一百五十批前台与 E2E 修复说明：目标 E2E 曾先后暴露四个真实前台 / 取证红点。第一，默认业务视图中
+- 第一百五十批前台与 E2E 修复说明：目标 E2E 和只读评审曾先后暴露七个真实前台 / 取证红点。第一，默认业务视图中
   `ContextSnapshotSelector` 的按钮可访问名只含建立时间，真实 E2E 无法按本轮 `snapshotId` 精确选择；
-  已改为默认可访问名包含 `snapshotId + 建立时间`，但可见文本仍不暴露患者、就诊和快照原始 ID，避免把敏感技术身份直接放到普通业务列表。
+  曾短暂改为默认可访问名包含 `snapshotId + 建立时间`，只读评审指出屏幕阅读器仍会读出 raw 快照 ID，已改回默认业务视图仅按建立时间 / 序号命名，
+  且按钮只保留不可见的 `data-snapshot-id` 供 E2E 精确定位；只有证据详情模式才展示 raw `snapshotId`。
   第二，S5 E2E 的 `textField()` 路径曾写成 `resources.encounters.0.encounterId`，但本地取值器只支持 bracket
   数组索引；已改为 `resources.encounters[0].encounterId`。第三，推荐评估响应中的 `cards` 顺序不稳定，不能用
   `cards[0]` 当作本轮推荐卡取证；E2E 现在精确等待本轮 evaluate 请求体，读取
@@ -42,6 +43,12 @@
   本轮 S5 runtime 物化推荐卡，并在 `e2eAuthCredentialContract` 中禁止 `cards.0.cardId` 和直接
   `cards[0]` 最终取证。第四，提醒推荐默认业务表格可按 `cardId` 搜索过滤，但不会在默认列中显示 raw `cardId`；
   `CdssFatigue.test.tsx` 也加了“可按卡片身份过滤但默认业务表格不暴露身份”的护栏。
+  第五，普通 `RuleDslEvaluator.evaluate(dsl, context)` 曾会信任作者 DSL 根节点自带的 `runtimeAssetEvidence`；
+  已收紧为普通入口忽略该字段，只有 `evaluate(dsl, context, tenantId, runtimeReleaseId)` 经当前机构生效版本物化后才把运行资产证据带入命中解释，未命中仍不输出。
+  第六，coverage 门禁曾只校验最终 runtime 中三类声明式资产，未强制 RULE 也在最终 runtime；已要求
+  `ruleRuntimeCandidate`、`runtime.ruleAsset`、最终激活请求和推荐解释里的 RULE `versionId/versionNo/contentHash` 四方一致。
+  第七，发布验证用例曾把 NEGATIVE/BOUNDARY/CONFLICT 都设为命中；现已额外创建阴性 ACTIVE 快照，NEGATIVE 期望不命中，
+  保留正例 / 边界 / 冲突用例证明物化链路与治理推进。
 - 第一百五十批边界说明：本批 coverage 只是 S5 的“真实前台创建三类声明式运行资产 + 当前机构生效版本 RULE 与
   `VALUE_SET/FORMULA/ACTION_CARD` runtime 消费 + 推荐解释物化证据”代表性证据切片；不声明完整 S5、
   完整 CDSS 产品族、13 类 runtime 资产逐类业务消费者、完整 S0-S40、完整全医疗专业领域、完整全知识、
@@ -49,30 +56,31 @@
   13 类资产或全量上线完成。
 - 第一百五十批验证证据：目标真实 E2E 在本地 18080 dev/H2 后端上通过：
   `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-cdss-runtime-assets npm --prefix frontend run e2e -- --project=chromium cdss-runtime-declarative-assets.spec.ts`
-  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=21851ms）。
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=25223ms）。
   最新附件记录 `scenarioCodes=[S5]`、`versionedAssets=[VALUE_SET,FORMULA,ACTION_CARD]`，
-  本轮资产为 `VALUE_SET.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCDYV3NXSWQCVSNJMQVZ9F/versionNo=V1/
-  contentHash=7f0f21f0ee7e3e710bf902c90555f34e139fa4b6df03a4b77b631ead0c645125`、
-  `FORMULA.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCE0FS04AMDDD09SN8MBT2/versionNo=V1/
-  contentHash=5bed98e2e81b8730612915edd9023e6f4a9ab9a0c7d783ffb0b25b9e429050eb`、
-  `ACTION_CARD.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCE3WVS1KP86G31ZZEPFYB/versionNo=V1/
-  contentHash=ea6c2ecfc439c7b00bb2a1abb62c7febf3d2968e91b1de7a9df06dc70e16c6ff`；
-  RULE runtime 候选为 `RULE.CDSS.RUNTIME.MRA4UOY0-0/versionId=av-01KWXCE9J9AQ2NYMF1KNJQKFTJ/versionNo=V1/
-  contentHash=0ad489607b4ad666f93fa6257cd5268e37352dd85ae8fc095d703f3e7a2a0e93/sourceLayer=HOSPITAL`；
-  三类声明式资产先激活的规则发布验证 runtime 为 `releaseId=runtime-01KWXCE48CR741FX68Q30HYZFK/revisionNo=12/
-  manifestSha256=76d19a518afa208cb58507e02e4bc98272f5ecd2af81272e630cc3b83a92ccfd`；最终 runtime 为
-  `releaseId=runtime-01KWXCE9N42HAPH945QC4DBGPE/revisionNo=13/
-  manifestSha256=2dd299a634a3a65ad8f4d963a2534719edfe2b752b2cafb6e16c243c2cacf96c`；
-  临床触发 `triggerId=rt-b8bef2e6-4610-4d6d-bd8c-e0dbe95d43a7/
-  contextSnapshotId=ctx-de634340-3a0b-43e9-9d53-a69bdd4c770f/cardId=rc-91f889e7-8d83-420d-bfeb-d14ceff7647a/
-  relatedCardIds=[rc-91f889e7-8d83-420d-bfeb-d14ceff7647a,rc-0090c863-3f3c-44b3-8e08-a54b3bc8d69d]`，
+  本轮资产为 `VALUE_SET.CDSS.RUNTIME.MRA5EGO7-0/versionId=av-01KWXDA3KGHB3HSE5VCY5XBFSX/versionNo=V1/
+  contentHash=0ea38c4595b6a73bbd24c04989f630290074c719df7c1f533c3e44670f484f2f`、
+  `FORMULA.CDSS.RUNTIME.MRA5EGO7-0/versionId=av-01KWXDA59V7KGMJ6YSFR3Z1HKD/versionNo=V1/
+  contentHash=2dba8b010fa19f15292a093fa3ee09eb5c397fec8a0cbd1b684ce9dc9d3a15fb`、
+  `ACTION_CARD.CDSS.RUNTIME.MRA5EGO7-0/versionId=av-01KWXDA8CF3HPJBMBVFADK1AYE/versionNo=V1/
+  contentHash=8adb5a6b42183fa246c37f592c95596d0628f9fe633b603637183f8162c2385e`；
+  RULE runtime 候选为 `RULE.CDSS.RUNTIME.MRA5EGO7-0/versionId=av-01KWXDAJ2ZRS13N3HC0XKVW9CB/versionNo=V1/
+  contentHash=043d2aa3328204b16baeca6f60bbfa6890bcde69fd10f4cd161b729a18501f68/sourceLayer=HOSPITAL`；
+  三类声明式资产先激活的规则发布验证 runtime 为 `releaseId=runtime-01KWXDA8QR4V1NRVVVTS8S1VX7/revisionNo=15/
+  manifestSha256=803620b70527231ba3c9ef8e094f80a33c80a41aa2cae4dfd94517060314c1ee`；最终 runtime 为
+  `releaseId=runtime-01KWXDAJ5NWGHMWP92B79JTTWG/revisionNo=16/
+  manifestSha256=28ec6ffeb8f08e1a0d483bc44657282aed83ab9fc713e92b65e374de0e53e6c1`，
+  且最终 `runtime.ruleAsset.versionId=av-01KWXDAJ2ZRS13N3HC0XKVW9CB/contentHash=043d2aa3328204b16baeca6f60bbfa6890bcde69fd10f4cd161b729a18501f68`；
+  临床触发 `triggerId=rt-96f33690-b0a3-43d7-90b9-2c9e5671aaf4/
+  contextSnapshotId=ctx-34ccad00-09c9-48cc-b8a2-51b1f3ec026f/cardId=rc-0098d003-eebc-4ad5-9a84-69e1fed797cd/
+  relatedCardIds=[rc-0098d003-eebc-4ad5-9a84-69e1fed797cd,rc-36bf5b77-08d1-4c62-86c0-833979b38461]`，
   推荐解释 `runtimeReleaseId` 与最终 runtime 一致，`runtimeAssetEvidence` 含 VALUE_SET `expandedCount=1`、
   FORMULA `runtimeFunction=BMI`、ACTION_CARD `resolvedActionCardVersion=V1/resolvedActionCardHash=<同上>/
   requiresPhysicianConfirmation=true`。
   其他新鲜门禁：`npm --prefix frontend run test -- ContextSnapshotSelector QcEvalSets` 通过（13 tests）；
   `npm --prefix frontend run test -- CdssFatigue e2eAuthCredentialContract -t "filters by card identifier|requires CDSS declarative runtime asset"`
-  通过（2 selected，45 skipped）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "VALUE_SET/FORMULA/ACTION_CARD"`
-  通过；`npm --prefix frontend run test -- hooks -t "converts frontdesk current medications"` 通过；
+  通过（2 selected，45 skipped）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "VALUE_SET/FORMULA/ACTION_CARD|最终机构生效版本"`
+  通过（3 selected，56 skipped，含最终 runtime 缺 RULE / 激活请求缺 RULE 负例）；`npm --prefix frontend run test -- hooks -t "converts frontdesk current medications"` 通过；
   `npm --prefix frontend run test -- Mpi -t "creates a current clinical context"` 通过；
   `npm --prefix frontend run typecheck -- --pretty false` 通过；
   `mvn -f medkernel-backend/pom.xml -Dtest=RuleEngineServiceTest#peerReviewRunsTestCasesWithSnapshotRuntimeReleaseForDeclarativeAssets,RuleDslAssetMaterializerTest,RuleDslEvaluatorTest test`

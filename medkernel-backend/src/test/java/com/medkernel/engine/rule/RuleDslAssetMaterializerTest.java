@@ -356,7 +356,10 @@ class RuleDslAssetMaterializerTest {
             return Optional.empty();
         };
         RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(json, assets);
-        RuleDslEvaluator evaluator = new RuleDslEvaluator(json);
+        RuleDslEvaluator evaluator = new RuleDslEvaluator(
+            json,
+            new ConditionEvaluator(json),
+            materializer);
         JsonNode dsl = json.readTree("""
             {
               "when": {
@@ -402,9 +405,7 @@ class RuleDslAssetMaterializerTest {
             }
             """);
 
-        RuleDslEvaluation evaluation = evaluator.evaluate(
-            materializer.materialize("tenant-A", "runtime-s5", dsl),
-            context);
+        RuleDslEvaluation evaluation = evaluator.evaluate(dsl, context, "tenant-A", "runtime-s5");
 
         assertThat(evaluation.hit()).isTrue();
         assertThat(evaluation.actions()).singleElement()

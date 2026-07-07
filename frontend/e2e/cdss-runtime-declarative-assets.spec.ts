@@ -132,9 +132,19 @@ test.describe("CDSS 声明式运行资产真实消费", () => {
         suffix,
         "S5 CDSS 声明式运行资产规则发布验证用例",
       );
+      const negativeRuleTestSnapshot = await createClinicalContextFromFrontdesk(
+        page,
+        `${suffix}-NEG`,
+        "S5 CDSS 声明式运行资产规则发布验证阴性用例",
+        { medicationText: `S5 CDSS 非命中用药 ${suffix}`, heightCm: "170", weightKg: "50" },
+      );
       expect(
         ruleTestSnapshot.runtimeReleaseId,
         "规则发布验证快照必须在三类声明式资产激活后创建并绑定该 runtime",
+      ).toBe(declarativeRuntime.releaseId);
+      expect(
+        negativeRuleTestSnapshot.runtimeReleaseId,
+        "阴性规则发布验证快照也必须绑定声明式资产 runtime",
       ).toBe(declarativeRuntime.releaseId);
       apiEvidence.ruleTestSnapshotBoundToDeclarativeRuntime = true;
 
@@ -144,6 +154,7 @@ test.describe("CDSS 声明式运行资产真实消费", () => {
         formula,
         actionCard,
         testContextSnapshotId: ruleTestSnapshot.snapshotId,
+        negativeContextSnapshotId: negativeRuleTestSnapshot.snapshotId,
       });
       apiEvidence.ruleCreatedWithRuntimeAssetReferences = true;
       recordCdssRuntimeDeclarativeAssetStage(observedStages, "临床规则引用三类运行资产");
@@ -364,6 +375,7 @@ async function createAndPublishRuleReferencingDeclarativeAssets(
     formula: DeclarativeAssetCandidate;
     actionCard: DeclarativeAssetCandidate;
     testContextSnapshotId: string;
+    negativeContextSnapshotId: string;
   },
 ) {
   await ensureReadySession(page, "engine-operator");
@@ -401,7 +413,10 @@ async function createAndPublishRuleReferencingDeclarativeAssets(
     textField(created, "versionId"),
     "规则创建响应必须返回规则领域 versionId",
   );
-  await addRuleReleaseTestCases(page, ruleId, options.testContextSnapshotId);
+  await addRuleReleaseTestCases(page, ruleId, {
+    positiveContextSnapshotId: options.testContextSnapshotId,
+    negativeContextSnapshotId: options.negativeContextSnapshotId,
+  });
   const testRun = await postApi(
     page,
     `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`,
@@ -502,12 +517,40 @@ function cdssRuleDsl(options: {
   };
 }
 
-async function addRuleReleaseTestCases(page: Page, ruleId: string, contextSnapshotId: string) {
+async function addRuleReleaseTestCases(
+  page: Page,
+  ruleId: string,
+  options: { positiveContextSnapshotId: string; negativeContextSnapshotId: string },
+) {
   const cases = [
-    { caseType: "POSITIVE", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER" },
-    { caseType: "NEGATIVE", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER" },
-    { caseType: "BOUNDARY", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER" },
-    { caseType: "CONFLICT", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER" },
+    {
+      caseType: "POSITIVE",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "NEGATIVE",
+      expectedHit: false,
+      expectedSeverity: null,
+      expectedActionCode: null,
+      contextSnapshotId: options.negativeContextSnapshotId,
+    },
+    {
+      caseType: "BOUNDARY",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "CONFLICT",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
   ];
   for (const testCase of cases) {
     const response = await postApi(
@@ -516,7 +559,6 @@ async function addRuleReleaseTestCases(page: Page, ruleId: string, contextSnapsh
       {
         ...ruleApiContext(ruleId, `test-${testCase.caseType}`),
         ...testCase,
-        contextSnapshotId,
       },
     );
     await expectOk(response, `新增规则发布验证用例 ${testCase.caseType}`);
@@ -760,6 +802,11 @@ async function createClinicalContextFromFrontdesk(
   page: Page,
   suffix: string,
   reason: string,
+  overrides: {
+    medicationText?: string;
+    heightCm?: string;
+    weightKg?: string;
+  } = {},
 ): Promise<ContextSnapshotSummary> {
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/mpi"), { waitUntil: "networkidle" });
@@ -802,9 +849,11 @@ async function createClinicalContextFromFrontdesk(
   await chooseDialogOption(page, contextDialog, "就诊类型", "门诊复诊");
   await contextDialog.getByLabel("诊断/随访病种").fill("S5 CDSS 用药复核演练");
   await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
-  await contextDialog.getByLabel("当前用药").fill(`J01GB03，S5 CDSS 演练 ${suffix}`);
-  await contextDialog.getByLabel("身高 cm").fill("170");
-  await contextDialog.getByLabel("体重 kg").fill("82");
+  await contextDialog
+    .getByLabel("当前用药")
+    .fill(overrides.medicationText ?? `J01GB03，S5 CDSS 演练 ${suffix}`);
+  await contextDialog.getByLabel("身高 cm").fill(overrides.heightCm ?? "170");
+  await contextDialog.getByLabel("体重 kg").fill(overrides.weightKg ?? "82");
   await contextDialog.getByLabel("医技报告项目").fill("身高体重评估");
   await contextDialog.getByLabel("报告结论").fill("身高 170cm，体重 82kg，需结合用药人工复核");
   await contextDialog.getByLabel("异常重点").fill("氨基糖苷类用药复核");
@@ -850,7 +899,7 @@ async function triggerRecommendationFromFrontdesk(
   if (snapshot.encounterId) {
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
-  const snapshotButton = dialog.getByRole("button", { name: `选择 ${snapshot.snapshotId}` });
+  const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
   await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible({
     timeout: 20_000,
   });

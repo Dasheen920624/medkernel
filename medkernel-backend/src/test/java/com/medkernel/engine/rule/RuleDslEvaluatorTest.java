@@ -243,7 +243,7 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void explanationCarriesRuntimeAssetEvidenceFromMaterializedDslOnlyWhenRuleHits() throws Exception {
+    void ignoresAuthoredRuntimeAssetEvidenceWithoutMaterializationMarker() throws Exception {
         RuleDslEvaluation hit = evaluator.evaluate(read("""
             {
               "trigger": "patient-view",
@@ -274,9 +274,7 @@ class RuleDslEvaluatorTest {
             """));
 
         assertThat(hit.hit()).isTrue();
-        assertThat(hit.explanation().path("runtimeAssetEvidence")).hasSize(1);
-        assertThat(hit.explanation().path("runtimeAssetEvidence").get(0).path("assetIdentity").asText())
-            .isEqualTo("VALUE_SET.CDSS.RUNTIME");
+        assertThat(hit.explanation().has("runtimeAssetEvidence")).isFalse();
 
         RuleDslEvaluation miss = evaluator.evaluate(read("""
             {

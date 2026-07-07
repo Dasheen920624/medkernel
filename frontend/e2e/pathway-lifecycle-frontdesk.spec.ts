@@ -1004,7 +1004,7 @@ async function selectSnapshotByBackendVerifiedFilter(
   );
   if (createdAtText) {
     const createdAtButton = scope.getByRole("button", {
-      name: new RegExp(`^选择 .*${escapeRegExp(createdAtText)} 建立的临床快照$`, "u"),
+      name: `选择 ${createdAtText} 建立的临床快照`,
     });
     if (await createdAtButton.isVisible().catch(() => false)) {
       await createdAtButton.click();
