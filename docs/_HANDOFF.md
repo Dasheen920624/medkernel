@@ -10,6 +10,59 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，而是在前序
+  S2/S4 与 S13 机构生效版本证据切片基础上，补齐 S6 专病路径中 `ORDER_SET` 当前机构生效版本 runtime
+  消费的代表性证据切片。`launchCoverageEvidence` 现在只有在 `pathway-lifecycle-scenario-codes`
+  附件同时证明 `scenarios:S6`、`productLayers:CLINICAL_EXECUTION`、`serviceCombinations:SPECIAL_DISEASE_PATHWAY`、
+  `versionedAssets:ORDER_SET`、十阶段专病路径里程碑、完整前台 / API 生命周期证据，以及
+  `orderSetRuntimeConsumer` 证明本轮 `ORDER_SET` 资产存在于同一医院当前 runtime、患者路径绑定同一
+  `runtimeReleaseId`、`ASSESS -> FOLLOWUP` 推进响应在 `decisionEvidence` 中返回
+  `pathway.currentNodeType=ORDER_SET`、`pathway.orderSetRef/version/hash/items` 和
+  `pathway.orderSetRequiresPhysicianConfirmation=true` 时，才声明 S6 与 `ORDER_SET` 覆盖。
+- 第一百四十九批真实链路说明：`pathway-lifecycle-frontdesk.spec.ts` 现在由医疗引擎运营员在真实前台
+  `/authoring/assets` 创建本轮 `ORDER_SET.S6.COPD.<suffix>` 医嘱套餐草稿，套餐正文包含至少一条复查项目、
+  `requiresPhysicianConfirmation=true`，仅生成建议、不自动开嘱；随后创建引用该 `ORDER_SET` 的 S6 慢阻肺专病路径，
+  受控配置回填到节点画布并断言 `ASSESS` 节点的医嘱套餐引用就是本轮资产。激活本地上线演练医院 runtime 时，
+  E2E 不再只带 `PATHWAY` 或空 `activeAssets`，而是保留 13 类平台 baseline 资产，并同时加入本轮
+  `PATHWAY` 与 `ORDER_SET`；激活后回读 `/runtime-releases/current` 完整清单，断言本轮
+  `ORDER_SET` 的 `versionId/versionNo/contentHash` 均在当前机构生效版本中。
+- 第一百四十九批前台与 E2E 说明：激活 runtime 后，临床用户先回到真实患者 360 更新 ACTIVE 上下文，确保新的
+  `entrySnapshot` 绑定最新 `runtimeReleaseId`；医疗引擎运营员再用这个激活后快照对已保存路径执行真实服务仿真，
+  避免旧 snapshot 绑定旧 runtime 而误报缺少 `ORDER_SET`。随后临床用户按真实前台办理患者入径，先标准推进
+  `SCREEN -> ASSESS`，在 `ASSESS` 节点通过真实 API 登记 `HOLD` 变异并暂停在医嘱套餐节点，再通过真实前台完成
+  `ASSESS -> FOLLOWUP`，此时后端 `PathwayProgressor.recordOrderSetEvidence()` 从当前机构生效版本解析本轮
+  `ORDER_SET` 正文并返回 `orderSetVersion/hash/items/requiresPhysicianConfirmation`；最后完成随访终点并回读时钟、
+  变异和随访接续计划。`e2eAuthCredentialContract` 增加源码护栏，要求 S6 E2E 保留本轮 `ORDER_SET`
+  创建、runtime 激活、消费证据与关键 `pathway.orderSet*` 字段。
+- 第一百四十九批边界说明：本批 coverage 只是 S6 的“专病路径真实前台 + 当前机构生效版本 `ORDER_SET`
+  runtime 消费 + 变异 / 随访接续”代表性证据切片；不声明完整 S6、完整临床路径产品族、13 类 runtime
+  资产逐类业务消费者、完整 S0-S40、完整全医疗专业领域、完整全知识、全标准患者资源、全角色全功能真实操作、
+  完整上线验收或 134 清库复演。后续不能把本批 `ORDER_SET` 证据外推为 13 类资产或全量上线完成。
+- 第一百四十九批验证证据：目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pathway-orderset npm --prefix frontend run e2e -- --project=chromium pathway-lifecycle-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky，duration=22679ms）。
+  最新附件记录 `scenarioCodes=[S6]`、`versionedAssets=[ORDER_SET]`、
+  `orderSet.assetIdentity=ORDER_SET.S6.COPD.MR9XVPBO/versionId=av-01KWX18JRE6XXMH2VKYB6B1SG9/versionNo=V1/
+  contentHash=191733edfb0104356e74257dc686d5fd91d98ad3a4c0ee8a2cade984252e3599`、
+  `runtime.releaseId=runtime-01KWX18PEKTA00QC88F28PZ27X/revisionNo=13/
+  manifestSha256=857d019b062e491a610bfed7d84cad01787a9cbd67ac4437b81e55fc91135393`，
+  患者路径读回 `patientPathwayId=pp-99dfdc1d-954b-4738-bf49-0b10d4eed3b6/
+  runtimeReleaseId=runtime-01KWX18PEKTA00QC88F28PZ27X`，推进证据为
+  `previousNodeCode=ASSESS/nextNodeCode=FOLLOWUP/status=NODE_EXECUTING`，`decisionEvidence`
+  含 `pathway.currentNodeType=ORDER_SET`、`pathway.orderSetRef=ORDER_SET.S6.COPD.MR9XVPBO`、
+  `pathway.orderSetVersion=V1`、同一 `pathway.orderSetHash`、`pathway.orderSetItemCount=1`、
+  `pathway.orderSetRequiresPhysicianConfirmation=true` 和一条 `LOCAL-E2E` 血气复查项目。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（80 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。只读评审子代理因当前线程子代理池已满未能启动，已改由本地按同一清单自审；
+  自审发现并修复真实 E2E 附件漏列新增 `ORDER_SET` 消费阶段的问题后重新通过上述命令。本地 18080 演练后端服务
+  PID `89743` 当前仍在运行，未停止。
+- 第一百四十九批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S6 `ORDER_SET`
+  代表性证据切片等同于完整上线验收。后续继续补真实覆盖缺口：完整 S0-S40、完整语义族 / 专业域 / 全知识、
+  13 类 runtime 资产逐类业务消费者、全标准患者资源、多第三方系统族断连降级、真实备份 / 隔离恢复 / 重启恢复，
+  以及 134 清库部署复演；继续坚持全角色真实前台和真实服务链路，发现红点先复现、定根因，再按上线级标准修复，
+  不做片面优化。
 - 第一百四十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，而是在前序
   S13 机构生效版本证据切片基础上，补齐 S2/S4 的“系统接入 + 字典映射 + 当前机构生效版本 runtime 消费 +

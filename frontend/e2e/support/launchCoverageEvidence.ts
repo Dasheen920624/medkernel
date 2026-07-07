@@ -163,6 +163,7 @@ const embedBusinessHostClaims = [
 const pathwayLifecycleClaims = [
   "scenarios:S6",
   "productLayers:CLINICAL_EXECUTION",
+  "versionedAssets:ORDER_SET",
   "serviceCombinations:SPECIAL_DISEASE_PATHWAY",
 ];
 
@@ -312,6 +313,7 @@ const requiredPathwayLifecycleScenarioEvidence: Record<string, string[]> = {
     "临床用户基于当前机构生效版本读取入径候选",
     "临床用户办理患者入径并生成首个关键时钟",
     "临床用户完成当前节点并标准推进",
+    "临床用户推进到医嘱套餐节点并消费当前机构生效版本 ORDER_SET",
     "真实后端登记路径变异与处置决策",
     "真实后端完成随访接续终点节点",
     "后端回读关键时钟和变异事实",
@@ -1756,17 +1758,21 @@ function hasRequiredPathwayLifecycleAttachment(test: BrowserE2eTestResult) {
     const parsed = JSON.parse(attachment.body) as {
       scenarioCodes?: unknown;
       productLayers?: unknown;
+      versionedAssets?: unknown;
       serviceCombinations?: unknown;
       specialDiseaseStages?: unknown;
       apiEvidence?: unknown;
+      orderSetRuntimeConsumer?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
       !arrayEquals(parsed.scenarioCodes, requiredPathwayLifecycleScenarioCodes) ||
       !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
+      !arrayEquals(parsed.versionedAssets, ["ORDER_SET"]) ||
       !arrayEquals(parsed.serviceCombinations, ["SPECIAL_DISEASE_PATHWAY"]) ||
       !arrayEquals(parsed.specialDiseaseStages, requiredPathwayMilestoneStages) ||
       !hasCompletePathwayLifecycleApiEvidence(parsed.apiEvidence) ||
+      !hasCompletePathwayOrderSetRuntimeConsumerEvidence(parsed.orderSetRuntimeConsumer) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -2130,12 +2136,60 @@ function hasCompletePathwayLifecycleApiEvidence(value: unknown) {
     "entryCandidatesRead",
     "patientEntered",
     "standardAdvanced",
+    "orderSetRuntimeConsumed",
     "varianceRecorded",
     "followupHandoffCreated",
     "clocksRead",
     "variancesRead",
     "followupHandoffObserved",
   ].every((key) => evidence[key] === true);
+}
+
+function hasCompletePathwayOrderSetRuntimeConsumerEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  const asset = recordValue(evidence.asset);
+  const runtimeRelease = recordValue(evidence.runtimeRelease);
+  const patientPathway = recordValue(evidence.patientPathway);
+  const advanceResponse = recordValue(evidence.advanceResponse);
+  const decisionEvidence = recordValue(advanceResponse?.decisionEvidence);
+  const runtimeAssets = Array.isArray(runtimeRelease?.assets) ? runtimeRelease.assets : [];
+  const orderSetItems = Array.isArray(decisionEvidence?.["pathway.orderSetItems"])
+    ? decisionEvidence["pathway.orderSetItems"]
+    : [];
+  const assetIdentity = textValue(asset?.assetIdentity);
+  const versionId = textValue(asset?.versionId);
+  const versionNo = textValue(asset?.versionNo);
+  const contentHash = textValue(asset?.contentHash);
+  const runtimeReleaseId = textValue(runtimeRelease?.releaseId);
+  return (
+    asset?.assetType === "ORDER_SET" &&
+    hasText(assetIdentity) &&
+    hasText(versionId) &&
+    hasText(versionNo) &&
+    isSha256(contentHash) &&
+    hasText(runtimeReleaseId) &&
+    runtimeRelease?.assetPresent === true &&
+    runtimeAssets.some((item) =>
+      runtimeReleaseAssetMatchesCandidate(item, {
+        assetType: "ORDER_SET",
+        assetIdentity: assetIdentity ?? "",
+        versionId: versionId ?? "",
+      }),
+    ) &&
+    textValue(patientPathway?.runtimeReleaseId) === runtimeReleaseId &&
+    advanceResponse?.previousNodeCode === "ASSESS" &&
+    advanceResponse?.nextNodeCode === "FOLLOWUP" &&
+    advanceResponse?.status === "NODE_EXECUTING" &&
+    decisionEvidence?.["pathway.currentNodeType"] === "ORDER_SET" &&
+    decisionEvidence?.["pathway.orderSetRef"] === assetIdentity &&
+    decisionEvidence?.["pathway.orderSetVersion"] === versionNo &&
+    decisionEvidence?.["pathway.orderSetHash"] === contentHash &&
+    decisionEvidence?.["pathway.orderSetRequiresPhysicianConfirmation"] === true &&
+    typeof decisionEvidence?.["pathway.orderSetItemCount"] === "number" &&
+    (decisionEvidence["pathway.orderSetItemCount"] as number) > 0 &&
+    orderSetItems.length === decisionEvidence["pathway.orderSetItemCount"]
+  );
 }
 
 function arrayEquals(value: unknown, expected: string[]) {
@@ -2146,6 +2200,20 @@ function arrayEquals(value: unknown, expected: string[]) {
 
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function isSha256(value: unknown) {
+  return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
 }
 
 function mergeClaims(
