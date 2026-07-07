@@ -862,17 +862,48 @@ function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
   );
   if (!attachment?.body) return false;
   try {
-    const parsed = JSON.parse(attachment.body) as { systemFamilyCodes?: unknown };
+    const parsed = JSON.parse(attachment.body) as {
+      systemFamilyCodes?: unknown;
+      consumerEvidence?: unknown;
+    };
     if (!Array.isArray(parsed.systemFamilyCodes)) return false;
     const observed = parsed.systemFamilyCodes
       .filter((code): code is string => typeof code === "string")
       .sort();
     return (
-      JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort())
+      JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort()) &&
+      hasCompleteThirdPartySystemFamilyConsumerEvidence(parsed.consumerEvidence)
     );
   } catch {
     return false;
   }
+}
+
+function hasCompleteThirdPartySystemFamilyConsumerEvidence(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const evidenceByFamily = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const evidence = recordValue(item);
+    const code = textValue(evidence?.systemFamilyCode);
+    if (evidence && code) {
+      evidenceByFamily.set(code, evidence);
+    }
+  }
+  return requiredThirdPartySystemFamilyCodes.every((code) => {
+    const evidence = evidenceByFamily.get(code);
+    return (
+      evidence !== undefined &&
+      hasText(evidence.onboardingId) &&
+      hasText(evidence.adapterId) &&
+      evidence.consumerVerified === true &&
+      evidence.standardResourceVerified === true &&
+      evidence.degradationVerified === true &&
+      evidence.auditVerified === true &&
+      ["NOT_CONNECTED", "MISCONFIGURED", "RETRYING", "DEAD_LETTER", "HEALTHY"].includes(
+        textValue(evidence.healthStatus) ?? "",
+      )
+    );
+  });
 }
 
 function hasRequiredS2S4RuntimeMappingAttachment(test: BrowserE2eTestResult) {

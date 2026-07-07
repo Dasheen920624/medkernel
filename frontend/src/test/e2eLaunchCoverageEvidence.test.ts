@@ -4811,7 +4811,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(incompleteAttachment.launchCoverage.serviceCombinations).toBeUndefined();
   });
 
-  it("declares third-party system family coverage only when the real spec attaches all observed family codes", () => {
+  it("does not declare third-party system family coverage from registration-only family codes without consumer evidence", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
       stats: passedStats,
       tests: [
@@ -4839,6 +4839,58 @@ describe("browser E2E launch coverage evidence", () => {
                   "RESEARCH_ETHICS_DATA",
                   "MODEL_DIFY_AGENT",
                 ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+    expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
+  it("declares third-party system family coverage only when registration, honest degradation and real consumer evidence are attached", () => {
+    const consumerEvidence = [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ].map((systemFamilyCode) => ({
+      systemFamilyCode,
+      onboardingId: `onb-${systemFamilyCode.toLowerCase()}`,
+      adapterId: `adapter-${systemFamilyCode.toLowerCase()}`,
+      healthStatus: "NOT_CONNECTED",
+      consumerVerified: true,
+      standardResourceVerified: true,
+      degradationVerified: true,
+      auditVerified: true,
+    }));
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/third-party-system-families-rehearsal.spec.ts",
+          title: "平台管理员逐类登记第三方系统族接入并验证断连诚实降级",
+          status: "passed",
+          attachments: [
+            {
+              name: "third-party-system-family-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                systemFamilyCodes: consumerEvidence.map((item) => item.systemFamilyCode),
+                consumerEvidence,
               }),
             },
           ],

@@ -10,6 +10,24 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是完整上线、
+  不是 134 清库部署复演，也不是 13 类第三方系统族真实消费者全部完成，而是修正
+  `third-party-system-families-rehearsal.spec.ts` 与 `launchCoverageEvidence` 的证据口径，停止把“逐类接入申请、
+  适配器登记、健康诊断和数据质量缺口回读”误声明为“全部第三方系统族真实消费者与断连降级覆盖”。新增红绿门禁：
+  registration-only `third-party-system-family-codes` 不再生成 `thirdPartySystemFamilies` coverage；只有逐类附件同时提供
+  `consumerVerified/standardResourceVerified/degradationVerified/auditVerified` 和真实健康状态时才允许声明系统族覆盖。
+  真实 E2E 附件现保留 `scopeStatement`、`registrationEvidence` 和逐类 `consumerEvidence=false` 边界，明确该演练只证明
+  接入目录和诚实断连/质量缺口，不代表 PACS/RIS、病理、内镜、心电等专业系统族已有完整消费者。
+- 第一百六十二批验证证据：先执行
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "third-party system family coverage"` 红测，
+  registration-only 用例失败，证明旧 parser 存在过度宣称；收紧 parser 后执行
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "third-party system family coverage|third-party family coverage|S2/S4 runtime mapping coverage from adapter registration"`
+  通过（4 selected），`npm --prefix frontend run typecheck -- --pretty false` 通过。
+- 第一百六十二批下一步：只读角色旅程复核指出 `product-role-journeys.spec.ts` 只证明四职责菜单画像和 dashboard
+  主动作可起步，`real-frontdesk-rehearsal.spec.ts` 只声明 S10/S11/S12 代表切片，仍未证明四职责 34 个入口逐项真实可达。
+  下一步优先补四职责全菜单真实前台可达门禁：用四个 canonical 账号按当前职责菜单逐项打开真实页面，校验无权限死路、
+  无 4xx/5xx、无浏览器错误、页面不长期加载；同时继续为 PACS/RIS、病理、内镜、心电等专业系统族补真实消费者链路，
+  不要把现有 S36/S40 或系统族登记演练外推成完整上线。
 - 第一百六十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整急诊系统、完整 ICU 系统、
   完整生命支持系统、生命支持设备控制、完整 S19/S24/S27 或完整 S0-S40 收口，而是完成

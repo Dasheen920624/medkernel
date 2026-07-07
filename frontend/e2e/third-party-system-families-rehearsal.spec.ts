@@ -137,14 +137,6 @@ test.describe("第三方系统族真实前台上线演练", () => {
     expect(observedFamilyCodes.sort()).toEqual(
       thirdPartyFamilies.map((family) => family.code).sort(),
     );
-    await testInfo.attach("third-party-system-family-codes", {
-      contentType: "application/json",
-      body: Buffer.from(
-        JSON.stringify({ systemFamilyCodes: observedFamilyCodes }, null, 2),
-        "utf8",
-      ),
-    });
-
     await page.getByRole("tab", { name: "适配器目录" }).click();
     const healthAdapterId = createdAdapters[0];
     const healthRow = page
@@ -204,6 +196,43 @@ test.describe("第三方系统族真实前台上线演练", () => {
       quality.data?.gapSummary ?? "",
       "数据质量报告必须保留断连或字段缺口证据，不得伪装全绿",
     ).toMatch(/适配器|NOT_CONNECTED|MISCONFIGURED|缺口|患者/u);
+
+    await testInfo.attach("third-party-system-family-codes", {
+      contentType: "application/json",
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            systemFamilyCodes: observedFamilyCodes,
+            scopeStatement:
+              "本演练只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传或完整断连降级。",
+            registrationEvidence: {
+              observedFamilyCodes,
+              adapterTotal: quality.data?.adapterTotal ?? 0,
+              notConnectedCount: quality.data?.notConnectedCount ?? 0,
+              gapSummary: quality.data?.gapSummary ?? "",
+              sampledHealthStatus: healthPayload.data?.healthStatus ?? "UNKNOWN",
+            },
+            consumerEvidence: thirdPartyFamilies.map((family) => ({
+              systemFamilyCode: family.code,
+              onboardingId: `onb-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
+              adapterId: `family-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
+              healthStatus: family.code === thirdPartyFamilies[0].code
+                ? healthPayload.data?.healthStatus ?? "UNKNOWN"
+                : "NOT_CONNECTED",
+              consumerVerified: false,
+              standardResourceVerified: false,
+              degradationVerified: false,
+              auditVerified: true,
+              evidenceBoundary:
+                "仅登记接入与健康/质量报告，真实消费者需由对应专业链路 E2E 单独证明。",
+            })),
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      ),
+    });
   });
 });
 
