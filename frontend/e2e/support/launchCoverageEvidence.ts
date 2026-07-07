@@ -1191,7 +1191,7 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
         parsed.clinicalTrigger,
         parsed.ruleAsset,
       ) ||
-      !hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback) ||
+      !hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback, runtime.actionCardAsset) ||
       !hasCompletePharmacyReviewRectification(
         parsed.qualityRectification,
         parsed.recommendation,
@@ -2358,12 +2358,16 @@ function medicationSafetyRuleConditionMatched(values: unknown[], fact: string) {
   });
 }
 
-function hasCompleteMedicationSafetyFeedbackEvidence(value: unknown) {
+function hasCompleteMedicationSafetyFeedbackEvidence(
+  value: unknown,
+  actionCardAsset?: PharmacyReviewRuntimeAsset,
+) {
   const feedback = recordValue(value);
   const pharmacist = recordValue(feedback?.pharmacist);
   const physician = recordValue(feedback?.physician);
   const pharmacistPersisted = recordValue(pharmacist?.persisted);
   const physicianPersisted = recordValue(physician?.persisted);
+  const actionCardEvidence = recordValue(feedback?.actionCardEvidence);
   return (
     pharmacist !== null &&
     hasText(pharmacist.feedbackId) &&
@@ -2386,7 +2390,26 @@ function hasCompleteMedicationSafetyFeedbackEvidence(value: unknown) {
     physicianPersisted.operatorRole === "DOCTOR" &&
     physicianPersisted.reasonCode === "CONFIRMED" &&
     hasText(physician.feedbackId) &&
-    feedback?.noAutoOrder === true
+    feedback?.noAutoOrder === true &&
+    (actionCardAsset === undefined ||
+      hasCompletePharmacyReviewActionCardFeedbackEvidence(actionCardEvidence, actionCardAsset))
+  );
+}
+
+function hasCompletePharmacyReviewActionCardFeedbackEvidence(
+  evidence: Record<string, unknown> | null,
+  asset: PharmacyReviewRuntimeAsset,
+) {
+  return (
+    evidence !== null &&
+    evidence.assetType === "ACTION_CARD" &&
+    evidence.assetIdentity === asset.assetIdentity &&
+    evidence.versionId === asset.versionId &&
+    evidence.versionNo === asset.versionNo &&
+    evidence.contentHash === asset.contentHash &&
+    evidence.entryState === "ACTIVE" &&
+    evidence.requiresPhysicianConfirmation === true &&
+    evidence.noAutoOrder === true
   );
 }
 
@@ -3497,9 +3520,16 @@ function hasPharmacyReviewAntimicrobialScopeBoundary(value: unknown) {
   const statement = String(value);
   return (
     statement.includes("代表切片") &&
+    !hasPositiveCompleteScopeClaim(statement) &&
     hasNegatedScopeTerm(statement, "完整药事治理") &&
     hasNegatedScopeTerm(statement, "完整抗菌药物分级管理") &&
     hasNegatedScopeTerm(statement, "第三方药房审方系统族完整覆盖")
+  );
+}
+
+function hasPositiveCompleteScopeClaim(statement: string) {
+  return /完整(?:药事治理|抗菌药物分级管理|第三方药房审方系统族完整覆盖)(?:已上线|完整上线|完成上线|已完成|完整覆盖|全面覆盖)/u.test(
+    statement,
   );
 }
 
@@ -3514,13 +3544,7 @@ function hasNegatedScopeTerm(statement: string, term: string) {
     matchingSegments.every((segment) => {
       const termIndex = segment.indexOf(term);
       const prefix = segment.slice(0, termIndex);
-      const suffix = segment.slice(termIndex + term.length);
-      return (
-        /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix) &&
-        !/(?:已上线|完整上线|完成上线|已完成|完整覆盖|全面覆盖)/u.test(
-          suffix.slice(0, 12),
-        )
-      );
+      return /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix);
     })
   );
 }

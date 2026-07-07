@@ -170,6 +170,37 @@ class ClinicalEventProcessorTest {
     }
 
     @Test
+    void markFailedRecordsTransitionUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant() {
+        ClinicalEvent event = event(ClinicalEventStatus.RECEIVED);
+        when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));
+        org.mockito.Mockito.doAnswer(inv -> {
+            OrgScope currentScope = RequestContext.currentOrgScope();
+            assertThat(currentScope.hospitalId()).isEqualTo("hospital-A");
+            assertThat(currentScope.departmentId()).isEqualTo("dept-A");
+            return null;
+        }).when(transitions).record(
+            eq("clinical_event"), eq("evt-1"),
+            eq("RECEIVED"), eq("FAILED"),
+            eq("PROCESS_FAILED"), any(TransitionError.class));
+        org.mockito.Mockito.doAnswer(inv -> {
+            OrgScope currentScope = RequestContext.currentOrgScope();
+            assertThat(currentScope.hospitalId()).isEqualTo("hospital-A");
+            assertThat(currentScope.departmentId()).isEqualTo("dept-A");
+            return null;
+        }).when(auditPublisher).publish(any(AuditEvent.class));
+        RequestContext.restore(new RequestContext.Snapshot(
+            "worker-trace", OrgScope.tenant("tenant-A"), "platform-admin"));
+
+        try {
+            processor.markFailed(
+                "evt-1", "tenant-A", ErrorCode.ENG_EVENT_005, 1, false,
+                Instant.parse("2026-05-27T01:00:03Z"));
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
+    @Test
     void processProjectsOrderPayloadBeforeDispatchingRulePathwayAndCdss() {
         ClinicalEvent event = event(
             "evt-order",

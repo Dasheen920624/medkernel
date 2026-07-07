@@ -46,6 +46,12 @@ type PharmacyReviewAssetCandidate = {
   contentHash: string;
 };
 
+type PharmacyReviewActionCardCandidate = PharmacyReviewAssetCandidate & {
+  assetType: "ACTION_CARD";
+  requiresPhysicianConfirmation: boolean;
+  noAutoOrder: boolean;
+};
+
 type ContextSnapshotSummary = {
   patientId: string;
   snapshotId: string;
@@ -260,7 +266,11 @@ test.describe("药房审方与抗菌药物治理代表切片真实前台闭环",
       recordStage(observedStages, "临床用户从真实前台触发 medication-prescribe 推荐评估");
       recordStage(observedStages, "推荐卡证明抗菌药物红线、规则和动作卡按当前机构生效版本消费");
 
-      const feedback = await completePharmacistAndPhysicianFeedback(page, recommendation.cardId);
+      const feedback = await completePharmacistAndPhysicianFeedback(page, {
+        cardId: recommendation.cardId,
+        actionCardAsset: runtime.actionCardAsset,
+        actionCard,
+      });
       expect(feedback.pharmacist.cardStatus, "药师审方复核不能关闭医生确认链路").toBe("PENDING");
       expect(feedback.physician.cardStatus, "医生确认后推荐卡才进入采纳状态").toBe("ACCEPTED");
       apiEvidence.pharmacistReviewRecordedWithoutClosingPhysicianConfirmation = true;
@@ -689,8 +699,15 @@ async function waitForTerminologyCandidate(page: Page, jobCode: string, localCod
   throw new Error(`抗菌药物术语候选生成超时 ${jobCode}`);
 }
 
-async function createAntimicrobialActionCard(page: Page, suffix: string) {
+async function createAntimicrobialActionCard(
+  page: Page,
+  suffix: string,
+): Promise<PharmacyReviewActionCardCandidate> {
   const assetIdentity = `ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL.${suffix}`;
+  const cardGovernance = {
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+  };
   const response = await postApi(page, "/engine/authoring/declarative-assets", {
     assetType: "ACTION_CARD",
     assetIdentity,
@@ -709,8 +726,8 @@ async function createAntimicrobialActionCard(page: Page, suffix: string) {
         { label: "打开审方记录", actionType: "OPEN_FORM", payload: { target: "PHARMACY_REVIEW" } },
       ],
       overrideReasons: ["医生已结合感染指标和药师意见完成人工确认"],
-      requiresPhysicianConfirmation: true,
-      noAutoOrder: true,
+      requiresPhysicianConfirmation: cardGovernance.requiresPhysicianConfirmation,
+      noAutoOrder: cardGovernance.noAutoOrder,
     },
   });
   await expectOk(response, "创建抗菌药物 ACTION_CARD 资产");
@@ -722,8 +739,8 @@ async function createAntimicrobialActionCard(page: Page, suffix: string) {
     versionNo: requireText(textField(data, "versionNo"), "ACTION_CARD 必须返回 versionNo"),
     contentHash: requireText(textField(data, "contentHash"), "ACTION_CARD 必须返回 contentHash"),
     entryState: "ACTIVE",
-    requiresPhysicianConfirmation: true,
-    noAutoOrder: true,
+    requiresPhysicianConfirmation: cardGovernance.requiresPhysicianConfirmation,
+    noAutoOrder: cardGovernance.noAutoOrder,
   };
 }
 
@@ -1417,8 +1434,8 @@ async function findPharmacyReviewRedlineCard(
       cardStatus: textFieldAtPath(detail, "card.status"),
       triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
       cardType: textFieldAtPath(detail, "card.cardType") ?? "MEDICATION",
-      requiresPhysicianConfirmation: true,
-      aiGenerated: false,
+      requiresPhysicianConfirmation: booleanFieldAtPath(detail, "card.requiresPhysicianConfirmation"),
+      aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
       explanation,
       riskMatrixExplanation: requireText(
         textFieldAtPath(detail, "card.riskMatrixExplanation"),
@@ -1489,9 +1506,17 @@ async function findPharmacyReviewRuleCard(
   return matched[0];
 }
 
-async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string) {
+async function completePharmacistAndPhysicianFeedback(
+  page: Page,
+  recommendation: {
+    cardId: string;
+    actionCardAsset: RuntimeReleaseItem;
+    actionCard: PharmacyReviewActionCardCandidate;
+  },
+) {
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/cdss/fatigue"), { waitUntil: "networkidle" });
+  const cardId = recommendation.cardId;
   await page.getByLabel("患者或证据线索").fill(cardId);
   await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
@@ -1537,6 +1562,10 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
   );
   expect(pharmacistPersisted, "药师业务反馈角色必须从推荐详情真实回读").toBeTruthy();
   expect(physicianPersisted, "医生业务反馈角色必须从推荐详情真实回读").toBeTruthy();
+  const actionCardEvidence = pharmacyReviewActionCardFeedbackEvidence({
+    runtimeAsset: recommendation.actionCardAsset,
+    actionCard: recommendation.actionCard,
+  });
   return {
     pharmacist: {
       feedbackId: textField(pharmacist, "feedbackId"),
@@ -1552,7 +1581,37 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
       roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
       persisted: physicianPersisted,
     },
-    noAutoOrder: true,
+    noAutoOrder: booleanField(actionCardEvidence, "noAutoOrder"),
+    actionCardEvidence,
+  };
+}
+
+function pharmacyReviewActionCardFeedbackEvidence(options: {
+  runtimeAsset: RuntimeReleaseItem;
+  actionCard: PharmacyReviewActionCardCandidate;
+}) {
+  const { runtimeAsset, actionCard } = options;
+  expect(runtimeAsset.assetIdentity, "反馈闭环 ACTION_CARD 必须来自本轮动作卡").toBe(
+    actionCard.assetIdentity,
+  );
+  expect(runtimeAsset.versionId, "反馈闭环 ACTION_CARD versionId 必须来自当前机构生效版本").toBe(
+    actionCard.versionId,
+  );
+  expect(runtimeAsset.contentHash, "反馈闭环 ACTION_CARD hash 必须来自当前机构生效版本").toBe(
+    actionCard.contentHash,
+  );
+  expect(actionCard.requiresPhysicianConfirmation, "动作卡治理证据必须要求医生确认").toBe(true);
+  expect(actionCard.noAutoOrder, "动作卡治理证据必须禁止自动开嘱").toBe(true);
+  expect(runtimeAsset.entryState, "反馈闭环必须绑定当前机构生效版本中的 ACTION_CARD").toBe("ACTIVE");
+  return {
+    assetType: runtimeAsset.assetType,
+    assetIdentity: runtimeAsset.assetIdentity,
+    versionId: runtimeAsset.versionId,
+    versionNo: runtimeAsset.versionNo,
+    contentHash: runtimeAsset.contentHash,
+    entryState: runtimeAsset.entryState,
+    requiresPhysicianConfirmation: actionCard.requiresPhysicianConfirmation,
+    noAutoOrder: actionCard.noAutoOrder,
   };
 }
 
@@ -2005,6 +2064,11 @@ function numberFieldAtPath(value: unknown, path: string) {
 
 function booleanField(value: unknown, field: string) {
   const raw = recordField(value, field);
+  return typeof raw === "boolean" ? raw : null;
+}
+
+function booleanFieldAtPath(value: unknown, path: string) {
+  const raw = valueAtPath(value, path);
   return typeof raw === "boolean" ? raw : null;
 }
 

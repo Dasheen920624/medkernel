@@ -10,13 +10,6 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 医学资料与 134 知识生产策略已收敛：建设期可以并行建立系统外医学资料保险箱，提前收集权威资料、
-  原文快照、许可状态、SHA-256、索引、P0/P1/P2 和 `READY_FOR_134_PROCESSING` 交接包，但系统外不生成
-  正式 `KNOWLEDGE/TERMINOLOGY/RULE/PATHWAY/SAFETY` 等医疗资产，不使用 `PUBLISHED/ACTIVE/CLINICAL_READY`
-  状态，不声明医学结论或临床可用。134 稳定后仍是唯一知识生产主链，必须由 134 重新完成来源登记、
-  原文入库、解析、候选生成、差异检测、安全门、医学审核、发布、平台标准版本、机构生效版本和运行消费者验证。
-  该边界已同步到 `PRODUCT_SCOPE.md`、`ARCHITECTURE.md`、`DEPLOYMENT_AND_REHEARSAL.md`、
-  `handbook/implementation.md` 与 `docs/README.md`；原始医学资料、截图、商业资料包、凭据和患者相关内容不得提交到仓库。
 - 第一百五十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整上线、134 清库部署复演、完整药事治理、完整抗菌药物分级管理、
   完整第三方药房审方系统族、完整 S18/S31 或完整 S0-S40 收口，而是完成 **P1 药房审方与抗菌药物治理代表切片 S18/S31**：
@@ -49,14 +42,17 @@
   PHARMACY_REVIEW 入站 payload 到 Medication / Condition / Observation 与审方扩展的投影，
   `IntegrationServiceTest` 固化 Webhook 入站对感染诊断、监测指标和审方结果的真实映射与持久化。后端
   `ClinicalEventProcessor` 在 worker 只有 tenant 上下文时，改用事件持久化的 `ClinicalEventContext.orgScope()`
-  包住上下文快照创建、规则 / 路径 / CDSS 派发和成功事件发布，避免 PHARMACY_REVIEW 入站事件在术语映射解析时因缺
-  hospital / department scope 失败为 `ENG-API-002`。
+  包住上下文快照创建、规则 / 路径 / CDSS 派发和成功事件发布；失败链路 `markFailed` 也改用事件持久化
+  `orgScopeJson` 包住 `FAILED` 写入、状态流转和审计发布，避免 PHARMACY_REVIEW 入站事件在术语映射解析或失败记录时因缺
+  hospital / department scope 失败为 `ENG-API-002` 或落到错误组织范围。
   `launchCoverageEvidence` 对 S18/S31 附件加严：必须证明 PHARMACY_REVIEW 适配器和签名回调、五类 runtime
   资产与激活请求一致、患者 360 上下文四类标准资源、出站审方断连不阻断且补偿、入站签名回传与同 trace / 上下文
   绑定，且异步临床事件真实进入 `PROCESSED`、`runtimeReleaseId` 绑定本轮 runtime、`errorCode/errorClass`
-  为空；红线卡与规则卡按本轮 runtime 消费、药师 / 医生双人工闭环、整改任务关闭，以及 scope 明确否定完整药事治理、
+  为空；红线卡 `requiresPhysicianConfirmation/aiGenerated` 必须从推荐详情回读，反馈闭环必须携带与本轮
+  runtime `ACTION_CARD` 的 `versionId/versionNo/contentHash/entryState` 及动作卡治理要求一致的
+  `actionCardEvidence`，药师 / 医生双人工闭环、整改任务关闭，以及 scope 明确否定完整药事治理、
   完整抗菌药物分级管理或第三方药房审方系统族完整覆盖。coverage 已移除 `linkedOutboundMessageId` 这类 E2E
-  手工注入字段的持久化关联过度宣称；缺任一环节均不声明覆盖，scope 混写“代表切片但完整抗菌药物分级管理已上线”也会被拒绝。
+  手工注入字段的持久化关联过度宣称；缺任一环节均不声明覆盖，scope 混写或同句重复“代表切片但完整抗菌药物分级管理已上线”也会被拒绝。
   `e2eAuthCredentialContract` 同步固化无 `page.route`、无 `page.waitForTimeout`、无 `quality-controller`、
   无 `third-party-system-family-codes`、医生 / 药师仅作业务反馈角色、入站事件必须等待 `PROCESSED`
   和评价指标定义必须为结构化 JSON 的合同。
@@ -67,41 +63,38 @@
   `ENG-API-002`。根因是 worker 恢复的 `RequestContext` 只有 tenant scope，而事件持久化 `orgScopeJson`
   有 hospital / department；`ContextSnapshotService.createBound` 里的术语映射解析需要当前 hospital scope。
   已用 `processWithEventScope` 修复，并新增
-  `processCreatesSnapshotUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant` 回归测试。E2E 现在从 Webhook
+  `processCreatesSnapshotUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant` 回归测试。随后 review 继续指出
+  `markFailed` 失败链路也必须使用事件持久化组织范围、scope parser 不能漏过同一句重复正向完整宣称、E2E
+  反馈闭环不能用裸常量声明 ACTION_CARD 不自动开嘱；已补
+  `markFailedRecordsTransitionUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant`、scope 负例、红线卡详情负例和
+  ACTION_CARD 反馈证据负例，并把真实 E2E 附件改为从推荐详情和本轮 runtime / 动作卡治理证据生成。E2E 现在从 Webhook
   响应读取 `clinicalEventId` 后轮询 `/engine/clinical-events/{eventId}`，失败态立即报错，超时未 `PROCESSED`
-  也不得声明覆盖。验证时本地 18080 使用最新 jar、dev/H2 空库启动，健康检查 `UP`，PID `24026`。
+  也不得声明覆盖。验证时本地 18080 使用最新 jar、dev/H2 空库启动，健康检查 `UP`，PID `2904`。
 - 第一百五十七批验证证据：
   - 静态与单测：`npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence`
-    通过（2 files，162 tests）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "pharmacy-review antimicrobial|药房审方|S18/S31|入站|scopeStatement"`
-    通过（27 selected）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "pharmacy-review antimicrobial"`
-    通过（23 selected）。`mvn -f medkernel-backend/pom.xml -Dtest=ClinicalEventProcessorTest#processCreatesSnapshotUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant,ClinicalEventProcessorTest#processProjectsPharmacyReviewInboundPayloadToCanonicalResourcesAndReviewExtension,ClinicalEventProcessorTest#processProjectsOrderPayloadBeforeDispatchingRulePathwayAndCdss,IntegrationServiceTest#inboundWebhookMapsPharmacyReviewConditionObservationAndReviewResult test`
-    通过（4 tests，0 failures，0 errors）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
-    `git diff --check` 通过。
+    通过（2 files，165 tests）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "pharmacy-review antimicrobial|反馈闭环|红线推荐卡详情|scopeStatement"`
+    通过（27 selected）。`mvn -f medkernel-backend/pom.xml -Dtest=ClinicalEventProcessorTest#markFailedRecordsTransitionUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant,ClinicalEventProcessorTest#processCreatesSnapshotUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant,ClinicalEventProcessorTest#processProjectsPharmacyReviewInboundPayloadToCanonicalResourcesAndReviewExtension,ClinicalEventProcessorTest#processProjectsOrderPayloadBeforeDispatchingRulePathwayAndCdss,IntegrationServiceTest#inboundWebhookMapsPharmacyReviewConditionObservationAndReviewResult test`
+    通过（5 tests，0 failures，0 errors）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+    `git diff --check` 通过（仅无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 提示）。
   - 构建：`npm --prefix frontend run build` 通过；`mvn -f medkernel-backend/pom.xml -DskipTests package`
     通过。
-  - 目标真实 E2E：`E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pharmacy-review-antimicrobial-20260707-r27 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
-    通过；`/tmp/medkernel-e2e-pharmacy-review-antimicrobial-20260707-r27/report/results.json` 为 `PASSED`
-    （1 expected，0 unexpected，0 flaky，duration=38591ms）。`launchCoverage` 只含 `S18/S31`、
+  - 目标真实 E2E：`E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pharmacy-review-antimicrobial-20260707-r29 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
+    通过；`/tmp/medkernel-e2e-pharmacy-review-antimicrobial-20260707-r29/report/results.json` 为 `PASSED`
+    （1 expected，0 unexpected，0 flaky，duration=33333ms）。`launchCoverage` 只含 `S18/S31`、
     `CLINICAL_EXECUTION/DATA_INTEROPERABILITY/QUALITY_IMPROVEMENT`、
     `TERMINOLOGY/SAFETY/CDSS_RISK/RULE/ACTION_CARD`、`API_EVENT`、
     `THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME/PROFESSIONAL_COLLABORATION/QUALITY_IMPROVEMENT`。附件记录 runtime
-    `releaseId=runtime-01KWYDPVS30QZHRPQVRWFXFK62/revisionNo=3/manifestSha256=18b91807906bc003076b12505cf9f6acba292a40ef60f8baa544512c13a663b4`；
-    术语资产 `TERM.PHARMACY_REVIEW.ANTIMICROBIAL.MRAPMAHM-0/versionId=av-01KWYDPG64Y2QE1420HARAV9J0/contentHash=e5e0e1f1efe77e8aac6fa3ded13e1f035cc717595f637010bfa073cdc248343b`；
-    红线资产 `SAFETY.RDL-ANTIMICROBIAL-MRAPMAHM-0/versionId=av-01KWYDPFSXRG0QHDWPRNS7B5S8/contentHash=951bf7bd50f24d63a98db5da3c9edcd764385f8b9db7b46fa6857d326f27100c`；
-    风险矩阵 `CDSS.RISK.MATRIX/versionId=av-01KWYDPFRHM6C2ZE4HAAYRDPHV/versionNo=V1/contentHash=8ad0de7fbbfe25ebf217208b39b33b1c5d592de4f0fa112aa63575ebf2523ccb`；
-    规则资产 `RULE.MEDICATION.PHARMACY_REVIEW.ANTIMICROBIAL.MRAPMAHM-0/versionId=av-01KWYDPVM2PHBNKS8E6N1T1MEW/contentHash=ac3cd30f0005a2b4bd3d2cb23e47a19326c6953a25459734b7d6ac258e0f5722`；
-    动作卡 `ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL.MRAPMAHM-0/versionId=av-01KWYDPG6D2A83M19G16JXVV5D/contentHash=8f217aff60864c6f701757564881167e71ad73fd4084695753e415cacd89174f`。
-    上下文 `contextSnapshotId=ctx-e14b58d4-e1d5-4cc0-9475-3420e3f39b73/patientId=mpi-01KWYDPYC6FH599AMQ7Z166CVM/encounterId=enc-aa4a47f4-2c46-4da7-b12a-c04375149439`；
-    出站审方 `messageId=out-pharmacy-review-MRAPMAHM-0/status=RETRYING/compensationStatus=NOT_CONNECTED/blocksMainFlow=false/compensationRequired=true`；
-    入站审方 `messageId=in-pharmacy-review-MRAPMAHM-0/status=SUCCESS/clinicalEventStatus=RECEIVED/mappedFieldCount=7`，
-    异步临床事件 `eventId=evt-wh-fb2311c238626832425decaf21ef6b5554501aff0d227fdf34f241a1/status=PROCESSED/errorCode=null/errorClass=null/retryCount=0/runtimeReleaseId=runtime-01KWYDPVS30QZHRPQVRWFXFK62`；
+    `releaseId=runtime-01KWYFEDK1PZYTD78MD8KG8R5K/revisionNo=5/manifestSha256=e99dfd2238c89e27800c9be4fdf224d4ec0e6de49a2b300d6b0867302b663c73`；
+    动作卡 `ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL.MRAQPDYX-0/versionId=av-01KWYFE3205WH9ZVX1S0A42K0E/versionNo=V1/contentHash=bb15e90c73aa897bcf932bd6f52cafbadcfcfd3d466c9ffb8f948393238d2434/entryState=ACTIVE/requiresPhysicianConfirmation=true/noAutoOrder=true`。
+    出站审方保持 `status=RETRYING/compensationStatus=NOT_CONNECTED/blocksMainFlow=false/compensationRequired=true`；
+    入站审方 `status=SUCCESS/clinicalEventStatus=RECEIVED/mappedFieldCount=7`，
+    异步临床事件 `eventId=evt-wh-c19c5a9a06df2f2a325acbd4942940d8e5ea85ad1a7666158b96d90f/status=PROCESSED/errorCode=null/errorClass=null/retryCount=0/runtimeReleaseId=runtime-01KWYFEDK1PZYTD78MD8KG8R5K`；
     映射含 `J01C`、`J18.900`、`PCT=2.4` 与 `pharmacyReview.reviewResult=REQUIRES_PHYSICIAN_CONFIRMATION`。
-    推荐卡 `cardId=rc-d9aeac94-ed06-4f6c-9ec1-6f09b9cb1276`，规则卡
-    `cardId=rc-429d0409-2713-41eb-a16b-641276c1054c`，触发
-    `triggerId=rt-2f6f4892-1590-476b-ae62-eeea9a7691f2`；药师反馈
-    `feedbackId=rf-59cb421c-e86c-4cb5-8174-344b4748f84a/cardStatus=PENDING/canonicalSessionRole=clinical-user/roleEvidence=BUSINESS_FEEDBACK_ROLE_ONLY`，
-    医生确认 `feedbackId=rf-38d4715f-d7fc-4cfb-b20b-0753853d9962/cardStatus=ACCEPTED/canonicalSessionRole=clinical-user/roleEvidence=BUSINESS_FEEDBACK_ROLE_ONLY`，
-    `noAutoOrder=true`。整改 `findingId=qf-871849b5-1ee6-4a63-a40d-94abef70cd86/taskId=rct-78e7e85c-2554-4841-b13b-56711875d004/taskStatus=CLOSED/reviewDecision=APPROVED`。
+    推荐卡 `cardId=rc-e425536d-8d6c-4184-9df8-0890141542cb`；药师反馈
+    `feedbackId=rf-cfc5d57b-eb2b-4a15-8b5e-8d9491925a07/cardStatus=PENDING/canonicalSessionRole=clinical-user/roleEvidence=BUSINESS_FEEDBACK_ROLE_ONLY`，
+    医生确认 `feedbackId=rf-d05b135d-871f-41c2-8073-200566bbbfaf/cardStatus=ACCEPTED/canonicalSessionRole=clinical-user/roleEvidence=BUSINESS_FEEDBACK_ROLE_ONLY`，
+    `feedback.actionCardEvidence` 与本轮动作卡 `versionId/contentHash` 一致且 `noAutoOrder=true`。整改
+    `findingId=qf-530f1aad-e1a2-498a-a50c-58a3b06a5981/taskId=rct-0e26a635-cc94-4641-8a6c-30065fe51048/taskStatus=CLOSED/reviewDecision=APPROVED`。
 - 第一百五十七批边界与下一步：用户已允许使用子代理；本批启动只读复核子代理做范围与代码边界检查，提交前若复核返回
   发现的 r26 异步失败和 coverage 弱证据已处理。后续再次尝试启动子代理时遇到 agent 数量上限，未产生额外子代理改动。
   即便本批 S18/S31 目标 E2E 已绿，也仍未完成 134 fresh deploy /

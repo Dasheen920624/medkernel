@@ -1010,6 +1010,16 @@ const medicationSafetyFrontdeskEvidence = {
       },
     },
     noAutoOrder: true,
+    actionCardEvidence: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+      versionId: "av-action-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "9".repeat(64),
+      entryState: "ACTIVE",
+      requiresPhysicianConfirmation: true,
+      noAutoOrder: true,
+    },
   },
   scenarioEvidence: [
     {
@@ -2026,6 +2036,16 @@ const pharmacyReviewAntimicrobialEvidence = {
       },
     },
     noAutoOrder: true,
+    actionCardEvidence: {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.PHARMACY_REVIEW.ANTIMICROBIAL",
+      versionId: "av-action-pharmacy-review",
+      versionNo: "V1",
+      contentHash: "9".repeat(64),
+      entryState: "ACTIVE",
+      requiresPhysicianConfirmation: true,
+      noAutoOrder: true,
+    },
   },
   qualityRectification: {
     findingId: "finding-pharmacy-review",
@@ -4261,6 +4281,27 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
+      name: "反馈闭环缺少本轮 ACTION_CARD 不自动开嘱运行证据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          actionCardEvidence: undefined,
+        },
+      },
+    },
+    {
+      name: "红线推荐卡详情未回读医师确认或 AI 标识错误",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        recommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.recommendation,
+          requiresPhysicianConfirmation: false,
+          aiGenerated: true,
+        },
+      },
+    },
+    {
       name: "整改任务未闭环",
       body: {
         ...pharmacyReviewAntimicrobialEvidence,
@@ -4302,6 +4343,14 @@ describe("browser E2E launch coverage evidence", () => {
         ...pharmacyReviewAntimicrobialEvidence,
         scopeStatement:
           "药房审方与抗菌药物治理代表切片：PHARMACY_REVIEW 双向审方，不代表完整药事治理；完整抗菌药物分级管理已上线；不代表第三方药房审方系统族完整覆盖。",
+      },
+    },
+    {
+      name: "scopeStatement 同一分句重复完整抗菌药物分级管理并过度声明",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scopeStatement:
+          "药房审方与抗菌药物治理代表切片：PHARMACY_REVIEW 双向审方，不代表完整药事治理，不代表完整抗菌药物分级管理，且完整抗菌药物分级管理已上线，不代表第三方药房审方系统族完整覆盖。",
       },
     },
   ])("does not declare pharmacy-review antimicrobial coverage when $name", ({ body }) => {

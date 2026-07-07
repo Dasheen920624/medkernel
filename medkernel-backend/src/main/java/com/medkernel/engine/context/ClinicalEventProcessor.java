@@ -77,6 +77,14 @@ public class ClinicalEventProcessor {
     public void markFailed(String eventId, String tenantId, ErrorCode errorCode,
                            int retryCount, boolean dead, Instant nextRetryAt) {
         events.findByEventIdAndTenantId(eventId, tenantId).ifPresent(event -> {
+            RequestContext.Snapshot snapshot = eventScopeSnapshot(event, contextFactory.readOrgScope(event));
+            RequestContext.runWith(snapshot, () -> markFailedWithEventScope(
+                event, eventId, errorCode, retryCount, dead, nextRetryAt));
+        });
+    }
+
+    private void markFailedWithEventScope(ClinicalEvent event, String eventId, ErrorCode errorCode,
+                                          int retryCount, boolean dead, Instant nextRetryAt) {
             ClinicalEvent failed = new ClinicalEvent(
                 event.id(), event.eventId(), event.tenantId(), event.eventType(),
                 event.triggerPoint(), event.idempotencyKey(), event.callbackWebhookId(),
@@ -94,7 +102,6 @@ public class ClinicalEventProcessor {
                     errorCode.defaultMessage(), retryCount, nextRetryAt));
             auditPublisher.publish(AuditEvent.failure(AuditAction.EXECUTE, ENTITY_TYPE, eventId,
                 errorCode.code(), "处理临床事件失败 retryCount=" + retryCount));
-        });
     }
 
     private ClinicalEvent withStatus(ClinicalEvent source, ClinicalEventStatus status) {
@@ -113,11 +120,7 @@ public class ClinicalEventProcessor {
     }
 
     private ClinicalEventStatus processWithEventScope(ClinicalEvent event, ClinicalEventContext context) {
-        RequestContext.Snapshot snapshot = new RequestContext.Snapshot(
-            context.traceId(),
-            context.orgScope(),
-            RequestContext.currentUserId().orElse(null)
-        );
+        RequestContext.Snapshot snapshot = eventScopeSnapshot(event, context.orgScope());
         try {
             return RequestContext.callWith(snapshot, () -> processMappedAndDispatch(event, context));
         } catch (ApiException exception) {
@@ -127,6 +130,14 @@ public class ClinicalEventProcessor {
         } catch (Exception exception) {
             throw new ApiException(ErrorCode.ENG_EVENT_005, "临床事件处理失败", exception);
         }
+    }
+
+    private RequestContext.Snapshot eventScopeSnapshot(ClinicalEvent event, OrgScope orgScope) {
+        return new RequestContext.Snapshot(
+            event.traceId(),
+            orgScope,
+            RequestContext.currentUserId().orElse(null)
+        );
     }
 
     private ClinicalEventStatus processMappedAndDispatch(ClinicalEvent event, ClinicalEventContext context) {

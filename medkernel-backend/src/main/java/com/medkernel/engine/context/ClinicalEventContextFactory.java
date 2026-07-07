@@ -76,7 +76,7 @@ public class ClinicalEventContextFactory {
         }
     }
 
-    private OrgScope readOrgScope(ClinicalEvent event) {
+    OrgScope readOrgScope(ClinicalEvent event) {
         if (event.orgScopeJson() == null || event.orgScopeJson().isBlank()) {
             return OrgScope.tenant(event.tenantId());
         }
