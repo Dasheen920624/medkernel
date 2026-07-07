@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
 import { apiBase, appPath, ensureReadySession, expectOk } from "./support/auth";
@@ -35,6 +35,25 @@ type RuntimeOperationsSnapshot = {
   };
 };
 
+type RuntimeIdentityEvidence = {
+  releaseId: string;
+  revisionNo: number;
+  manifestSha256: string;
+  assetCount: number;
+};
+
+type RuntimeConsumerIdentityEvidence = RuntimeIdentityEvidence & {
+  contractVersion: string;
+};
+
+type ClinicalSmokeEvidence = {
+  role: "clinical-user";
+  page: "/mpi";
+  patientId: string;
+  contextSnapshotId: string;
+  runtimeReleaseId: string;
+};
+
 type RuntimeCollectors = {
   browserErrors: string[];
   serverErrors: string[];
@@ -61,6 +80,11 @@ type SystemProvidersCoverageEvidence = {
     clinicalOperationsStatus?: number;
     clinicalPageForbidden?: boolean;
     clinicalPageNoOperationsData?: boolean;
+  };
+  runtimeContinuityEvidence?: {
+    currentRuntime: RuntimeIdentityEvidence;
+    runtimeConsumer: RuntimeConsumerIdentityEvidence;
+    clinicalSmoke: ClinicalSmokeEvidence;
   };
   scenarioEvidence: Array<{ observedStages: string[] }>;
 };
@@ -121,6 +145,34 @@ test.describe("服务运行保障真实前台上线演练", () => {
         coverageEvidence,
         "证据详情展示部署档案、迁移路径和备份恢复诊断",
       );
+
+      if (backupDrillSucceeded(snapshot)) {
+        const runtimeContinuity = await readRuntimeContinuityAfterRestore(page);
+        coverageEvidence.apiEvidence.runtimeReadbackObserved = true;
+        coverageEvidence.apiEvidence.runtimeConsumerReadbackObserved = true;
+        coverageEvidence.runtimeContinuityEvidence = {
+          currentRuntime: runtimeContinuity.currentRuntime,
+          runtimeConsumer: runtimeContinuity.runtimeConsumer,
+          clinicalSmoke: await createClinicalSmokeAfterRestore(
+            page,
+            runtimeContinuity.currentRuntime,
+          ),
+        };
+        coverageEvidence.apiEvidence.clinicalSmokeAfterRestore = true;
+        recordSystemProvidersStage(
+          coverageEvidence,
+          "恢复后后端当前机构生效版本与第三方运行契约读回一致",
+        );
+        recordSystemProvidersStage(
+          coverageEvidence,
+          "临床账号恢复后完成患者主索引和上下文主链路冒烟",
+        );
+      } else {
+        recordSystemProvidersStage(
+          coverageEvidence,
+          "备份恢复隔离演练未完成，服务运行保障诚实展示待演练状态",
+        );
+      }
 
       expect(
         runtime.operationsResponses.some((status) => status >= 200 && status < 300),
@@ -193,6 +245,17 @@ function assertRuntimeOperationsSnapshot(snapshot: RuntimeOperationsSnapshot) {
   expect(snapshot.backup?.backupScript, "备份脚本只应作为只读证据呈现").toContain("backup.sh");
   expect(snapshot.backup?.restoreScript, "恢复脚本只应作为只读证据呈现").toContain("restore.sh");
   expect(snapshot.domesticProfile?.targetOs, "国产化档案必须返回目标操作系统").toBeTruthy();
+}
+
+function backupDrillSucceeded(snapshot: RuntimeOperationsSnapshot) {
+  const drill = snapshot.backup?.drillEvidence;
+  if (drill?.status !== "SUCCESS") {
+    return false;
+  }
+  expect(drill.migrationCount ?? 0, "隔离恢复必须校验迁移历史").toBeGreaterThan(0);
+  expect(drill.checksumEvidence, "隔离恢复必须返回校验摘要证据").toBeTruthy();
+  expect(drill.drillDatabaseIsIsolated, "备份恢复演练必须使用隔离库").toBe(true);
+  return true;
 }
 
 async function assertBackupReadinessCard(page: Page, snapshot: RuntimeOperationsSnapshot) {
@@ -289,6 +352,168 @@ async function assertClinicalUserCannotReadOperations(page: Page) {
   };
 }
 
+async function readRuntimeContinuityAfterRestore(page: Page) {
+  const hospitalResponse = await page.request.get(
+    `${apiBase}/engine/org/org-units/e2e-rehearsal-hospital`,
+    { headers: { "X-Trace-Id": `e2e-system-providers-hospital-${Date.now()}` } },
+  );
+  await expectOk(hospitalResponse, "读取本地上线演练医院");
+  const hospital = await responseData(hospitalResponse);
+  const hospitalId = requireText(textField(hospital, "id"), "本地上线演练医院必须返回 hospitalId");
+
+  const currentResponse = await page.request.get(
+    `${apiBase}/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/runtime-releases/current`,
+    { headers: { "X-Trace-Id": `e2e-system-providers-current-runtime-${Date.now()}` } },
+  );
+  await expectOk(currentResponse, "读取恢复后当前机构生效版本");
+  const currentRuntime = parseCurrentRuntimeIdentity(
+    await responseData(currentResponse),
+    "恢复后当前机构生效版本",
+  );
+
+  const consumerResponse = await page.request.get(
+    `${apiBase}/engine/integration/knowledge-runtime/runtime-release/current`,
+    { headers: { "X-Trace-Id": `e2e-system-providers-runtime-consumer-${Date.now()}` } },
+  );
+  await expectOk(consumerResponse, "读取恢复后第三方运行契约");
+  const runtimeConsumer = parseRuntimeConsumerIdentity(
+    await responseData(consumerResponse),
+    "恢复后第三方运行契约",
+  );
+
+  expect(runtimeConsumer.contractVersion, "第三方运行契约版本必须稳定").toBe("v1");
+  expect(runtimeConsumer.releaseId, "第三方运行契约必须读取同一 current runtime").toBe(
+    currentRuntime.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约修订号必须一致").toBe(
+    currentRuntime.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约清单摘要必须一致").toBe(
+    currentRuntime.manifestSha256,
+  );
+  expect(runtimeConsumer.assetCount, "第三方运行契约资产数量必须一致").toBe(
+    currentRuntime.assetCount,
+  );
+  return { currentRuntime, runtimeConsumer };
+}
+
+async function createClinicalSmokeAfterRestore(
+  page: Page,
+  currentRuntime: RuntimeIdentityEvidence,
+): Promise<ClinicalSmokeEvidence> {
+  await ensureReadySession(page, "clinical-user");
+  await page.goto(appPath("/mpi"), { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "患者索引" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "新增患者" }).click();
+  const patientDialog = page.getByRole("dialog", { name: /新增患者主索引/ });
+  await expect(patientDialog).toBeVisible();
+  const suffix = String(Date.now()).slice(-4);
+  const maskedName = `恢*${suffix.slice(-1)}`;
+  await patientDialog.getByLabel("脱敏姓名").fill(maskedName);
+  const gender = patientDialog.getByRole("combobox", { name: "性别" });
+  await gender.click();
+  await gender.press("ArrowDown");
+  await gender.press("Enter");
+  await patientDialog.getByRole("spinbutton", { name: "年龄" }).fill("66");
+  await patientDialog.getByLabel("身份证后四位").fill(suffix);
+  const patientResponsePromise = waitForPost(page, "/engine/mpi/patients");
+  await patientDialog.getByRole("button", { name: "保存患者" }).click();
+  const patientResponse = await patientResponsePromise;
+  await expectOk(patientResponse, "恢复后临床前台创建脱敏患者主索引");
+  const patient = await responseData(patientResponse);
+  const patientId = requireText(textField(patient, "mpiId"), "恢复后患者创建必须返回 MPI");
+  await expect(patientDialog).toBeHidden({ timeout: 20_000 });
+
+  await page.getByPlaceholder("支持按姓名或院内患者编号检索...").fill(maskedName);
+  await page.getByRole("button", { name: /检索过滤/ }).click();
+  const row = page
+    .getByRole("row", { name: new RegExp(`${escapeRegExp(maskedName)}.*${suffix}`) })
+    .first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole("button", { name: /患者360/ }).click();
+  await expect(page.getByRole("button", { name: "建立当前就诊上下文" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "建立当前就诊上下文" }).click();
+  const contextDialog = page.getByRole("dialog", { name: "建立当前就诊上下文" });
+  await expect(contextDialog).toBeVisible();
+  await chooseDialogOption(page, contextDialog, "就诊类型", "门诊复诊");
+  await contextDialog.getByLabel("诊断/随访病种").fill("恢复后上线主链路冒烟");
+  await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
+  await contextDialog
+    .getByLabel("建立原因")
+    .fill("恢复后临床前台演练：验证患者主索引和当前就诊上下文仍按当前机构生效版本运行。");
+  const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
+  await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
+  const contextResponse = await contextResponsePromise;
+  await expectOk(contextResponse, "恢复后临床前台建立当前就诊上下文");
+  const context = await responseData(contextResponse);
+  const contextSnapshotId = requireText(
+    textField(context, "snapshotId"),
+    "恢复后上下文创建必须返回快照 ID",
+  );
+  const runtimeReleaseId = requireText(
+    textField(context, "runtimeReleaseId"),
+    "恢复后上下文创建必须绑定机构生效版本",
+  );
+  expect(runtimeReleaseId, "恢复后临床上下文必须绑定恢复后 current runtime").toBe(
+    currentRuntime.releaseId,
+  );
+  await expect(contextDialog).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText("当前就诊上下文已建立")).toBeVisible({ timeout: 20_000 });
+
+  return {
+    role: "clinical-user",
+    page: "/mpi",
+    patientId,
+    contextSnapshotId,
+    runtimeReleaseId,
+  };
+}
+
+function parseCurrentRuntimeIdentity(value: unknown, label: string): RuntimeIdentityEvidence {
+  const release = recordField(value, "release");
+  const releaseId = requireText(textField(release, "releaseId"), `${label} 必须返回 releaseId`);
+  const revisionNo = requireNumber(numberField(release, "revisionNo"), `${label} 必须返回修订号`);
+  const manifestSha256 = requireText(
+    textField(release, "manifestSha256"),
+    `${label} 必须返回清单摘要`,
+  );
+  expect(manifestSha256, `${label} 清单摘要必须是 SHA-256`).toMatch(/^[0-9a-f]{64}$/i);
+  const assets = arrayField(value, "items").filter(
+    (item) => textField(item, "entryState") === "ACTIVE" && textField(item, "versionId"),
+  );
+  expect(assets.length, `${label} 必须返回当前启用资产`).toBeGreaterThan(0);
+  return { releaseId, revisionNo, manifestSha256, assetCount: assets.length };
+}
+
+function parseRuntimeConsumerIdentity(
+  value: unknown,
+  label: string,
+): RuntimeConsumerIdentityEvidence {
+  const contractVersion = requireText(
+    textField(value, "contractVersion"),
+    `${label} 必须返回契约版本`,
+  );
+  const releaseId = requireText(textField(value, "releaseId"), `${label} 必须返回 releaseId`);
+  const revisionNo = requireNumber(numberField(value, "revisionNo"), `${label} 必须返回修订号`);
+  const manifestSha256 = requireText(
+    textField(value, "manifestSha256"),
+    `${label} 必须返回清单摘要`,
+  );
+  expect(manifestSha256, `${label} 清单摘要必须是 SHA-256`).toMatch(/^[0-9a-f]{64}$/i);
+  const assetCount = requireNumber(numberField(value, "assetCount"), `${label} 必须返回资产数`);
+  expect(assetCount, `${label} 资产数必须为正`).toBeGreaterThan(0);
+  expect(arrayField(value, "assets").length, `${label} assetCount 必须与资产明细一致`).toBe(
+    assetCount,
+  );
+  return { contractVersion, releaseId, revisionNo, manifestSha256, assetCount };
+}
+
 function collectRuntime(page: Page): RuntimeCollectors {
   return {
     browserErrors: collectBrowserErrors(page),
@@ -337,10 +562,96 @@ function createSystemProvidersCoverageEvidence(): SystemProvidersCoverageEvidenc
       backupReadinessObserved: false,
       honestDegradationObserved: false,
       evidenceDetailsObserved: false,
+      runtimeReadbackObserved: false,
+      runtimeConsumerReadbackObserved: false,
+      clinicalSmokeAfterRestore: false,
       clinicalForbidden: false,
     },
     scenarioEvidence: [{ observedStages: [] }],
   };
+}
+
+async function responseData(response: { json(): Promise<unknown> }) {
+  const payload = (await response.json()) as { data?: unknown };
+  return payload.data ?? {};
+}
+
+function arrayField(value: unknown, field: string) {
+  const raw = recordField(value, field);
+  return Array.isArray(raw) ? raw : [];
+}
+
+function recordField(value: unknown, field: string) {
+  const record = recordValue(value);
+  return record ? record[field] : undefined;
+}
+
+function textField(value: unknown, field: string) {
+  const record = recordValue(value);
+  const raw = record ? record[field] : undefined;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function numberField(value: unknown, field: string) {
+  const record = recordValue(value);
+  const raw = record ? record[field] : undefined;
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function requireText(value: string | null, message: string) {
+  expect(value, message).toBeTruthy();
+  return value ?? "";
+}
+
+function requireNumber(value: number | null, message: string) {
+  expect(value, message).not.toBeNull();
+  return value ?? 0;
+}
+
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+    return;
+  }
+  const field = dialog.getByLabel(label);
+  const selectSelector = field
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]",
+    )
+    .first()
+    .locator(".ant-select-selector")
+    .first();
+  if (await selectSelector.isVisible().catch(() => false)) {
+    await selectSelector.click();
+  } else {
+    await field.click();
+  }
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown, `${label} 下拉应展开`).toBeVisible({ timeout: 5_000 });
+  const option = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: optionText })
+    .first();
+  await expect(option, `${label} 下拉必须存在 ${optionText}`).toBeVisible({ timeout: 5_000 });
+  await option.click();
+  await expect(dialog.getByText(optionText, { exact: true })).toBeVisible({ timeout: 5_000 });
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function waitForPost(page: Page, pathIncludes: string) {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url().includes(pathIncludes),
+    { timeout: 60_000 },
+  );
 }
 
 function recordSystemProvidersStage(

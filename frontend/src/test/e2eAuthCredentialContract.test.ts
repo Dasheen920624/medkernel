@@ -916,6 +916,15 @@ describe("E2E credential contract", () => {
     expect(source).toContain("backupReadinessObserved");
     expect(source).toContain("honestDegradationObserved");
     expect(source).toContain("evidenceDetailsObserved");
+    expect(source).toContain("backupDrillSucceeded");
+    expect(source).toContain("readRuntimeContinuityAfterRestore");
+    expect(source).toContain("createClinicalSmokeAfterRestore");
+    expect(source).toContain("runtimeReadbackObserved");
+    expect(source).toContain("runtimeConsumerReadbackObserved");
+    expect(source).toContain("clinicalSmokeAfterRestore");
+    expect(source).toContain("备份恢复隔离演练未完成，服务运行保障诚实展示待演练状态");
+    expect(source).toContain("恢复后后端当前机构生效版本与第三方运行契约读回一致");
+    expect(source).toContain("临床账号恢复后完成患者主索引和上下文主链路冒烟");
     expect(source).toContain("clinicalForbidden");
     expect(source).toContain("临床账号无法读取或展示服务运行保障快照");
     expect(source).toContain("备份恢复");
@@ -928,6 +937,11 @@ describe("E2E credential contract", () => {
     expect(source).toContain("drillDatabaseIsIsolated");
     expect(source).toContain("证据 RPO");
     expect(source).toContain("证据 RTO");
+    expect(source).toContain("/engine/integration/knowledge-runtime/runtime-release/current");
+    expect(source).toContain("/engine/releases/hospitals/");
+    expect(source).toContain("/mpi");
+    expect(source).toContain("新增患者");
+    expect(source).toContain("建立当前就诊上下文");
     expect(source).not.toContain("postApi(");
     expect(source).not.toContain("exec");
     expect(source).not.toContain("spawn");

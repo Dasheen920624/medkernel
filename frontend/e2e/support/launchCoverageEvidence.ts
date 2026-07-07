@@ -366,6 +366,8 @@ const requiredSystemProvidersScenarioEvidence = [
   "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
   "前台展示依赖诚实降级并保留本地主链路提示",
   "证据详情展示部署档案、迁移路径和备份恢复诊断",
+  "恢复后后端当前机构生效版本与第三方运行契约读回一致",
+  "临床账号恢复后完成患者主索引和上下文主链路冒烟",
   "临床账号无法读取或展示服务运行保障快照",
 ];
 
@@ -2158,6 +2160,7 @@ function hasRequiredSystemProvidersAttachment(test: BrowserE2eTestResult) {
       backup?: unknown;
       dependencyEvidence?: unknown;
       accessEvidence?: unknown;
+      runtimeContinuityEvidence?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
@@ -2168,6 +2171,7 @@ function hasRequiredSystemProvidersAttachment(test: BrowserE2eTestResult) {
       !hasCompleteSystemProvidersBackupEvidence(parsed.backup) ||
       !hasCompleteSystemProvidersDependencyEvidence(parsed.dependencyEvidence) ||
       !hasCompleteSystemProvidersAccessEvidence(parsed.accessEvidence) ||
+      !hasCompleteSystemProvidersRuntimeContinuityEvidence(parsed.runtimeContinuityEvidence) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -2355,6 +2359,9 @@ function hasCompleteSystemProvidersApiEvidence(value: unknown) {
     "backupReadinessObserved",
     "honestDegradationObserved",
     "evidenceDetailsObserved",
+    "runtimeReadbackObserved",
+    "runtimeConsumerReadbackObserved",
+    "clinicalSmokeAfterRestore",
     "clinicalForbidden",
   ].every((key) => evidence[key] === true);
 }
@@ -2388,14 +2395,14 @@ function hasCompleteSystemProvidersBackupEvidence(value: unknown) {
     backup.backupScript.includes("backup.sh") &&
     typeof backup.restoreScript === "string" &&
     backup.restoreScript.includes("restore.sh") &&
-    hasText(drill.status) &&
-    (typeof drill.migrationCount === "number" || drill.migrationCount === null) &&
-    (typeof drill.evidenceReference === "string" || drill.evidenceReference === null) &&
-    (typeof drill.checksumEvidence === "string" || drill.checksumEvidence === null) &&
-    (typeof drill.drillDatabaseIsIsolated === "boolean" ||
-      drill.drillDatabaseIsIsolated === null) &&
-    (typeof drill.rpo === "string" || drill.rpo === null) &&
-    (typeof drill.rto === "string" || drill.rto === null)
+    drill.status === "SUCCESS" &&
+    typeof drill.migrationCount === "number" &&
+    drill.migrationCount > 0 &&
+    hasText(drill.evidenceReference) &&
+    hasText(drill.checksumEvidence) &&
+    drill.drillDatabaseIsIsolated === true &&
+    hasText(drill.rpo) &&
+    hasText(drill.rto)
   );
 }
 
@@ -2439,6 +2446,70 @@ function hasCompleteSystemProvidersAccessEvidence(value: unknown) {
     evidence.clinicalPageForbidden === true &&
     evidence.clinicalPageNoOperationsData === true
   );
+}
+
+function hasCompleteSystemProvidersRuntimeContinuityEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  const currentRuntime = parseSystemProvidersRuntimeIdentity(evidence.currentRuntime);
+  const runtimeConsumer = parseSystemProvidersRuntimeIdentity(evidence.runtimeConsumer);
+  const clinicalSmoke = parseSystemProvidersClinicalSmokeEvidence(evidence.clinicalSmoke);
+  return (
+    Boolean(currentRuntime) &&
+    Boolean(runtimeConsumer) &&
+    Boolean(clinicalSmoke) &&
+    runtimeConsumer?.contractVersion === "v1" &&
+    runtimeConsumer?.releaseId === currentRuntime?.releaseId &&
+    runtimeConsumer?.revisionNo === currentRuntime?.revisionNo &&
+    runtimeConsumer?.manifestSha256 === currentRuntime?.manifestSha256 &&
+    runtimeConsumer?.assetCount === currentRuntime?.assetCount &&
+    clinicalSmoke?.runtimeReleaseId === currentRuntime?.releaseId
+  );
+}
+
+function parseSystemProvidersRuntimeIdentity(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runtime = value as Record<string, unknown>;
+  const contractVersion =
+    typeof runtime.contractVersion === "string" ? runtime.contractVersion : undefined;
+  if (
+    !hasText(runtime.releaseId) ||
+    typeof runtime.revisionNo !== "number" ||
+    runtime.revisionNo <= 0 ||
+    !isSha256(runtime.manifestSha256) ||
+    typeof runtime.assetCount !== "number" ||
+    runtime.assetCount <= 0
+  ) {
+    return null;
+  }
+  return {
+    ...(contractVersion ? { contractVersion } : {}),
+    releaseId: String(runtime.releaseId),
+    revisionNo: runtime.revisionNo,
+    manifestSha256: String(runtime.manifestSha256),
+    assetCount: runtime.assetCount,
+  };
+}
+
+function parseSystemProvidersClinicalSmokeEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const smoke = value as Record<string, unknown>;
+  if (
+    smoke.role !== "clinical-user" ||
+    smoke.page !== "/mpi" ||
+    !hasText(smoke.patientId) ||
+    !hasText(smoke.contextSnapshotId) ||
+    !hasText(smoke.runtimeReleaseId)
+  ) {
+    return null;
+  }
+  return {
+    role: "clinical-user",
+    page: "/mpi",
+    patientId: String(smoke.patientId),
+    contextSnapshotId: String(smoke.contextSnapshotId),
+    runtimeReleaseId: String(smoke.runtimeReleaseId),
+  };
 }
 
 function hasCompleteEmbedApiEvidence(value: unknown) {

@@ -10,6 +10,53 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S15、完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，
+  而是针对上线验收第 15 项中“备份恢复、重启后继续按当前机构生效版本运行”的证据口径加固服务运行保障门禁。
+  `launchCoverageEvidence` 现在不会再因为 `/system/providers` 只读展示 RPO/RTO、依赖降级和权限隔离就声明
+  `MANAGEMENT_WORKSPACE/COMPLIANCE_OPERATIONS` 覆盖；只有 `system-providers-operations-codes` 附件同时证明
+  备份恢复隔离演练 `drillEvidence.status=SUCCESS`、迁移历史条数为正、SHA-256 校验证据存在、演练库与业务库隔离、
+  恢复后后端 current runtime 与第三方 runtime contract 的 `releaseId/revisionNo/manifestSha256/assetCount` 完全一致，
+  且 `clinical-user` 从真实前台 `/mpi` 创建脱敏患者并建立当前就诊上下文、上下文 `runtimeReleaseId` 绑定同一 current runtime 时，
+  才承认服务运行保障覆盖。
+- 第一百五十一批真实链路说明：`system-providers-frontdesk.spec.ts` 仍遵守应用只读呈现备份恢复证据的边界，不执行
+  `backup.sh`、`restore.sh` 或 `backup-restore-drill.sh`，也不新增任何备份/恢复操作按钮。平台管理员读取真实
+  `/system/operations` 后，前台 `/system/providers` 默认只展示核心服务、依赖服务、备份恢复就绪、RPO/RTO 和
+  SHA-256 校验策略；脚本路径、迁移位置、隔离库证据和恢复演练详情仍只在“证据详情”模式可见。若部署侧证据为
+  `NOT_AVAILABLE` 或 `INVALID`，E2E 只记录“备份恢复隔离演练未完成，服务运行保障诚实展示待演练状态”，不会继续执行
+  runtime 读回和临床冒烟，也不会生成 launch coverage 覆盖。若现场/容器证据为 `SUCCESS`，同一 E2E 会继续读取
+  `/engine/releases/hospitals/{hospitalId}/runtime-releases/current` 与
+  `/engine/integration/knowledge-runtime/runtime-release/current` 对账，再切换临床账号从真实 `/mpi` 创建脱敏患者和
+  当前就诊上下文，断言恢复后临床主链路仍绑定同一机构生效版本。
+- 第一百五十一批红点与处理：目标 E2E 首次按“必须 SUCCESS”强约束运行时红于本地 dev/H2 后端返回
+  `backup.drillEvidence.status=NOT_AVAILABLE`。追溯 `RuntimeBackupDrillEvidenceReader` 与
+  `deploy/docker/scripts/backup-restore-drill.sh` 后确认，真实隔离恢复演练证据来自 PostgreSQL/Docker 部署侧
+  `latest-restore-drill.properties`，当前本地 H2 jar 未配置该证据；因此不能把本地 H2 伪装成备份恢复成功。
+  已改为：本地 H2 目标 E2E 通过诚实未完成分支并保留附件证据，coverage 门禁继续拒绝该附件声明覆盖；只有真实
+  SUCCESS 证据才会进入 runtime/第三方/临床冒烟分支。
+- 第一百五十一批边界说明：本批 coverage 加固只是“服务运行保障只读证据 + 备份恢复成功后 runtime 连续性与临床冒烟”
+  的门禁切片；本地 dev/H2 本轮并未完成真实备份、隔离恢复、清库 V1、重启、再次恢复、134 部署或完整 S15 验收。
+  仓库外 `/tmp/medkernel-e2e-system-providers` 的最新本地附件明确记录 `backup.enabled=false`、
+  `drillEvidence.status=NOT_AVAILABLE`、`runtimeReadbackObserved=false`、`runtimeConsumerReadbackObserved=false`、
+  `clinicalSmokeAfterRestore=false`，`results.json` 的 `launchCoverage={}`，后续不能把本批本地 E2E 外推为上线恢复通过。
+- 第一百五十一批验证证据：目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-system-providers npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（2 expected，0 unexpected，0 flaky，duration=6967ms），且
+  `launchCoverage={}`；平台管理员附件记录 `/system/operations` 200、临床账号 403、H2/dev 运行快照、
+  备份恢复 `NOT_AVAILABLE` 诚实状态、依赖降级和证据详情。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "system operations"` 通过（7 passed）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "system providers"` 通过（1 selected）；
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（98 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeBackupDrillEvidenceReaderTest,RuntimeOperationsServiceTest test`
+  通过（11 tests）；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+  `git diff --check` 通过。本地 18080 演练后端服务 PID `44154` 当前仍在运行，未停止。
+- 第一百五十一批后续主线：下一步仍应优先在具备 PostgreSQL/Docker 或 134 目标环境的部署侧执行
+  `deploy/docker/scripts/backup-restore-drill.sh` 或对应 on-prem 流程，确保 `/system/operations` 读到
+  `drillEvidence.status=SUCCESS` 后复跑 `system-providers-frontdesk.spec.ts`，让同一 E2E 进入 current runtime /
+  第三方 runtime contract / clinical-user `/mpi` 冒烟分支；再继续推进 134 清库 V1、部署、重启和再次恢复验证。
+  同时继续补完整 S0-S40、13 类标准患者资源真实接入驱动、13 类 runtime 资产逐类业务消费者、第三方系统族业务闭环和
+  全角色真实前台体验，不要把本地 `NOT_AVAILABLE` 诚实演练或单一门禁加固包装成完整上线。
 - 第一百五十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，而是在前序
   S2/S4、S6 与 S13 机构生效版本证据切片基础上，补齐 S5 中 `VALUE_SET`、`FORMULA`、`ACTION_CARD`

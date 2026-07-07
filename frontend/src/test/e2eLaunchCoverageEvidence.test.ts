@@ -742,6 +742,9 @@ const systemProvidersEvidence = {
     backupReadinessObserved: true,
     honestDegradationObserved: true,
     evidenceDetailsObserved: true,
+    runtimeReadbackObserved: true,
+    runtimeConsumerReadbackObserved: true,
+    clinicalSmokeAfterRestore: true,
     clinicalForbidden: true,
   },
   snapshot: {
@@ -779,6 +782,28 @@ const systemProvidersEvidence = {
     clinicalPageForbidden: true,
     clinicalPageNoOperationsData: true,
   },
+  runtimeContinuityEvidence: {
+    currentRuntime: {
+      releaseId: "runtime-system-providers",
+      revisionNo: 9,
+      manifestSha256: "a".repeat(64),
+      assetCount: 13,
+    },
+    runtimeConsumer: {
+      contractVersion: "v1",
+      releaseId: "runtime-system-providers",
+      revisionNo: 9,
+      manifestSha256: "a".repeat(64),
+      assetCount: 13,
+    },
+    clinicalSmoke: {
+      role: "clinical-user",
+      page: "/mpi",
+      patientId: "mpi-system-providers",
+      contextSnapshotId: "ctx-system-providers",
+      runtimeReleaseId: "runtime-system-providers",
+    },
+  },
   scenarioEvidence: [
     {
       observedStages: [
@@ -786,6 +811,8 @@ const systemProvidersEvidence = {
         "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
         "前台展示依赖诚实降级并保留本地主链路提示",
         "证据详情展示部署档案、迁移路径和备份恢复诊断",
+        "恢复后后端当前机构生效版本与第三方运行契约读回一致",
+        "临床账号恢复后完成患者主索引和上下文主链路冒烟",
         "临床账号无法读取或展示服务运行保障快照",
       ],
     },
@@ -1584,7 +1611,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(missingConsumer.launchCoverage.scenarios).toBeUndefined();
   });
 
-  it("declares system operations coverage only when service providers rehearsal attaches readonly operations evidence", () => {
+  it("declares system operations coverage only when service providers rehearsal proves restore continuity", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
       stats: passedStats,
       tests: [
@@ -1611,6 +1638,142 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
+  });
+
+  it("does not declare system operations coverage from local NOT_AVAILABLE backup drill evidence", () => {
+    const localNotAvailableEvidence = {
+      ...systemProvidersEvidence,
+      apiEvidence: {
+        operationsSnapshotRead: true,
+        backupReadinessObserved: true,
+        honestDegradationObserved: true,
+        evidenceDetailsObserved: true,
+        runtimeReadbackObserved: false,
+        runtimeConsumerReadbackObserved: false,
+        clinicalSmokeAfterRestore: false,
+        clinicalForbidden: true,
+      },
+      backup: {
+        ...systemProvidersEvidence.backup,
+        enabled: false,
+        rpo: "未启用",
+        rto: "未启用",
+        drillEvidence: {
+          status: "NOT_AVAILABLE",
+          completedAt: null,
+          migrationCount: null,
+          evidenceReference: null,
+          checksumEvidence: null,
+          drillDatabaseIsIsolated: null,
+          rpo: null,
+          rto: null,
+          detail: "尚未提供隔离恢复演练证据",
+        },
+      },
+      runtimeContinuityEvidence: undefined,
+      scenarioEvidence: [
+        {
+          observedStages: [
+            "平台管理员读取真实服务运行保障快照",
+            "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
+            "前台展示依赖诚实降级并保留本地主链路提示",
+            "证据详情展示部署档案、迁移路径和备份恢复诊断",
+            "备份恢复隔离演练未完成，服务运行保障诚实展示待演练状态",
+            "临床账号无法读取或展示服务运行保障快照",
+          ],
+        },
+      ],
+    };
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(localNotAvailableEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少恢复后当前机构生效版本读回",
+      body: {
+        ...systemProvidersEvidence,
+        runtimeContinuityEvidence: {
+          ...systemProvidersEvidence.runtimeContinuityEvidence,
+          currentRuntime: undefined,
+        },
+      },
+    },
+    {
+      name: "第三方运行契约与当前机构生效版本不一致",
+      body: {
+        ...systemProvidersEvidence,
+        runtimeContinuityEvidence: {
+          ...systemProvidersEvidence.runtimeContinuityEvidence,
+          runtimeConsumer: {
+            ...systemProvidersEvidence.runtimeContinuityEvidence.runtimeConsumer,
+            releaseId: "runtime-other",
+          },
+        },
+      },
+    },
+    {
+      name: "缺少恢复后临床前台主链路冒烟",
+      body: {
+        ...systemProvidersEvidence,
+        runtimeContinuityEvidence: {
+          ...systemProvidersEvidence.runtimeContinuityEvidence,
+          clinicalSmoke: undefined,
+        },
+      },
+    },
+    {
+      name: "备份恢复证据不是隔离库成功演练",
+      body: {
+        ...systemProvidersEvidence,
+        backup: {
+          ...systemProvidersEvidence.backup,
+          drillEvidence: {
+            ...systemProvidersEvidence.backup.drillEvidence,
+            drillDatabaseIsIsolated: false,
+          },
+        },
+      },
+    },
+  ])("does not declare system operations coverage when $name", ({ body }) => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(body),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
   });
 
   it("does not declare system operations coverage without complete readonly operations evidence", () => {
