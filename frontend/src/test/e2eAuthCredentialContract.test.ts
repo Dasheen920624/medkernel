@@ -918,6 +918,9 @@ describe("E2E credential contract", () => {
     expect(source).toContain("evidenceDetailsObserved");
     expect(source).toContain("backupDrillSucceeded");
     expect(source).toContain("readRuntimeContinuityAfterRestore");
+    expect(source).toContain(
+      "ensureRehearsalRuntimeAssetApiSession(page);\n  const hospitalResponse",
+    );
     expect(source).toContain("createClinicalSmokeAfterRestore");
     expect(source).toContain("runtimeReadbackObserved");
     expect(source).toContain("runtimeConsumerReadbackObserved");

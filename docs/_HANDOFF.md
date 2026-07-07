@@ -10,6 +10,56 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百五十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是 134 清库部署、完整 S15、完整 S0-S40 或完整上线验收收口，而是在第 151 批
+  H2 `NOT_AVAILABLE` 诚实门禁基础上，补跑本地 Docker/PostgreSQL 隔离恢复演练，并让同一
+  `system-providers-frontdesk.spec.ts` 进入真实 `SUCCESS` 分支。
+- 第一百五十二批 Docker/PostgreSQL 演练事实：Docker Hub 拉取 `postgres:16.14-bookworm` 与
+  `neo4j:5.23.0-community` 在本机 Docker Desktop 上长时间无可观测事件，`docker pull` 中断时返回
+  `error getting credentials - err: signal: interrupt`。为避免把镜像拉取问题误当产品问题，本批只使用本机已有
+  `postgres:15-alpine` 启动隔离 PostgreSQL（`25432`），本地后端以 `dev,container` profile 运行在 `28080`，
+  真实执行 PostgreSQL V1 Flyway 迁移后运行 `deploy/docker/scripts/backup-restore-drill.sh`。仓库外证据
+  `/tmp/medkernel-docker-rehearsal/runtime/backups/drills/latest-restore-drill.properties` 记录
+  `status=SUCCESS`、`flyway_schema_history_rows=1`、`drill_database=medkernel_restore_drill`、
+  `checksum_file=...sha256`、`rpo=24h`、`rto=4h`；演练库与业务库隔离。该证据只能证明本地 Docker/PostgreSQL
+  恢复链路，不等同于 134 清库、systemd/Nginx/TLS/正式域名、重启后全功能与全知识验收。
+- 第一百五十二批红点与修复：第一次 SUCCESS 分支 E2E 红于平台管理员会话读取
+  `/engine/releases/hospitals/{hospitalId}/runtime-releases/current` 返回 403。根因是服务运行保障页面由
+  `platform-admin` 只读核查 `/system/operations`，但恢复后运行资产对账需要 `asset.read`，本地演练租户的
+  `engine-operator` 才是正确 API 会话；不是后端权限应放宽。已新增
+  `ensureRehearsalRuntimeAssetApiSession(page)` 并让 SUCCESS 分支在读取医院 current runtime 与第三方
+  runtime contract 前切到本地演练租户的 `engine-operator`。第二次红于使用平台租户 `engine-operator`
+  查本地演练医院返回 404；已明确不能用 `ensurePlatformRuntimeAssetApiSession` 读取演练医院。
+  `e2eAuthCredentialContract` 新增合同，要求 `system-providers` SUCCESS 分支必须调用
+  `ensureRehearsalRuntimeAssetApiSession(page)`。
+- 第一百五十二批部署脚本修复：本地临时 env 最初沿用 `MEDKERNEL_BACKUP_RPO=24 小时` /
+  `MEDKERNEL_BACKUP_RTO=4 小时`，而 `deploy/docker/scripts/common.sh` 使用 `source "$ENV_FILE"`，
+  shell 会把 `小时` 当命令导致 `command not found`。已将 `deploy/docker/.env.example` 改为 shell-safe 的
+  `MEDKERNEL_BACKUP_RPO=24h`、`MEDKERNEL_BACKUP_RTO=4h`，并在
+  `deploy/docker/tests/validate-deployment-assets.sh` 固化合同。
+- 第一百五十二批验证证据：
+  - 红灯：`npm --prefix frontend run test -- e2eAuthCredentialContract -t "system providers frontdesk rehearsal"`
+    先后证明旧实现缺少 `ensureRehearsalRuntimeAssetApiSession(page)`；`bash deploy/docker/tests/validate-deployment-assets.sh`
+    在 `.env.example` 仍为带空格中文 RPO/RTO 时失败。
+  - 绿灯：`bash deploy/docker/tests/validate-deployment-assets.sh` 通过；
+    `npm --prefix frontend run test -- e2eAuthCredentialContract -t "system providers frontdesk rehearsal"` 通过；
+    `npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence` 通过（98 tests）；
+    `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+    `npm --prefix frontend run typecheck -- --pretty false` 通过；`git diff --check` 通过。
+  - 目标真实 E2E：`E2E_API_BASE_URL=http://localhost:28080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:28080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-system-providers-docker-postgres-20260707-final npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
+    通过，`results.json` 为 `PASSED`（2 expected，0 unexpected，0 flaky，duration=12088ms），
+    `launchCoverage.deliveryShapes.MANAGEMENT_WORKSPACE` 与 `launchCoverage.serviceCombinations.COMPLIANCE_OPERATIONS`
+    均为 `PASSED`。平台管理员附件中 `operationsSnapshotRead`、`backupReadinessObserved`、
+    `honestDegradationObserved`、`evidenceDetailsObserved`、`runtimeReadbackObserved`、
+    `runtimeConsumerReadbackObserved`、`clinicalSmokeAfterRestore`、`clinicalForbidden` 全为 `true`；
+    `currentRuntime` 与 `runtimeConsumer` 均为 `runtime-01KWXG52KXMSMA0SZBJV00X91D`、`revisionNo=1`、
+    `manifestSha256=faf10cdd1b35c4cc2e5163cbfc51ce588e9b03a4a4e18110a969347889ec3192`、`assetCount=13`；
+    临床 `/mpi` 冒烟创建脱敏患者并建立上下文，`runtimeReleaseId` 绑定同一 current runtime；临床账号读取
+    `/system/operations` 仍为 403。
+- 第一百五十二批后续主线：本地 Docker/PostgreSQL 的 `SUCCESS` 证据已补齐第 151 批未完成的本地容器恢复分支，
+  但仍不能声明 134 清库上线完成。下一步仍需在 134 目标环境执行真实 fresh deploy、备份摘要校验、隔离恢复、
+  清库 V1、重启、全功能与全知识全流程复演、`medkernel-post-rehearsal-verify.sh`，并继续按 S0-S40、全角色前台、
+  13 类标准患者资源真实接入、13 类 runtime 资产逐类消费者和第三方系统族业务闭环推进。
 - 第一百五十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S15、完整 S0-S40、完整全角色全功能、完整上线验收或 134 清库部署收口，
   而是针对上线验收第 15 项中“备份恢复、重启后继续按当前机构生效版本运行”的证据口径加固服务运行保障门禁。

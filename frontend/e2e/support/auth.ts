@@ -177,6 +177,10 @@ export async function ensurePlatformRuntimeAssetApiSession(page: Page) {
   await ensureApiRoleSession(page, "engine-operator", "platform");
 }
 
+export async function ensureRehearsalRuntimeAssetApiSession(page: Page) {
+  await ensureApiRoleSession(page, "engine-operator", "rehearsal");
+}
+
 export async function expectLoginPageReady(page: Page) {
   await expect(page.getByRole("main", { name: "登录 MedKernel 工作台" })).toBeVisible();
   await expect(page.getByRole("heading", { name: /登录(?:平台治理|机构工作台)/ })).toBeVisible();

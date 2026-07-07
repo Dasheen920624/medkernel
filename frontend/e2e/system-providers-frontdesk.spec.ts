@@ -1,7 +1,13 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { apiBase, appPath, ensureReadySession, expectOk } from "./support/auth";
+import {
+  apiBase,
+  appPath,
+  ensureRehearsalRuntimeAssetApiSession,
+  ensureReadySession,
+  expectOk,
+} from "./support/auth";
 
 type RuntimeOperationsSnapshot = {
   healthStatus?: string;
@@ -353,6 +359,7 @@ async function assertClinicalUserCannotReadOperations(page: Page) {
 }
 
 async function readRuntimeContinuityAfterRestore(page: Page) {
+  await ensureRehearsalRuntimeAssetApiSession(page);
   const hospitalResponse = await page.request.get(
     `${apiBase}/engine/org/org-units/e2e-rehearsal-hospital`,
     { headers: { "X-Trace-Id": `e2e-system-providers-hospital-${Date.now()}` } },
