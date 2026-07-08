@@ -67,6 +67,7 @@ type CoverageProof = {
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
+  requiresFourRoleCoreActionsAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -309,6 +310,10 @@ const identityBindingClaims = [
   "scenarios:S14",
   "productLayers:FOUNDATION_GOVERNANCE",
   "serviceCombinations:COMPLIANCE_OPERATIONS",
+];
+
+const fourRoleCoreActionsClaims = [
+  "roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS",
 ];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
@@ -793,6 +798,12 @@ const coverageProofs: CoverageProof[] = [
     claims: identityBindingClaims,
     requiresIdentityBindingAttachment: true,
   },
+  {
+    file: "four-role-core-actions-rehearsal.spec.ts",
+    titleIncludes: "四职责主动作均完成真实前台操作与服务回读闭环",
+    claims: fourRoleCoreActionsClaims,
+    requiresFourRoleCoreActionsAttachment: true,
+  },
 ];
 
 export function buildBrowserE2eLaunchEvidence(input: {
@@ -865,9 +876,99 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresCriticalEmergencyIcuFrontdeskAttachment ||
         hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
-        hasRequiredRuntimeReleasePartialSelectionAttachment(test))
+        hasRequiredRuntimeReleasePartialSelectionAttachment(test)) &&
+      (!proof.requiresFourRoleCoreActionsAttachment ||
+        hasRequiredFourRoleCoreActionsAttachment(test))
     );
   });
+}
+
+const requiredFourRoleCoreActionRoles = [
+  "platform-admin",
+  "engine-operator",
+  "clinical-user",
+  "auditor",
+];
+
+const requiredFourRoleCoreActionPaths: Record<string, string> = {
+  "platform-admin": "/admin/users",
+  "engine-operator": "/knowledge/production",
+  "clinical-user": "/workflow/todos",
+  auditor: "/admin/audit",
+};
+
+const fourRoleCoreActionDetailKeys: Record<string, string> = {
+  "platform-admin": "platformAdmin",
+  "engine-operator": "engineOperator",
+  "clinical-user": "clinicalUser",
+  auditor: "auditor",
+};
+
+function hasRequiredFourRoleCoreActionsAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find((item) => item.name === "four-role-core-actions-codes");
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scopeStatement?: unknown;
+      roleActions?: unknown;
+      platformAdmin?: unknown;
+      engineOperator?: unknown;
+      clinicalUser?: unknown;
+      auditor?: unknown;
+    };
+    if (!hasFourRoleCoreActionScopeBoundary(parsed.scopeStatement)) return false;
+    if (!Array.isArray(parsed.roleActions)) return false;
+    const actionsByRole = new Map<string, Record<string, unknown>>();
+    for (const item of parsed.roleActions) {
+      const action = recordValue(item);
+      const role = textValue(action?.role);
+      if (action && role) actionsByRole.set(role, action);
+    }
+    return requiredFourRoleCoreActionRoles.every((role) => {
+      const action = actionsByRole.get(role);
+      const detail = recordValue(parsed[fourRoleCoreActionDetailKeys[role] as keyof typeof parsed]);
+      return (
+        hasCompleteFourRoleCoreAction(action, role) &&
+        hasCompleteFourRoleCoreAction(detail, role)
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasFourRoleCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("四职责主动作代表闭环") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveFourRoleCoreActionCompleteScopeClaim(statement)
+  );
+}
+
+function hasPositiveFourRoleCoreActionCompleteScopeClaim(statement: string) {
+  return /(?:34\s*个入口全部业务动作闭环|完整上线验收)(?:已上线|完整上线|完成上线|已完成|完成|完整覆盖|全面覆盖|通过)/u.test(
+    statement,
+  );
+}
+
+function hasCompleteFourRoleCoreAction(value: unknown, expectedRole: string) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  return (
+    action.role === expectedRole &&
+    action.path === requiredFourRoleCoreActionPaths[expectedRole] &&
+    hasText(action.frontdeskAction) &&
+    hasText(action.serviceOperation) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true
+  );
 }
 
 function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {

@@ -10,6 +10,57 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十九批本地推进：继续按用户“不要片面优化、全角色真实前台操作”的要求，从菜单可达性和专业系统族
+  代表消费者继续推进到 **四职责代表主动作真实前台闭环**。本批不是完整上线、不是 134 清库部署复演、
+  不是 34 个入口全部业务动作闭环、不是完整 S0-S40，也不是每页核心动作 / 六态 / 导入导出 / 分页筛选全量完成；
+  本批只证明四个 canonical 职责各完成一个真实前台主动作并具备服务回读和审计证据：
+  `platform-admin` 在 `/admin/users` 新增人员、开通账号并绑定院内身份来源；
+  `engine-operator` 在 `/knowledge/production` 登记院内 Ollama 模型服务并保持待健康检查；
+  `clinical-user` 在 `/workflow/todos` 完成报告解读待办；`auditor` 在 `/admin/audit`
+  查看审计事件详情、确认导出范围、生成导出文件并验签导出证据。`launchCoverageEvidence.ts` 新增收窄维度
+  `roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS`，只在 `four-role-core-actions-rehearsal.spec.ts`
+  通过且附件 `four-role-core-actions-codes` 明确“四职责主动作代表闭环 / 不代表 34 个入口全部业务动作闭环 /
+  不代表完整上线验收”时声明；缺角色、服务非 2xx、未回读、未审计或 scope 过度宣称均不声明。
+- 第一百六十九批运行资产修复：目标 E2E 的真实红点不在页面按钮，而在临床报告解读依赖的医院 runtime。
+  r4/r5 曾红于 `ENG-ASSET-002`：本地演练医院当前生效版本缺少
+  `ACTION_CARD.REPORT.CRITICAL_VALUE`，导致报告解读不能生成。已把 S36 中验证过的
+  `KNOWLEDGE plat:diagnostic_item:lab-potassium`、`FIELD_CATALOG FIELD.CATALOG.CLINICAL_CONTEXT`、
+  `ACTION_CARD.REPORT.CRITICAL_VALUE` 准备逻辑抽到 `frontend/e2e/support/diagnosticRuntime.ts`：
+  由 `engine-operator` 创建本轮危急值 ACTION_CARD，读取平台 baseline 13 类 active assets 与版本明细，
+  用 baseline active assets + 本轮 ACTION_CARD 激活本地上线演练医院 runtime，并回读确认三类资产均为
+  `ACTIVE` 且带 `versionNo/contentHash`。`diagnostic-critical-value-frontdesk.spec.ts` 改为复用该 helper；
+  `four-role-core-actions-rehearsal.spec.ts` 在临床主动作前先准备 runtime，并断言新建上下文绑定该 release。
+  注意：这仍是 E2E 演练 helper 自愈，不是后端 `ClinicalRuntimeReleaseService.activate` 对空 `activeAssets`
+  的自动补齐能力。
+- 第一百六十九批调试与验证证据：新增静态契约
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "four-role core actions"` 先红于
+  四职责 spec 未调用 `ensureDiagnosticCriticalValueRuntime`，接入 helper 后通过。`npm --prefix frontend run test --
+  e2eLaunchCoverageEvidence -t "four-role core action"` 通过（8 selected）。目标真实 E2E 使用 18089 dev/H2
+  本地后端（`SPRING_PROFILES_ACTIVE=dev SERVER_PORT=18089 java -jar medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar`），
+  健康检查 `http://localhost:18089/medkernel/actuator/health` 返回
+  `{"status":"UP","groups":["liveness","readiness"]}`；不要设置 `E2E_EXTERNAL_DEPLOYMENT=1`，让 Playwright 自己起 Vite。
+  r5 越过 `ENG-ASSET-002` 后红于临床用户直接读审计列表 403，已改为由审计员职责回读 `workflow_todo` 审计事件；
+  r6 红于审计详情抽屉真实客户视图不展示内部“事件编号”，已改为断言真实详情抽屉、摘要和链签名信息。
+  复跑
+  `E2E_BASE_URL=http://localhost:5173 E2E_API_BASE_URL=http://localhost:18089/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18089 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-four-role-core-actions-20260708-r7 npm --prefix frontend run e2e -- --project=chromium four-role-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-four-role-core-actions-20260708-r7/report/results.json` 为 `PASSED`
+  （1 expected，0 unexpected，0 flaky，0 skipped，duration=22436ms），`launchCoverage` 仅声明
+  `roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS`。附件四个 `roleActions` 的 `serviceStatus=200`、
+  `readbackVerified=true`、`auditVerified=true`。
+- 第一百六十九批收尾门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（195 tests）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "four-role core actions|diagnostic critical"`
+  通过（4 selected）；`npm --prefix frontend run test -- e2eAuthCredentialContract AppLayout -t
+  "four-role core actions|uses drawer navigation on mobile width"` 通过（2 files，2 selected）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run lint` 通过；
+  `npm --prefix frontend run format:check` 通过；`git diff --check` 退出码 0，但仍提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百六十九批边界与下一步：当前新增的是“四职责代表主动作闭环”，仍未证明四职责 34 个入口全部业务动作闭环、
+  完整 S0-S40、13 类标准患者资源逐类真实接入、PACS/RIS / 超声 / 病理 / 内镜 / 心电五类报告族完整矩阵、
+  每页六态 / 导入导出 / 分页筛选 / 移动端核心动作、隐藏 / embedded / API-only 能力或 134 fresh deploy /
+  清库 / 重启 / 备份恢复。下一步建议继续全局推进，不要把本批当作完成上线：优先补
+  `PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG` 五类报告族真实消费者矩阵，或从职责矩阵 34 个入口中继续扩展“每页核心动作”
+  覆盖。134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十八批本地推进：继续按用户“不要片面优化”的要求，从菜单可达性转向真实专业系统族消费者证据。
   本批不是完整上线、不是 134 清库部署复演、不是完整 PACS/RIS / 病理 / 内镜 / 心电系统族覆盖、
   也不是 13 类第三方系统族全量 coverage；本批专门把既有 S36 医技危急值真实前台链路补成

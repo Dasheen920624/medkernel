@@ -3988,6 +3988,110 @@ const identityBindingEvidence = {
   ],
 };
 
+const fourRoleCoreActionsEvidence = {
+  scopeStatement:
+    "四职责主动作代表闭环：平台管理员、医疗引擎运营员、临床使用者和审计员各完成一个真实前台主动作，包含服务端状态变化或只读校验、回读和审计证据；不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  roleActions: [
+    {
+      role: "platform-admin",
+      path: "/admin/users",
+      frontdeskAction: "前台新增人员、开通账号并回读身份来源",
+      serviceOperation: "POST /api/v1/compliance/personnel",
+      serviceStatus: 201,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "engine-operator",
+      path: "/knowledge/production",
+      frontdeskAction: "前台登记院内模型服务并回读生产前校验保持待连接状态",
+      serviceOperation: "PUT /api/v1/model-providers/{providerCode}",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "clinical-user",
+      path: "/workflow/todos",
+      frontdeskAction: "前台筛选并完成本轮临床待办",
+      serviceOperation: "POST /api/v1/engine/workflow/todos/{todoId}/complete",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "auditor",
+      path: "/admin/audit",
+      frontdeskAction: "前台按追踪号筛选审计事件并完成导出证据验签",
+      serviceOperation: "POST /api/v1/compliance/evidence/snapshots/{evidenceId}/verify",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+  ],
+  platformAdmin: {
+    role: "platform-admin",
+    path: "/admin/users",
+    frontdeskAction: "前台新增人员、开通账号并回读身份来源",
+    serviceOperation: "POST /api/v1/compliance/personnel",
+    serviceStatus: 201,
+    readbackVerified: true,
+    auditVerified: true,
+  },
+  engineOperator: {
+    role: "engine-operator",
+    path: "/knowledge/production",
+    frontdeskAction: "前台登记院内模型服务并回读生产前校验保持待连接状态",
+    serviceOperation: "PUT /api/v1/model-providers/{providerCode}",
+    serviceStatus: 200,
+    readbackVerified: true,
+    auditVerified: true,
+  },
+  clinicalUser: {
+    role: "clinical-user",
+    path: "/workflow/todos",
+    frontdeskAction: "前台筛选并完成本轮临床待办",
+    serviceOperation: "POST /api/v1/engine/workflow/todos/{todoId}/complete",
+    serviceStatus: 200,
+    readbackVerified: true,
+    auditVerified: true,
+  },
+  auditor: {
+    role: "auditor",
+    path: "/admin/audit",
+    frontdeskAction: "前台按追踪号筛选审计事件并完成导出证据验签",
+    serviceOperation: "POST /api/v1/compliance/evidence/snapshots/{evidenceId}/verify",
+    serviceStatus: 200,
+    readbackVerified: true,
+    auditVerified: true,
+  },
+};
+
+function fourRoleCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/four-role-core-actions-rehearsal.spec.ts",
+        title: "四职责主动作均完成真实前台操作与服务回读闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "four-role-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoFourRoleCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = fourRoleCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.roleRepresentativeCoreActions).toBeUndefined();
+}
+
 describe("browser E2E launch coverage evidence", () => {
   it("declares stakeholder views only when the real stakeholder rehearsal spec passes", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
@@ -7806,6 +7910,110 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(missingAttachment.launchCoverage.scenarios).toBeUndefined();
     expect(incompleteAttachment.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("declares four-role core action coverage only from complete real frontdesk action evidence", () => {
+    const evidence = fourRoleCoreActionsEvidenceResult(fourRoleCoreActionsEvidence);
+
+    expect(evidence.launchCoverage.roleRepresentativeCoreActions?.map((item) => item.code)).toEqual(
+      ["FOUR_ROLE_PRIMARY_ACTIONS"],
+    );
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare four-role core action coverage from menu or route reachability evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/product-role-journeys.spec.ts",
+          title: "四职责桌面和移动端真实菜单点击可达性",
+          status: "passed",
+          attachments: [
+            {
+              name: "role-menu-interaction-codes-desktop-1440",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scopeStatement: "只证明菜单点击和路由可达，不代表每页核心业务动作已闭环。",
+                roleActions: fourRoleCoreActionsEvidence.roleActions,
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.roleRepresentativeCoreActions).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少审计员主动作",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        roleActions: fourRoleCoreActionsEvidence.roleActions.filter(
+          (item) => item.role !== "auditor",
+        ),
+      },
+    },
+    {
+      name: "scope 过度宣称 34 个入口全部业务动作已闭环",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        scopeStatement:
+          "四职责主动作代表闭环，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线验收已完成",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        scopeStatement:
+          "四职责主动作代表闭环，不代表 34 个入口全部业务动作闭环，完整上线验收已完成。",
+      },
+    },
+    {
+      name: "运营员动作没有服务端 2xx 证据",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        roleActions: fourRoleCoreActionsEvidence.roleActions.map((item) =>
+          item.role === "engine-operator" ? { ...item, serviceStatus: 503 } : item,
+        ),
+        engineOperator: {
+          ...fourRoleCoreActionsEvidence.engineOperator,
+          serviceStatus: 503,
+        },
+      },
+    },
+    {
+      name: "临床使用者动作没有回读证据",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        roleActions: fourRoleCoreActionsEvidence.roleActions.map((item) =>
+          item.role === "clinical-user" ? { ...item, readbackVerified: false } : item,
+        ),
+        clinicalUser: {
+          ...fourRoleCoreActionsEvidence.clinicalUser,
+          readbackVerified: false,
+        },
+      },
+    },
+    {
+      name: "平台管理员动作没有审计证据",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        roleActions: fourRoleCoreActionsEvidence.roleActions.map((item) =>
+          item.role === "platform-admin" ? { ...item, auditVerified: false } : item,
+        ),
+        platformAdmin: {
+          ...fourRoleCoreActionsEvidence.platformAdmin,
+          auditVerified: false,
+        },
+      },
+    },
+  ])("does not declare four-role core action coverage when $name", ({ body }) => {
+    expectNoFourRoleCoreActionsCoverage(body);
   });
 
   it("does not declare coverage when the proving spec fails or the run is flaky", () => {

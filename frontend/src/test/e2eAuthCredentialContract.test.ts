@@ -1401,6 +1401,24 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("networkFailures");
   });
 
+  it("requires four-role core actions to activate report interpretation runtime assets before clinical todo closure", () => {
+    const e2eSource = readFileSync("e2e/four-role-core-actions-rehearsal.spec.ts", "utf8");
+
+    expect(e2eSource).toMatch(/ensureDiagnosticCriticalValueRuntime\(\s*page/u);
+    expect(e2eSource).toContain("ACTION_CARD.REPORT.CRITICAL_VALUE");
+    const runtimePreparationIndex = e2eSource.search(
+      /const runtime = await ensureDiagnosticCriticalValueRuntime\(\s*page/u,
+    );
+    expect(runtimePreparationIndex).toBeGreaterThanOrEqual(0);
+    expect(runtimePreparationIndex).toBeLessThan(
+      e2eSource.indexOf("createContextSnapshotForReportInterpretation(page)"),
+    );
+    expect(e2eSource).toContain("snapshot.runtimeReleaseId");
+    expect(e2eSource).toContain("interpretation.data?.runtimeReleaseId");
+    expect(e2eSource).toContain("报告解读应消费当前机构生效版本知识资产");
+    expect(e2eSource).not.toContain("activeAssets: []");
+  });
+
   it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
     const e2eSource = readFileSync(
       "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",

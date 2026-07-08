@@ -473,6 +473,11 @@ export function AppLayout() {
     </>
   );
 
+  let menuButtonLabel = "打开主菜单";
+  if (isDesktop) {
+    menuButtonLabel = collapsed ? "展开主菜单" : "收起主菜单";
+  }
+
   return (
     <Layout className="mk-layout-shell" hasSider={isDesktop}>
       {isDesktop && (
@@ -502,7 +507,7 @@ export function AppLayout() {
           <Space className="mk-min-0">
             <Button
               type="text"
-              aria-label={isDesktop ? (collapsed ? "展开主菜单" : "收起主菜单") : "打开主菜单"}
+              aria-label={menuButtonLabel}
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() =>
                 isDesktop ? setCollapsed(!collapsed) : setMobileMenuOpen((open) => !open)
