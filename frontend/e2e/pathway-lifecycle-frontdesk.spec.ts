@@ -47,6 +47,28 @@ type RuntimeReleaseDetail = {
   items?: RuntimeReleaseItem[];
 };
 
+type RuntimeRollbackNegativeEvidence = {
+  rollbackPosted: boolean;
+  currentRuntimeReadbackVerified: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  consumer: string;
+  consumerProbeMatchedRemovedAssets: boolean;
+  removedAssets: RuntimeAssetSelection[];
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+  runtimeConsumer: {
+    contractVersion: "v1";
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+};
+
 type OrderSetCandidate = {
   assetType: "ORDER_SET";
   assetIdentity: string;
@@ -172,7 +194,10 @@ test(pathwayLifecycleTitle, async ({ page }, testInfo) => {
     "路径保存响应必须返回 templateId",
   );
 
-  const detail = await getApi(page, `/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}`);
+  const detail = await getApi(
+    page,
+    `/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}`,
+  );
   await expectOk(detail, "回读专病临床路径详情");
   const detailData = await responseData(detail);
   assertTenStagePathwayDetail(detailData, templateCode);
@@ -181,7 +206,7 @@ test(pathwayLifecycleTitle, async ({ page }, testInfo) => {
 
   const activatedRuntime = await activateRuntimeWithPathway(page, templateCode, orderSetCandidate);
   const runtimeOrderSetAsset = assertRuntimeContainsOrderSetAsset(
-    activatedRuntime,
+    activatedRuntime.detail,
     orderSetCandidate,
   );
 
@@ -221,7 +246,12 @@ test(pathwayLifecycleTitle, async ({ page }, testInfo) => {
   apiEvidence.entryCandidatesRead = true;
   recordPathwayLifecycleStage(observedStages, "临床用户基于当前机构生效版本读取入径候选");
 
-  const patientPathway = await enterPathwayFromFrontdesk(page, entrySnapshot, templateName, apiEvidence);
+  const patientPathway = await enterPathwayFromFrontdesk(
+    page,
+    entrySnapshot,
+    templateName,
+    apiEvidence,
+  );
   recordPathwayLifecycleStage(observedStages, "临床用户办理患者入径并生成首个关键时钟");
 
   const patientPathwayId = requireText(
@@ -256,7 +286,7 @@ test(pathwayLifecycleTitle, async ({ page }, testInfo) => {
     apiEvidence,
   );
   const orderSetRuntimeConsumer = assertOrderSetRuntimeConsumerEvidence({
-    activatedRuntime,
+    activatedRuntime: activatedRuntime.detail,
     runtimeOrderSetAsset,
     orderSetCandidate,
     patientPathway,
@@ -308,6 +338,23 @@ test(pathwayLifecycleTitle, async ({ page }, testInfo) => {
   expect(followupPlan, "路径完成后必须生成本轮患者随访接续计划").toBeTruthy();
   apiEvidence.followupHandoffObserved = Boolean(followupPlanId && followupPlan);
   recordPathwayLifecycleStage(observedStages, "路径完成后生成随访接续证据");
+  const rollbackNegativeEvidence = await rollbackRuntimeAndAssertAssetsRemoved(page, {
+    hospitalId: activatedRuntime.hospitalId,
+    targetReleaseId: activatedRuntime.previousReleaseId,
+    consumer: "SPECIAL_DISEASE_PATHWAY_ORDER_SET",
+    removedAssets: [
+      {
+        assetType: "PATHWAY",
+        assetIdentity: templateCode,
+        versionId: activatedRuntime.pathwayVersionId,
+      },
+      {
+        assetType: orderSetCandidate.assetType,
+        assetIdentity: orderSetCandidate.assetIdentity,
+        versionId: orderSetCandidate.versionId,
+      },
+    ],
+  });
 
   await attachPathwayLifecycleScenarioEvidence(testInfo, observedStages, apiEvidence, {
     patientId: entrySnapshot.patientId,
@@ -319,6 +366,7 @@ test(pathwayLifecycleTitle, async ({ page }, testInfo) => {
     patientPathwayId,
     followupPlanId,
     orderSetRuntimeConsumer,
+    rollbackNegativeEvidence,
   });
 });
 
@@ -401,7 +449,9 @@ async function rebuildClinicalContextFromFrontdesk(
   await page.getByPlaceholder("支持按姓名或院内患者编号检索...").fill(previous.maskedName);
   await page.getByRole("button", { name: /检索过滤/ }).click();
   const row = page
-    .getByRole("row", { name: new RegExp(`${escapeRegExp(previous.maskedName)}.*${previous.idLast4}`) })
+    .getByRole("row", {
+      name: new RegExp(`${escapeRegExp(previous.maskedName)}.*${previous.idLast4}`),
+    })
     .first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.getByRole("button", { name: /患者360/ }).click();
@@ -474,9 +524,7 @@ async function createPathwayTemplateFromFrontdesk(
   await dialog.getByLabel("稳定临床路径身份").fill(String(templateRequest.templateCode ?? ""));
   await dialog.getByLabel("适用病种身份").fill(String(templateRequest.diseaseCode ?? ""));
   await dialog.getByLabel("临床知识与指南基础").fill(String(templateRequest.sourceRef ?? ""));
-  await dialog
-    .getByLabel("收治标准与排除指标")
-    .fill(String(templateRequest.description ?? ""));
+  await dialog.getByLabel("收治标准与排除指标").fill(String(templateRequest.description ?? ""));
   await dialog.getByRole("switch", { name: "受控配置文本模式" }).click();
   await dialog.getByRole("tab", { name: "即配即试" }).click();
   await dialog.getByLabel("患者信息").fill(snapshot.patientId);
@@ -633,7 +681,12 @@ async function activateRuntimeWithPathway(
   page: Page,
   templateCode: string,
   orderSetCandidate: OrderSetCandidate,
-): Promise<RuntimeReleaseDetail> {
+): Promise<{
+  detail: RuntimeReleaseDetail;
+  hospitalId: string;
+  previousReleaseId: string | null;
+  pathwayVersionId: string;
+}> {
   const baseline = await getApi(page, "/engine/releases/platform-baselines/current");
   await expectOk(baseline, "读取当前平台标准版本");
   const baselineAssets = resolveBaselineRuntimeAssets(await responseData(baseline));
@@ -641,7 +694,8 @@ async function activateRuntimeWithPathway(
   for (const required of requiredRuntimeAssetsForRehearsal) {
     expect(
       baselineAssets.activeAssets.some(
-        (asset) => asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
+        (asset) =>
+          asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
       ),
       `平台标准版本缺少 ${required.assetType}:${required.assetIdentity}`,
     ).toBe(true);
@@ -653,7 +707,9 @@ async function activateRuntimeWithPathway(
   );
   await expectOk(hospitals, "读取本地上线演练医院");
   const hospital = pageItems(await responseData(hospitals)).find(
-    (item) => textField(item, "name") === "本地上线演练医院" || textField(item, "code") === "e2e-rehearsal-hospital",
+    (item) =>
+      textField(item, "name") === "本地上线演练医院" ||
+      textField(item, "code") === "e2e-rehearsal-hospital",
   );
   const hospitalId = requireText(textField(hospital, "id"), "必须找到本地上线演练医院");
 
@@ -677,7 +733,9 @@ async function activateRuntimeWithPathway(
   );
   await expectOk(candidateResponse, "读取本轮 PATHWAY runtime 候选");
   const pathwayCandidate = pageItems(await responseData(candidateResponse)).find(
-    (item) => textField(item, "assetType") === "PATHWAY" && textField(item, "assetIdentity") === templateCode,
+    (item) =>
+      textField(item, "assetType") === "PATHWAY" &&
+      textField(item, "assetIdentity") === templateCode,
   );
   const pathwayVersionId = requireText(
     textField(pathwayCandidate, "versionId"),
@@ -729,7 +787,69 @@ async function activateRuntimeWithPathway(
   await expectOk(currentAfterActivation, "回读包含本轮 PATHWAY 和 ORDER_SET 的医院生效版本");
   const detail = (await responseData(currentAfterActivation)) as RuntimeReleaseDetail;
   expect(textField(detail, "release.releaseId")).toBe(releaseId);
-  return detail;
+  return {
+    detail,
+    hospitalId,
+    previousReleaseId: currentReleaseId,
+    pathwayVersionId,
+  };
+}
+
+async function rollbackRuntimeAndAssertAssetsRemoved(
+  page: Page,
+  options: {
+    hospitalId: string;
+    targetReleaseId: string | null;
+    consumer: string;
+    removedAssets: RuntimeAssetSelection[];
+  },
+): Promise<RuntimeRollbackNegativeEvidence> {
+  const targetReleaseId = requireText(
+    options.targetReleaseId,
+    "路径生命周期回滚负向证据必须有演练前机构生效版本",
+  );
+  await ensureReadySession(page, "engine-operator");
+  const rollback = await postApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases:rollback`,
+    { targetReleaseId },
+  );
+  await expectOk(rollback, "回滚路径生命周期机构生效版本");
+  const current = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases/current`,
+  );
+  await expectOk(current, "回读路径生命周期回滚后机构生效版本");
+  const currentRuntime = runtimeReadbackEvidence(await responseData(current));
+  assertAssetsRemoved(currentRuntime.assets, options.removedAssets, "回滚后 current runtime");
+
+  const consumer = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
+  await expectOk(consumer, "读取路径生命周期回滚后第三方运行契约");
+  const runtimeConsumer = runtimeConsumerReadbackEvidence(await responseData(consumer));
+  assertAssetsRemoved(runtimeConsumer.assets, options.removedAssets, "回滚后第三方运行契约");
+  expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
+    currentRuntime.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约 revisionNo 必须与 current 一致").toBe(
+    currentRuntime.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约 manifestSha256 必须与 current 一致").toBe(
+    currentRuntime.manifestSha256,
+  );
+
+  return {
+    rollbackPosted: true,
+    currentRuntimeReadbackVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    consumer: options.consumer,
+    consumerProbeMatchedRemovedAssets: false,
+    removedAssets: options.removedAssets,
+    currentRuntime,
+    runtimeConsumer,
+  };
 }
 
 async function readPlatformUpgradeAnalysisDigest(
@@ -779,11 +899,12 @@ function assertOrderSetRuntimeConsumerEvidence(options: {
     textField(options.activatedRuntime, "release.releaseId"),
     "激活响应必须返回机构生效版本 ID",
   );
-  expect(textField(options.patientPathway, "patientPathway.runtimeReleaseId")).toBe(runtimeReleaseId);
-  const decisionEvidence = recordField(
-    options.orderSetAdvance,
-    "decisionEvidence",
-  ) as Record<string, unknown> | undefined;
+  expect(textField(options.patientPathway, "patientPathway.runtimeReleaseId")).toBe(
+    runtimeReleaseId,
+  );
+  const decisionEvidence = recordField(options.orderSetAdvance, "decisionEvidence") as
+    | Record<string, unknown>
+    | undefined;
   expect(decisionEvidence, "路径推进响应必须返回 decisionEvidence").toBeTruthy();
   expect(textField(options.orderSetAdvance, "previousNodeCode")).toBe("ASSESS");
   expect(textField(options.orderSetAdvance, "nextNodeCode")).toBe("FOLLOWUP");
@@ -793,17 +914,13 @@ function assertOrderSetRuntimeConsumerEvidence(options: {
   expect(decisionEvidence?.["pathway.orderSetVersion"]).toBe(
     options.runtimeOrderSetAsset.versionNo,
   );
-  expect(decisionEvidence?.["pathway.orderSetHash"]).toBe(
-    options.runtimeOrderSetAsset.contentHash,
-  );
+  expect(decisionEvidence?.["pathway.orderSetHash"]).toBe(options.runtimeOrderSetAsset.contentHash);
   expect(decisionEvidence?.["pathway.orderSetRequiresPhysicianConfirmation"]).toBe(true);
   expect(decisionEvidence?.["pathway.orderSetItemCount"]).toBeGreaterThanOrEqual(1);
   const orderSetItems = Array.isArray(decisionEvidence?.["pathway.orderSetItems"])
     ? decisionEvidence["pathway.orderSetItems"]
     : [];
-  expect(orderSetItems.length).toBe(
-    decisionEvidence?.["pathway.orderSetItemCount"],
-  );
+  expect(orderSetItems.length).toBe(decisionEvidence?.["pathway.orderSetItemCount"]);
   return {
     asset: {
       assetType: "ORDER_SET",
@@ -832,11 +949,7 @@ function assertOrderSetRuntimeConsumerEvidence(options: {
   };
 }
 
-function pathwayTemplateRequest(
-  templateCode: string,
-  templateName: string,
-  orderSetRef: string,
-) {
+function pathwayTemplateRequest(templateCode: string, templateName: string, orderSetRef: string) {
   const dslPayload = pathwayDslPayload(orderSetRef);
   return {
     ...dslPayload,
@@ -1088,9 +1201,9 @@ async function pathwayApiContext(page: Page) {
   const roles = arrayField(profile, "roles");
   const tenantId = textField(dataScope, "tenantId");
   const userId = textField(profile, "userId");
-  const roleCodes = roles.map((role) => textField(role, "code")).filter((role): role is string =>
-    Boolean(role),
-  );
+  const roleCodes = roles
+    .map((role) => textField(role, "code"))
+    .filter((role): role is string => Boolean(role));
   if (!tenantId || !userId || roleCodes.length === 0) {
     throw new Error("当前用户安全画像缺少路径标准上下文字段");
   }
@@ -1167,6 +1280,59 @@ function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
   return Array.from(byKey.values());
 }
 
+function runtimeReadbackEvidence(value: unknown) {
+  const evidence = {
+    releaseId: requireText(
+      textField(value, "release.releaseId"),
+      "current runtime 必须返回 releaseId",
+    ),
+    revisionNo: numberField(value, "release.revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textField(value, "release.manifestSha256"),
+      "current runtime 必须返回 manifestSha256",
+    ),
+    assets: pageItems(value) as RuntimeReleaseItem[],
+  };
+  expect(evidence.revisionNo, "current runtime 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "current runtime 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function runtimeConsumerReadbackEvidence(value: unknown) {
+  const evidence = {
+    contractVersion: "v1" as const,
+    releaseId: requireText(textField(value, "releaseId"), "runtime consumer 必须返回 releaseId"),
+    revisionNo: numberField(value, "revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textField(value, "manifestSha256"),
+      "runtime consumer 必须返回 manifestSha256",
+    ),
+    assets: arrayField(value, "assets") as RuntimeReleaseItem[],
+  };
+  expect(textField(value, "contractVersion"), "runtime consumer 必须返回 v1 契约").toBe("v1");
+  expect(evidence.revisionNo, "runtime consumer 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "runtime consumer 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function assertAssetsRemoved(
+  assets: RuntimeReleaseItem[],
+  removedAssets: RuntimeAssetSelection[],
+  label: string,
+) {
+  for (const removed of removedAssets) {
+    expect(
+      assets.some(
+        (asset) =>
+          asset.assetType === removed.assetType &&
+          asset.assetIdentity === removed.assetIdentity &&
+          asset.versionId === removed.versionId,
+      ),
+      `${label} 不应继续包含本轮 ${removed.assetType}:${removed.assetIdentity}`,
+    ).toBe(false);
+  }
+}
+
 function pageItems(value: unknown) {
   const items = recordField(value, "items");
   return Array.isArray(items) ? items : [];
@@ -1224,6 +1390,7 @@ async function attachPathwayLifecycleScenarioEvidence(
   apiEvidence: PathwayLifecycleApiEvidence,
   context: Record<string, unknown> & {
     orderSetRuntimeConsumer: OrderSetRuntimeConsumerEvidence;
+    rollbackNegativeEvidence: RuntimeRollbackNegativeEvidence;
   },
 ) {
   const scenarioEvidence = requiredPathwayLifecycleScenarioEvidence.map((scenario) => ({
@@ -1248,6 +1415,7 @@ async function attachPathwayLifecycleScenarioEvidence(
         specialDiseaseStages,
         apiEvidence,
         orderSetRuntimeConsumer: context.orderSetRuntimeConsumer,
+        rollbackNegativeEvidence: context.rollbackNegativeEvidence,
         context,
         scenarioEvidence,
       },

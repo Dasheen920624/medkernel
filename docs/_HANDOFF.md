@@ -10,6 +10,51 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十九批本地推进：继续按用户“允许使用子代理提升效率、前台演练要按全角色真实操作、知识只是全局一点、
+  不要片面优化”的要求，先把第一百七十八批的 13 类资产 gap-aware 代表矩阵下钻为专项回滚负向代表门禁。
+  参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 已再次核对，只作为背景输入：外部资料可做受控预备库，
+  但正式医学知识、术语、值集、公式、规则、路径、安全红线、医嘱套餐、动作卡等生产 / 审核 / 发布 /
+  机构生效 / 运行消费必须回到 134；同时当前任务仍是全局上线级落地，不能只围绕知识单点推进。
+- 第一百七十九批实现细节：在 `frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `versionedAssetRollbackRepresentativeMatrix:GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE`
+  和 `versionedAssetRollbackRepresentativeRows:*` 收窄声明，只有同一 E2E 报告中四条专项真实 E2E 附件同时具备
+  `rollbackNegativeEvidence`，且 `rollbackPosted=true`、current runtime 读回、第三方 runtime consumer 读回均为真，
+  同一 `assetType + assetIdentity + versionId` 在回滚后 current runtime 与第三方运行契约中都不再出现，才声明代表矩阵。
+  当前代表行只覆盖本批强证明的 `SAFETY`、`CDSS_RISK`、`VALUE_SET`、`FORMULA`、`PATHWAY`、`ORDER_SET`，
+  不把通用 runtime 回滚冒领为业务消费者回滚负向，也不声明 13 类资产完整闭环。
+- 第一百七十九批真实 E2E 改动：`cdss-runtime-declarative-assets.spec.ts` 在声明式 `VALUE_SET / FORMULA / ACTION_CARD`
+  激活、规则引用、临床推荐物化消费后，回滚到声明式资产首次进入 runtime 前版本，并读回 current runtime 与第三方运行契约；
+  coverage 只消费 `VALUE_SET / FORMULA` 代表行。`medication-safety-frontdesk.spec.ts` 在用药安全红线、风险矩阵和规则消费后，
+  由 `engine-operator` 回滚并证明 `SAFETY / CDSS_RISK / RULE` 不再命中，coverage 只消费 `SAFETY / CDSS_RISK`。
+  `critical-emergency-icu-frontdesk.spec.ts` 回滚到规则激活前的 `preRuleRuntime.previousReleaseId`，证明
+  `TERMINOLOGY / CDSS_RISK / RULE / PATHWAY / ACTION_CARD` 退出运行契约，coverage 只消费 `PATHWAY`。
+  `pathway-lifecycle-frontdesk.spec.ts` 在专病路径推进和医嘱套餐运行消费后回滚，证明 `PATHWAY / ORDER_SET`
+  退出 current runtime 与第三方运行契约，coverage 只消费 `ORDER_SET`。
+- 第一百七十九批测试与契约：`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 新增专项回滚负向代表矩阵正向样例，
+  以及缺通用回滚负向附件、缺 `VALUE_SET`、`SAFETY / CDSS_RISK` 证据不完整、缺 `PATHWAY`、缺 `ORDER_SET`
+  等负向样例；`frontend/src/test/e2eAuthCredentialContract.test.ts` 锁定四条真实 E2E 必须包含
+  `rollbackNegativeEvidence`、`runtime-releases:rollback`、current runtime 读回、第三方 runtime consumer 读回和
+  `consumerProbeMatchedRemovedAssets` 字段，避免以后退回只读通用 release 或附件空壳。
+- 第一百七十九批验证证据：本批按 TDD 先让新增矩阵测试红于没有
+  `versionedAssetRollbackRepresentativeMatrix` 声明，再补 coverage 聚合与四条真实 E2E 附件。目标真实 E2E 复跑均通过：
+  `cdss-runtime-declarative-assets.spec.ts` 报告
+  `/tmp/medkernel-e2e-cdss-runtime-declarative-assets-20260709-rollback-r3/report/results.json`
+  为 `PASSED`；`medication-safety-frontdesk.spec.ts` 报告
+  `/tmp/medkernel-e2e-medication-safety-20260709-rollback-r1/report/results.json` 为 `PASSED`；
+  `pathway-lifecycle-frontdesk.spec.ts` 报告
+  `/tmp/medkernel-e2e-pathway-lifecycle-20260709-rollback-r1/report/results.json` 为 `PASSED`；
+  `critical-emergency-icu-frontdesk.spec.ts` 报告
+  `/tmp/medkernel-e2e-critical-emergency-icu-20260709-rollback-r1/report/results.json` 为 `PASSED`。收尾还需在本地提交前
+  复跑快速门禁并记录最终命令输出。
+- 第一百七十九批边界与下一步：本批不是完整上线、不是 134 清库部署复演、不是完整全知识供给链上线验收、
+  不是 13 类医学资产逐类全部生产 / 发布 / 机构生效 / 运行消费 / 回滚负向闭环、不是所有医学知识和术语体系已收集完成、
+  不是完整 S0-S40 或 34 个入口全部业务动作闭环。下一步仍按全局上线门禁推进：
+  1）给 `TERMINOLOGY`、`FIELD_CATALOG`、`PATHWAY` 补专用发布链 / 契约证据，避免只依赖通用 release 框架；
+  2）继续收口 `EVALUATION` known gap，补评价指标资产更完整的生产、runtime selector 消费和回滚负向证据；
+  3）继续全角色剩余入口真实前台操作、六态、分页筛选、窄屏和高任务量体验复核，尤其患者、医生、护士、药师、医技、
+  质控、信息科长、实施工程师、院长的剩余入口；4）目标库迁移 smoke、公网模型 Provider 真实证据、134 清库 /
+  重部署继续按 deferred / destructive 规则推进，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十八批本地推进：继续按用户“允许使用子代理提升效率、前台演练要按全角色真实操作、知识只是全局一点、
   不要片面优化”的要求，先收回两个只读子代理盘点和参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 结论。
   盘点确认：134 已有受控来源、原文保存、解析、候选生成、审核发布、机构生效和运行消费骨架；13 类

@@ -1,4 +1,11 @@
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -51,6 +58,28 @@ type RuntimeReleaseDetail = {
   items?: RuntimeReleaseItem[];
 };
 
+type RuntimeRollbackNegativeEvidence = {
+  rollbackPosted: boolean;
+  currentRuntimeReadbackVerified: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  consumer: string;
+  consumerProbeMatchedRemovedAssets: boolean;
+  removedAssets: RuntimeAssetSelection[];
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+  runtimeConsumer: {
+    contractVersion: "v1";
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+};
+
 type ContextSnapshotSummary = {
   patientId: string;
   snapshotId: string;
@@ -86,149 +115,146 @@ const requiredStages = [
 ] as const;
 
 test.describe("CDSS 声明式运行资产真实消费", () => {
-  test(
-    "临床用户从真实前台触发 CDSS 推荐并消费当前机构生效版本声明式运行资产",
-    async ({ page }, testInfo) => {
-      test.setTimeout(300_000);
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
+  test("临床用户从真实前台触发 CDSS 推荐并消费当前机构生效版本声明式运行资产", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
 
-      await ensureReadySession(page, "engine-operator");
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
-      const valueSet = await createDeclarativeAssetFromFrontdesk(page, "VALUE_SET", suffix);
-      apiEvidence.valueSetCreatedFromFrontdesk = true;
-      recordCdssRuntimeDeclarativeAssetStage(
-        observedStages,
-        "前台创建 VALUE_SET 值集资产草稿",
-      );
-      const formula = await createDeclarativeAssetFromFrontdesk(page, "FORMULA", suffix);
-      apiEvidence.formulaCreatedFromFrontdesk = true;
-      recordCdssRuntimeDeclarativeAssetStage(
-        observedStages,
-        "前台创建 FORMULA 公式资产草稿",
-      );
-      const actionCard = await createDeclarativeAssetFromFrontdesk(page, "ACTION_CARD", suffix);
-      apiEvidence.actionCardCreatedFromFrontdesk = true;
-      recordCdssRuntimeDeclarativeAssetStage(
-        observedStages,
-        "前台创建 ACTION_CARD 临床提示卡资产草稿",
-      );
+    await ensureReadySession(page, "engine-operator");
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+    const valueSet = await createDeclarativeAssetFromFrontdesk(page, "VALUE_SET", suffix);
+    apiEvidence.valueSetCreatedFromFrontdesk = true;
+    recordCdssRuntimeDeclarativeAssetStage(observedStages, "前台创建 VALUE_SET 值集资产草稿");
+    const formula = await createDeclarativeAssetFromFrontdesk(page, "FORMULA", suffix);
+    apiEvidence.formulaCreatedFromFrontdesk = true;
+    recordCdssRuntimeDeclarativeAssetStage(observedStages, "前台创建 FORMULA 公式资产草稿");
+    const actionCard = await createDeclarativeAssetFromFrontdesk(page, "ACTION_CARD", suffix);
+    apiEvidence.actionCardCreatedFromFrontdesk = true;
+    recordCdssRuntimeDeclarativeAssetStage(
+      observedStages,
+      "前台创建 ACTION_CARD 临床提示卡资产草稿",
+    );
 
-      const hospitalId = await localRehearsalHospitalId(page);
-      const declarativeRuntime = await activateRuntimeWithDeclarativeAssets(page, {
-        hospitalId,
-        valueSet,
-        formula,
-        actionCard,
-      });
-      apiEvidence.declarativeRuntimeActivatedBeforeRuleTestCases = true;
-      recordCdssRuntimeDeclarativeAssetStage(
-        observedStages,
-        "当前机构生效版本包含三类本轮运行资产",
-      );
+    const hospitalId = await localRehearsalHospitalId(page);
+    const declarativeRuntime = await activateRuntimeWithDeclarativeAssets(page, {
+      hospitalId,
+      valueSet,
+      formula,
+      actionCard,
+    });
+    apiEvidence.declarativeRuntimeActivatedBeforeRuleTestCases = true;
+    recordCdssRuntimeDeclarativeAssetStage(observedStages, "当前机构生效版本包含三类本轮运行资产");
 
-      const ruleTestSnapshot = await createClinicalContextFromFrontdesk(
-        page,
-        suffix,
-        "S5 CDSS 声明式运行资产规则发布验证用例",
-      );
-      const negativeRuleTestSnapshot = await createClinicalContextFromFrontdesk(
-        page,
-        `${suffix}-NEG`,
-        "S5 CDSS 声明式运行资产规则发布验证阴性用例",
-        { medicationText: `S5 CDSS 非命中用药 ${suffix}`, heightCm: "170", weightKg: "50" },
-      );
-      expect(
-        ruleTestSnapshot.runtimeReleaseId,
-        "规则发布验证快照必须在三类声明式资产激活后创建并绑定该 runtime",
-      ).toBe(declarativeRuntime.releaseId);
-      expect(
-        negativeRuleTestSnapshot.runtimeReleaseId,
-        "阴性规则发布验证快照也必须绑定声明式资产 runtime",
-      ).toBe(declarativeRuntime.releaseId);
-      apiEvidence.ruleTestSnapshotBoundToDeclarativeRuntime = true;
+    const ruleTestSnapshot = await createClinicalContextFromFrontdesk(
+      page,
+      suffix,
+      "S5 CDSS 声明式运行资产规则发布验证用例",
+    );
+    const negativeRuleTestSnapshot = await createClinicalContextFromFrontdesk(
+      page,
+      `${suffix}-NEG`,
+      "S5 CDSS 声明式运行资产规则发布验证阴性用例",
+      { medicationText: `S5 CDSS 非命中用药 ${suffix}`, heightCm: "170", weightKg: "50" },
+    );
+    expect(
+      ruleTestSnapshot.runtimeReleaseId,
+      "规则发布验证快照必须在三类声明式资产激活后创建并绑定该 runtime",
+    ).toBe(declarativeRuntime.releaseId);
+    expect(
+      negativeRuleTestSnapshot.runtimeReleaseId,
+      "阴性规则发布验证快照也必须绑定声明式资产 runtime",
+    ).toBe(declarativeRuntime.releaseId);
+    apiEvidence.ruleTestSnapshotBoundToDeclarativeRuntime = true;
 
-      const rule = await createAndPublishRuleReferencingDeclarativeAssets(page, {
-        suffix,
-        valueSet,
-        formula,
-        actionCard,
-        testContextSnapshotId: ruleTestSnapshot.snapshotId,
-        negativeContextSnapshotId: negativeRuleTestSnapshot.snapshotId,
-      });
-      apiEvidence.ruleCreatedWithRuntimeAssetReferences = true;
-      recordCdssRuntimeDeclarativeAssetStage(observedStages, "临床规则引用三类运行资产");
+    const rule = await createAndPublishRuleReferencingDeclarativeAssets(page, {
+      suffix,
+      valueSet,
+      formula,
+      actionCard,
+      testContextSnapshotId: ruleTestSnapshot.snapshotId,
+      negativeContextSnapshotId: negativeRuleTestSnapshot.snapshotId,
+    });
+    apiEvidence.ruleCreatedWithRuntimeAssetReferences = true;
+    recordCdssRuntimeDeclarativeAssetStage(observedStages, "临床规则引用三类运行资产");
 
-      const ruleRuntimeCandidate = await readHospitalRuntimeCandidate(page, hospitalId, {
-        ruleCode: rule.assetIdentity,
-      });
-      apiEvidence.ruleRuntimeCandidateResolvedFromCurrentHospital = true;
-      const finalRuntime = await activateRuntimeWithDeclarativeAssets(page, {
-        hospitalId,
-        ruleRuntimeCandidate,
-        valueSet,
-        formula,
-        actionCard,
-      });
-      apiEvidence.runtimeReleaseActivatedWithDeclarativeAssets = true;
+    const ruleRuntimeCandidate = await readHospitalRuntimeCandidate(page, hospitalId, {
+      ruleCode: rule.assetIdentity,
+    });
+    apiEvidence.ruleRuntimeCandidateResolvedFromCurrentHospital = true;
+    const finalRuntime = await activateRuntimeWithDeclarativeAssets(page, {
+      hospitalId,
+      ruleRuntimeCandidate,
+      valueSet,
+      formula,
+      actionCard,
+    });
+    apiEvidence.runtimeReleaseActivatedWithDeclarativeAssets = true;
 
-      const snapshot = await createClinicalContextFromFrontdesk(
-        page,
-        suffix,
-        "S5 CDSS 声明式运行资产临床推荐评估",
-      );
-      expect(
-        snapshot.runtimeReleaseId,
-        "临床 ACTIVE 快照必须绑定本轮激活后的机构生效版本",
-      ).toBe(finalRuntime.releaseId);
-      apiEvidence.activeSnapshotBoundToRuntimeRelease = true;
+    const snapshot = await createClinicalContextFromFrontdesk(
+      page,
+      suffix,
+      "S5 CDSS 声明式运行资产临床推荐评估",
+    );
+    expect(snapshot.runtimeReleaseId, "临床 ACTIVE 快照必须绑定本轮激活后的机构生效版本").toBe(
+      finalRuntime.releaseId,
+    );
+    apiEvidence.activeSnapshotBoundToRuntimeRelease = true;
 
-      const recommendation = await triggerRecommendationFromFrontdesk(page, {
-        snapshot,
-        runtime: finalRuntime,
-        ruleRuntimeCandidate,
-      });
-      apiEvidence.cdssEvaluationTriggeredFromFrontdesk = true;
-      apiEvidence.recommendationPersisted = true;
-      recordCdssRuntimeDeclarativeAssetStage(
-        observedStages,
-        "临床用户从真实前台触发 CDSS 推荐评估",
-      );
+    const recommendation = await triggerRecommendationFromFrontdesk(page, {
+      snapshot,
+      runtime: finalRuntime,
+      ruleRuntimeCandidate,
+    });
+    apiEvidence.cdssEvaluationTriggeredFromFrontdesk = true;
+    apiEvidence.recommendationPersisted = true;
+    recordCdssRuntimeDeclarativeAssetStage(observedStages, "临床用户从真实前台触发 CDSS 推荐评估");
 
-      const materializedRecommendation = assertRecommendationMaterializedDeclarativeAssets({
-        recommendation,
-        runtime: finalRuntime,
-        ruleRuntimeCandidate,
-      });
-      apiEvidence.ruleExplanationContainsRuntimeMaterialization = true;
-      recordCdssRuntimeDeclarativeAssetStage(
-        observedStages,
-        "推荐卡解释证明三类资产按当前机构生效版本物化消费",
-      );
+    const materializedRecommendation = assertRecommendationMaterializedDeclarativeAssets({
+      recommendation,
+      runtime: finalRuntime,
+      ruleRuntimeCandidate,
+    });
+    apiEvidence.ruleExplanationContainsRuntimeMaterialization = true;
+    recordCdssRuntimeDeclarativeAssetStage(
+      observedStages,
+      "推荐卡解释证明三类资产按当前机构生效版本物化消费",
+    );
+    const rollbackNegativeEvidence = await rollbackRuntimeAndAssertAssetsRemoved(page, {
+      hospitalId,
+      targetReleaseId: declarativeRuntime.previousReleaseId,
+      consumer: "CDSS_DECLARATIVE_ASSET_EVALUATION",
+      removedAssets: [
+        runtimeSelection(valueSet),
+        runtimeSelection(formula),
+        runtimeSelection(actionCard),
+      ],
+    });
 
-      await attachCdssRuntimeDeclarativeAssetEvidence(testInfo, {
-        apiEvidence,
-        createdAssets: [valueSet, formula, actionCard],
-        rule,
-        ruleRuntimeCandidate,
-        declarativeRuntime,
-        runtime: finalRuntime,
-        activationRequest: finalRuntime.activationRequest,
-        clinicalTrigger: {
-          triggerId: recommendation.triggerId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          cardId: recommendation.cardId,
-          relatedCardIds: recommendation.relatedCardIds,
-        },
-        recommendation: {
-          ...materializedRecommendation,
-          contextSnapshotId: snapshot.snapshotId,
-        },
-        observedStages,
-      });
-    },
-  );
+    await attachCdssRuntimeDeclarativeAssetEvidence(testInfo, {
+      apiEvidence,
+      createdAssets: [valueSet, formula, actionCard],
+      rule,
+      ruleRuntimeCandidate,
+      declarativeRuntime,
+      runtime: finalRuntime,
+      activationRequest: finalRuntime.activationRequest,
+      clinicalTrigger: {
+        triggerId: recommendation.triggerId,
+        contextSnapshotId: snapshot.snapshotId,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        cardId: recommendation.cardId,
+        relatedCardIds: recommendation.relatedCardIds,
+      },
+      recommendation: {
+        ...materializedRecommendation,
+        contextSnapshotId: snapshot.snapshotId,
+      },
+      rollbackNegativeEvidence,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): CdssRuntimeDeclarativeApiEvidence {
@@ -425,10 +451,7 @@ async function createAndPublishRuleReferencingDeclarativeAssets(
   await expectOk(testRun, "执行 S5 声明式运行资产规则发布验证用例");
   assertRuleReleaseTestRunPassed(await responseData(testRun));
   for (const targetState of ["REVIEWED", "SHADOW", "CANARY", "FULL"]) {
-    const impact = await getApi(
-      page,
-      `/engine/rule/rules/${encodeURIComponent(ruleId)}/impact`,
-    );
+    const impact = await getApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/impact`);
     await expectOk(impact, `读取规则 ${targetState} 影响摘要`);
     const impactDigest = requireText(
       textField(await responseData(impact), "impactDigest"),
@@ -504,7 +527,9 @@ function cdssRuleDsl(options: {
         summary: "声明式运行资产用药复核",
         detail: "发布验证阶段使用静态提示卡字段；真实临床运行由机构生效版本 ACTION_CARD 物化覆盖。",
         source: { label: "MedKernel S5 本地上线演练" },
-        suggestions: [{ label: "记录人工复核", actionType: "OPEN_FORM", payload: { target: "cdss-review" } }],
+        suggestions: [
+          { label: "记录人工复核", actionType: "OPEN_FORM", payload: { target: "cdss-review" } },
+        ],
         overrideReasons: ["医师已完成人工复核"],
         requiresPhysicianConfirmation: true,
       },
@@ -712,7 +737,65 @@ async function activateRuntimeWithDeclarativeAssets(
     ),
     assets,
     ruleAsset,
+    previousReleaseId: currentReleaseId,
     activationRequest,
+  };
+}
+
+async function rollbackRuntimeAndAssertAssetsRemoved(
+  page: Page,
+  options: {
+    hospitalId: string;
+    targetReleaseId: string | null;
+    consumer: string;
+    removedAssets: RuntimeAssetSelection[];
+  },
+): Promise<RuntimeRollbackNegativeEvidence> {
+  const targetReleaseId = requireText(
+    options.targetReleaseId,
+    "专项资产回滚负向证据必须有演练前机构生效版本",
+  );
+  await ensureReadySession(page, "engine-operator");
+  const rollback = await postApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases:rollback`,
+    { targetReleaseId },
+  );
+  await expectOk(rollback, "回滚 S5 CDSS 声明式资产机构生效版本");
+  const current = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases/current`,
+  );
+  await expectOk(current, "回读 S5 CDSS 声明式资产回滚后机构生效版本");
+  const currentRuntime = runtimeReadbackEvidence(await responseData(current));
+  assertAssetsRemoved(currentRuntime.assets, options.removedAssets, "回滚后 current runtime");
+
+  const consumer = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
+  await expectOk(consumer, "读取 S5 CDSS 声明式资产回滚后第三方运行契约");
+  const runtimeConsumer = runtimeConsumerReadbackEvidence(await responseData(consumer));
+  assertAssetsRemoved(runtimeConsumer.assets, options.removedAssets, "回滚后第三方运行契约");
+  expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
+    currentRuntime.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约 revisionNo 必须与 current 一致").toBe(
+    currentRuntime.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约 manifestSha256 必须与 current 一致").toBe(
+    currentRuntime.manifestSha256,
+  );
+
+  return {
+    rollbackPosted: true,
+    currentRuntimeReadbackVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    consumer: options.consumer,
+    consumerProbeMatchedRemovedAssets: false,
+    removedAssets: options.removedAssets,
+    currentRuntime,
+    runtimeConsumer,
   };
 }
 
@@ -740,9 +823,7 @@ async function readHospitalRuntimeCandidate(
     textField(candidate, "versionId"),
     `本轮 RULE 候选 ${options.ruleCode} 必须存在并返回统一资产版本 ID`,
   );
-  expect(versionId.startsWith("av-"), "RULE runtime 候选必须使用统一资产 av-* 版本").toBe(
-    true,
-  );
+  expect(versionId.startsWith("av-"), "RULE runtime 候选必须使用统一资产 av-* 版本").toBe(true);
   return {
     assetType: "RULE",
     assetIdentity: options.ruleCode,
@@ -771,7 +852,10 @@ function assertRuntimeContainsDeclarativeAsset(
       item.versionId === candidate.versionId &&
       item.entryState === "ACTIVE",
   );
-  expect(asset, `机构生效版本必须包含本轮 ${candidate.assetType} ${candidate.assetIdentity}`).toBeTruthy();
+  expect(
+    asset,
+    `机构生效版本必须包含本轮 ${candidate.assetType} ${candidate.assetIdentity}`,
+  ).toBeTruthy();
   expect(asset?.versionNo, `${candidate.assetType} runtime 清单必须返回版本号`).toBe(
     candidate.versionNo,
   );
@@ -900,9 +984,11 @@ async function triggerRecommendationFromFrontdesk(
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
   const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible({
-    timeout: 20_000,
-  });
+  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible(
+    {
+      timeout: 20_000,
+    },
+  );
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "签署医嘱");
   const evaluateResponsePromise = waitForRecommendationEvaluateResponse(page, snapshot);
@@ -911,19 +997,19 @@ async function triggerRecommendationFromFrontdesk(
   await expectHttpOk(evaluateResponse, "临床用户从真实前台触发 S5 推荐评估");
   const evaluation = await responseData(evaluateResponse);
   expect(textField(evaluation, "status"), "推荐触发状态应为已评估").toBe("EVALUATED");
-  expect(numberField(evaluation, "visibleCardCount") ?? 0, "应新增至少一张可见推荐卡").toBeGreaterThan(
-    0,
-  );
+  expect(
+    numberField(evaluation, "visibleCardCount") ?? 0,
+    "应新增至少一张可见推荐卡",
+  ).toBeGreaterThan(0);
   const triggerId = requireText(textField(evaluation, "triggerId"), "推荐评估响应必须返回触发 ID");
   const responseCardIds = arrayField(evaluation, "cards")
     .map((card) => textField(card, "cardId"))
     .filter((cardId): cardId is string => cardId !== null);
   expect(responseCardIds.length, "推荐评估响应必须返回本次可见推荐卡 ID").toBeGreaterThan(0);
   const relatedCardIds = await readRecommendationTriggerDiagnose(page, triggerId);
-  expect(
-    relatedCardIds,
-    "推荐触发诊断必须关联本次评估响应中的可见推荐卡",
-  ).toEqual(expect.arrayContaining(responseCardIds));
+  expect(relatedCardIds, "推荐触发诊断必须关联本次评估响应中的可见推荐卡").toEqual(
+    expect.arrayContaining(responseCardIds),
+  );
   const recommendation = await findMaterializedRecommendationCard(page, relatedCardIds, {
     snapshot,
     runtime: options.runtime,
@@ -931,9 +1017,9 @@ async function triggerRecommendationFromFrontdesk(
   });
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await page.getByLabel("患者或证据线索").fill(recommendation.cardId);
-  await expect(page.getByRole("row", { name: new RegExp(escapeRegExp(recommendation.cardTitle)) })).toBeVisible(
-    { timeout: 20_000 },
-  );
+  await expect(
+    page.getByRole("row", { name: new RegExp(escapeRegExp(recommendation.cardTitle)) }),
+  ).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("共 1 张临床协同提醒卡")).toBeVisible({ timeout: 20_000 });
   return {
     triggerId,
@@ -1101,7 +1187,9 @@ function assertRecommendationMaterializedDeclarativeAssets(options: {
       `推荐解释必须包含 ${asset.assetType} ${asset.assetIdentity} 的 runtime 物化证据`,
     ).toBeTruthy();
     if (asset.assetType === "VALUE_SET") {
-      expect(numberField(evidence, "expandedCount") ?? 0, "值集必须展开真实成员").toBeGreaterThan(0);
+      expect(numberField(evidence, "expandedCount") ?? 0, "值集必须展开真实成员").toBeGreaterThan(
+        0,
+      );
     }
     if (asset.assetType === "FORMULA") {
       expect(textField(evidence, "runtimeFunction"), "公式必须解析为受控运行函数").toBe("BMI");
@@ -1149,6 +1237,7 @@ async function attachCdssRuntimeDeclarativeAssetEvidence(
       manifestSha256: string;
       assets: RuntimeReleaseItem[];
       ruleAsset: RuntimeReleaseItem | null;
+      previousReleaseId: string | null;
     };
     activationRequest: unknown;
     clinicalTrigger: {
@@ -1159,6 +1248,7 @@ async function attachCdssRuntimeDeclarativeAssetEvidence(
       relatedCardIds: string[];
     };
     recommendation: unknown;
+    rollbackNegativeEvidence: RuntimeRollbackNegativeEvidence;
     observedStages: Set<string>;
   },
 ) {
@@ -1194,6 +1284,7 @@ async function attachCdssRuntimeDeclarativeAssetEvidence(
         activationRequest: evidence.activationRequest,
         clinicalTrigger: evidence.clinicalTrigger,
         recommendation: evidence.recommendation,
+        rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
         scenarioEvidence: [
           {
             code: "S5",
@@ -1270,13 +1361,74 @@ function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
   return Array.from(byKey.values());
 }
 
-async function chooseDialogOption(
-  page: Page,
-  dialog: Locator,
+function runtimeSelection(asset: DeclarativeAssetCandidate): RuntimeAssetSelection {
+  return {
+    assetType: asset.assetType,
+    assetIdentity: asset.assetIdentity,
+    versionId: asset.versionId,
+  };
+}
+
+function runtimeReadbackEvidence(value: unknown) {
+  const evidence = {
+    releaseId: requireText(
+      textField(value, "release.releaseId"),
+      "current runtime 必须返回 releaseId",
+    ),
+    revisionNo: numberField(value, "release.revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textField(value, "release.manifestSha256"),
+      "current runtime 必须返回 manifestSha256",
+    ),
+    assets: pageItems(value) as RuntimeReleaseItem[],
+  };
+  expect(evidence.revisionNo, "current runtime 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "current runtime 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function runtimeConsumerReadbackEvidence(value: unknown) {
+  const evidence = {
+    contractVersion: "v1" as const,
+    releaseId: requireText(textField(value, "releaseId"), "runtime consumer 必须返回 releaseId"),
+    revisionNo: numberField(value, "revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textField(value, "manifestSha256"),
+      "runtime consumer 必须返回 manifestSha256",
+    ),
+    assets: arrayField(value, "assets") as RuntimeReleaseItem[],
+  };
+  expect(textField(value, "contractVersion"), "runtime consumer 必须返回 v1 契约").toBe("v1");
+  expect(evidence.revisionNo, "runtime consumer 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "runtime consumer 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function assertAssetsRemoved(
+  assets: RuntimeReleaseItem[],
+  removedAssets: RuntimeAssetSelection[],
   label: string,
-  optionText: string,
 ) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+  for (const removed of removedAssets) {
+    expect(
+      assets.some(
+        (asset) =>
+          asset.assetType === removed.assetType &&
+          asset.assetIdentity === removed.assetIdentity &&
+          asset.versionId === removed.versionId,
+      ),
+      `${label} 不应继续包含本轮 ${removed.assetType}:${removed.assetIdentity}`,
+    ).toBe(false);
+  }
+}
+
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
   const field = dialog.getByLabel(label);

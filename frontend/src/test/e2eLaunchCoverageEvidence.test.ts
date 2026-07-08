@@ -30,6 +30,48 @@ const versionedAssetRepresentativeRows = runtimeReleaseVersionedAssets.filter(
   (asset) => asset !== "EVALUATION",
 );
 
+const versionedAssetRollbackRepresentativeRows = [
+  "SAFETY",
+  "CDSS_RISK",
+  "VALUE_SET",
+  "FORMULA",
+  "PATHWAY",
+  "ORDER_SET",
+];
+
+function rollbackNegativeEvidence(
+  removedAssets: Array<{ assetType: string; assetIdentity: string; versionId: string }>,
+  consumer: string,
+) {
+  return {
+    rollbackPosted: true,
+    currentRuntimeReadbackVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    consumer,
+    consumerProbeMatchedRemovedAssets: false,
+    removedAssets,
+    currentRuntime: {
+      releaseId: `rollback-current-${consumer}`,
+      revisionNo: 31,
+      manifestSha256: "f".repeat(64),
+      assets: [],
+    },
+    runtimeConsumer: {
+      contractVersion: "v1",
+      releaseId: `rollback-current-${consumer}`,
+      revisionNo: 31,
+      manifestSha256: "f".repeat(64),
+      assets: [],
+    },
+  };
+}
+
+function withoutRollbackNegativeEvidence(value: Record<string, unknown>) {
+  const copy = { ...value };
+  delete copy.rollbackNegativeEvidence;
+  return copy;
+}
+
 const runtimeReleaseApiEvidence = {
   impactSimulationRun: true,
   activationPosted: true,
@@ -694,6 +736,21 @@ const cdssRuntimeDeclarativeAssets = {
       },
     },
   },
+  rollbackNegativeEvidence: rollbackNegativeEvidence(
+    [
+      {
+        assetType: "VALUE_SET",
+        assetIdentity: "VALUE_SET.CDSS.RUNTIME",
+        versionId: "vs-v1",
+      },
+      {
+        assetType: "FORMULA",
+        assetIdentity: "FORMULA.CDSS.RUNTIME",
+        versionId: "formula-v1",
+      },
+    ],
+    "CDSS_DECLARATIVE_ASSET_EVALUATION",
+  ),
   scenarioEvidence: [
     {
       code: "S5",
@@ -1025,6 +1082,17 @@ const medicationSafetyFrontdeskEvidence = {
       noAutoOrder: true,
     },
   },
+  rollbackNegativeEvidence: rollbackNegativeEvidence(
+    [
+      {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-MED-ALLERGY-P0",
+        versionId: "av-safety-p0",
+      },
+      { assetType: "CDSS_RISK", assetIdentity: "CDSS.RISK.MATRIX", versionId: "av-risk-p0" },
+    ],
+    "MEDICATION_SAFETY_RULE",
+  ),
   scenarioEvidence: [
     {
       code: "S5",
@@ -3922,6 +3990,16 @@ const criticalEmergencyIcuEvidence = {
     patientId: "mpi-critical",
     encounterId: "enc-critical-ed",
   },
+  rollbackNegativeEvidence: rollbackNegativeEvidence(
+    [
+      {
+        assetType: "PATHWAY",
+        assetIdentity: "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+        versionId: "av-pathway-critical",
+      },
+    ],
+    "CRITICAL_EMERGENCY_ICU_PATHWAY",
+  ),
   scenarioEvidence: [
     {
       code: "S19",
@@ -4887,6 +4965,16 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
         },
       },
     },
+    rollbackNegativeEvidence: rollbackNegativeEvidence(
+      [
+        {
+          assetType: "ORDER_SET",
+          assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
+          versionId: "av-order-set-s6",
+        },
+      ],
+      "SPECIAL_DISEASE_PATHWAY_ORDER_SET",
+    ),
     scenarioEvidence: [
       {
         code: "S6",
@@ -9502,6 +9590,126 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.versionedAssetKnownGaps?.map((item) => item.code)).toEqual([
       "EVALUATION",
     ]);
+  });
+
+  it("declares a gap-aware rollback-negative representative matrix only from asset-specific runtime consumer evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests(),
+    });
+
+    expect(
+      evidence.launchCoverage.versionedAssetRollbackRepresentativeMatrix?.map((item) => item.code),
+    ).toEqual(["GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.versionedAssetRollbackRepresentativeRows?.map((item) => item.code),
+    ).toEqual(versionedAssetRollbackRepresentativeRows);
+  });
+
+  it("does not declare rollback-negative representative matrix from generic runtime release rollback alone", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "cdss-runtime-declarative-assets.spec.ts": withoutRollbackNegativeEvidence(
+            cdssRuntimeDeclarativeAssets,
+          ),
+          "medication-safety-frontdesk.spec.ts": withoutRollbackNegativeEvidence(
+            medicationSafetyFrontdeskEvidence,
+          ),
+          "critical-emergency-icu-frontdesk.spec.ts": withoutRollbackNegativeEvidence(
+            criticalEmergencyIcuEvidence,
+          ),
+          "pathway-lifecycle-frontdesk.spec.ts": withoutRollbackNegativeEvidence(
+            pathwayLifecycleEvidence(),
+          ),
+        },
+      }),
+    });
+
+    expect(
+      evidence.launchCoverage.versionedAssetSupplyChainMatrix?.map((item) => item.code),
+    ).toEqual(["THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeRows).toBeUndefined();
+  });
+
+  it("does not declare rollback-negative representative matrix when VALUE_SET rollback consumer evidence is missing", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "cdss-runtime-declarative-assets.spec.ts": {
+            ...cdssRuntimeDeclarativeAssets,
+            rollbackNegativeEvidence: rollbackNegativeEvidence(
+              [
+                {
+                  assetType: "FORMULA",
+                  assetIdentity: "FORMULA.CDSS.RUNTIME",
+                  versionId: "formula-v1",
+                },
+              ],
+              "CDSS_DECLARATIVE_ASSET_EVALUATION",
+            ),
+          },
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeRows).toBeUndefined();
+  });
+
+  it("does not declare rollback-negative representative matrix when SAFETY/CDSS_RISK rollback consumer evidence is incomplete", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "medication-safety-frontdesk.spec.ts": {
+            ...medicationSafetyFrontdeskEvidence,
+            rollbackNegativeEvidence: {
+              ...medicationSafetyFrontdeskEvidence.rollbackNegativeEvidence,
+              consumerProbeMatchedRemovedAssets: true,
+            },
+          },
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeRows).toBeUndefined();
+  });
+
+  it("does not declare rollback-negative representative matrix without PATHWAY rollback consumer evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "critical-emergency-icu-frontdesk.spec.ts": withoutRollbackNegativeEvidence(
+            criticalEmergencyIcuEvidence,
+          ),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeRows).toBeUndefined();
+  });
+
+  it("does not declare rollback-negative representative matrix without ORDER_SET rollback consumer evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "pathway-lifecycle-frontdesk.spec.ts": withoutRollbackNegativeEvidence(
+            pathwayLifecycleEvidence(),
+          ),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRollbackRepresentativeRows).toBeUndefined();
   });
 
   it("does not declare the 13 asset supply-chain matrix without EVALUATION production evidence", () => {

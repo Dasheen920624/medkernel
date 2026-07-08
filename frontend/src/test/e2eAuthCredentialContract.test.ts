@@ -1309,6 +1309,27 @@ describe("E2E credential contract", () => {
     );
   });
 
+  it("requires asset-specific runtime rollback negative evidence before declaring rollback representative coverage", () => {
+    const cdssSource = readFileSync("e2e/cdss-runtime-declarative-assets.spec.ts", "utf8");
+    const medicationSource = readFileSync("e2e/medication-safety-frontdesk.spec.ts", "utf8");
+    const criticalSource = readFileSync("e2e/critical-emergency-icu-frontdesk.spec.ts", "utf8");
+    const pathwaySource = readFileSync("e2e/pathway-lifecycle-frontdesk.spec.ts", "utf8");
+
+    for (const source of [cdssSource, medicationSource, criticalSource, pathwaySource]) {
+      expect(source).toContain("rollbackNegativeEvidence");
+      expect(source).toContain("runtime-releases:rollback");
+      expect(source).toContain("currentRuntimeReadbackVerified");
+      expect(source).toContain("runtimeConsumerReadbackVerified");
+      expect(source).toContain("consumerProbeMatchedRemovedAssets");
+    }
+    expect(cdssSource).toContain("VALUE_SET");
+    expect(cdssSource).toContain("FORMULA");
+    expect(medicationSource).toContain("SAFETY");
+    expect(medicationSource).toContain("CDSS_RISK");
+    expect(criticalSource).toContain("PATHWAY");
+    expect(pathwaySource).toContain("ORDER_SET");
+  });
+
   it("requires nursing continuity rehearsal to use real nursing resources, followup backflow and strict evidence", () => {
     const mpiSource = readFileSync("src/pages/clinical/Mpi.tsx", "utf8");
     const hooksSource = readFileSync("src/shared/api/hooks.ts", "utf8");

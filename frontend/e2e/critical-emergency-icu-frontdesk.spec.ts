@@ -1,5 +1,12 @@
 import { createHmac } from "node:crypto";
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -35,6 +42,28 @@ type RuntimeReleaseDetail = {
     manifestSha256?: string;
   };
   items?: RuntimeReleaseItem[];
+};
+
+type RuntimeRollbackNegativeEvidence = {
+  rollbackPosted: boolean;
+  currentRuntimeReadbackVerified: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  consumer: string;
+  consumerProbeMatchedRemovedAssets: boolean;
+  removedAssets: RuntimeAssetSelection[];
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+  runtimeConsumer: {
+    contractVersion: "v1";
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
 };
 
 type CriticalAssetCandidate = {
@@ -136,206 +165,239 @@ const requiredStages = {
 } as const;
 
 test.describe("急诊分诊与 ICU 生命支持风险代表切片真实前台闭环", () => {
-  test(
-    "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(420_000);
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
+  test("临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(420_000);
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
 
-      await ensureReadySession(page, "platform-admin");
-      const adapter = await createCriticalMonitoringAdapter(page, suffix);
-      apiEvidence.monitoringAdapterCreatedThroughRealService = true;
-      const webhook = await createCriticalMonitoringWebhook(page, suffix);
-      apiEvidence.monitoringWebhookCreatedThroughRealService = true;
-      await generateCriticalSignaturePreview(page, webhook.webhookId);
-      apiEvidence.webhookSignaturePreviewGenerated = true;
-      const onboarding = await createCriticalMonitoringOnboarding(page, suffix, adapter.adapterId);
-      apiEvidence.emergencyOnboardingCreatedThroughRealService = true;
-      recordStage(observedStages, "平台管理员登记 LIS_MONITORING_CRITICAL 监护入站适配器、回调通道和签名预览");
+    await ensureReadySession(page, "platform-admin");
+    const adapter = await createCriticalMonitoringAdapter(page, suffix);
+    apiEvidence.monitoringAdapterCreatedThroughRealService = true;
+    const webhook = await createCriticalMonitoringWebhook(page, suffix);
+    apiEvidence.monitoringWebhookCreatedThroughRealService = true;
+    await generateCriticalSignaturePreview(page, webhook.webhookId);
+    apiEvidence.webhookSignaturePreviewGenerated = true;
+    const onboarding = await createCriticalMonitoringOnboarding(page, suffix, adapter.adapterId);
+    apiEvidence.emergencyOnboardingCreatedThroughRealService = true;
+    recordStage(
+      observedStages,
+      "平台管理员登记 LIS_MONITORING_CRITICAL 监护入站适配器、回调通道和签名预览",
+    );
 
-      await ensureReadySession(page, "engine-operator");
-      const hospitalId = await localRehearsalHospitalId(page);
-      const riskMatrix = await createCriticalRiskMatrix(page, suffix);
-      apiEvidence.riskMatrixCreated = true;
-      const terminologyGate = await createCriticalTerminologyGate(page, suffix);
-      apiEvidence.terminologyActivated = true;
-      const actionCard = await createCriticalActionCard(page, suffix);
-      apiEvidence.actionCardPublished = true;
-      const pathwayAsset = await createCriticalIcuPathwayAsset(page, suffix);
-      apiEvidence.pathwayCreated = true;
-      const preRuleRuntime = await activateRuntimeWithCriticalAssets(page, {
+    await ensureReadySession(page, "engine-operator");
+    const hospitalId = await localRehearsalHospitalId(page);
+    const riskMatrix = await createCriticalRiskMatrix(page, suffix);
+    apiEvidence.riskMatrixCreated = true;
+    const terminologyGate = await createCriticalTerminologyGate(page, suffix);
+    apiEvidence.terminologyActivated = true;
+    const actionCard = await createCriticalActionCard(page, suffix);
+    apiEvidence.actionCardPublished = true;
+    const pathwayAsset = await createCriticalIcuPathwayAsset(page, suffix);
+    apiEvidence.pathwayCreated = true;
+    const preRuleRuntime = await activateRuntimeWithCriticalAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      cdssRisk: await readHospitalRuntimeCandidate(
+        page,
         hospitalId,
-        terminology: terminologyGate,
-        cdssRisk: await readHospitalRuntimeCandidate(page, hospitalId, "CDSS_RISK", "CDSS.RISK.MATRIX"),
-        pathway: await readHospitalRuntimeCandidate(page, hospitalId, "PATHWAY", pathwayAsset.assetIdentity),
-        actionCard,
-      });
-
-      const positivePatient = await createCriticalPatientFromFrontdesk(page, `${suffix}-POS`);
-      await postSignedCriticalInbound(page, {
-        suffix: `${suffix}-POS`,
-        adapterId: adapter.adapterId,
-        webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patient: positivePatient,
-        runtimeReleaseId: preRuleRuntime.releaseId,
-      });
-      const positiveSnapshot = await readLatestContextForPatient(page, positivePatient.patientId);
-      const negativePatient = await createCriticalPatientFromFrontdesk(page, `${suffix}-NEG`);
-      await postSignedCriticalInbound(page, {
-        suffix: `${suffix}-NEG`,
-        adapterId: adapter.adapterId,
-        webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patient: negativePatient,
-        runtimeReleaseId: preRuleRuntime.releaseId,
-        positive: false,
-      });
-      const negativeSnapshot = await readLatestContextForPatient(page, negativePatient.patientId);
-
-      const rule = await createAndPublishCriticalIcuRule(page, suffix, {
-        positiveContextSnapshotId: positiveSnapshot.snapshotId,
-        negativeContextSnapshotId: negativeSnapshot.snapshotId,
-        actionCard,
-        pathway: pathwayAsset,
-      });
-      apiEvidence.ruleCreated = true;
-      recordStage(observedStages, "运营员发布乳酸术语、急危重症风险矩阵、预警规则、升级路径和动作卡资产");
-
-      const candidates = await readCriticalRuntimeCandidates(page, hospitalId, {
-        ruleIdentity: rule.assetIdentity,
-        pathwayIdentity: pathwayAsset.assetIdentity,
-      });
-      const runtime = await activateRuntimeWithCriticalAssets(page, {
+        "CDSS_RISK",
+        "CDSS.RISK.MATRIX",
+      ),
+      pathway: await readHospitalRuntimeCandidate(
+        page,
         hospitalId,
-        terminology: terminologyGate,
-        cdssRisk: candidates.cdssRisk,
-        rule: candidates.rule,
-        pathway: candidates.pathway,
-        actionCard,
-      });
-      apiEvidence.runtimeActivatedWithCriticalAssets = true;
-      recordStage(observedStages, "当前机构生效版本包含急危重症五类运行资产");
+        "PATHWAY",
+        pathwayAsset.assetIdentity,
+      ),
+      actionCard,
+    });
 
-      const patient = await createCriticalPatientFromFrontdesk(page, suffix);
-      apiEvidence.triageContextCreatedFromFrontdesk = true;
-      const inbound = await postSignedCriticalInbound(page, {
-        suffix,
-        adapterId: adapter.adapterId,
+    const positivePatient = await createCriticalPatientFromFrontdesk(page, `${suffix}-POS`);
+    await postSignedCriticalInbound(page, {
+      suffix: `${suffix}-POS`,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patient: positivePatient,
+      runtimeReleaseId: preRuleRuntime.releaseId,
+    });
+    const positiveSnapshot = await readLatestContextForPatient(page, positivePatient.patientId);
+    const negativePatient = await createCriticalPatientFromFrontdesk(page, `${suffix}-NEG`);
+    await postSignedCriticalInbound(page, {
+      suffix: `${suffix}-NEG`,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patient: negativePatient,
+      runtimeReleaseId: preRuleRuntime.releaseId,
+      positive: false,
+    });
+    const negativeSnapshot = await readLatestContextForPatient(page, negativePatient.patientId);
+
+    const rule = await createAndPublishCriticalIcuRule(page, suffix, {
+      positiveContextSnapshotId: positiveSnapshot.snapshotId,
+      negativeContextSnapshotId: negativeSnapshot.snapshotId,
+      actionCard,
+      pathway: pathwayAsset,
+    });
+    apiEvidence.ruleCreated = true;
+    recordStage(
+      observedStages,
+      "运营员发布乳酸术语、急危重症风险矩阵、预警规则、升级路径和动作卡资产",
+    );
+
+    const candidates = await readCriticalRuntimeCandidates(page, hospitalId, {
+      ruleIdentity: rule.assetIdentity,
+      pathwayIdentity: pathwayAsset.assetIdentity,
+    });
+    const runtime = await activateRuntimeWithCriticalAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      cdssRisk: candidates.cdssRisk,
+      rule: candidates.rule,
+      pathway: candidates.pathway,
+      actionCard,
+    });
+    apiEvidence.runtimeActivatedWithCriticalAssets = true;
+    recordStage(observedStages, "当前机构生效版本包含急危重症五类运行资产");
+
+    const patient = await createCriticalPatientFromFrontdesk(page, suffix);
+    apiEvidence.triageContextCreatedFromFrontdesk = true;
+    const inbound = await postSignedCriticalInbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patient,
+      runtimeReleaseId: runtime.releaseId,
+    });
+    apiEvidence.inboundMonitoringEventAccepted = true;
+    const snapshot = await readLatestContextForPatient(page, patient.patientId);
+    expect(snapshot.runtimeReleaseId, "S19/S24/S27 正式入站上下文必须绑定本轮 runtime").toBe(
+      runtime.releaseId,
+    );
+    assertSnapshotContainsCriticalFacts(snapshot);
+    inbound.contextSnapshotId = snapshot.snapshotId;
+    recordStage(observedStages, "临床用户从患者 360 建立急诊分诊上下文和去向候选");
+    recordStage(
+      observedStages,
+      "签名入站监护事件生成生命体征和检验 Observation 并处理到 PROCESSED",
+    );
+    recordStage(observedStages, "入站上下文保留生命支持模式、升压药运行和不控制设备证据");
+
+    const recommendation = await triggerCriticalRecommendationFromFrontdesk(page, {
+      snapshot,
+      runtime,
+      rule: {
+        ...rule,
+        versionId: runtime.ruleAsset.versionId ?? candidates.rule.versionId,
+        versionNo: runtime.ruleAsset.versionNo ?? candidates.rule.versionNo,
+        contentHash: runtime.ruleAsset.contentHash ?? candidates.rule.contentHash,
+      },
+    });
+    apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台触发 patient-view 急危重症预警评估");
+    recordStage(observedStages, "推荐卡证明风险规则和动作卡按当前机构生效版本消费");
+    recordStage(observedStages, "推荐卡证明分诊等级和留观或入 ICU 候选仅为人工确认建议");
+    recordStage(observedStages, "推荐卡证明 ICU 生命支持风险与升级路径按当前机构生效版本消费");
+
+    const escalationTodo = await completeCriticalEscalationTodo(page, {
+      suffix,
+      recommendation,
+      snapshot,
+    });
+    apiEvidence.workflowEscalationTodoCompleted = true;
+    recordStage(observedStages, "临床用户从真实待办完成升级协同，系统不控制呼吸机或生命支持设备");
+
+    const manualEscalation = await completeCriticalManualEscalation(page, {
+      cardId: recommendation.cardId,
+      actionCard,
+      actionCardAsset: runtime.actionCardAsset,
+    });
+    apiEvidence.humanEscalationConfirmationRecorded = true;
+    recordStage(observedStages, "医生人工确认升级候选，系统不自动转科、不自动开嘱");
+    const rollbackNegativeEvidence = await rollbackRuntimeAndAssertAssetsRemoved(page, {
+      hospitalId,
+      targetReleaseId: preRuleRuntime.previousReleaseId,
+      consumer: "CRITICAL_EMERGENCY_ICU_PATHWAY",
+      removedAssets: [
+        runtimeSelection(terminologyGate),
+        runtimeSelection(candidates.cdssRisk),
+        runtimeSelection(candidates.rule),
+        runtimeSelection(candidates.pathway),
+        runtimeSelection(actionCard),
+      ],
+    });
+
+    await attachCriticalEmergencyIcuEvidence(testInfo, {
+      apiEvidence,
+      monitoringAdapter: adapter,
+      emergencyOnboarding: onboarding,
+      webhookSignature: {
         webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patient,
+        adapterId: adapter.adapterId,
+        signatureAlgorithm: "HMAC-SHA256",
+        canonicalPayloadIncludesTraceId: true,
+        previewGenerated: true,
+      },
+      terminologyGate,
+      riskMatrix: {
+        ...riskMatrix,
+        versionId: runtime.cdssRiskAsset.versionId ?? candidates.cdssRisk.versionId,
+        versionNo: runtime.cdssRiskAsset.versionNo ?? candidates.cdssRisk.versionNo,
+        contentHash: runtime.cdssRiskAsset.contentHash ?? candidates.cdssRisk.contentHash,
+        entryState: runtime.cdssRiskAsset.entryState,
+      },
+      actionCard: {
+        ...actionCard,
+        versionId: runtime.actionCardAsset.versionId ?? actionCard.versionId,
+        versionNo: runtime.actionCardAsset.versionNo ?? actionCard.versionNo,
+        contentHash: runtime.actionCardAsset.contentHash ?? actionCard.contentHash,
+        entryState: runtime.actionCardAsset.entryState,
+      },
+      ruleAsset: {
+        ...rule,
+        versionId: runtime.ruleAsset.versionId ?? candidates.rule.versionId,
+        versionNo: runtime.ruleAsset.versionNo ?? candidates.rule.versionNo,
+        contentHash: runtime.ruleAsset.contentHash ?? candidates.rule.contentHash,
+        entryState: runtime.ruleAsset.entryState,
+      },
+      pathwayAsset: {
+        ...pathwayAsset,
+        versionId: runtime.pathwayAsset.versionId ?? candidates.pathway.versionId,
+        versionNo: runtime.pathwayAsset.versionNo ?? candidates.pathway.versionNo,
+        contentHash: runtime.pathwayAsset.contentHash ?? candidates.pathway.contentHash,
+        entryState: runtime.pathwayAsset.entryState,
+      },
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext: {
+        patientId: snapshot.patientId,
+        encounterId: snapshot.encounterId,
+        contextSnapshotId: snapshot.snapshotId,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        clinicalSetting: snapshot.clinicalSetting,
+        resources: snapshot.resources,
+      },
+      inboundMonitoringEvent: inbound,
+      clinicalTrigger: {
+        triggerId: recommendation.triggerId,
+        contextSnapshotId: snapshot.snapshotId,
         runtimeReleaseId: runtime.releaseId,
-      });
-      apiEvidence.inboundMonitoringEventAccepted = true;
-      const snapshot = await readLatestContextForPatient(page, patient.patientId);
-      expect(snapshot.runtimeReleaseId, "S19/S24/S27 正式入站上下文必须绑定本轮 runtime").toBe(runtime.releaseId);
-      assertSnapshotContainsCriticalFacts(snapshot);
-      inbound.contextSnapshotId = snapshot.snapshotId;
-      recordStage(observedStages, "临床用户从患者 360 建立急诊分诊上下文和去向候选");
-      recordStage(observedStages, "签名入站监护事件生成生命体征和检验 Observation 并处理到 PROCESSED");
-      recordStage(observedStages, "入站上下文保留生命支持模式、升压药运行和不控制设备证据");
-
-      const recommendation = await triggerCriticalRecommendationFromFrontdesk(page, {
-        snapshot,
-        runtime,
-        rule: {
-          ...rule,
-          versionId: runtime.ruleAsset.versionId ?? candidates.rule.versionId,
-          versionNo: runtime.ruleAsset.versionNo ?? candidates.rule.versionNo,
-          contentHash: runtime.ruleAsset.contentHash ?? candidates.rule.contentHash,
-        },
-      });
-      apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台触发 patient-view 急危重症预警评估");
-      recordStage(observedStages, "推荐卡证明风险规则和动作卡按当前机构生效版本消费");
-      recordStage(observedStages, "推荐卡证明分诊等级和留观或入 ICU 候选仅为人工确认建议");
-      recordStage(observedStages, "推荐卡证明 ICU 生命支持风险与升级路径按当前机构生效版本消费");
-
-      const escalationTodo = await completeCriticalEscalationTodo(page, {
-        suffix,
-        recommendation,
-        snapshot,
-      });
-      apiEvidence.workflowEscalationTodoCompleted = true;
-      recordStage(observedStages, "临床用户从真实待办完成升级协同，系统不控制呼吸机或生命支持设备");
-
-      const manualEscalation = await completeCriticalManualEscalation(page, {
+        triggerType: "patient-view",
         cardId: recommendation.cardId,
-        actionCard,
-        actionCardAsset: runtime.actionCardAsset,
-      });
-      apiEvidence.humanEscalationConfirmationRecorded = true;
-      recordStage(observedStages, "医生人工确认升级候选，系统不自动转科、不自动开嘱");
-
-      await attachCriticalEmergencyIcuEvidence(testInfo, {
-        apiEvidence,
-        monitoringAdapter: adapter,
-        emergencyOnboarding: onboarding,
-        webhookSignature: {
-          webhookId: webhook.webhookId,
-          adapterId: adapter.adapterId,
-          signatureAlgorithm: "HMAC-SHA256",
-          canonicalPayloadIncludesTraceId: true,
-          previewGenerated: true,
-        },
-        terminologyGate,
-        riskMatrix: {
-          ...riskMatrix,
-          versionId: runtime.cdssRiskAsset.versionId ?? candidates.cdssRisk.versionId,
-          versionNo: runtime.cdssRiskAsset.versionNo ?? candidates.cdssRisk.versionNo,
-          contentHash: runtime.cdssRiskAsset.contentHash ?? candidates.cdssRisk.contentHash,
-          entryState: runtime.cdssRiskAsset.entryState,
-        },
-        actionCard: {
-          ...actionCard,
-          versionId: runtime.actionCardAsset.versionId ?? actionCard.versionId,
-          versionNo: runtime.actionCardAsset.versionNo ?? actionCard.versionNo,
-          contentHash: runtime.actionCardAsset.contentHash ?? actionCard.contentHash,
-          entryState: runtime.actionCardAsset.entryState,
-        },
-        ruleAsset: {
-          ...rule,
-          versionId: runtime.ruleAsset.versionId ?? candidates.rule.versionId,
-          versionNo: runtime.ruleAsset.versionNo ?? candidates.rule.versionNo,
-          contentHash: runtime.ruleAsset.contentHash ?? candidates.rule.contentHash,
-          entryState: runtime.ruleAsset.entryState,
-        },
-        pathwayAsset: {
-          ...pathwayAsset,
-          versionId: runtime.pathwayAsset.versionId ?? candidates.pathway.versionId,
-          versionNo: runtime.pathwayAsset.versionNo ?? candidates.pathway.versionNo,
-          contentHash: runtime.pathwayAsset.contentHash ?? candidates.pathway.contentHash,
-          entryState: runtime.pathwayAsset.entryState,
-        },
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext: {
-          patientId: snapshot.patientId,
-          encounterId: snapshot.encounterId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          clinicalSetting: snapshot.clinicalSetting,
-          resources: snapshot.resources,
-        },
-        inboundMonitoringEvent: inbound,
-        clinicalTrigger: {
-          triggerId: recommendation.triggerId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: runtime.releaseId,
-          triggerType: "patient-view",
-          cardId: recommendation.cardId,
-          relatedCardIds: recommendation.relatedCardIds,
-        },
-        recommendation,
-        manualEscalation,
-        escalationTodo,
-        observedStages,
-      });
-    },
-  );
+        relatedCardIds: recommendation.relatedCardIds,
+      },
+      recommendation,
+      manualEscalation,
+      escalationTodo,
+      rollbackNegativeEvidence,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): CriticalEmergencyIcuApiEvidence {
@@ -390,32 +452,43 @@ async function createCriticalRiskMatrix(page: Page, suffix: string) {
     assetType: "CDSS_RISK" as const,
     assetIdentity: "CDSS.RISK.MATRIX",
     matrixId: requireText(textField(rule, "matrixId"), "风险矩阵响应必须返回 matrixId"),
-    matrixVersion: requireText(textField(rule, "matrixVersion"), "风险矩阵响应必须返回 matrixVersion"),
+    matrixVersion: requireText(
+      textField(rule, "matrixVersion"),
+      "风险矩阵响应必须返回 matrixVersion",
+    ),
     triggerPoint: requireText(textField(rule, "triggerPoint"), "风险矩阵必须返回触发点"),
     riskLevel: requireText(textField(rule, "riskLevel"), "风险矩阵必须返回风险等级"),
-    reviewRequirement: requireText(textField(rule, "reviewRequirement"), "风险矩阵必须返回复核要求"),
+    reviewRequirement: requireText(
+      textField(rule, "reviewRequirement"),
+      "风险矩阵必须返回复核要求",
+    ),
     automationLevel: requireText(textField(rule, "automationLevel"), "风险矩阵必须返回自动化等级"),
     autoExecutionAllowed: booleanField(rule, "autoExecutionAllowed"),
   };
 }
 
-async function createCriticalTerminologyGate(page: Page, suffix: string): Promise<CriticalAssetCandidate & {
-  standardSystem: string;
-  standardCode: string;
-  localCode: string;
-  localTermId: number;
-  standardTermId: number;
-  sourceSystem: string;
-  category: string;
-  mappingId: number;
-  confirmedMapping: {
-    mappingId: number;
+async function createCriticalTerminologyGate(
+  page: Page,
+  suffix: string,
+): Promise<
+  CriticalAssetCandidate & {
+    standardSystem: string;
+    standardCode: string;
+    localCode: string;
     localTermId: number;
     standardTermId: number;
     sourceSystem: string;
     category: string;
-  };
-}> {
+    mappingId: number;
+    confirmedMapping: {
+      mappingId: number;
+      localTermId: number;
+      standardTermId: number;
+      sourceSystem: string;
+      category: string;
+    };
+  }
+> {
   const standard = await postApi(page, "/engine/terminology/terms/standard", {
     ...apiContext(suffix, "term-standard"),
     standardSystem: "LOINC",
@@ -508,7 +581,10 @@ async function readOrConfirmTerminologyMapping(
     semanticAssistEnabled: true,
   });
   await expectOk(generation, "生成乳酸术语映射候选");
-  const jobCode = requireText(textField(await responseData(generation), "jobCode"), "术语候选任务必须返回 jobCode");
+  const jobCode = requireText(
+    textField(await responseData(generation), "jobCode"),
+    "术语候选任务必须返回 jobCode",
+  );
   const candidate = await waitForTerminologyCandidate(page, jobCode, {
     localCode: options.localCode,
     localTermId: options.localTermId,
@@ -529,7 +605,9 @@ async function readOrConfirmTerminologyMapping(
   await expectOk(confirmed, "确认乳酸术语映射");
   const mapping = confirmedMappingEvidence(await responseData(confirmed));
   expect(mapping.localTermId, "确认映射必须绑定本轮 localTermId").toBe(options.localTermId);
-  expect(mapping.standardTermId, "确认映射必须绑定本轮 standardTermId").toBe(options.standardTermId);
+  expect(mapping.standardTermId, "确认映射必须绑定本轮 standardTermId").toBe(
+    options.standardTermId,
+  );
   expect(mapping.sourceSystem, "确认映射必须绑定本轮 sourceSystem").toBe(options.sourceSystem);
   return mapping;
 }
@@ -579,7 +657,9 @@ async function waitForTerminologyCandidate(
     }
     await waitForPollingInterval(250);
   }
-  throw new Error(`乳酸术语候选生成超时 ${jobCode}，最后状态 ${lastStatus}，候选数 ${generatedCount ?? "UNKNOWN"}`);
+  throw new Error(
+    `乳酸术语候选生成超时 ${jobCode}，最后状态 ${lastStatus}，候选数 ${generatedCount ?? "UNKNOWN"}`,
+  );
 }
 
 function confirmedMappingEvidence(value: unknown) {
@@ -602,13 +682,17 @@ function confirmedMappingEvidence(value: unknown) {
   };
 }
 
-async function createCriticalActionCard(page: Page, suffix: string): Promise<CriticalActionCardCandidate> {
+async function createCriticalActionCard(
+  page: Page,
+  suffix: string,
+): Promise<CriticalActionCardCandidate> {
   const assetIdentity = `${actionCardIdentityPrefix}.${suffix}`;
   const response = await postApi(page, "/engine/authoring/declarative-assets", {
     assetType: "ACTION_CARD",
     assetIdentity,
     applicableScope: "ALL",
-    sourceRef: "S19/S24/S27 急危重症代表切片：升级提示卡，不自动转科、不自动开嘱、不控制生命支持设备。",
+    sourceRef:
+      "S19/S24/S27 急危重症代表切片：升级提示卡，不自动转科、不自动开嘱、不控制生命支持设备。",
     content: {
       schemaVersion: "1.0",
       title: `急危重症升级提示卡 ${suffix}`,
@@ -616,9 +700,16 @@ async function createCriticalActionCard(page: Page, suffix: string): Promise<Cri
       atSeverity: "HIGH",
       indicator: "critical",
       summary: "急诊分诊与 ICU 生命支持风险需人工确认。",
-      detail: "系统只提示升级处置候选，不替代急诊、ICU 或生命支持设备控制，不自动转 ICU、不自动开嘱、不改呼吸机参数。",
+      detail:
+        "系统只提示升级处置候选，不替代急诊、ICU 或生命支持设备控制，不自动转 ICU、不自动开嘱、不改呼吸机参数。",
       source: { label: "MedKernel S19/S24/S27 本地上线演练" },
-      suggestions: [{ label: "人工确认急危重症升级", actionType: "OPEN_FORM", payload: { target: "S19/S24/S27" } }],
+      suggestions: [
+        {
+          label: "人工确认急危重症升级",
+          actionType: "OPEN_FORM",
+          payload: { target: "S19/S24/S27" },
+        },
+      ],
       overrideReasons: ["临床团队已完成人工复核与责任确认"],
       requiresPhysicianConfirmation: true,
       noAutoOrder: true,
@@ -643,9 +734,14 @@ async function createCriticalActionCard(page: Page, suffix: string): Promise<Cri
   };
 }
 
-async function createCriticalIcuPathwayAsset(page: Page, suffix: string): Promise<CriticalAssetCandidate & {
-  templateId: string;
-}> {
+async function createCriticalIcuPathwayAsset(
+  page: Page,
+  suffix: string,
+): Promise<
+  CriticalAssetCandidate & {
+    templateId: string;
+  }
+> {
   await ensureReadySession(page, "engine-operator");
   await page.goto(appPath("/pathway/templates"), { waitUntil: "networkidle" });
   const templateCode = `${pathwayIdentityPrefix}.${suffix}`;
@@ -659,8 +755,20 @@ async function createCriticalIcuPathwayAsset(page: Page, suffix: string): Promis
     startNodeCode: "TRIAGE",
     sourceRef: "local-e2e:critical-emergency-icu-frontdesk",
     description: "S19/S24/S27 急诊分诊与 ICU 生命支持风险代表切片路径，不自动转科、不控制设备。",
-    entryCriteria: { all: [{ fact: "extensions.local.emergencyTriage.triageLevel", operator: "equals", value: "LEVEL_1" }] },
-    exitCriteria: { all: [{ fact: "extensions.local.criticalCare.noDeviceControl", operator: "equals", value: true }] },
+    entryCriteria: {
+      all: [
+        {
+          fact: "extensions.local.emergencyTriage.triageLevel",
+          operator: "equals",
+          value: "LEVEL_1",
+        },
+      ],
+    },
+    exitCriteria: {
+      all: [
+        { fact: "extensions.local.criticalCare.noDeviceControl", operator: "equals", value: true },
+      ],
+    },
     milestones: [
       milestone("EMERGENCY_TRIAGE", "急诊分诊", "M-TRIAGE", "分诊确认", 0, 15, 10),
       milestone("ICU_REVIEW", "ICU 会诊", "M-ICU", "ICU 人工复核", 0, 30, 20),
@@ -699,7 +807,10 @@ async function createCriticalIcuPathwayAsset(page: Page, suffix: string): Promis
     textFieldAtPath(data, "template.templateId") ?? textField(data, "templateId"),
     "路径保存响应必须返回 templateId",
   );
-  const detail = await getApi(page, `/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}`);
+  const detail = await getApi(
+    page,
+    `/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}`,
+  );
   await expectOk(detail, "回读急危重症 PATHWAY 详情");
   const detailData = await responseData(detail);
   expect(textFieldAtPath(detailData, "template.templateCode")).toBe(templateCode);
@@ -744,7 +855,8 @@ async function createAndPublishCriticalIcuRule(
     dedupeWindowSeconds: 0,
     applicableOrgUnitId: null,
     sourceRef: "local-e2e:critical-emergency-icu",
-    changeSummary: "S19/S24/S27 代表切片：规则引用 Observation、extensions.local.emergencyTriage/criticalCare、PATHWAY 和 ACTION_CARD。",
+    changeSummary:
+      "S19/S24/S27 代表切片：规则引用 Observation、extensions.local.emergencyTriage/criticalCare、PATHWAY 和 ACTION_CARD。",
     dsl: {
       applicability: {
         population: {},
@@ -755,8 +867,16 @@ async function createAndPublishCriticalIcuRule(
       when: {
         all: [
           { fact: "observations[].criticalFlag", operator: "contains", value: "CRITICAL" },
-          { fact: "extensions.local.emergencyTriage.triageLevel", operator: "equals", value: "LEVEL_1" },
-          { fact: "extensions.local.criticalCare.vasopressorRunning", operator: "equals", value: true },
+          {
+            fact: "extensions.local.emergencyTriage.triageLevel",
+            operator: "equals",
+            value: "LEVEL_1",
+          },
+          {
+            fact: "extensions.local.criticalCare.vasopressorRunning",
+            operator: "equals",
+            value: true,
+          },
         ],
       },
       then: [
@@ -765,7 +885,8 @@ async function createAndPublishCriticalIcuRule(
           atSeverity: "HIGH",
           indicator: "critical",
           summary: "急危重症升级候选需人工确认",
-          detail: "一级分诊、乳酸危急值和升压药运行提示 ICU 升级候选；系统不自动转 ICU、不自动开嘱、不控制生命支持设备。",
+          detail:
+            "一级分诊、乳酸危急值和升压药运行提示 ICU 升级候选；系统不自动转 ICU、不自动开嘱、不控制生命支持设备。",
           source: { label: "S19/S24/S27 急危重症代表切片" },
           actionCardRef: options.actionCard.assetIdentity,
           pathwayRef: options.pathway.assetIdentity,
@@ -790,18 +911,50 @@ async function createAndPublishCriticalIcuRule(
   const created = await responseData(create);
   const ruleId = requireText(textField(created, "ruleId"), "规则创建响应必须返回 ruleId");
   for (const testCase of [
-    { caseType: "POSITIVE", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "NEGATIVE", expectedHit: false, expectedSeverity: null, expectedActionCode: null, contextSnapshotId: options.negativeContextSnapshotId },
-    { caseType: "BOUNDARY", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "CONFLICT", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
+    {
+      caseType: "POSITIVE",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "NEGATIVE",
+      expectedHit: false,
+      expectedSeverity: null,
+      expectedActionCode: null,
+      contextSnapshotId: options.negativeContextSnapshotId,
+    },
+    {
+      caseType: "BOUNDARY",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "CONFLICT",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
   ]) {
-    const response = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`, {
-      ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
-      ...testCase,
-    });
+    const response = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`,
+      {
+        ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
+        ...testCase,
+      },
+    );
     await expectOk(response, `新增急危重症规则发布验证用例 ${testCase.caseType}`);
   }
-  const testRun = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`, apiContext(ruleId, "rule-test-run"));
+  const testRun = await postApi(
+    page,
+    `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`,
+    apiContext(ruleId, "rule-test-run"),
+  );
   await expectOk(testRun, "执行急危重症规则发布验证用例");
   const testRunData = await responseData(testRun);
   expect(
@@ -811,29 +964,39 @@ async function createAndPublishCriticalIcuRule(
   for (const targetState of ["REVIEWED", "SHADOW", "CANARY", "FULL"]) {
     const impact = await getApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/impact`);
     await expectOk(impact, `读取急危重症规则 ${targetState} 影响摘要`);
-    const transition = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`, {
-      ...apiContext(ruleId, `rule-governance-${targetState}`),
-      targetState,
-      impactDigest: requireText(textField(await responseData(impact), "impactDigest"), "规则影响摘要必须返回 digest"),
-      reason: `S19/S24/S27 急危重症规则推进至 ${targetState}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: `S19/S24/S27 急危重症规则 ${targetState} 推进质量门已通过`,
+    const transition = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`,
+      {
+        ...apiContext(ruleId, `rule-governance-${targetState}`),
+        targetState,
+        impactDigest: requireText(
+          textField(await responseData(impact), "impactDigest"),
+          "规则影响摘要必须返回 digest",
+        ),
+        reason: `S19/S24/S27 急危重症规则推进至 ${targetState}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: `S19/S24/S27 急危重症规则 ${targetState} 推进质量门已通过`,
+          },
         },
       },
-    });
+    );
     await expectOk(transition, `急危重症规则治理推进至 ${targetState}`);
   }
   return {
     assetType: "RULE" as const,
     assetIdentity: ruleCode,
     ruleId,
-    ruleVersionId: requireText(textField(created, "versionId"), "规则创建响应必须返回规则 versionId"),
+    ruleVersionId: requireText(
+      textField(created, "versionId"),
+      "规则创建响应必须返回规则 versionId",
+    ),
   };
 }
 
@@ -871,9 +1034,18 @@ async function readHospitalRuntimeCandidate(
   return {
     assetType,
     assetIdentity,
-    versionId: requireText(textField(candidate, "versionId"), `${assetType} 候选必须返回 versionId`),
-    versionNo: requireText(textField(candidate, "versionNo"), `${assetType} 候选必须返回 versionNo`),
-    contentHash: requireText(textField(candidate, "contentHash"), `${assetType} 候选必须返回 contentHash`),
+    versionId: requireText(
+      textField(candidate, "versionId"),
+      `${assetType} 候选必须返回 versionId`,
+    ),
+    versionNo: requireText(
+      textField(candidate, "versionNo"),
+      `${assetType} 候选必须返回 versionNo`,
+    ),
+    contentHash: requireText(
+      textField(candidate, "contentHash"),
+      `${assetType} 候选必须返回 contentHash`,
+    ),
   };
 }
 
@@ -897,7 +1069,9 @@ async function activateRuntimeWithCriticalAssets(
       options.pathway,
       options.actionCard,
     ],
-    label: options.rule ? "激活包含急危重症五类资产的医院生效版本" : "激活急危重症规则验证预备 runtime",
+    label: options.rule
+      ? "激活包含急危重症五类资产的医院生效版本"
+      : "激活急危重症规则验证预备 runtime",
     returnRequest: true,
   });
   const currentAfter = await getApi(
@@ -906,17 +1080,25 @@ async function activateRuntimeWithCriticalAssets(
   );
   await expectOk(currentAfter, "回读急危重症医院生效版本");
   const detail = (await responseData(currentAfter)) as RuntimeReleaseDetail;
-  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(releaseId);
+  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(
+    releaseId,
+  );
   return {
     releaseId,
     revisionNo: numberFieldAtPath(detail, "release.revisionNo") ?? 0,
-    manifestSha256: requireText(textFieldAtPath(detail, "release.manifestSha256"), "机构生效版本必须返回 manifestSha256"),
+    manifestSha256: requireText(
+      textFieldAtPath(detail, "release.manifestSha256"),
+      "机构生效版本必须返回 manifestSha256",
+    ),
     assets: detail.items ?? [],
     terminologyAsset: assertRuntimeContainsAsset(detail, options.terminology),
     cdssRiskAsset: assertRuntimeContainsAsset(detail, options.cdssRisk),
-    ruleAsset: options.rule ? assertRuntimeContainsAsset(detail, options.rule) : ({ assetType: "RULE", assetIdentity: "", versionId: null } as RuntimeReleaseItem),
+    ruleAsset: options.rule
+      ? assertRuntimeContainsAsset(detail, options.rule)
+      : ({ assetType: "RULE", assetIdentity: "", versionId: null } as RuntimeReleaseItem),
     pathwayAsset: assertRuntimeContainsAsset(detail, options.pathway),
     actionCardAsset: assertRuntimeContainsAsset(detail, options.actionCard),
+    previousReleaseId: textFieldAtPath(activationRequest, "expectedCurrentReleaseId"),
     activationRequest,
   };
 }
@@ -937,7 +1119,8 @@ async function activateRuntimeRelease(
   for (const required of requiredRuntimeAssetsForRehearsal) {
     expect(
       baselineAssets.activeAssets.some(
-        (asset) => asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
+        (asset) =>
+          asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
       ),
       `平台标准版本缺少 ${required.assetType}:${required.assetIdentity}`,
     ).toBe(true);
@@ -963,8 +1146,70 @@ async function activateRuntimeRelease(
     activationRequest,
   );
   await expectOk(activated, options.label);
-  const releaseId = requireText(textField(await responseData(activated), "releaseId"), "激活必须返回 releaseId");
-  return options.returnRequest ? { releaseId, activationRequest } : { releaseId, activationRequest: undefined };
+  const releaseId = requireText(
+    textField(await responseData(activated), "releaseId"),
+    "激活必须返回 releaseId",
+  );
+  return options.returnRequest
+    ? { releaseId, activationRequest }
+    : { releaseId, activationRequest: undefined };
+}
+
+async function rollbackRuntimeAndAssertAssetsRemoved(
+  page: Page,
+  options: {
+    hospitalId: string;
+    targetReleaseId: string | null;
+    consumer: string;
+    removedAssets: RuntimeAssetSelection[];
+  },
+): Promise<RuntimeRollbackNegativeEvidence> {
+  const targetReleaseId = requireText(
+    options.targetReleaseId,
+    "急危重症回滚负向证据必须有演练前机构生效版本",
+  );
+  await ensureReadySession(page, "engine-operator");
+  const rollback = await postApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases:rollback`,
+    { targetReleaseId },
+  );
+  await expectOk(rollback, "回滚急危重症机构生效版本");
+  const current = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases/current`,
+  );
+  await expectOk(current, "回读急危重症回滚后机构生效版本");
+  const currentRuntime = runtimeReadbackEvidence(await responseData(current));
+  assertAssetsRemoved(currentRuntime.assets, options.removedAssets, "回滚后 current runtime");
+
+  const consumer = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
+  await expectOk(consumer, "读取急危重症回滚后第三方运行契约");
+  const runtimeConsumer = runtimeConsumerReadbackEvidence(await responseData(consumer));
+  assertAssetsRemoved(runtimeConsumer.assets, options.removedAssets, "回滚后第三方运行契约");
+  expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
+    currentRuntime.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约 revisionNo 必须与 current 一致").toBe(
+    currentRuntime.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约 manifestSha256 必须与 current 一致").toBe(
+    currentRuntime.manifestSha256,
+  );
+
+  return {
+    rollbackPosted: true,
+    currentRuntimeReadbackVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    consumer: options.consumer,
+    consumerProbeMatchedRemovedAssets: false,
+    removedAssets: options.removedAssets,
+    currentRuntime,
+    runtimeConsumer,
+  };
 }
 
 async function createCriticalPatientFromFrontdesk(page: Page, suffix: string) {
@@ -986,7 +1231,10 @@ async function createCriticalPatientFromFrontdesk(page: Page, suffix: string) {
   await dialog.getByRole("button", { name: "保存患者" }).click();
   const response = await responsePromise;
   await expectHttpOk(response, "创建急危重症演练脱敏患者");
-  const patientId = requireText(textField(await responseData(response), "mpiId"), "患者创建响应必须返回 MPI");
+  const patientId = requireText(
+    textField(await responseData(response), "mpiId"),
+    "患者创建响应必须返回 MPI",
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   return {
     patientId,
@@ -1027,18 +1275,38 @@ function criticalAdapterConfig() {
       { sourcePath: "/shockIndexCode", targetPath: "/observations/0/code" },
       { sourcePath: "/shockIndexValue", targetPath: "/observations/0/valueNumeric" },
       { sourcePath: "/shockIndexFlag", targetPath: "/observations/0/criticalFlag" },
-      { sourcePath: "/lactateCode", targetPath: "/observations/1", targetDictionaryKey: "LOINC", category: "LAB" },
+      {
+        sourcePath: "/lactateCode",
+        targetPath: "/observations/1",
+        targetDictionaryKey: "LOINC",
+        category: "LAB",
+      },
       { sourcePath: "/lactateValue", targetPath: "/observations/1/valueNumeric" },
       { sourcePath: "/lactateUnit", targetPath: "/observations/1/unit" },
       { sourcePath: "/criticalFlag", targetPath: "/observations/1/criticalFlag" },
       { sourcePath: "/procedureCode", targetPath: "/procedures/0/code" },
       { sourcePath: "/procedureName", targetPath: "/procedures/0/displayName" },
       { sourcePath: "/triageLevel", targetPath: "/extensions/local/emergencyTriage/triageLevel" },
-      { sourcePath: "/destinationCandidate", targetPath: "/extensions/local/emergencyTriage/destinationCandidate" },
-      { sourcePath: "/manualEscalationRequired", targetPath: "/extensions/local/emergencyTriage/manualEscalationRequired" },
-      { sourcePath: "/ventilatorMode", targetPath: "/extensions/local/criticalCare/ventilatorMode" },
-      { sourcePath: "/vasopressorRunning", targetPath: "/extensions/local/criticalCare/vasopressorRunning" },
-      { sourcePath: "/noDeviceControl", targetPath: "/extensions/local/criticalCare/noDeviceControl" },
+      {
+        sourcePath: "/destinationCandidate",
+        targetPath: "/extensions/local/emergencyTriage/destinationCandidate",
+      },
+      {
+        sourcePath: "/manualEscalationRequired",
+        targetPath: "/extensions/local/emergencyTriage/manualEscalationRequired",
+      },
+      {
+        sourcePath: "/ventilatorMode",
+        targetPath: "/extensions/local/criticalCare/ventilatorMode",
+      },
+      {
+        sourcePath: "/vasopressorRunning",
+        targetPath: "/extensions/local/criticalCare/vasopressorRunning",
+      },
+      {
+        sourcePath: "/noDeviceControl",
+        targetPath: "/extensions/local/criticalCare/noDeviceControl",
+      },
     ],
   };
 }
@@ -1062,7 +1330,10 @@ async function createCriticalMonitoringWebhook(page: Page, suffix: string) {
 async function generateCriticalSignaturePreview(page: Page, webhookId: string) {
   const response = await postApi(page, "/engine/integration/webhooks/test", {
     webhookId,
-    payload: JSON.stringify({ traceId: `preview-${webhookId}`, eventType: "CRITICAL_MONITORING_EVENT" }),
+    payload: JSON.stringify({
+      traceId: `preview-${webhookId}`,
+      eventType: "CRITICAL_MONITORING_EVENT",
+    }),
   });
   await expectOk(response, "生成急危重症回调签名预览");
   const data = await responseData(response);
@@ -1157,8 +1428,15 @@ async function postSignedCriticalInbound(
   );
   await expectOk(response, "S19/S24/S27 急危重症签名入站");
   const data = await responseData(response);
-  const clinicalEventId = requireText(textField(data, "clinicalEventId"), "入站必须返回 clinicalEventId");
-  const clinicalEvent = await waitForClinicalEventProcessed(page, clinicalEventId, options.runtimeReleaseId);
+  const clinicalEventId = requireText(
+    textField(data, "clinicalEventId"),
+    "入站必须返回 clinicalEventId",
+  );
+  const clinicalEvent = await waitForClinicalEventProcessed(
+    page,
+    clinicalEventId,
+    options.runtimeReleaseId,
+  );
   return {
     messageId: requireText(textField(data, "messageId"), "入站必须返回 messageId"),
     traceId: requireText(textField(data, "traceId"), "入站必须返回 traceId"),
@@ -1197,7 +1475,9 @@ async function waitForClinicalEventProcessed(
       runtimeReleaseId: textField(data, "runtimeReleaseId"),
     };
     if (last.status === "PROCESSED") {
-      expect(last.runtimeReleaseId, "S19/S24/S27 入站事件必须绑定本轮 runtime").toBe(runtimeReleaseId);
+      expect(last.runtimeReleaseId, "S19/S24/S27 入站事件必须绑定本轮 runtime").toBe(
+        runtimeReleaseId,
+      );
       expect(last.errorCode, "S19/S24/S27 入站事件处理成功不得有 errorCode").toBeNull();
       return last;
     }
@@ -1206,10 +1486,15 @@ async function waitForClinicalEventProcessed(
     }
     await waitForPollingInterval(250);
   }
-  throw new Error(`S19/S24/S27 入站事件 ${eventId} 未处理到 PROCESSED，最后状态：${last?.status ?? "UNKNOWN"}`);
+  throw new Error(
+    `S19/S24/S27 入站事件 ${eventId} 未处理到 PROCESSED，最后状态：${last?.status ?? "UNKNOWN"}`,
+  );
 }
 
-async function readLatestContextForPatient(page: Page, patientId: string): Promise<ContextSnapshotSummary> {
+async function readLatestContextForPatient(
+  page: Page,
+  patientId: string,
+): Promise<ContextSnapshotSummary> {
   const list = await getApi(
     page,
     `/engine/context/snapshots?patientId=${encodeURIComponent(patientId)}&status=ACTIVE&page=1&size=5&sort=createdAt,desc`,
@@ -1223,9 +1508,15 @@ async function readLatestContextForPatient(page: Page, patientId: string): Promi
   await expectOk(detail, "读取入站事件生成的上下文详情");
   const context = await responseData(detail);
   return {
-    patientId: requireText(textFieldAtPath(context, "resources.patient.mpi"), "上下文详情必须返回 patient.mpi"),
+    patientId: requireText(
+      textFieldAtPath(context, "resources.patient.mpi"),
+      "上下文详情必须返回 patient.mpi",
+    ),
     snapshotId: requireText(textField(context, "snapshotId"), "上下文详情必须返回 snapshotId"),
-    runtimeReleaseId: requireText(textField(context, "runtimeReleaseId"), "上下文详情必须返回 runtimeReleaseId"),
+    runtimeReleaseId: requireText(
+      textField(context, "runtimeReleaseId"),
+      "上下文详情必须返回 runtimeReleaseId",
+    ),
     encounterId: textFieldAtPath(context, "resources.encounters.0.encounterId"),
     clinicalSetting: textField(context, "clinicalSetting") ?? "ED",
     resources: recordValue(recordField(context, "resources")) ?? {},
@@ -1237,19 +1528,23 @@ function assertSnapshotContainsCriticalFacts(snapshot: ContextSnapshotSummary) {
   expect(snapshot.clinicalSetting, "上下文必须保留标准急诊场景").toBe("ED");
   expect(
     arrayField(resources, "encounters").some(
-      (item) => textField(item, "encounterType") === "ED" && textField(item, "departmentId") === "ED",
+      (item) =>
+        textField(item, "encounterType") === "ED" && textField(item, "departmentId") === "ED",
     ),
     "上下文必须包含急诊 encounter",
   ).toBe(true);
   expect(
     arrayField(resources, "conditions").some(
-      (item) => textField(item, "code") === shockDiagnosisCode && textField(item, "displayName") === "休克",
+      (item) =>
+        textField(item, "code") === shockDiagnosisCode && textField(item, "displayName") === "休克",
     ),
     "上下文必须包含休克 Condition",
   ).toBe(true);
   expect(
     arrayField(resources, "observations").some(
-      (item) => textField(item, "code") === "SHOCK_INDEX" && Number(numberField(item, "valueNumeric")) >= 1.3,
+      (item) =>
+        textField(item, "code") === "SHOCK_INDEX" &&
+        Number(numberField(item, "valueNumeric")) >= 1.3,
     ),
     "上下文必须包含休克指数 Observation",
   ).toBe(true);
@@ -1264,15 +1559,25 @@ function assertSnapshotContainsCriticalFacts(snapshot: ContextSnapshotSummary) {
   ).toBe(true);
   expect(
     arrayField(resources, "procedures").some(
-      (item) => textField(item, "code") === ventilationProcedureCode && textField(item, "displayName") === "机械通气",
+      (item) =>
+        textField(item, "code") === ventilationProcedureCode &&
+        textField(item, "displayName") === "机械通气",
     ),
     "上下文必须包含机械通气 Procedure",
   ).toBe(true);
-  expect(textFieldAtPath(resources, "extensions.local.emergencyTriage.triageLevel")).toBe("LEVEL_1");
-  expect(textFieldAtPath(resources, "extensions.local.emergencyTriage.destinationCandidate")).toBe("ICU");
-  expect(booleanFieldAtPath(resources, "extensions.local.emergencyTriage.manualEscalationRequired")).toBe(true);
+  expect(textFieldAtPath(resources, "extensions.local.emergencyTriage.triageLevel")).toBe(
+    "LEVEL_1",
+  );
+  expect(textFieldAtPath(resources, "extensions.local.emergencyTriage.destinationCandidate")).toBe(
+    "ICU",
+  );
+  expect(
+    booleanFieldAtPath(resources, "extensions.local.emergencyTriage.manualEscalationRequired"),
+  ).toBe(true);
   expect(textFieldAtPath(resources, "extensions.local.criticalCare.ventilatorMode")).toBe("SIMV");
-  expect(booleanFieldAtPath(resources, "extensions.local.criticalCare.vasopressorRunning")).toBe(true);
+  expect(booleanFieldAtPath(resources, "extensions.local.criticalCare.vasopressorRunning")).toBe(
+    true,
+  );
   expect(booleanFieldAtPath(resources, "extensions.local.criticalCare.noDeviceControl")).toBe(true);
 }
 
@@ -1285,6 +1590,7 @@ async function triggerCriticalRecommendationFromFrontdesk(
       ruleAsset: RuntimeReleaseItem;
       pathwayAsset: RuntimeReleaseItem;
       actionCardAsset: RuntimeReleaseItem;
+      previousReleaseId: string | null;
     };
     rule: CriticalAssetCandidate & { ruleId: string; ruleVersionId: string };
   },
@@ -1301,7 +1607,10 @@ async function triggerCriticalRecommendationFromFrontdesk(
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
   const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `提醒推荐页必须展示本轮 S19/S24/S27 快照 ${snapshot.snapshotId}`).toBeVisible({ timeout: 20_000 });
+  await expect(
+    snapshotButton,
+    `提醒推荐页必须展示本轮 S19/S24/S27 快照 ${snapshot.snapshotId}`,
+  ).toBeVisible({ timeout: 20_000 });
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "查看患者");
   const evaluateResponsePromise = waitForEvaluateResponse(page, snapshot);
@@ -1309,7 +1618,10 @@ async function triggerCriticalRecommendationFromFrontdesk(
   const evaluateResponse = await evaluateResponsePromise;
   await expectHttpOk(evaluateResponse, "临床用户从真实前台触发 S19/S24/S27 推荐评估");
   const evaluation = await responseData(evaluateResponse);
-  const triggerId = requireText(textField(evaluation, "triggerId"), "推荐评估响应必须返回 triggerId");
+  const triggerId = requireText(
+    textField(evaluation, "triggerId"),
+    "推荐评估响应必须返回 triggerId",
+  );
   const relatedCardIds = await readRecommendationTriggerDiagnose(page, triggerId);
   const recommendation = await findCriticalRuleCard(page, relatedCardIds, {
     triggerId,
@@ -1351,7 +1663,10 @@ async function findCriticalRuleCard(
   }> = [];
   const inspected: Array<Record<string, unknown>> = [];
   for (const cardId of Array.from(new Set(relatedCardIds))) {
-    const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+    const detailResponse = await getApi(
+      page,
+      `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    );
     await expectOk(detailResponse, `推荐卡 ${cardId} 详情应可读取`);
     const detail = await responseData(detailResponse);
     const explanation = parseJsonRecord(
@@ -1398,7 +1713,11 @@ async function findCriticalRuleCard(
       textField(runtimeRelease, "assetVersionId") === options.runtime.ruleAsset.versionId &&
       textField(runtimeRelease, "assetVersionNo") === options.runtime.ruleAsset.versionNo &&
       textField(runtimeRelease, "contentHash") === options.runtime.ruleAsset.contentHash &&
-      conditionEvidence.some((item) => textField(item, "fact") === "observations[].criticalFlag" && booleanField(item, "matched") === true) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "observations[].criticalFlag" &&
+          booleanField(item, "matched") === true,
+      ) &&
       conditionEvidence.some(
         (item) =>
           textField(item, "fact") === "extensions.local.emergencyTriage.triageLevel" &&
@@ -1429,7 +1748,10 @@ async function findCriticalRuleCard(
       cardStatus: textFieldAtPath(detail, "card.status"),
       triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
       cardType: textFieldAtPath(detail, "card.cardType") ?? "RISK",
-      requiresPhysicianConfirmation: booleanFieldAtPath(detail, "card.requiresPhysicianConfirmation"),
+      requiresPhysicianConfirmation: booleanFieldAtPath(
+        detail,
+        "card.requiresPhysicianConfirmation",
+      ),
       aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
       explanation,
     });
@@ -1452,20 +1774,27 @@ async function completeCriticalManualEscalation(
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/cdss/fatigue"), { waitUntil: "networkidle" });
   await page.getByLabel("患者或证据线索").fill(options.cardId);
-  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
   const drawer = page.getByRole("dialog", { name: "推荐详情与反馈闭环" });
   await expect(drawer).toBeVisible({ timeout: 20_000 });
   await drawer.getByRole("tab", { name: /医师反馈/u }).click();
   await drawer
     .getByLabel("采纳说明（可选）")
-    .fill("医生已人工确认急危重症升级候选；系统不自动转 ICU、不自动开嘱、不控制设备、不改呼吸机参数。");
+    .fill(
+      "医生已人工确认急危重症升级候选；系统不自动转 ICU、不自动开嘱、不控制设备、不改呼吸机参数。",
+    );
   const responsePromise = waitForPost(page, "/engine/recommendations/cards/");
   await drawer.getByRole("button", { name: "确认采纳建议" }).click();
   const response = await responsePromise;
   await expectHttpOk(response, "登记 S19/S24/S27 人工升级确认");
   const feedback = await responseData(response);
-  const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(options.cardId)}`);
+  const detailResponse = await getApi(
+    page,
+    `/engine/recommendations/cards/${encodeURIComponent(options.cardId)}`,
+  );
   await expectOk(detailResponse, "回读 S19/S24/S27 推荐卡反馈详情");
   const detail = await responseData(detailResponse);
   const persisted = arrayField(detail, "feedback").find(
@@ -1513,11 +1842,15 @@ async function completeCriticalEscalationTodo(
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible({
+  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
+  const cardLink = page.locator(`a[href*="cardId=${options.recommendation.cardId}"]`).first();
+  await expect(cardLink, "应能定位本轮急危重症推荐卡对应的待办链接").toBeVisible({
     timeout: 30_000,
   });
-  const cardLink = page.locator(`a[href*="cardId=${options.recommendation.cardId}"]`).first();
-  await expect(cardLink, "应能定位本轮急危重症推荐卡对应的待办链接").toBeVisible({ timeout: 30_000 });
   const todoRow = cardLink.locator("xpath=ancestor::tr");
   await expect(todoRow, "应能定位本轮急危重症协同待办").toBeVisible({ timeout: 30_000 });
   const todoId = requireText(
@@ -1528,7 +1861,8 @@ async function completeCriticalEscalationTodo(
   await todoRow.getByRole("button", { name: "完成" }).click();
   const completeDialog = page.getByRole("dialog", { name: "完成待办" });
   await expect(completeDialog).toBeVisible({ timeout: 10_000 });
-  const completionReason = "临床用户已完成升级协同登记，仍需医师责任确认；系统不自动转 ICU、不自动开嘱、不控制设备。";
+  const completionReason =
+    "临床用户已完成升级协同登记，仍需医师责任确认；系统不自动转 ICU、不自动开嘱、不控制设备。";
   await completeDialog.getByLabel("完成说明").fill(completionReason);
   await completeDialog.getByRole("button", { name: "确认完成" }).click();
   const completeResponse = await completeResponsePromise;
@@ -1536,10 +1870,18 @@ async function completeCriticalEscalationTodo(
   const completed = await responseData(completeResponse);
   expect(textField(completed, "todoId"), "完成响应必须绑定本轮待办").toBe(todoId);
   expect(textField(completed, "status"), "急危重症待办完成后必须为 COMPLETED").toBe("COMPLETED");
-  expect(textField(completed, "sourceId"), "完成响应必须绑定本轮推荐卡").toBe(options.recommendation.cardId);
-  expect(textField(completed, "patientId"), "完成响应必须绑定本轮患者").toBe(options.snapshot.patientId);
-  expect(textField(completed, "encounterId"), "完成响应必须绑定本轮就诊").toBe(options.snapshot.encounterId);
-  expect(textField(completed, "completionReason") ?? "", "完成说明必须持久化").toContain("不控制设备");
+  expect(textField(completed, "sourceId"), "完成响应必须绑定本轮推荐卡").toBe(
+    options.recommendation.cardId,
+  );
+  expect(textField(completed, "patientId"), "完成响应必须绑定本轮患者").toBe(
+    options.snapshot.patientId,
+  );
+  expect(textField(completed, "encounterId"), "完成响应必须绑定本轮就诊").toBe(
+    options.snapshot.encounterId,
+  );
+  expect(textField(completed, "completionReason") ?? "", "完成说明必须持久化").toContain(
+    "不控制设备",
+  );
   await expect(completeDialog).toBeHidden({ timeout: 20_000 });
   return {
     todoId,
@@ -1584,6 +1926,7 @@ async function attachCriticalEmergencyIcuEvidence(
     recommendation: unknown;
     manualEscalation: unknown;
     escalationTodo: unknown;
+    rollbackNegativeEvidence: RuntimeRollbackNegativeEvidence;
     observedStages: Set<string>;
   },
 ) {
@@ -1624,6 +1967,7 @@ async function attachCriticalEmergencyIcuEvidence(
         recommendation: evidence.recommendation,
         manualEscalation: evidence.manualEscalation,
         escalationTodo: evidence.escalationTodo,
+        rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
         scenarioEvidence: [
           { code: "S19", observedStages: requiredStages.S19 },
           { code: "S24", observedStages: requiredStages.S24 },
@@ -1739,7 +2083,10 @@ async function readRecommendationTriggerDiagnose(page: Page, triggerId: string) 
 }
 
 async function localRehearsalHospitalId(page: Page) {
-  const response = await getApi(page, "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20");
+  const response = await getApi(
+    page,
+    "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20",
+  );
   await expectOk(response, "读取本地上线演练医院");
   const hospital = pageItems(await responseData(response)).find(
     (item) =>
@@ -1749,7 +2096,10 @@ async function localRehearsalHospitalId(page: Page) {
   return requireText(textField(hospital, "id"), "必须找到本地上线演练医院");
 }
 
-function assertRuntimeContainsAsset(detail: RuntimeReleaseDetail, expected: CriticalAssetCandidate) {
+function assertRuntimeContainsAsset(
+  detail: RuntimeReleaseDetail,
+  expected: CriticalAssetCandidate,
+) {
   const matched = (detail.items ?? []).find(
     (item) =>
       item.assetType === expected.assetType &&
@@ -1777,6 +2127,59 @@ function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
   return Array.from(byKey.values());
 }
 
+function runtimeReadbackEvidence(value: unknown) {
+  const evidence = {
+    releaseId: requireText(
+      textFieldAtPath(value, "release.releaseId"),
+      "current runtime 必须返回 releaseId",
+    ),
+    revisionNo: numberFieldAtPath(value, "release.revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textFieldAtPath(value, "release.manifestSha256"),
+      "current runtime 必须返回 manifestSha256",
+    ),
+    assets: pageItems(value) as RuntimeReleaseItem[],
+  };
+  expect(evidence.revisionNo, "current runtime 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "current runtime 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function runtimeConsumerReadbackEvidence(value: unknown) {
+  const evidence = {
+    contractVersion: "v1" as const,
+    releaseId: requireText(textField(value, "releaseId"), "runtime consumer 必须返回 releaseId"),
+    revisionNo: numberField(value, "revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textField(value, "manifestSha256"),
+      "runtime consumer 必须返回 manifestSha256",
+    ),
+    assets: arrayField(value, "assets") as RuntimeReleaseItem[],
+  };
+  expect(textField(value, "contractVersion"), "runtime consumer 必须返回 v1 契约").toBe("v1");
+  expect(evidence.revisionNo, "runtime consumer 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "runtime consumer 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function assertAssetsRemoved(
+  assets: RuntimeReleaseItem[],
+  removedAssets: RuntimeAssetSelection[],
+  label: string,
+) {
+  for (const removed of removedAssets) {
+    expect(
+      assets.some(
+        (asset) =>
+          asset.assetType === removed.assetType &&
+          asset.assetIdentity === removed.assetIdentity &&
+          asset.versionId === removed.versionId,
+      ),
+      `${label} 不应继续包含本轮 ${removed.assetType}:${removed.assetIdentity}`,
+    ).toBe(false);
+  }
+}
+
 function currentEpochSeconds() {
   return String(Math.floor(Date.now() / 1000));
 }
@@ -1802,7 +2205,9 @@ async function waitForPost(page: Page, pathIncludes: string) {
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
   const field = dialog.getByRole("combobox", { name: label }).first();
   const selector = field
-    .locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]")
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]",
+    )
     .first()
     .locator(".ant-select-selector")
     .first();

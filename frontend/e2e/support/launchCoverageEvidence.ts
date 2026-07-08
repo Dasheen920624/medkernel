@@ -208,6 +208,19 @@ const versionedAssetSupplyChainMatrixClaims = [
   "versionedAssetSupplyChainMatrix:THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE",
 ];
 
+const versionedAssetRollbackRepresentativeMatrixClaims = [
+  "versionedAssetRollbackRepresentativeMatrix:GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE",
+];
+
+const requiredVersionedAssetRollbackRepresentativeAssets = [
+  "SAFETY",
+  "CDSS_RISK",
+  "VALUE_SET",
+  "FORMULA",
+  "PATHWAY",
+  "ORDER_SET",
+];
+
 const standardPatientResourceMatrixAttachmentNames: Record<string, string> = {
   "medication-safety-frontdesk.spec.ts": "medication-safety-frontdesk-codes",
   "pharmacy-review-antimicrobial-frontdesk.spec.ts":
@@ -948,6 +961,12 @@ export function buildBrowserE2eLaunchEvidence(input: {
   if (versionedAssetSupplyChainClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, versionedAssetSupplyChainClaims, generatedAt);
   }
+  const versionedAssetRollbackClaims = collectVersionedAssetRollbackRepresentativeClaims(
+    input.tests,
+  );
+  if (versionedAssetRollbackClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, versionedAssetRollbackClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -1149,6 +1168,82 @@ function collectVersionedAssetSupplyChainMatrixClaims(tests: BrowserE2eTestResul
       .filter((asset) => knownGaps.has(asset))
       .map((asset) => `versionedAssetKnownGaps:${asset}`),
   ];
+}
+
+function collectVersionedAssetRollbackRepresentativeClaims(tests: BrowserE2eTestResult[]) {
+  const representativeAssets = new Set<string>();
+
+  collectRollbackNegativeAssetsFromAttachment(
+    tests,
+    "cdss-runtime-declarative-assets.spec.ts",
+    "cdss-runtime-declarative-assets-codes",
+  )
+    .filter((asset) => ["VALUE_SET", "FORMULA"].includes(asset))
+    .forEach((asset) => representativeAssets.add(asset));
+  collectRollbackNegativeAssetsFromAttachment(
+    tests,
+    "medication-safety-frontdesk.spec.ts",
+    "medication-safety-frontdesk-codes",
+  )
+    .filter((asset) => ["SAFETY", "CDSS_RISK"].includes(asset))
+    .forEach((asset) => representativeAssets.add(asset));
+  collectRollbackNegativeAssetsFromAttachment(
+    tests,
+    "critical-emergency-icu-frontdesk.spec.ts",
+    "critical-emergency-icu-frontdesk-codes",
+  )
+    .filter((asset) => asset === "PATHWAY")
+    .forEach((asset) => representativeAssets.add(asset));
+  collectRollbackNegativeAssetsFromAttachment(
+    tests,
+    "pathway-lifecycle-frontdesk.spec.ts",
+    "pathway-lifecycle-scenario-codes",
+  )
+    .filter((asset) => asset === "ORDER_SET")
+    .forEach((asset) => representativeAssets.add(asset));
+
+  if (
+    !requiredVersionedAssetRollbackRepresentativeAssets.every((asset) =>
+      representativeAssets.has(asset),
+    )
+  ) {
+    return [];
+  }
+  return [
+    ...versionedAssetRollbackRepresentativeMatrixClaims,
+    ...requiredVersionedAssetRollbackRepresentativeAssets.map(
+      (asset) => `versionedAssetRollbackRepresentativeRows:${asset}`,
+    ),
+  ];
+}
+
+function collectRollbackNegativeAssetsFromAttachment(
+  tests: BrowserE2eTestResult[],
+  fileName: string,
+  attachmentName: string,
+) {
+  const assets = new Set<string>();
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== fileName ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    const attachment = test.attachments.find((item) => item.name === attachmentName);
+    if (!attachment?.body) continue;
+    try {
+      const parsed = JSON.parse(attachment.body) as { rollbackNegativeEvidence?: unknown };
+      parseRollbackNegativeEvidence(parsed.rollbackNegativeEvidence).forEach((asset) =>
+        assets.add(asset),
+      );
+    } catch {
+      continue;
+    }
+  }
+  return Array.from(assets);
 }
 
 function hasPassingAttachmentTest(
@@ -8753,6 +8848,56 @@ function runtimeReleasePayloadExcludesCandidate(
   const payload = value as Record<string, unknown>;
   if (payload.localCandidateAbsent !== true || !Array.isArray(payload.assets)) return false;
   return !payload.assets.some((item) => runtimeReleaseAssetMatchesIdentity(item, candidate));
+}
+
+function parseRollbackNegativeEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  if (
+    !evidence ||
+    evidence.rollbackPosted !== true ||
+    evidence.currentRuntimeReadbackVerified !== true ||
+    evidence.runtimeConsumerReadbackVerified !== true ||
+    evidence.consumerProbeMatchedRemovedAssets !== false ||
+    !hasText(evidence.consumer) ||
+    !Array.isArray(evidence.removedAssets)
+  ) {
+    return [];
+  }
+  const removedAssets = evidence.removedAssets
+    .map((item) => parseRuntimeReleaseCandidate(item))
+    .filter(
+      (candidate): candidate is { assetType: string; assetIdentity: string; versionId: string } =>
+        candidate !== null,
+    );
+  if (removedAssets.length === 0) return [];
+  const currentRuntime = recordValue(evidence.currentRuntime);
+  const runtimeConsumer = recordValue(evidence.runtimeConsumer);
+  if (
+    !runtimeReadbackExcludesCandidates(currentRuntime, removedAssets) ||
+    !runtimeReadbackExcludesCandidates(runtimeConsumer, removedAssets)
+  ) {
+    return [];
+  }
+  return Array.from(new Set(removedAssets.map((asset) => asset.assetType)));
+}
+
+function runtimeReadbackExcludesCandidates(
+  value: Record<string, unknown> | null,
+  candidates: Array<{ assetType: string; assetIdentity: string; versionId: string }>,
+) {
+  if (
+    !value ||
+    !hasText(value.releaseId) ||
+    typeof value.revisionNo !== "number" ||
+    value.revisionNo < 1 ||
+    !isSha256(value.manifestSha256) ||
+    !Array.isArray(value.assets)
+  ) {
+    return false;
+  }
+  return candidates.every(
+    (candidate) => !runtimeReleasePayloadContainsCandidate(value, "assets", candidate),
+  );
 }
 
 function runtimeReleaseAssetMatchesCandidate(

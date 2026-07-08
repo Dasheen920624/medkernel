@@ -45,6 +45,28 @@ type RuntimeReleaseDetail = {
   items?: RuntimeReleaseItem[];
 };
 
+type RuntimeRollbackNegativeEvidence = {
+  rollbackPosted: boolean;
+  currentRuntimeReadbackVerified: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  consumer: string;
+  consumerProbeMatchedRemovedAssets: boolean;
+  removedAssets: RuntimeAssetSelection[];
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+  runtimeConsumer: {
+    contractVersion: "v1";
+    releaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+    assets: RuntimeReleaseItem[];
+  };
+};
+
 type MedicationSafetyAssetCandidate = {
   assetType: "SAFETY" | "CDSS_RISK" | "RULE";
   assetIdentity: string;
@@ -225,6 +247,16 @@ test.describe("用药安全代表切片真实前台闭环", () => {
     apiEvidence.physicianConfirmationRecorded = true;
     recordStage(observedStages, "药师登记红线复核且不关闭医生确认链路");
     recordStage(observedStages, "医生逐条确认采纳，系统不自动开嘱");
+    const rollbackNegativeEvidence = await rollbackRuntimeAndAssertAssetsRemoved(page, {
+      hospitalId,
+      targetReleaseId: runtime.previousReleaseId,
+      consumer: "MEDICATION_SAFETY_RULE",
+      removedAssets: [
+        runtimeSelection(candidates.safety),
+        runtimeSelection(candidates.cdssRisk),
+        runtimeSelection(candidates.rule),
+      ],
+    });
 
     await attachMedicationSafetyEvidence(testInfo, {
       apiEvidence,
@@ -251,6 +283,7 @@ test.describe("用药安全代表切片真实前台闭环", () => {
       recommendation,
       ruleRecommendation: recommendation.ruleRecommendation,
       feedback,
+      rollbackNegativeEvidence,
       observedStages,
     });
   });
@@ -462,13 +495,13 @@ async function createMedicationSafetyTerminologyGate(
   const coverageBeforeCandidate = await readMedicationSafetyTerminologyCoverage(page);
   const mapping =
     coverageBeforeCandidate.status === "COVERED"
-        ? await readConfirmedMedicationSafetyTermMapping(page, { sourceSystem, standardTermId })
-        : await generateAndConfirmMedicationSafetyTermMapping(page, {
-            suffix,
-            sourceSystem,
-            localCode,
-            standardTermId: typeof standardTermId === "number" ? standardTermId : null,
-          });
+      ? await readConfirmedMedicationSafetyTermMapping(page, { sourceSystem, standardTermId })
+      : await generateAndConfirmMedicationSafetyTermMapping(page, {
+          suffix,
+          sourceSystem,
+          localCode,
+          standardTermId: typeof standardTermId === "number" ? standardTermId : null,
+        });
 
   const assetIdentity = `TERM.DRUG.MEDICATION.SAFETY.${suffix}`;
   const draft = await postApi(page, "/engine/terminology/assets/drafts", {
@@ -544,7 +577,12 @@ async function readConfirmedMedicationSafetyTermMapping(
 
 async function generateAndConfirmMedicationSafetyTermMapping(
   page: Page,
-  options: { suffix: string; sourceSystem: string; localCode: string; standardTermId: number | null },
+  options: {
+    suffix: string;
+    sourceSystem: string;
+    localCode: string;
+    standardTermId: number | null;
+  },
 ) {
   const generation = await postApi(page, "/engine/terminology/mappings/candidates", {
     ...terminologyApiContext(options.suffix, "candidates"),
@@ -586,7 +624,12 @@ async function generateAndConfirmMedicationSafetyTermMapping(
 
 async function waitForMedicationSafetyTerminologyCandidate(
   page: Page,
-  options: { jobCode: string; sourceSystem: string; localCode: string; standardTermId: number | null },
+  options: {
+    jobCode: string;
+    sourceSystem: string;
+    localCode: string;
+    standardTermId: number | null;
+  },
 ) {
   const deadline = Date.now() + 20_000;
   let lastStatus = "PENDING";
@@ -952,7 +995,65 @@ async function activateRuntimeWithMedicationSafetyAssets(
     safetyAsset,
     cdssRiskAsset,
     ruleAsset,
+    previousReleaseId: currentReleaseId,
     activationRequest,
+  };
+}
+
+async function rollbackRuntimeAndAssertAssetsRemoved(
+  page: Page,
+  options: {
+    hospitalId: string;
+    targetReleaseId: string | null;
+    consumer: string;
+    removedAssets: RuntimeAssetSelection[];
+  },
+): Promise<RuntimeRollbackNegativeEvidence> {
+  const targetReleaseId = requireText(
+    options.targetReleaseId,
+    "用药安全回滚负向证据必须有演练前机构生效版本",
+  );
+  await ensureReadySession(page, "engine-operator");
+  const rollback = await postApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases:rollback`,
+    { targetReleaseId },
+  );
+  await expectOk(rollback, "回滚 P0 用药安全机构生效版本");
+  const current = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases/current`,
+  );
+  await expectOk(current, "回读 P0 用药安全回滚后机构生效版本");
+  const currentRuntime = runtimeReadbackEvidence(await responseData(current));
+  assertAssetsRemoved(currentRuntime.assets, options.removedAssets, "回滚后 current runtime");
+
+  const consumer = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
+  await expectOk(consumer, "读取 P0 用药安全回滚后第三方运行契约");
+  const runtimeConsumer = runtimeConsumerReadbackEvidence(await responseData(consumer));
+  assertAssetsRemoved(runtimeConsumer.assets, options.removedAssets, "回滚后第三方运行契约");
+  expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
+    currentRuntime.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约 revisionNo 必须与 current 一致").toBe(
+    currentRuntime.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约 manifestSha256 必须与 current 一致").toBe(
+    currentRuntime.manifestSha256,
+  );
+
+  return {
+    rollbackPosted: true,
+    currentRuntimeReadbackVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    consumer: options.consumer,
+    consumerProbeMatchedRemovedAssets: false,
+    removedAssets: options.removedAssets,
+    currentRuntime,
+    runtimeConsumer,
   };
 }
 
@@ -1463,6 +1564,7 @@ async function attachMedicationSafetyEvidence(
       safetyAsset: RuntimeReleaseItem | null;
       cdssRiskAsset: RuntimeReleaseItem | null;
       ruleAsset: RuntimeReleaseItem | null;
+      previousReleaseId: string | null;
     };
     activationRequest: unknown;
     clinicalContext: unknown;
@@ -1470,6 +1572,7 @@ async function attachMedicationSafetyEvidence(
     recommendation: unknown;
     ruleRecommendation: unknown;
     feedback: unknown;
+    rollbackNegativeEvidence: RuntimeRollbackNegativeEvidence;
     observedStages: Set<string>;
   },
 ) {
@@ -1574,6 +1677,7 @@ async function attachMedicationSafetyEvidence(
         recommendation: evidence.recommendation,
         ruleRecommendation: evidence.ruleRecommendation,
         feedback: evidence.feedback,
+        rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
         scenarioEvidence: [
           {
             code: "S5",
@@ -1697,6 +1801,59 @@ function runtimeSelection(candidate: RuntimeAssetCandidate): RuntimeAssetSelecti
     assetIdentity: candidate.assetIdentity,
     versionId: candidate.versionId,
   };
+}
+
+function runtimeReadbackEvidence(value: unknown) {
+  const evidence = {
+    releaseId: requireText(
+      textFieldAtPath(value, "release.releaseId"),
+      "current runtime 必须返回 releaseId",
+    ),
+    revisionNo: numberFieldAtPath(value, "release.revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textFieldAtPath(value, "release.manifestSha256"),
+      "current runtime 必须返回 manifestSha256",
+    ),
+    assets: pageItems(value) as RuntimeReleaseItem[],
+  };
+  expect(evidence.revisionNo, "current runtime 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "current runtime 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function runtimeConsumerReadbackEvidence(value: unknown) {
+  const evidence = {
+    contractVersion: "v1" as const,
+    releaseId: requireText(textField(value, "releaseId"), "runtime consumer 必须返回 releaseId"),
+    revisionNo: numberField(value, "revisionNo") ?? 0,
+    manifestSha256: requireText(
+      textField(value, "manifestSha256"),
+      "runtime consumer 必须返回 manifestSha256",
+    ),
+    assets: arrayField(value, "assets") as RuntimeReleaseItem[],
+  };
+  expect(textField(value, "contractVersion"), "runtime consumer 必须返回 v1 契约").toBe("v1");
+  expect(evidence.revisionNo, "runtime consumer 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "runtime consumer 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function assertAssetsRemoved(
+  assets: RuntimeReleaseItem[],
+  removedAssets: RuntimeAssetSelection[],
+  label: string,
+) {
+  for (const removed of removedAssets) {
+    expect(
+      assets.some(
+        (asset) =>
+          asset.assetType === removed.assetType &&
+          asset.assetIdentity === removed.assetIdentity &&
+          asset.versionId === removed.versionId,
+      ),
+      `${label} 不应继续包含本轮 ${removed.assetType}:${removed.assetIdentity}`,
+    ).toBe(false);
+  }
 }
 
 function assertRuntimeContainsAsset(
