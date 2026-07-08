@@ -26,6 +26,10 @@ const runtimeReleaseVersionedAssets = [
   "ACTION_CARD",
 ];
 
+const versionedAssetRepresentativeRows = runtimeReleaseVersionedAssets.filter(
+  (asset) => asset !== "EVALUATION",
+);
+
 const runtimeReleaseApiEvidence = {
   impactSimulationRun: true,
   activationPosted: true,
@@ -4805,6 +4809,192 @@ function expectNoKnowledgeOperationsEntryCoreActionsCoverage(body: Record<string
   expect(evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions).toBeUndefined();
 }
 
+function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    scenarioCodes: ["S6"],
+    productLayers: ["CLINICAL_EXECUTION"],
+    versionedAssets: ["ORDER_SET"],
+    serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
+    specialDiseaseStages: [
+      "SCREENING_TRIAGE",
+      "DIAGNOSIS_DIFFERENTIAL",
+      "RISK_STRATIFICATION",
+      "TREATMENT_DECISION",
+      "EXECUTION_CANDIDATE",
+      "MONITORING_WARNING",
+      "DISCHARGE_REFERRAL",
+      "REHAB_EDUCATION_FOLLOWUP",
+      "OUTCOME_EVALUATION",
+      "QUALITY_ITERATION",
+    ],
+    apiEvidence: {
+      templateSaved: true,
+      templateReadback: true,
+      draftPreviewRun: true,
+      templateSimulated: true,
+      entryCandidatesRead: true,
+      patientEntered: true,
+      standardAdvanced: true,
+      orderSetRuntimeConsumed: true,
+      varianceRecorded: true,
+      followupHandoffCreated: true,
+      clocksRead: true,
+      variancesRead: true,
+      followupHandoffObserved: true,
+    },
+    orderSetRuntimeConsumer: {
+      asset: {
+        assetType: "ORDER_SET",
+        assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
+        versionId: "av-order-set-s6",
+        versionNo: "V1",
+        contentHash: "a".repeat(64),
+      },
+      runtimeRelease: {
+        releaseId: "runtime-s6",
+        assetPresent: true,
+        assets: [
+          {
+            assetType: "ORDER_SET",
+            assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
+            versionId: "av-order-set-s6",
+          },
+        ],
+      },
+      patientPathway: {
+        runtimeReleaseId: "runtime-s6",
+      },
+      advanceResponse: {
+        previousNodeCode: "ASSESS",
+        nextNodeCode: "FOLLOWUP",
+        status: "NODE_EXECUTING",
+        decisionEvidence: {
+          "pathway.currentNodeType": "ORDER_SET",
+          "pathway.orderSetRef": "ORDER_SET.S6.COPD.RECHECK",
+          "pathway.orderSetVersion": "V1",
+          "pathway.orderSetHash": "a".repeat(64),
+          "pathway.orderSetRequiresPhysicianConfirmation": true,
+          "pathway.orderSetItemCount": 1,
+          "pathway.orderSetItems": [
+            {
+              itemType: "LAB",
+              codeSystem: "LOCAL-E2E",
+              code: "COPD-ABG",
+              display: "血气分析复查",
+              required: true,
+            },
+          ],
+        },
+      },
+    },
+    scenarioEvidence: [
+      {
+        code: "S6",
+        observedStages: [
+          "前台创建专病路径草稿并保存节点边时钟",
+          "后端回读路径节点边时钟与十阶段里程碑",
+          "前台使用真实 ACTIVE 快照完成草稿试运行",
+          "真实服务链路对已保存路径执行仿真",
+          "临床用户基于当前机构生效版本读取入径候选",
+          "临床用户办理患者入径并生成首个关键时钟",
+          "临床用户完成当前节点并标准推进",
+          "临床用户推进到医嘱套餐节点并消费当前机构生效版本 ORDER_SET",
+          "真实后端登记路径变异与处置决策",
+          "真实后端完成随访接续终点节点",
+          "后端回读关键时钟和变异事实",
+          "路径完成后生成随访接续证据",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function versionedAssetSupplyChainMatrixTests(
+  options: {
+    omitFiles?: string[];
+    bodyOverrides?: Record<string, Record<string, unknown>>;
+  } = {},
+) {
+  const omitFiles = new Set(options.omitFiles ?? []);
+  const definitions = [
+    {
+      file: "runtime-release-frontdesk.spec.ts",
+      title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+      attachmentName: "runtime-release-coverage-codes",
+      body: runtimeReleaseCompleteEvidence(),
+    },
+    {
+      file: "knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts",
+      title: "知识运营资产入口族完成真实前台供给链代表矩阵",
+      attachmentName: "knowledge-operations-asset-entry-core-actions-codes",
+      body: knowledgeOperationsAssetEntryCoreActionsEvidence,
+    },
+    {
+      file: "s2-s4-terminology-integration-rehearsal.spec.ts",
+      title: "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
+      attachmentName: "s2-s4-runtime-mapping-codes",
+      body: s2s4RuntimeMappingEvidence(),
+    },
+    {
+      file: "cdss-runtime-declarative-assets.spec.ts",
+      title: "临床用户从真实前台触发 CDSS 推荐并消费当前机构生效版本声明式运行资产",
+      attachmentName: "cdss-runtime-declarative-assets-codes",
+      body: cdssRuntimeDeclarativeAssets,
+    },
+    {
+      file: "medication-safety-frontdesk.spec.ts",
+      title: "临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环",
+      attachmentName: "medication-safety-frontdesk-codes",
+      body: medicationSafetyFrontdeskEvidence,
+    },
+    {
+      file: "diagnostic-critical-value-frontdesk.spec.ts",
+      title: "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
+      attachmentName: "diagnostic-critical-value-frontdesk-codes",
+      body: diagnosticCriticalValueEvidence,
+    },
+    {
+      file: "nursing-continuity-frontdesk.spec.ts",
+      title: "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
+      attachmentName: "nursing-continuity-frontdesk-codes",
+      body: nursingContinuityEvidence,
+    },
+    {
+      file: "critical-emergency-icu-frontdesk.spec.ts",
+      title: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
+      attachmentName: "critical-emergency-icu-frontdesk-codes",
+      body: criticalEmergencyIcuEvidence,
+    },
+    {
+      file: "pathway-lifecycle-frontdesk.spec.ts",
+      title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+      attachmentName: "pathway-lifecycle-scenario-codes",
+      body: pathwayLifecycleEvidence(),
+    },
+    {
+      file: "quality-management-entry-core-actions-rehearsal.spec.ts",
+      title: "质量管理入口完成真实前台核心动作代表矩阵",
+      attachmentName: "quality-management-entry-core-actions-codes",
+      body: qualityManagementEntryCoreActionsEvidence,
+    },
+  ];
+  return definitions
+    .filter((definition) => !omitFiles.has(definition.file))
+    .map((definition) => ({
+      file: `/repo/frontend/e2e/${definition.file}`,
+      title: definition.title,
+      status: "passed" as const,
+      attachments: [
+        {
+          name: definition.attachmentName,
+          contentType: "application/json",
+          body: JSON.stringify(options.bodyOverrides?.[definition.file] ?? definition.body),
+        },
+      ],
+    }));
+}
+
 function platformAdminEntryCoreActionSpecFile(menuKey: string) {
   const files: Record<string, string> = {
     "tenant-onboarding": "service-organization-frontdesk.spec.ts",
@@ -9295,6 +9485,142 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares a gap-aware 13 asset supply-chain matrix only from cross-spec real evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests(),
+    });
+
+    expect(
+      evidence.launchCoverage.versionedAssetSupplyChainMatrix?.map((item) => item.code),
+    ).toEqual(["THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.versionedAssetRepresentativeRows?.map((item) => item.code),
+    ).toEqual(versionedAssetRepresentativeRows);
+    expect(evidence.launchCoverage.versionedAssetKnownGaps?.map((item) => item.code)).toEqual([
+      "EVALUATION",
+    ]);
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without EVALUATION production evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        omitFiles: ["quality-management-entry-core-actions-rehearsal.spec.ts"],
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without runtime release rollback evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        omitFiles: ["runtime-release-frontdesk.spec.ts"],
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without declarative runtime asset evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        omitFiles: ["cdss-runtime-declarative-assets.spec.ts"],
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without FOLLOWUP runtime evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        omitFiles: ["nursing-continuity-frontdesk.spec.ts"],
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without SAFETY/CDSS_RISK runtime evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        omitFiles: ["medication-safety-frontdesk.spec.ts"],
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix when FORMULA is missing from declarative asset evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "cdss-runtime-declarative-assets.spec.ts": {
+            ...cdssRuntimeDeclarativeAssets,
+            versionedAssets: ["VALUE_SET", "ACTION_CARD"],
+          },
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without ORDER_SET runtime consumer evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "pathway-lifecycle-frontdesk.spec.ts": pathwayLifecycleEvidence({
+            orderSetRuntimeConsumer: undefined,
+          }),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("does not declare the 13 asset supply-chain matrix when knowledge scope overclaims complete production", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts": {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+            scopeStatement:
+              "知识运营资产入口族供给链代表矩阵，13 类医学资产全部生产闭环已完成，不代表完整上线验收。",
+          },
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
   });
 
   it("does not declare clinical entry coverage from platform-admin entry matrices", () => {

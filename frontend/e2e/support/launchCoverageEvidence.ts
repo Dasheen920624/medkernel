@@ -204,6 +204,10 @@ const standardPatientResourceRepresentativeRowClaims = requiredStandardPatientRe
   (code) => `standardPatientResourceRepresentativeRows:${code}`,
 );
 
+const versionedAssetSupplyChainMatrixClaims = [
+  "versionedAssetSupplyChainMatrix:THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE",
+];
+
 const standardPatientResourceMatrixAttachmentNames: Record<string, string> = {
   "medication-safety-frontdesk.spec.ts": "medication-safety-frontdesk-codes",
   "pharmacy-review-antimicrobial-frontdesk.spec.ts":
@@ -940,6 +944,10 @@ export function buildBrowserE2eLaunchEvidence(input: {
       generatedAt,
     );
   }
+  const versionedAssetSupplyChainClaims = collectVersionedAssetSupplyChainMatrixClaims(input.tests);
+  if (versionedAssetSupplyChainClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, versionedAssetSupplyChainClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -1050,6 +1058,112 @@ function hasCompleteStandardPatientResourceConsumerMatrix(tests: BrowserE2eTestR
     }
   }
   return requiredStandardPatientResourceTypes.every((type) => observedResources.has(type));
+}
+
+function collectVersionedAssetSupplyChainMatrixClaims(tests: BrowserE2eTestResult[]) {
+  const hasRuntimeRelease = hasPassingAttachmentTest(
+    tests,
+    "runtime-release-frontdesk.spec.ts",
+    (test) => hasRequiredRuntimeReleaseAttachment(test),
+  );
+  const hasKnowledgeOperations =
+    hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(tests);
+  if (!hasRuntimeRelease || !hasKnowledgeOperations) return [];
+
+  const representativeAssets = new Set<string>();
+  const knownGaps = new Set<string>();
+
+  if (
+    hasPassingAttachmentTest(tests, "s2-s4-terminology-integration-rehearsal.spec.ts", (test) =>
+      hasRequiredS2S4RuntimeMappingAttachment(test),
+    )
+  ) {
+    representativeAssets.add("TERMINOLOGY");
+  }
+  if (
+    hasPassingAttachmentTest(tests, "cdss-runtime-declarative-assets.spec.ts", (test) =>
+      hasRequiredCdssDeclarativeRuntimeAssetAttachment(test),
+    )
+  ) {
+    ["VALUE_SET", "FORMULA", "ACTION_CARD"].forEach((asset) => representativeAssets.add(asset));
+  }
+  if (
+    hasPassingAttachmentTest(tests, "medication-safety-frontdesk.spec.ts", (test) =>
+      hasRequiredMedicationSafetyFrontdeskAttachment(test),
+    )
+  ) {
+    ["SAFETY", "CDSS_RISK", "RULE"].forEach((asset) => representativeAssets.add(asset));
+  }
+  if (
+    hasPassingAttachmentTest(tests, "diagnostic-critical-value-frontdesk.spec.ts", (test) =>
+      hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test),
+    )
+  ) {
+    ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"].forEach((asset) =>
+      representativeAssets.add(asset),
+    );
+  }
+  if (
+    hasPassingAttachmentTest(tests, "nursing-continuity-frontdesk.spec.ts", (test) =>
+      hasRequiredNursingContinuityFrontdeskAttachment(test),
+    )
+  ) {
+    representativeAssets.add("FOLLOWUP");
+  }
+  if (
+    hasPassingAttachmentTest(tests, "critical-emergency-icu-frontdesk.spec.ts", (test) =>
+      hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test),
+    )
+  ) {
+    ["TERMINOLOGY", "CDSS_RISK", "RULE", "PATHWAY", "ACTION_CARD"].forEach((asset) =>
+      representativeAssets.add(asset),
+    );
+  }
+  if (
+    hasPassingAttachmentTest(tests, "pathway-lifecycle-frontdesk.spec.ts", (test) =>
+      hasRequiredPathwayLifecycleAttachment(test),
+    )
+  ) {
+    representativeAssets.add("ORDER_SET");
+  }
+  if (hasRequiredQualityManagementEntryCoreActionsAttachment(tests)) {
+    knownGaps.add("EVALUATION");
+  }
+
+  for (const asset of representativeAssets) {
+    knownGaps.delete(asset);
+  }
+  if (
+    !requiredRuntimeReleaseVersionedAssets.every(
+      (asset) => representativeAssets.has(asset) || knownGaps.has(asset),
+    )
+  ) {
+    return [];
+  }
+  return [
+    ...versionedAssetSupplyChainMatrixClaims,
+    ...requiredRuntimeReleaseVersionedAssets
+      .filter((asset) => representativeAssets.has(asset))
+      .map((asset) => `versionedAssetRepresentativeRows:${asset}`),
+    ...requiredRuntimeReleaseVersionedAssets
+      .filter((asset) => knownGaps.has(asset))
+      .map((asset) => `versionedAssetKnownGaps:${asset}`),
+  ];
+}
+
+function hasPassingAttachmentTest(
+  tests: BrowserE2eTestResult[],
+  fileName: string,
+  validator: (test: BrowserE2eTestResult) => boolean,
+) {
+  return tests.some(
+    (test) =>
+      path.basename(test.file) === fileName &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      Array.isArray(test.attachments) &&
+      validator(test),
+  );
 }
 
 function hasValidStandardPatientResourceMatrixHeader(matrix: Record<string, unknown>) {
@@ -1507,10 +1621,7 @@ const requiredKnowledgeOperationsAssetEntryActionServiceOperations: Record<strin
     "/api/v1/engine/terminology/terms/standard",
     "/api/v1/engine/terminology/mappings/candidates/confirm",
   ],
-  "rule-definitions": [
-    "/api/v1/engine/rule/rules",
-    "/api/v1/engine/rule/rules/{ruleId}/simulate",
-  ],
+  "rule-definitions": ["/api/v1/engine/rule/rules", "/api/v1/engine/rule/rules/{ruleId}/simulate"],
   "pathway-templates": [
     "/api/v1/engine/pathway/pathway-templates",
     "/api/v1/engine/pathway/pathway-templates/{templateId}/simulate",
@@ -1524,9 +1635,7 @@ const requiredKnowledgeOperationsAssetEntryActionServiceOperations: Record<strin
     "/api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria",
     "/api/v1/engine/knowledge/diagnosis/versions/{versionId}/test-cases",
   ],
-  provenance: [
-    "/api/v1/engine/knowledge/identities/{identityId}/provenance",
-  ],
+  provenance: ["/api/v1/engine/knowledge/identities/{identityId}/provenance"],
   "graph-explore": [
     "/api/v1/projections/knowledge-graph/rebuild",
     "/api/v1/projections/knowledge-graph/facts",
@@ -1577,9 +1686,7 @@ function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTes
   }
   return (
     sawAttachment &&
-    requiredPlatformAdminEntryCoreActionMenuKeys.every((menuKey) =>
-      actionsByMenuKey.has(menuKey),
-    )
+    requiredPlatformAdminEntryCoreActionMenuKeys.every((menuKey) => actionsByMenuKey.has(menuKey))
   );
 }
 
@@ -1641,9 +1748,7 @@ function hasRequiredPlatformAdminP1EntryCoreActionsAttachment(tests: BrowserE2eT
   }
   return (
     sawAttachment &&
-    requiredPlatformAdminP1EntryCoreActionMenuKeys.every((menuKey) =>
-      actionsByMenuKey.has(menuKey),
-    )
+    requiredPlatformAdminP1EntryCoreActionMenuKeys.every((menuKey) => actionsByMenuKey.has(menuKey))
   );
 }
 
@@ -1706,9 +1811,7 @@ function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResu
   );
 }
 
-function hasRequiredQualityManagementEntryCoreActionsAttachment(
-  tests: BrowserE2eTestResult[],
-) {
+function hasRequiredQualityManagementEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   const actionsByMenuKey = new Map<string, Record<string, unknown>>();
   let sawAttachment = false;
   for (const test of tests) {
@@ -2009,9 +2112,11 @@ function hasExpectedClinicalEntryCoreActionServiceOperation(
   serviceOperation: string | null,
 ) {
   if (!serviceOperation) return false;
-  return requiredClinicalEntryCoreActionServiceOperations[expectedMenuKey]?.every((expected) =>
-    serviceOperation.includes(expected),
-  ) === true;
+  return (
+    requiredClinicalEntryCoreActionServiceOperations[expectedMenuKey]?.every((expected) =>
+      serviceOperation.includes(expected),
+    ) === true
+  );
 }
 
 function hasExpectedQualityManagementEntryCoreActionServiceOperation(
@@ -2019,9 +2124,11 @@ function hasExpectedQualityManagementEntryCoreActionServiceOperation(
   serviceOperation: string | null,
 ) {
   if (!serviceOperation) return false;
-  return requiredQualityManagementEntryCoreActionServiceOperations[expectedMenuKey]?.every(
-    (expected) => serviceOperation.includes(expected),
-  ) === true;
+  return (
+    requiredQualityManagementEntryCoreActionServiceOperations[expectedMenuKey]?.every((expected) =>
+      serviceOperation.includes(expected),
+    ) === true
+  );
 }
 
 function hasExpectedKnowledgeOperationsAssetEntryActionServiceOperation(
@@ -2029,9 +2136,11 @@ function hasExpectedKnowledgeOperationsAssetEntryActionServiceOperation(
   serviceOperation: string | null,
 ) {
   if (!serviceOperation) return false;
-  return requiredKnowledgeOperationsAssetEntryActionServiceOperations[expectedMenuKey]?.every(
-    (expected) => serviceOperation.includes(expected),
-  ) === true;
+  return (
+    requiredKnowledgeOperationsAssetEntryActionServiceOperations[expectedMenuKey]?.every(
+      (expected) => serviceOperation.includes(expected),
+    ) === true
+  );
 }
 
 function hasCompleteKnowledgeOperationsFormalChain(value: unknown) {

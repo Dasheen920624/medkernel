@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十八批本地推进：继续按用户“允许使用子代理提升效率、前台演练要按全角色真实操作、知识只是全局一点、
+  不要片面优化”的要求，先收回两个只读子代理盘点和参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 结论。
+  盘点确认：134 已有受控来源、原文保存、解析、候选生成、审核发布、机构生效和运行消费骨架；13 类
+  `VersionedAssetType` 也已有统一 runtime 发布 / 激活 / 回滚底座和多条专项真实 E2E 代表消费证据，但仍不能宣称
+  “13 类医学资产逐类全部生产闭环”或“全知识供给链完整上线”。外部资料保险箱只可作受控准备，不是主项目第二套知识系统；
+  正式医学知识、术语、规则、路径、安全、公式、值集、医嘱套餐和动作卡仍必须回到 134 受控链路。
+- 第一百七十八批实现细节：在 `frontend/e2e/support/launchCoverageEvidence.ts` 新增收窄聚合门禁：
+  `versionedAssetSupplyChainMatrix:THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE` 只有在同一 E2E
+  报告内同时满足以下既有强证明附件时才声明：
+  `runtime-release-frontdesk.spec.ts` 的 13 类 runtime 闭包 / 第三方运行契约 / 回滚读回，
+  `knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts` 的 134 唯一正式链路与 11 入口供给链代表矩阵，
+  `quality-management-entry-core-actions-rehearsal.spec.ts` 的 `EVALUATION` 指标入口代表动作与已知缺口标识，
+  `s2-s4-terminology-integration-rehearsal.spec.ts` 的 `TERMINOLOGY` 标准 / 院内映射与入站归一消费，
+  `cdss-runtime-declarative-assets.spec.ts` 的 `VALUE_SET / FORMULA / ACTION_CARD` 声明式资产与 CDSS 运行消费，
+  `medication-safety-frontdesk.spec.ts` 的 `SAFETY / CDSS_RISK / RULE` 用药安全代表消费，
+  `diagnostic-critical-value-frontdesk.spec.ts` 的 `KNOWLEDGE / FIELD_CATALOG / ACTION_CARD` 医技报告代表消费，
+  `nursing-continuity-frontdesk.spec.ts` 的 `FOLLOWUP` 随访运行消费，
+  `critical-emergency-icu-frontdesk.spec.ts` 的 `PATHWAY / CDSS_RISK / RULE / ACTION_CARD` 急危重症代表消费，
+  `pathway-lifecycle-frontdesk.spec.ts` 的 `ORDER_SET` 专病路径运行消费者证据。新门禁复用现有
+  `hasRequired*Attachment` 强校验，不放宽任一单项附件规则；`versionedAssetRepresentativeRows:*` 只从明确专项
+  validator 派生，`EVALUATION` 当前不出代表 row，而是声明 `versionedAssetKnownGaps:EVALUATION`，避免把质量入口矩阵
+  冒领为评价资产逐类完整生产 / 发布 / runtime / 消费闭环。
+- 第一百七十八批测试与边界：`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 新增 13 类版本化资产供给链代表矩阵正向样例，
+  以及缺 `EVALUATION` 生产证据、缺通用 runtime release / 回滚证据、缺 `VALUE_SET / FORMULA / ACTION_CARD`
+  声明式运行资产证据、缺 `FOLLOWUP` 运行证据、缺 `SAFETY / CDSS_RISK` 运行证据、缺 `FORMULA` 单项证据、
+  缺 `ORDER_SET` 运行消费者证据、知识运营 scope 过度宣称“13 类医学资产全部生产闭环”等负向样例。本批只是把现有多条
+  真实 E2E 专项证据聚合成可机器拦截的 gap-aware 代表矩阵门禁，不代表完整上线、不是 134 清库部署复演、
+  不是 13 类医学资产逐类全部生产闭环、不是所有医学知识和术语体系已收集完成、不是完整全知识供给链、不是完整 S0-S40。
+- 第一百七十八批验证证据：按 TDD 先让新增正向用例红于
+  `versionedAssetSupplyChainMatrix` 未声明，再补聚合实现。收尾验证：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 通过（284 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；
+  `npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍只提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、
+  不暂存。只读审查子代理指出原方案把 13 类 row 直接从 runtime release 派生、会冒领 `EVALUATION`；已按反馈改为
+  gap-aware 矩阵和逐类专项 row 派生。
+- 第一百七十八批全局下一步：继续不要单点围绕知识扩张。优先按全局上线门禁推进：
+  1）把本批代表矩阵下钻为逐类资产专项负向门禁，尤其 `SAFETY`、`CDSS_RISK`、`VALUE_SET`、`FORMULA`、`PATHWAY`
+  和 `ORDER_SET` 回滚后运行消费不再命中的负向证据；2）给 `TERMINOLOGY`、`FIELD_CATALOG`、`PATHWAY`
+  补专用发布链 / 契约证据，避免只依赖通用 release 框架；3）继续全角色剩余入口真实前台操作、六态、分页筛选、
+  窄屏和高任务量体验复核；4）目标库迁移 smoke、公网模型 Provider 真实证据、134 清库 / 重部署仍按 deferred / destructive
+  规则推进，执行前必须再次取得用户明确确认。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、
+  不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十七批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、
   不要片面优化”的要求，读取参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 后仅把其结论作为证据输入：
   134 已有受控来源、原文保存、解析、候选生成、审核发布、机构生效和运行消费骨架，但外部资料线不能替代主项目，
