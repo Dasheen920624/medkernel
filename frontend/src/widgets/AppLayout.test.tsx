@@ -318,7 +318,7 @@ describe("AppLayout", () => {
     expect(screen.getByText("术语字典内容")).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(screen.getAllByRole("button")[0]);
+      fireEvent.click(screen.getByRole("button", { name: "打开主菜单" }));
       await Promise.resolve();
     });
 

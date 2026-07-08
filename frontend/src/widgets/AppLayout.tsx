@@ -502,6 +502,7 @@ export function AppLayout() {
           <Space className="mk-min-0">
             <Button
               type="text"
+              aria-label={isDesktop ? (collapsed ? "展开主菜单" : "收起主菜单") : "打开主菜单"}
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() =>
                 isDesktop ? setCollapsed(!collapsed) : setMobileMenuOpen((open) => !open)

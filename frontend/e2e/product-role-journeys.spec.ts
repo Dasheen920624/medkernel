@@ -1,7 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { PRODUCT_ROLE_JOURNEYS } from "../src/shared/config/productRoleJourneys";
-import { routeMetas } from "../src/shared/config/routes";
+import { routeMetas, type RouteMeta } from "../src/shared/config/routes";
 import {
   apiBase,
   ensureReadySession,
@@ -87,6 +87,8 @@ const routeByMenuKey = new Map(
     .filter((route) => route.menuKey)
     .map((route) => [route.menuKey as string, route]),
 );
+const interactionRoleFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_ROLES);
+const interactionMenuFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_MENU_KEYS);
 
 test.describe.configure({ mode: "serial" });
 
@@ -168,6 +170,28 @@ test.describe("四个客户职责角色任务旅程", () => {
               viewport: viewport.name,
               expectedMenus,
               roleMenuReachability,
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        ),
+      });
+    });
+
+    test(`${viewport.name} 下四职责真实菜单点击可达性`, async ({ page }, testInfo) => {
+      test.setTimeout(1_200_000);
+      const roleMenuInteractions = await openGrantedMenuEntriesThroughUi(page, viewport);
+
+      await testInfo.attach(`role-menu-interaction-codes-${viewport.name}`, {
+        contentType: "application/json",
+        body: Buffer.from(
+          JSON.stringify(
+            {
+              viewport: viewport.name,
+              expectedMenus,
+              roleMenuInteractions,
+              scope: "真实点击页头、个人菜单、桌面侧栏或移动抽屉入口；不代表每页核心业务动作已闭环。",
             },
             null,
             2,
@@ -279,6 +303,122 @@ async function openGrantedMenuRoutesForViewport(
   }
 
   return roleMenuReachability;
+}
+
+async function openGrantedMenuEntriesThroughUi(
+  page: Page,
+  viewport: (typeof menuReachabilityViewports)[number],
+) {
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  const roleMenuInteractions: Array<{
+    role: RoleAccount;
+    menuKey: string;
+    placement: RouteMeta["placement"];
+    path: string;
+    title: string;
+    status: "CLICKED";
+  }> = [];
+  const browserErrors = collectBrowserErrors(page);
+  const serverErrors = collectServerErrors(page);
+  const networkFailures = collectNetworkFailures(page);
+
+  for (const role of roleAccounts.filter((account) => shouldRunRoleInteraction(account))) {
+    await ensureReadySession(page, role);
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    await waitForMainContent(page, `${role} 真实点击初始工作台 · ${viewport.name}`);
+    for (const menuKey of expectedMenus[role].filter((key) => shouldRunMenuInteraction(key))) {
+      const route = routeByMenuKey.get(menuKey);
+      expect(route, `${role} 菜单 ${menuKey} 必须存在真实路由`).toBeDefined();
+      browserErrors.length = 0;
+      serverErrors.length = 0;
+      networkFailures.length = 0;
+
+      await openGrantedMenuEntryThroughUi(page, route, viewport);
+      await expect
+        .poll(() => new URL(page.url()).pathname, {
+          message: `${role} 菜单 ${menuKey} 应由真实入口点击进入目标路由`,
+        })
+        .toBe(route.path);
+      await waitForMainContent(page, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name}`);
+      await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+      await expectNoRootOverflow(page, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name}`);
+      expect(serverErrors, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生 HTTP 错误`).toEqual(
+        [],
+      );
+      expect(
+        networkFailures,
+        `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生网络失败`,
+      ).toEqual([]);
+      expect(browserErrors, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生浏览器错误`).toEqual(
+        [],
+      );
+
+      roleMenuInteractions.push({
+        role,
+        menuKey,
+        placement: route.placement,
+        path: route.path,
+        title: route.title,
+        status: "CLICKED",
+      });
+    }
+  }
+
+  return roleMenuInteractions;
+}
+
+function parseCsvSet(value: string | undefined) {
+  const items = value
+    ?.split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return items && items.length > 0 ? new Set(items) : null;
+}
+
+function shouldRunRoleInteraction(role: RoleAccount) {
+  return !interactionRoleFilter || interactionRoleFilter.has(role);
+}
+
+function shouldRunMenuInteraction(menuKey: string) {
+  return !interactionMenuFilter || interactionMenuFilter.has(menuKey);
+}
+
+async function openGrantedMenuEntryThroughUi(
+  page: Page,
+  route: RouteMeta | undefined,
+  viewport: (typeof menuReachabilityViewports)[number],
+) {
+  expect(route, "真实菜单点击必须绑定路由元数据").toBeDefined();
+  if (!route) {
+    return;
+  }
+  if (route.placement === "header") {
+    await page.getByRole("button", { name: route.menuLabel ?? route.title }).click();
+    return;
+  }
+  if (route.placement === "profile") {
+    await page.getByRole("button", { name: "当前用户菜单" }).click();
+    await page.getByRole("menuitem", { name: route.menuLabel ?? route.title }).click();
+    return;
+  }
+  expect(route.placement, `${route.menuKey} 必须是可点击客户入口`).toBe("primary");
+  if (viewport.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "打开主菜单" }).click();
+    const drawer = page.locator(".ant-drawer-content").filter({ hasText: "集团医疗智能中枢" });
+    await expect(drawer).toBeVisible();
+    await clickVisibleAntMenuItem(drawer.locator(".ant-menu-item"), route.menuLabel ?? route.title);
+    return;
+  }
+  await clickVisibleAntMenuItem(
+    page.locator(".ant-layout-sider .ant-menu-item"),
+    route.menuLabel ?? route.title,
+  );
+}
+
+async function clickVisibleAntMenuItem(menuItems: Locator, label: string) {
+  const item = menuItems.filter({ hasText: label }).first();
+  await expect(item, `应存在可点击菜单项：${label}`).toBeVisible({ timeout: 10_000 });
+  await item.click();
 }
 
 async function expectNoRootOverflow(page: Page, label: string) {

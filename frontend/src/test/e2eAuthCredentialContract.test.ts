@@ -1384,6 +1384,12 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('name: "mobile-390"');
     expect(e2eSource).toContain("openGrantedMenuRoutesForViewport");
     expect(e2eSource).toContain("授权路由直达可达性");
+    expect(e2eSource).toContain("真实菜单点击可达性");
+    expect(e2eSource).toContain("openGrantedMenuEntryThroughUi");
+    expect(e2eSource).toContain("route.placement");
+    expect(e2eSource).toContain("打开主菜单");
+    expect(e2eSource).toContain("当前用户菜单");
+    expect(e2eSource).toContain("role-menu-interaction-codes");
     expect(e2eSource).not.toContain("完整菜单入口均可由 canonical 账号真实打开");
     expect(e2eSource).toContain("routeByMenuKey.get(menuKey)");
     expect(e2eSource).toContain("await page.goto(route.path");

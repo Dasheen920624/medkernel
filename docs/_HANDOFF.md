@@ -10,6 +10,44 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十七批本地推进：继续按用户要求避免片面优化，把上一批“授权路由直达可达性”推进到
+  **四职责真实菜单点击可达性**。本批仍不是完整上线、不是 134 清库部署复演、不是完整 S0-S40、
+  也不是每页核心业务动作全闭环；本批专门补齐交接里点名未覆盖的桌面 SideMenu、移动抽屉、页头入口和个人菜单入口
+  的真实前台点击证据。`product-role-journeys.spec.ts` 新增 `真实菜单点击可达性` 用例：
+  对 `desktop-1440` 与 `mobile-390` 两个视口，四个 canonical 职责账号仍先读取真实会话和当前菜单画像，
+  然后按 `routeMetas.placement` 通过真实 UI 点击入口：`primary` 在桌面点击左侧菜单、移动端点击“打开主菜单”
+  后在抽屉中点击；`header` 点击页头“消息通知”；`profile` 点击“当前用户菜单”后点击“通知偏好”。
+  点击后校验停留目标路径、`main.mk-app-content`、无“当前权限不足”、无根横向溢出、无 HTTP 4xx/5xx、
+  无网络失败和浏览器错误，并产出 `role-menu-interaction-codes-*` 附件。修复过程中发现真实红点不在业务页面，
+  而在测试定位与可访问性：Ant Design 菜单项 DOM 具备 `role=menuitem`，但 Playwright 无法用可访问名称稳定匹配
+  “工作台”；已改为在可见 `.ant-menu-item` 容器内按菜单文本点击。移动端抽屉实际可见但 dialog accessible name
+  不是“集团医疗智能中枢”，已改为定位包含品牌文本的 `.ant-drawer-content`。同时 `AppLayout` 的主菜单按钮补中文
+  `aria-label`：桌面为“展开主菜单 / 收起主菜单”，移动为“打开主菜单”，并用 `AppLayout.test.tsx` 锁定移动按钮。
+  `e2eAuthCredentialContract.test.ts` 补静态护栏，要求角色旅程 E2E 保留路由直达证据之外，还必须有真实菜单点击、
+  `route.placement`、移动主菜单、当前用户菜单和 `role-menu-interaction-codes`。
+- 第一百六十七批验证证据：使用 18087 dev/H2 本地后端（`SPRING_PROFILES_ACTIVE=dev`，
+  `SERVER_PORT=18087 java -jar medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar`），健康检查
+  `http://localhost:18087/medkernel/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`；
+  独立 Vite 指向 `MEDKERNEL_API_PROXY_TARGET=http://localhost:18087`。红绿证据：
+  `npm --prefix frontend run test -- AppLayout -t "uses drawer navigation on mobile width"` 先红于找不到
+  “打开主菜单”，补 `aria-label` 后绿；`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+  "requires product-role journeys"` 先红于缺少“真实菜单点击可达性”，补 E2E 与契约后绿。定向验证：
+  `npm --prefix frontend run test -- AppLayout e2eAuthCredentialContract -t "uses drawer navigation on mobile width|requires product-role journeys"`
+  通过（2 files，2 selected，67 skipped）；`npm --prefix frontend run typecheck -- --pretty false` 通过。
+  目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_API_BASE_URL=http://localhost:18087/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18087 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-role-menu-interaction-full-20260708-r2 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts -g "真实菜单点击可达性"`
+  通过；`/tmp/medkernel-e2e-role-menu-interaction-full-20260708-r2/report/results.json` 为 `PASSED`
+  （2 expected，0 unexpected，0 flaky，0 skipped，duration=60058ms），附件
+  `role-menu-interaction-codes-desktop-1440` 与 `role-menu-interaction-codes-mobile-390` 均记录 49 次真实点击，
+  计数为 `platform-admin=13`、`engine-operator=21`、`clinical-user=9`、`auditor=6`。中间诊断还验证了三类入口形态
+  桌面 / 移动最小矩阵（`workbench`、`notifications`、`notification-settings`）均通过。`git diff --check`
+  退出码 0，但仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百六十七批边界与下一步：本批已补上桌面与移动真实菜单入口点击，不再只停留在路由直达；
+  但仍未证明完整 S0-S40、13 类版本化资产逐类真实消费者、13 类标准患者资源逐类真实接入、PACS/RIS / 病理 /
+  内镜 / 心电等专业系统族真实消费者链路、隐藏 / embedded / API-only 能力、每页表单 / 提交 / 导入导出 / 分页筛选 /
+  六态全部实操、或 134 fresh deploy / 清库 / 重启 / 备份恢复。下一步应继续补专业服务链路和每页核心动作代表到全量推进；
+  134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十六批本地收尾：继续按上线级全角色真实前台、真实服务链路和门禁核查推进；本批不是菜单文案优化、
   不是完整上线、不是 134 清库部署复演，也不是每页核心业务动作全闭环，而是收敛当前未提交改动中的后端架构红点、
   四职责授权路由直达可达性、移动端真实页面溢出红点和真实性门禁开口。使用只读子代理复核两轮，结论均为无 P0；
