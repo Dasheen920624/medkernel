@@ -29,7 +29,7 @@ const localRehearsalHospitalCode = "e2e-rehearsal-hospital";
 const localRehearsalHospitalName = "本地上线演练医院";
 export const roleAccounts = ROLE_ACCOUNT_CODES;
 const defaultCredentialScope: RoleCredentialScope = "rehearsal";
-const platformDiagnosticItemKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
+export const platformDiagnosticItemKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
 const platformEvaluationIndicatorIdentity = "EVAL.LOCAL.REHEARSAL.BASELINE";
 export const requiredRuntimeAssetsForRehearsal = [
   { assetType: "KNOWLEDGE", assetIdentity: platformDiagnosticItemKnowledgeIdentity },
@@ -1565,7 +1565,7 @@ function recordValue(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
+export function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
   const seen = new Set<string>();
   return assets.filter((asset) => {
     const key = `${asset.assetType}:${asset.assetIdentity}`;

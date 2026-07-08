@@ -386,6 +386,9 @@ const clinicalEntryCoreActionsClaims = [
 const qualityManagementEntryCoreActionsClaims = [
   "qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE",
 ];
+const knowledgeOperationsAssetEntryCoreActionsClaims = [
+  "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
+];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
@@ -930,6 +933,13 @@ export function buildBrowserE2eLaunchEvidence(input: {
   if (hasRequiredQualityManagementEntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, qualityManagementEntryCoreActionsClaims, generatedAt);
   }
+  if (hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      knowledgeOperationsAssetEntryCoreActionsClaims,
+      generatedAt,
+    );
+  }
   return evidence;
 }
 
@@ -1462,6 +1472,67 @@ const requiredQualityManagementEntryCoreActionServiceOperations: Record<string, 
     "/api/v1/engine/evaluation/indicators/{indicatorId}/activate",
   ],
 };
+const requiredKnowledgeOperationsAssetEntryActionPaths: Record<string, string> = {
+  "knowledge-production": "/knowledge/production",
+  "knowledge-governance": "/knowledge/governance",
+  "runtime-releases": "/config/releases",
+  "terminology-mapping": "/terminology/mapping",
+  "rule-definitions": "/rule/definitions",
+  "pathway-templates": "/pathway/templates",
+  "institution-knowledge": "/knowledge/institution",
+  "diagnosis-knowledge": "/knowledge/diagnosis",
+  provenance: "/advanced/provenance",
+  "graph-explore": "/advanced/graph",
+  "ai-workflows": "/advanced/ai-workflows",
+};
+const requiredKnowledgeOperationsAssetEntryActionMenuKeys = Object.keys(
+  requiredKnowledgeOperationsAssetEntryActionPaths,
+);
+const knowledgeOperationsAssetEntryActionSpecFile =
+  "knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts";
+const requiredKnowledgeOperationsAssetEntryActionServiceOperations: Record<string, string[]> = {
+  "knowledge-production": [
+    "/api/v1/engine/knowledge/documents:upload-parse",
+    "/api/v1/engine/knowledge-production/generate",
+  ],
+  "knowledge-governance": [
+    "/api/v1/engine/knowledge/candidates/{candidateId}/review",
+    "/api/v1/engine/knowledge/review-queue",
+  ],
+  "runtime-releases": [
+    "/api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases",
+    "/api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases:rollback",
+  ],
+  "terminology-mapping": [
+    "/api/v1/engine/terminology/terms/standard",
+    "/api/v1/engine/terminology/mappings/candidates/confirm",
+  ],
+  "rule-definitions": [
+    "/api/v1/engine/rule/rules",
+    "/api/v1/engine/rule/rules/{ruleId}/simulate",
+  ],
+  "pathway-templates": [
+    "/api/v1/engine/pathway/pathway-templates",
+    "/api/v1/engine/pathway/pathway-templates/{templateId}/simulate",
+  ],
+  "institution-knowledge": [
+    "/api/v1/engine/knowledge/customizations",
+    "/api/v1/engine/knowledge/customizations/{customizationId}:restore-platform",
+  ],
+  "diagnosis-knowledge": [
+    "/api/v1/engine/knowledge/diagnosis/assets",
+    "/api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria",
+    "/api/v1/engine/knowledge/diagnosis/versions/{versionId}/test-cases",
+  ],
+  provenance: [
+    "/api/v1/engine/knowledge/identities/{identityId}/provenance",
+  ],
+  "graph-explore": [
+    "/api/v1/projections/knowledge-graph/rebuild",
+    "/api/v1/projections/knowledge-graph/facts",
+  ],
+  "ai-workflows": ["/api/v1/engine/knowledge-production/readiness"],
+};
 
 function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   const actionsByMenuKey = new Map<string, Record<string, unknown>>();
@@ -1686,6 +1757,64 @@ function hasRequiredQualityManagementEntryCoreActionsAttachment(
   );
 }
 
+function hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(
+  tests: BrowserE2eTestResult[],
+) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  let sawAttachment = false;
+  for (const test of tests) {
+    if (
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    if (path.basename(test.file) !== knowledgeOperationsAssetEntryActionSpecFile) continue;
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "knowledge-operations-asset-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body || body.matrixCode !== "KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS") continue;
+      sawAttachment = true;
+      if (
+        !hasKnowledgeOperationsAssetEntryCoreActionScopeBoundary(body.scopeStatement) ||
+        !hasCompleteKnowledgeOperationsFormalChain(body.formalChain) ||
+        !arrayEquals(body.assetTypesCovered, requiredRuntimeReleaseVersionedAssets) ||
+        !hasCompleteKnowledgeOperationsSupplyChainGates(body.supplyChainGates) ||
+        !Array.isArray(body.entryActions)
+      ) {
+        return false;
+      }
+      for (const item of body.entryActions) {
+        const action = recordValue(item);
+        const menuKey = textValue(action?.menuKey);
+        if (
+          !action ||
+          !menuKey ||
+          !hasCompleteKnowledgeOperationsAssetEntryCoreAction(action, menuKey) ||
+          actionsByMenuKey.has(menuKey)
+        ) {
+          return false;
+        }
+        actionsByMenuKey.set(menuKey, action);
+      }
+    }
+  }
+  return (
+    sawAttachment &&
+    requiredKnowledgeOperationsAssetEntryActionMenuKeys.every((menuKey) =>
+      actionsByMenuKey.has(menuKey),
+    )
+  );
+}
+
 function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
   if (!hasText(value)) return false;
   const statement = String(value);
@@ -1713,6 +1842,21 @@ function hasQualityManagementEntryCoreActionScopeBoundary(value: unknown) {
   );
 }
 
+function hasKnowledgeOperationsAssetEntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("知识运营资产入口族供给链代表矩阵") &&
+    hasNegatedScopeTerm(statement, "全知识供给链完整上线") &&
+    hasNegatedScopeTerm(statement, "13 类医学资产全部生产闭环") &&
+    hasNegatedScopeTerm(statement, "所有医学知识和术语体系已收集完成") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveKnowledgeOperationsAssetEntryCompleteScopeClaim(statement)
+  );
+}
+
 function hasPositiveClinicalEntryCompleteScopeClaim(statement: string) {
   return [
     "完整临床流程",
@@ -1734,6 +1878,24 @@ function hasPositiveQualityManagementEntryCompleteScopeClaim(statement: string) 
     "完整医保支付审核",
     "完整 S9-S11",
     "完整S9-S11",
+    "34 个入口全部业务动作闭环",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasPositiveKnowledgeOperationsAssetEntryCompleteScopeClaim(statement: string) {
+  return [
+    "全知识供给链完整上线",
+    "完整全知识供给链",
+    "完整 134",
+    "134 完整上线",
+    "13 类医学资产全部生产闭环",
+    "十三类医学资产全部生产闭环",
+    "所有医学知识和术语体系已收集完成",
+    "完整 S0-S40",
+    "完整S0-S40",
     "34 个入口全部业务动作闭环",
     "完整上线",
     "完整上线验收",
@@ -1816,6 +1978,32 @@ function hasCompleteQualityManagementEntryCoreAction(value: unknown, expectedMen
   );
 }
 
+function hasCompleteKnowledgeOperationsAssetEntryCoreAction(
+  value: unknown,
+  expectedMenuKey: string,
+) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  const serviceOperation = textValue(action.serviceOperation);
+  return (
+    action.menuKey === expectedMenuKey &&
+    action.role === "engine-operator" &&
+    action.path === requiredKnowledgeOperationsAssetEntryActionPaths[expectedMenuKey] &&
+    hasText(action.frontdeskAction) &&
+    hasExpectedKnowledgeOperationsAssetEntryActionServiceOperation(
+      expectedMenuKey,
+      serviceOperation,
+    ) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true &&
+    hasRequiredKnowledgeOperationsActionGateFlags(action, expectedMenuKey)
+  );
+}
+
 function hasExpectedClinicalEntryCoreActionServiceOperation(
   expectedMenuKey: string,
   serviceOperation: string | null,
@@ -1834,6 +2022,73 @@ function hasExpectedQualityManagementEntryCoreActionServiceOperation(
   return requiredQualityManagementEntryCoreActionServiceOperations[expectedMenuKey]?.every(
     (expected) => serviceOperation.includes(expected),
   ) === true;
+}
+
+function hasExpectedKnowledgeOperationsAssetEntryActionServiceOperation(
+  expectedMenuKey: string,
+  serviceOperation: string | null,
+) {
+  if (!serviceOperation) return false;
+  return requiredKnowledgeOperationsAssetEntryActionServiceOperations[expectedMenuKey]?.every(
+    (expected) => serviceOperation.includes(expected),
+  ) === true;
+}
+
+function hasCompleteKnowledgeOperationsFormalChain(value: unknown) {
+  const chain = recordValue(value);
+  return (
+    chain?.officialProductionInside134 === true &&
+    chain.externalSourcesPreparatoryOnly === true &&
+    chain.modelDirectPublishBlocked === true
+  );
+}
+
+function hasCompleteKnowledgeOperationsSupplyChainGates(value: unknown) {
+  const gates = recordValue(value);
+  return (
+    gates?.standardPackageImportVerified === true &&
+    gates.hospitalDictionarySyncVerified === true &&
+    gates.declarativeMaintenanceVerified === true &&
+    gates.humanReviewVerified === true &&
+    gates.institutionEffectiveRuntimeVerified === true &&
+    gates.runtimeConsumerReadbackVerified === true &&
+    gates.rollbackReadbackVerified === true
+  );
+}
+
+function hasRequiredKnowledgeOperationsActionGateFlags(
+  action: Record<string, unknown>,
+  expectedMenuKey: string,
+) {
+  switch (expectedMenuKey) {
+    case "knowledge-production":
+      return action.sourceLineageVerified === true;
+    case "knowledge-governance":
+      return action.humanReviewVerified === true && action.noDirectPublishVerified === true;
+    case "runtime-releases":
+      return (
+        action.runtimeActivationVerified === true &&
+        action.runtimeConsumerReadbackVerified === true &&
+        action.rollbackReadbackVerified === true
+      );
+    case "terminology-mapping":
+      return action.localDictionarySyncVerified === true && action.assetVersionVerified === true;
+    case "rule-definitions":
+    case "pathway-templates":
+      return action.declarativeMaintenanceVerified === true;
+    case "institution-knowledge":
+      return action.institutionScopeVerified === true && action.platformRestoreVerified === true;
+    case "diagnosis-knowledge":
+      return action.humanReviewVerified === true && action.sourceEvidenceVerified === true;
+    case "provenance":
+      return action.sourceAuditVerified === true && action.sourceLineageVerified === true;
+    case "graph-explore":
+      return action.graphProjectionVerified === true && action.sourceLineageVerified === true;
+    case "ai-workflows":
+      return action.modelSafetyBoundaryVerified === true && action.noDirectPublishVerified === true;
+    default:
+      return false;
+  }
 }
 
 function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {

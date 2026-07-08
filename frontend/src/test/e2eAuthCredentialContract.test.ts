@@ -720,6 +720,166 @@ describe("E2E credential contract", () => {
     );
   });
 
+  it("requires knowledge operations asset entry rehearsal to preserve baseline assets and avoid model-direct publishing", () => {
+    const source = readFileSync(
+      "e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts",
+      "utf8",
+    );
+
+    expect(source).toContain("knowledge-operations-asset-entry-core-actions-codes");
+    expect(source).toContain("KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS");
+    expect(source).toContain("resolveBaselineRuntimeAssets");
+    expect(source).toContain("uniqueRuntimeAssets");
+    expect(source).toContain("requiredRuntimeAssetsForRehearsal");
+    expect(source).toContain("runtimeConsumerReadbackVerified");
+    expect(source).toContain("rollbackReadbackVerified");
+    expect(source).toContain("function runtimeReleaseId");
+    expect(source).toContain("function runtimeReleaseItems");
+    expect(source).toContain('arrayValues(recordField(value, "items"))');
+    expect(source).toContain('textField(recordField(value, "release"), "releaseId")');
+    expect(source).toContain("回滚必须生成新的当前机构生效版本");
+    expect(source).toContain("rolledBackConsumer");
+    expect(source).toContain("!JSON.stringify(await responseData(rolledBackConsumer)).includes");
+    expect(source).toContain("officialProductionInside134: true");
+    expect(source).toContain("externalSourcesPreparatoryOnly: true");
+    expect(source).toContain("modelDirectPublishBlocked: true");
+    expect(source).toContain("noDirectPublishVerified: true");
+    expect(source).toContain("ensurePlatformRuntimeAssetApiSession");
+    expect(source).toContain("ensureRehearsalRuntimeAssetApiSession");
+    expect(source).toContain("platformDiagnosticItemKnowledgeIdentity");
+    expect(source).toContain("/engine/knowledge/candidates/${classificationId}/review");
+    expect(source).toContain(
+      "/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases",
+    );
+    expect(source).toContain("/engine/integration/knowledge-runtime/runtime-release/current");
+    expect(source).not.toContain("activeAssets: []");
+    expect(source).not.toContain(
+      'numericField(sourceVersionData, "materialId") ?? numericField(sourceVersionData, "id")',
+    );
+    expect(source).not.toContain("/engine/knowledge/materials/${seed.materialId}");
+    const ruleEvidenceBody = source.slice(
+      source.indexOf("async function createRuleDefinitionEvidence"),
+      source.indexOf("async function createPathwayTemplateEvidence"),
+    );
+    expect(ruleEvidenceBody).toContain("triggers: [");
+    expect(ruleEvidenceBody).toContain('trigger_point: "result-review"');
+    expect(ruleEvidenceBody).toContain('purpose: "RULE_EXECUTION"');
+    expect(ruleEvidenceBody).toContain('ruleType: "QUALITY"');
+    expect(ruleEvidenceBody).toContain('authoringMode: "DSL"');
+    expect(ruleEvidenceBody).toContain('sourceRef: "local-e2e:knowledge-operations"');
+    expect(ruleEvidenceBody).toContain("dsl: {");
+    expect(ruleEvidenceBody).toContain("when: { all:");
+    expect(ruleEvidenceBody).toContain("then: [");
+    expect(ruleEvidenceBody).toContain('actionCode: "REMIND"');
+    expect(ruleEvidenceBody).toContain('triggerPoint: "result-review"');
+    expect(ruleEvidenceBody).toContain("context: { patient: { age: 42 } }");
+    expect(ruleEvidenceBody).not.toContain("condition: {");
+    expect(ruleEvidenceBody).not.toContain("facts: { patient");
+    expect(ruleEvidenceBody).not.toContain("KNOWLEDGE_OPS_REVIEW");
+
+    const pathwayEvidenceBody = source.slice(
+      source.indexOf("async function createPathwayTemplateEvidence"),
+      source.indexOf("async function createInstitutionKnowledgeEvidence"),
+    );
+    expect(pathwayEvidenceBody).toContain("outcomeBindings: []");
+    expect(pathwayEvidenceBody).toContain('startNodeCode: "START"');
+    expect(pathwayEvidenceBody).toContain("requestedNextNodeCodes: []");
+    expect(pathwayEvidenceBody).not.toContain("contextSnapshotId");
+    expect(pathwayEvidenceBody).not.toContain("facts:");
+    expect(pathwayEvidenceBody).not.toContain("milestoneType");
+    expect(pathwayEvidenceBody).not.toContain("dueMinutes");
+    const pathwayHelperBody = source.slice(
+      source.indexOf("function milestone("),
+      source.indexOf("function parseKnowledgeCandidateRef"),
+    );
+    expect(pathwayHelperBody).toContain("phaseCode");
+    expect(pathwayHelperBody).toContain("phaseName");
+    expect(pathwayHelperBody).toContain("expectedOffsetMinutes");
+    expect(pathwayHelperBody).toContain("responsibleRole");
+    expect(pathwayHelperBody).toContain("timeWindowMinutes");
+    expect(pathwayHelperBody).toContain("clockSla");
+    expect(pathwayHelperBody).toContain("minMinutes");
+    expect(pathwayHelperBody).toContain("escalations");
+    expect(pathwayHelperBody).toContain("QUALITY_RECORD");
+    expect(pathwayHelperBody).not.toContain("milestoneType");
+    expect(pathwayHelperBody).not.toContain("dueMinutes");
+
+    const institutionEvidenceBody = source.slice(
+      source.indexOf("async function createInstitutionKnowledgeEvidence"),
+      source.indexOf("async function createDiagnosisKnowledgeEvidence"),
+    );
+    expect(institutionEvidenceBody).toContain("ensurePlatformRuntimeAssetApiSession(page)");
+    expect(institutionEvidenceBody).toContain(
+      "/engine/knowledge/identities/by-code/${encodeURIComponent(platformDiagnosticItemKnowledgeIdentity)}",
+    );
+    expect(institutionEvidenceBody).toContain("ensureRehearsalRuntimeAssetApiSession(page)");
+    expect(institutionEvidenceBody).toContain("platformIdentityId");
+    expect(institutionEvidenceBody).toContain("targetOrgUnitId: hospitalId");
+    expect(institutionEvidenceBody).toContain('applicableScope: "ALL"');
+    expect(institutionEvidenceBody).not.toContain("platformVersionId");
+    expect(institutionEvidenceBody).not.toContain("organizationScope");
+    expect(institutionEvidenceBody).not.toContain("organizationCode");
+    expect(institutionEvidenceBody).not.toContain(
+      '...knowledgeContext("knowledge-ops-customization")',
+    );
+    expect(institutionEvidenceBody).not.toContain("request_id");
+    expect(institutionEvidenceBody).not.toContain("trace_id");
+
+    const diagnosisEvidenceBody = source.slice(
+      source.indexOf("async function createDiagnosisKnowledgeEvidence"),
+      source.indexOf("async function verifyProvenanceEvidence"),
+    );
+    expect(diagnosisEvidenceBody).toContain("identity: {");
+    expect(diagnosisEvidenceBody).toContain("source: {");
+    expect(diagnosisEvidenceBody).toContain("version: {");
+    expect(diagnosisEvidenceBody).toContain("evidence: {");
+    expect(diagnosisEvidenceBody).toContain('direction: "SUPPORTING"');
+    expect(diagnosisEvidenceBody).toContain('weight: "MAJOR"');
+    expect(diagnosisEvidenceBody).toContain(
+      "/engine/knowledge/diagnosis/versions/${versionId}/test-cases",
+    );
+    expect(diagnosisEvidenceBody).toContain("expectedIdentityId: identityId");
+    expect(diagnosisEvidenceBody).toContain('expectedConfidence: "STRONG"');
+    expect(diagnosisEvidenceBody).not.toContain("diagnosisName:");
+    expect(diagnosisEvidenceBody).not.toContain("evidenceStrength");
+
+    const provenanceEvidenceBody = source.slice(
+      source.indexOf("async function verifyProvenanceEvidence"),
+      source.indexOf("async function verifyGraphEvidence"),
+    );
+    expect(provenanceEvidenceBody).toContain('numericField(provenanceData, "currentVersionId")');
+    expect(provenanceEvidenceBody).toContain('arrayField(provenanceData, "sourceEvidence").find');
+    expect(provenanceEvidenceBody).toContain('numericField(evidence, "citationId")');
+    expect(provenanceEvidenceBody).toContain('numericField(evidence, "sourceVersionId")');
+    expect(provenanceEvidenceBody).toContain('numericField(evidence, "sourceFragmentId")');
+    expect(provenanceEvidenceBody).toContain('textField(evidence, "textExcerpt")');
+    expect(provenanceEvidenceBody).not.toContain("seed.materialId");
+
+    const graphEvidenceBody = source.slice(
+      source.indexOf("async function verifyGraphEvidence"),
+      source.indexOf("async function verifyAiWorkflowSafetyBoundary"),
+    );
+    expect(graphEvidenceBody).toContain("keyword=${encodeURIComponent");
+    expect(graphEvidenceBody).toContain("page=1&size=40");
+    expect(graphEvidenceBody).toContain(
+      "const identityFacts = pageItems(await responseData(facts))",
+    );
+    expect(graphEvidenceBody).toContain("identityFacts.some");
+    expect(graphEvidenceBody).toContain(
+      "const fragmentFacts = pageItems(await responseData(fragmentFactsResponse))",
+    );
+    expect(graphEvidenceBody).toContain("fragmentFacts.some");
+    expect(graphEvidenceBody).not.toContain("query=${encodeURIComponent");
+
+    const aiEvidenceBody = source.slice(
+      source.indexOf("async function verifyAiWorkflowSafetyBoundary"),
+      source.indexOf("async function prepareKnowledgeCandidate"),
+    );
+    expect(aiEvidenceBody).toContain('readinessData, "modelInvocationAllowed"');
+    expect(aiEvidenceBody).toContain('recordField(readinessData, "items")');
+    expect(aiEvidenceBody).toContain("requiredReadinessItems.length");
+  });
+
   it("builds a platform diagnostic-item knowledge request that matches report interpretation E2E", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;

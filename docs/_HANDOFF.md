@@ -10,6 +10,68 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十七批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、
+  不要片面优化”的要求，读取参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 后仅把其结论作为证据输入：
+  134 已有受控来源、原文保存、解析、候选生成、审核发布、机构生效和运行消费骨架，但外部资料线不能替代主项目，
+  正式医学知识 / 术语 / 规则 / 路径 / 安全 / 公式 / 值集等仍必须回到 134 受控链路。两个只读子代理本批并行盘点确认：
+  当前已有多类代表矩阵，但不是完整上线；全局下一步仍要补全角色剩余入口、窄屏 / 高任务量真实体验、目标库迁移 smoke、
+  模型 Provider 诚实状态，以及 13 类资产逐类供给链矩阵，尤其 `EVALUATION`、`FOLLOWUP`、`ORDER_SET` 与
+  标准包导入 / 院内字典持续同步 / 回滚后运行消费负向门禁。
+- 第一百七十七批实现细节：新增 `frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  和 `frontend/e2e/support/knowledgeOperationsAssetEntryCoreActions.ts`，由 `engine-operator` 真实进入
+  `/knowledge/production`、`/terminology/mapping`、`/knowledge/governance`、`/rule/definitions`、
+  `/pathway/templates`、`/knowledge/diagnosis`、`/config/releases`、`/knowledge/institution`、
+  `/advanced/provenance`、`/advanced/graph`、`/advanced/ai-workflows` 十一个知识运营资产入口，完成受控来源和知识候选生成、
+  标准术语登记 / 院内术语同步 / 映射确认、人工审核发布、规则 DSL 创建和试运行、路径模板声明式维护和模拟、
+  诊断知识资产创建与标准 / 测试病例登记、医院 runtime 保留 13 类平台基线资产后加入本轮术语资产并回滚读回、
+  机构知识派生与恢复平台标准、来源血缘逐字段回读、知识关系投影重建与查询、模型 readiness 安全边界核查。
+  `launchCoverageEvidence.ts` 新增收窄声明
+  `knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE`，
+  只消费 `knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts` 的
+  `knowledge-operations-asset-entry-core-actions-codes` 附件，且 `matrixCode=KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS`；
+  scope 必须写明“知识运营资产入口族供给链代表矩阵”，并否定 `全知识供给链完整上线`、
+  `13 类医学资产全部生产闭环`、`所有医学知识和术语体系已收集完成`、`完整 S0-S40`、
+  `34 个入口全部业务动作闭环` 和 `完整上线验收`。`e2eLaunchCoverageEvidence.test.ts` 增加正向样例，以及非目标 spec
+  冒领、缺机构生效版本入口、路径 / 角色 / 2xx / 回滚服务 / 模型直发禁止 / 来源审计 / 134 边界 / 13 类资产清单 /
+  运行消费读回 / scope 过度声明等负向样例。`e2eAuthCredentialContract.test.ts` 锁定：知识运营 E2E 必须保留
+  13 类平台基线资产并用 `uniqueRuntimeAssets` 激活，禁止 `activeAssets: []`；规则创建必须是真实 DSL 请求；
+  路径模板必须包含 `clockSla`；机构知识定制只能提交真实 `KnowledgeCustomizationCreateRequest` 字段；
+  诊断知识必须走嵌套资产创建、标准与测试病例；来源血缘不得用 `sourceVersion.id` 冒充 `materialId` 读取材料接口；
+  runtime current 响应必须按 `release` / `items` 结构解析，回滚必须证明本轮资产从当前运行契约中退出。
+- 第一百七十七批真实红点与根因修复：目标 E2E 前序红点逐个按真实根因收口：
+  1）来源血缘曾 404 于 `/engine/knowledge/materials/{seed.materialId}`，根因是来源版本接口返回 `SourceVersion`，
+  不是材料对象，不能把 `sourceVersion.id` fallback 成 `materialId`；已改为用
+  `/engine/knowledge/identities/{identityId}/provenance` 逐字段断言 `citationId`、`assetVersionId`、
+  `sourceVersionId`、`sourceFragmentId`、`textExcerpt`、offset 和 `DERIVED_FROM`，并同步 coverage 服务操作。
+  2）知识关系前序红于本轮身份节点缺失，根因是本地演练图投影开关关闭；已按既有 D6 图谱验收模式由
+  `platform-admin` 通过配置中心自愈启用 `medkernel.runtime.feature-flags.graph-projection.enabled`，再切回
+  `engine-operator` 重建和查询。3）附件自校验曾红于 `runtime-releases`，根因是回滚语义不是把当前指针恢复到旧
+  `releaseId`，而是复制历史清单生成更高修订号；已改为断言回滚后后端 current `items` 与第三方运行契约都不再包含本轮术语资产。
+- 第一百七十七批真实 E2E 与验证证据：复用 18092 dev/H2 本地后端和 5174 前端，健康检查
+  `http://localhost:18092/medkernel/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`，
+  5174 前端返回 200。目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-knowledge-operations-asset-entry-core-actions-20260709-r15 npm --prefix frontend run e2e -- --project=chromium knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-knowledge-operations-asset-entry-core-actions-20260709-r15/report/results.json`
+  为 `PASSED`（1 expected，0 unexpected，0 flaky，0 skipped，duration=14535ms），只声明
+  `knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE`。
+  附件证明十一个入口均为 `role=engine-operator`、2xx 服务状态、`readbackVerified=true`、`auditVerified=true`；
+  其中 runtime 入口证明 `runtimeActivationVerified`、`runtimeConsumerReadbackVerified`、`rollbackReadbackVerified`，
+  图谱入口证明 `graphProjectionVerified` 与来源追踪，模型入口证明 readiness required 门和禁止模型直发边界。
+- 第一百七十七批收尾门禁：`npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`
+  通过（52 tests）；`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 通过（275 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍只提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、
+  不暂存。
+- 第一百七十七批全局边界与下一步：本批不是完整上线、不是 134 清库部署复演、不是完整全知识供给链上线验收、
+  不是 13 类医学资产逐类全部生产闭环、不是所有医学知识和术语体系已收集完成、不是完整 S0-S40、
+  不是 34 个入口全部业务动作闭环。本批只证明知识运营资产入口族 11 入口代表矩阵和 134 唯一正式链路代表证据。
+  下一批建议优先按全局推进：1）从本批 11 入口代表矩阵扩到 13 类资产逐类供给链矩阵，补 `EVALUATION`、
+  `FOLLOWUP`、`ORDER_SET` 的知识运营生产入口证据，以及 `SAFETY`、`CDSS_RISK`、`VALUE_SET`、`FORMULA`
+  的回滚后运行消费负向断言；2）补标准包导入、院内字典持续同步、来源原文 / 原包留存、人工审核、机构生效和回滚审计的门禁；
+  3）继续全角色剩余入口真实操作和窄屏 / 高任务量体验复核；4）目标库迁移 smoke 与公网模型 Provider 真实证据仍按
+  deferred 清单诚实推进。134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp`
+  产物不要暂存。
 - 第一百七十六批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、
   不要片面优化”的要求，接上前序未提交的质量管理入口代表矩阵。本批已读取参考会话
   `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`：其结论仅作参考，不能恢复为主项目旁路资料线；

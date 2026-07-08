@@ -4518,6 +4518,168 @@ const qualityManagementEntryCoreActionsEvidence = {
   ],
 };
 
+const knowledgeOperationsAssetEntryCoreActionsEvidence = {
+  matrixCode: "KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS",
+  scopeStatement:
+    "知识运营资产入口族供给链代表矩阵：围绕知识生产、知识审核发布中心、机构生效版本、术语字典、临床规则、临床路径库、机构知识库、诊断知识库、来源与血缘、知识关系和模型能力与安全十一个入口完成真实前台核心动作、服务回读、运行生效、回滚读回与只读边界证据；不代表全知识供给链完整上线，不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表完整 S0-S40，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  formalChain: {
+    officialProductionInside134: true,
+    externalSourcesPreparatoryOnly: true,
+    modelDirectPublishBlocked: true,
+  },
+  assetTypesCovered: runtimeReleaseVersionedAssets,
+  supplyChainGates: {
+    standardPackageImportVerified: true,
+    hospitalDictionarySyncVerified: true,
+    declarativeMaintenanceVerified: true,
+    humanReviewVerified: true,
+    institutionEffectiveRuntimeVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    rollbackReadbackVerified: true,
+  },
+  entryActions: [
+    {
+      menuKey: "knowledge-production",
+      role: "engine-operator",
+      path: "/knowledge/production",
+      frontdeskAction: "医疗引擎运营员前台登记受控来源并生成带来源血缘的知识候选",
+      serviceOperation:
+        "POST /api/v1/engine/knowledge/documents:upload-parse + POST /api/v1/engine/knowledge-production/generate",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      sourceLineageVerified: true,
+    },
+    {
+      menuKey: "terminology-mapping",
+      role: "engine-operator",
+      path: "/terminology/mapping",
+      frontdeskAction: "医疗引擎运营员前台登记标准术语、同步院内术语并确认映射候选",
+      serviceOperation:
+        "POST /api/v1/engine/terminology/terms/standard + POST /api/v1/engine/terminology/mappings/candidates/confirm",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      localDictionarySyncVerified: true,
+      assetVersionVerified: true,
+    },
+    {
+      menuKey: "knowledge-governance",
+      role: "engine-operator",
+      path: "/knowledge/governance",
+      frontdeskAction: "医疗引擎运营员前台审核受控候选并发布平台标准知识版本",
+      serviceOperation:
+        "POST /api/v1/engine/knowledge/candidates/{candidateId}/review + GET /api/v1/engine/knowledge/review-queue",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      humanReviewVerified: true,
+      noDirectPublishVerified: true,
+    },
+    {
+      menuKey: "rule-definitions",
+      role: "engine-operator",
+      path: "/rule/definitions",
+      frontdeskAction: "医疗引擎运营员前台声明式维护临床规则并完成试运行证据",
+      serviceOperation:
+        "POST /api/v1/engine/rule/rules + POST /api/v1/engine/rule/rules/{ruleId}/simulate",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      declarativeMaintenanceVerified: true,
+    },
+    {
+      menuKey: "pathway-templates",
+      role: "engine-operator",
+      path: "/pathway/templates",
+      frontdeskAction: "医疗引擎运营员前台声明式维护临床路径并完成草稿试运行",
+      serviceOperation:
+        "POST /api/v1/engine/pathway/pathway-templates + POST /api/v1/engine/pathway/pathway-templates/{templateId}/simulate",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      declarativeMaintenanceVerified: true,
+    },
+    {
+      menuKey: "diagnosis-knowledge",
+      role: "engine-operator",
+      path: "/knowledge/diagnosis",
+      frontdeskAction: "医疗引擎运营员前台创建证据完整诊断资产并登记标准和验证病例",
+      serviceOperation:
+        "POST /api/v1/engine/knowledge/diagnosis/assets + POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria + POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/test-cases",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      humanReviewVerified: true,
+      sourceEvidenceVerified: true,
+    },
+    {
+      menuKey: "runtime-releases",
+      role: "engine-operator",
+      path: "/config/releases",
+      frontdeskAction: "医疗引擎运营员前台发布机构生效版本并从历史版本回滚读回",
+      serviceOperation:
+        "POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases + POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases:rollback",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      runtimeActivationVerified: true,
+      runtimeConsumerReadbackVerified: true,
+      rollbackReadbackVerified: true,
+    },
+    {
+      menuKey: "institution-knowledge",
+      role: "engine-operator",
+      path: "/knowledge/institution",
+      frontdeskAction: "医疗引擎运营员前台派生机构知识版本并恢复平台标准",
+      serviceOperation:
+        "POST /api/v1/engine/knowledge/customizations + POST /api/v1/engine/knowledge/customizations/{customizationId}:restore-platform",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      institutionScopeVerified: true,
+      platformRestoreVerified: true,
+    },
+    {
+      menuKey: "provenance",
+      role: "engine-operator",
+      path: "/advanced/provenance",
+      frontdeskAction: "医疗引擎运营员前台查看本轮知识版本来源血缘和原文锚点",
+      serviceOperation: "GET /api/v1/engine/knowledge/identities/{identityId}/provenance",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      sourceAuditVerified: true,
+      sourceLineageVerified: true,
+    },
+    {
+      menuKey: "graph-explore",
+      role: "engine-operator",
+      path: "/advanced/graph",
+      frontdeskAction: "医疗引擎运营员前台重建知识关系投影并查询来源追踪证据",
+      serviceOperation:
+        "POST /api/v1/projections/knowledge-graph/rebuild + GET /api/v1/projections/knowledge-graph/facts",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      graphProjectionVerified: true,
+      sourceLineageVerified: true,
+    },
+    {
+      menuKey: "ai-workflows",
+      role: "engine-operator",
+      path: "/advanced/ai-workflows",
+      frontdeskAction: "医疗引擎运营员前台核查模型能力、安全边界和无模型诚实降级",
+      serviceOperation: "GET /api/v1/engine/knowledge-production/readiness",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      modelSafetyBoundaryVerified: true,
+      noDirectPublishVerified: true,
+    },
+  ],
+};
+
 function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -4616,6 +4778,31 @@ function qualityManagementEntryCoreActionsEvidenceResult(body: Record<string, un
 function expectNoQualityManagementEntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
+}
+
+function knowledgeOperationsAssetEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts",
+        title: "知识运营资产入口族完成真实前台供给链代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "knowledge-operations-asset-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoKnowledgeOperationsEntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions).toBeUndefined();
 }
 
 function platformAdminEntryCoreActionSpecFile(menuKey: string) {
@@ -9093,6 +9280,23 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares knowledge-operations asset entry coverage only from complete real frontdesk supply-chain matrix evidence", () => {
+    const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(
+      knowledgeOperationsAssetEntryCoreActionsEvidence,
+    );
+
+    expect(
+      evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("does not declare clinical entry coverage from platform-admin entry matrices", () => {
     const p0Evidence = platformAdminEntryCoreActionsEvidenceResult(
       platformAdminEntryCoreActionsEvidence,
@@ -9147,6 +9351,163 @@ describe("browser E2E launch coverage evidence", () => {
     });
 
     expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
+  });
+
+  it("does not declare knowledge-operations asset entry coverage from the same attachment in a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-knowledge-entry.spec.ts",
+          title: "知识运营资产入口族附件不能由非目标 spec 冒领",
+          status: "passed",
+          attachments: [
+            {
+              name: "knowledge-operations-asset-entry-core-actions-codes",
+              contentType: "application/json",
+              body: JSON.stringify(knowledgeOperationsAssetEntryCoreActionsEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少机构生效版本入口",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.menuKey !== "runtime-releases",
+        ),
+      },
+    },
+    {
+      name: "知识生产入口路径不匹配",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "knowledge-production"
+            ? { ...item, path: "/knowledge/governance" }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "术语字典入口不是医疗引擎运营员角色",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "terminology-mapping" ? { ...item, role: "platform-admin" } : item,
+        ),
+      },
+    },
+    {
+      name: "机构生效版本服务不是 2xx",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "runtime-releases" ? { ...item, serviceStatus: 409 } : item,
+        ),
+      },
+    },
+    {
+      name: "机构生效版本缺少回滚服务",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "runtime-releases"
+            ? {
+                ...item,
+                serviceOperation:
+                  "POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases",
+              }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "模型能力入口缺少禁止模型直发证据",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "ai-workflows" ? { ...item, noDirectPublishVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "来源与血缘入口缺少来源对象审计链",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        entryActions: knowledgeOperationsAssetEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "provenance" ? { ...item, sourceAuditVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "缺少 134 唯一正式链路边界",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        formalChain: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.formalChain,
+          officialProductionInside134: false,
+        },
+      },
+    },
+    {
+      name: "缺少 13 类资产清单",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        assetTypesCovered: runtimeReleaseVersionedAssets.filter((item) => item !== "FORMULA"),
+      },
+    },
+    {
+      name: "缺少运行消费读回门禁",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        supplyChainGates: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.supplyChainGates,
+          runtimeConsumerReadbackVerified: false,
+        },
+      },
+    },
+    {
+      name: "scope 过度宣称全知识供给链完整上线",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        scopeStatement:
+          "知识运营资产入口族供给链代表矩阵，全知识供给链完整上线已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称 13 类医学资产全部生产闭环",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        scopeStatement:
+          "知识运营资产入口族供给链代表矩阵，不代表全知识供给链完整上线，13 类医学资产全部生产闭环已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称所有医学知识和术语已收集完成",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        scopeStatement:
+          "知识运营资产入口族供给链代表矩阵，不代表全知识供给链完整上线，所有医学知识和术语体系已收集完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线验收",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        scopeStatement:
+          "知识运营资产入口族供给链代表矩阵，不代表全知识供给链完整上线，不代表 13 类医学资产全部生产闭环，完整上线验收已完成。",
+      },
+    },
+  ])("does not declare knowledge-operations asset entry coverage when $name", ({ body }) => {
+    expectNoKnowledgeOperationsEntryCoreActionsCoverage(body);
   });
 
   it.each([
