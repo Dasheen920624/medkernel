@@ -383,6 +383,9 @@ const platformAdminP1EntryCoreActionsClaims = [
 const clinicalEntryCoreActionsClaims = [
   "clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
 ];
+const qualityManagementEntryCoreActionsClaims = [
+  "qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE",
+];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
@@ -924,6 +927,9 @@ export function buildBrowserE2eLaunchEvidence(input: {
   if (hasRequiredClinicalEntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, clinicalEntryCoreActionsClaims, generatedAt);
   }
+  if (hasRequiredQualityManagementEntryCoreActionsAttachment(input.tests)) {
+    mergeClaims(evidence.launchCoverage, qualityManagementEntryCoreActionsClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -1426,6 +1432,36 @@ const requiredClinicalEntryCoreActionServiceOperations: Record<string, string[]>
   "workflow-todos": ["/api/v1/engine/workflow/todos/{todoId}/complete"],
   "clinical-followup": ["/api/v1/engine/followup/plans/generate"],
 };
+const requiredQualityManagementEntryCoreActionPaths: Record<string, string> = {
+  "qc-dashboard": "/qc/dashboard",
+  "qc-alerts": "/qc/alerts",
+  "qc-insurance": "/qc/insurance",
+  "qc-eval-sets": "/qc/eval/sets",
+};
+const requiredQualityManagementEntryCoreActionMenuKeys = Object.keys(
+  requiredQualityManagementEntryCoreActionPaths,
+);
+const qualityManagementEntryCoreActionSpecFile =
+  "quality-management-entry-core-actions-rehearsal.spec.ts";
+const requiredQualityManagementEntryCoreActionServiceOperations: Record<string, string[]> = {
+  "qc-dashboard": [
+    "/api/v1/engine/quality/dashboard",
+    "/api/v1/engine/quality/dashboard/drilldown",
+  ],
+  "qc-alerts": [
+    "/api/v1/engine/rectifications/{taskId}/submit",
+    "/api/v1/engine/rectifications/{taskId}/review",
+  ],
+  "qc-insurance": [
+    "/api/v1/engine/quality/case-review",
+    "/api/v1/engine/quality/drg-grouping",
+    "/api/v1/engine/quality/insurance-audit",
+  ],
+  "qc-eval-sets": [
+    "/api/v1/engine/evaluation/indicators",
+    "/api/v1/engine/evaluation/indicators/{indicatorId}/activate",
+  ],
+};
 
 function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   const actionsByMenuKey = new Map<string, Record<string, unknown>>();
@@ -1599,6 +1635,57 @@ function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResu
   );
 }
 
+function hasRequiredQualityManagementEntryCoreActionsAttachment(
+  tests: BrowserE2eTestResult[],
+) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  let sawAttachment = false;
+  for (const test of tests) {
+    if (
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    if (path.basename(test.file) !== qualityManagementEntryCoreActionSpecFile) continue;
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "quality-management-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body || body.matrixCode !== "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS") continue;
+      sawAttachment = true;
+      if (!hasQualityManagementEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+      if (!Array.isArray(body.entryActions)) return false;
+      for (const item of body.entryActions) {
+        const action = recordValue(item);
+        const menuKey = textValue(action?.menuKey);
+        if (
+          !action ||
+          !menuKey ||
+          !hasCompleteQualityManagementEntryCoreAction(action, menuKey) ||
+          actionsByMenuKey.has(menuKey)
+        ) {
+          return false;
+        }
+        actionsByMenuKey.set(menuKey, action);
+      }
+    }
+  }
+  return (
+    sawAttachment &&
+    requiredQualityManagementEntryCoreActionMenuKeys.every((menuKey) =>
+      actionsByMenuKey.has(menuKey),
+    )
+  );
+}
+
 function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
   if (!hasText(value)) return false;
   const statement = String(value);
@@ -1612,12 +1699,42 @@ function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
   );
 }
 
+function hasQualityManagementEntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("质量管理入口核心动作代表矩阵") &&
+    hasNegatedScopeTerm(statement, "质量管理 4 个入口全部完整上线") &&
+    hasNegatedScopeTerm(statement, "完整 DRG/DIP") &&
+    hasNegatedScopeTerm(statement, "完整 S9-S11") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveQualityManagementEntryCompleteScopeClaim(statement)
+  );
+}
+
 function hasPositiveClinicalEntryCompleteScopeClaim(statement: string) {
   return [
     "完整临床流程",
     "34 个入口全部业务动作闭环",
     "完整S0-S40",
     "完整 S0-S40",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasPositiveQualityManagementEntryCompleteScopeClaim(statement: string) {
+  return [
+    "质量管理 4 个入口全部完整上线",
+    "质量管理四个入口全部完整上线",
+    "完整 DRG/DIP",
+    "完整DRG/DIP",
+    "完整医保支付审核",
+    "完整 S9-S11",
+    "完整S9-S11",
+    "34 个入口全部业务动作闭环",
     "完整上线",
     "完整上线验收",
     "上线验收",
@@ -1676,6 +1793,29 @@ function hasCompleteClinicalEntryCoreAction(value: unknown, expectedMenuKey: str
   );
 }
 
+function hasCompleteQualityManagementEntryCoreAction(value: unknown, expectedMenuKey: string) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  const serviceOperation = textValue(action.serviceOperation);
+  return (
+    action.menuKey === expectedMenuKey &&
+    action.role === "engine-operator" &&
+    action.path === requiredQualityManagementEntryCoreActionPaths[expectedMenuKey] &&
+    hasText(action.frontdeskAction) &&
+    hasExpectedQualityManagementEntryCoreActionServiceOperation(
+      expectedMenuKey,
+      serviceOperation,
+    ) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true &&
+    (expectedMenuKey !== "qc-dashboard" || action.sourceAuditVerified === true)
+  );
+}
+
 function hasExpectedClinicalEntryCoreActionServiceOperation(
   expectedMenuKey: string,
   serviceOperation: string | null,
@@ -1683,6 +1823,16 @@ function hasExpectedClinicalEntryCoreActionServiceOperation(
   if (!serviceOperation) return false;
   return requiredClinicalEntryCoreActionServiceOperations[expectedMenuKey]?.every((expected) =>
     serviceOperation.includes(expected),
+  ) === true;
+}
+
+function hasExpectedQualityManagementEntryCoreActionServiceOperation(
+  expectedMenuKey: string,
+  serviceOperation: string | null,
+) {
+  if (!serviceOperation) return false;
+  return requiredQualityManagementEntryCoreActionServiceOperations[expectedMenuKey]?.every(
+    (expected) => serviceOperation.includes(expected),
   ) === true;
 }
 

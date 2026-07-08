@@ -10,6 +10,58 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十六批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、
+  不要片面优化”的要求，接上前序未提交的质量管理入口代表矩阵。本批已读取参考会话
+  `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`：其结论仅作参考，不能恢复为主项目旁路资料线；
+  134 仍是唯一正式医学知识 / 术语 / 规则 / 路径 / 安全红线 / 公式 / 值集等资产的生产、审核、发布、
+  机构生效和运行消费链路，外部资料、标准包、院内码表、测试向量只能作为受控准备。只读子代理本批盘点确认：
+  当前已覆盖四职责菜单可达、四职责代表主动作、平台管理员 P0/P1、临床协同五入口、六类代表入口、
+  13 类标准患者资源代表消费者矩阵；质量管理入口矩阵是本批 P0 收口点，下一批 P0 应转向知识运营资产入口族和全角色剩余入口。
+- 第一百七十六批实现细节：新增 `frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts`
+  和 `frontend/e2e/support/qualityManagementEntryCoreActions.ts`，由 `engine-operator` 真实进入
+  `/qc/eval/sets`、`/qc/insurance`、`/qc/alerts`、`/qc/dashboard` 四个质量管理入口，完成 CLAIM
+  评价指标前台创建 / 提交 / 发布 / 灰度 / 激活、包含本轮 CLAIM 指标的医院 runtime 激活、临床用户创建脱敏患者与医保结算病案快照、
+  医保审核派发质量问题和整改任务、整改提交与复核闭环、质量风险概览下钻本轮整改证据。`launchCoverageEvidence.ts`
+  新增收窄声明 `qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE`，
+  只消费 `quality-management-entry-core-actions-rehearsal.spec.ts` 的
+  `quality-management-entry-core-actions-codes` 附件，且 `matrixCode=QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS`；
+  scope 必须写明“质量管理入口核心动作代表矩阵”，并否定 `质量管理 4 个入口全部完整上线`、`完整 DRG/DIP`、
+  `完整 S9-S11`、`34 个入口全部业务动作闭环`、`完整上线验收`。`e2eLaunchCoverageEvidence.test.ts`
+  增加四入口正向、非目标 spec 冒领、缺 dashboard sourceAudit、角色错误、路径错误、非 2xx、服务操作缺失、
+  scope 过度声明等负向样例；`e2eAuthCredentialContract.test.ts` 锁定质量管理 E2E 必须先创建并激活 CLAIM 指标，
+  再用 `resolveBaselineRuntimeAssets` 保留 13 类基线资产并以 `activeAssets: uniqueRuntimeAssets(...)`
+  激活医院 runtime，禁止 `activeAssets: []` 和先建快照后激活指标。
+- 第一百七十六批后端真实红点与根因修复：目标 E2E 前序红点根因包括本地演练医院 runtime 激活时丢了基线资产、
+  CLAIM 指标未进入病案快照运行版本、医保审核自动创建的 `quality_finding` / `rectification_task`
+  缺少审计链，以及 AntD Modal / Select / 共享数据分页定位不稳定。本批在
+  `EvaluationEngineService.run()` 为自动创建的质量问题和整改任务补 `AuditAction.CREATE` 审计，在
+  `submitRectification()` 为 `rectification_task` 补 `AuditAction.UPDATE` 审计，并保留原
+  `quality_finding` UPDATE / REVIEW 审计；E2E 下钻等待收窄到 `type=RECTIFICATION` 响应，质量提醒查找改为有界翻页，
+  `/qc/alerts` 前台也按服务分页定位本轮质量问题所在页后再点击处置，避免历史演练数据把本轮问题挤出第一页；
+  dashboard 只读入口通过来源对象 `rectification_task` 审计链证明，不硬造 dashboard 读审计。
+- 第一百七十六批真实 E2E 与验证证据：复用 18092 dev/H2 本地后端和 5174 前端，目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-quality-management-entry-core-actions-20260709-r11 npm --prefix frontend run e2e -- --project=chromium quality-management-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-quality-management-entry-core-actions-20260709-r11/report/results.json`
+  为 `PASSED`（1 expected，0 unexpected，0 flaky，0 skipped，duration=37680ms），只声明
+  `qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE`。附件证明四入口均为
+  `role=engine-operator`、2xx 服务状态、`readbackVerified=true`、`auditVerified=true`；其中
+  `qc-dashboard` 额外 `sourceAuditVerified=true`，仅证明下钻来源对象审计链。
+- 第一百七十六批收尾门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  通过（259 tests）；`npm --prefix frontend run test -- e2eAuthCredentialContract -- --run` 通过（51 tests）；
+  `mvn -f medkernel-backend/pom.xml -Dtest=EvaluationEngineServiceTest test` 通过（27 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍只提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，
+  本批不处理、不暂存。
+- 第一百七十六批全局边界与下一步：本批不是完整上线、不是 134 清库部署复演、不是完整质量管理四入口上线、
+  不是完整 DRG/DIP 或医保支付审核、不是完整 S9-S11、不是 34 个入口全部业务动作闭环，也不是完整全知识供给链上线验收。
+  下一批优先按全局推进：1）知识运营资产入口族统一供给链矩阵，覆盖 `/knowledge/production`、`/config/releases`、
+  `/terminology/mapping`、`/pathway/templates`、`/knowledge/institution`、`/knowledge/diagnosis`、
+  `/advanced/graph`、`/advanced/ai-workflows` 等，证明 134 唯一正式链路、13 类资产闭包、标准包导入 / 院内同步 /
+  声明式维护 / 人工审核 / 机构生效 / 回滚读回；2）平台管理员剩余 `/admin/users`、`/onboarding/guide`、
+  `/admin/audit` 与审计员跨入口证据导出矩阵；3）把已有代表矩阵继续扩到全角色、六态、分页筛选、导入导出、
+  服务回读、权限边界和审计，不得把代表动作冒领为完整上线。134 清库 / 重部署仍属于 destructive 外向操作，
+  执行前必须再次取得用户明确确认。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；
+  `test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十五批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、
   不要片面优化”的要求，接上前序未提交的临床协同入口矩阵和 r7 红点。本批已再次读取参考会话
   `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`：其结论仍只作为参考，不能恢复为主项目旁路资料线；

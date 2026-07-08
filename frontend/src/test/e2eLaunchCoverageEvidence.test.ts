@@ -4465,6 +4465,59 @@ const clinicalEntryCoreActionsEvidence = {
   ],
 };
 
+const qualityManagementEntryCoreActionsEvidence = {
+  matrixCode: "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS",
+  scopeStatement:
+    "质量管理入口核心动作代表矩阵：围绕质量风险概览、质量问题与整改、医保审核和评价指标四个入口完成真实前台核心动作、服务回读与审计或来源对象审计链证据；不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，不代表完整 S9-S11，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  entryActions: [
+    {
+      menuKey: "qc-eval-sets",
+      role: "engine-operator",
+      path: "/qc/eval/sets",
+      frontdeskAction: "医疗引擎运营员前台创建、提交、发布、灰度并激活 CLAIM 评价指标",
+      serviceOperation:
+        "POST /api/v1/engine/evaluation/indicators + POST /api/v1/engine/evaluation/indicators/{indicatorId}/activate",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "qc-insurance",
+      role: "engine-operator",
+      path: "/qc/insurance",
+      frontdeskAction: "医疗引擎运营员前台选择真实病案快照并执行医保审核派整改",
+      serviceOperation:
+        "POST /api/v1/engine/quality/case-review + POST /api/v1/engine/quality/drg-grouping + POST /api/v1/engine/quality/insurance-audit",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "qc-alerts",
+      role: "engine-operator",
+      path: "/qc/alerts",
+      frontdeskAction: "医疗引擎运营员前台提交整改证据并复核关闭质量问题",
+      serviceOperation:
+        "POST /api/v1/engine/rectifications/{taskId}/submit + POST /api/v1/engine/rectifications/{taskId}/review",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "qc-dashboard",
+      role: "engine-operator",
+      path: "/qc/dashboard",
+      frontdeskAction: "医疗引擎运营员前台查看质量风险概览并下钻本轮问题证据",
+      serviceOperation:
+        "GET /api/v1/engine/quality/dashboard + GET /api/v1/engine/quality/dashboard/drilldown",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      sourceAuditVerified: true,
+    },
+  ],
+};
+
 function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -4538,6 +4591,31 @@ function clinicalEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
 function expectNoClinicalEntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = clinicalEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+}
+
+function qualityManagementEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts",
+        title: "质量管理入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "quality-management-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoQualityManagementEntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
 }
 
 function platformAdminEntryCoreActionSpecFile(menuKey: string) {
@@ -8999,6 +9077,22 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares quality management entry coverage only from complete real frontdesk matrix evidence", () => {
+    const evidence = qualityManagementEntryCoreActionsEvidenceResult(
+      qualityManagementEntryCoreActionsEvidence,
+    );
+
+    expect(
+      evidence.launchCoverage.qualityManagementEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("does not declare clinical entry coverage from platform-admin entry matrices", () => {
     const p0Evidence = platformAdminEntryCoreActionsEvidenceResult(
       platformAdminEntryCoreActionsEvidence,
@@ -9031,6 +9125,113 @@ describe("browser E2E launch coverage evidence", () => {
     });
 
     expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+  });
+
+  it("does not declare quality management entry coverage from the same attachment in a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-quality-entry.spec.ts",
+          title: "质量管理入口附件不能由非目标 spec 冒领",
+          status: "passed",
+          attachments: [
+            {
+              name: "quality-management-entry-core-actions-codes",
+              contentType: "application/json",
+              body: JSON.stringify(qualityManagementEntryCoreActionsEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少质量风险概览入口",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.menuKey !== "qc-dashboard",
+        ),
+      },
+    },
+    {
+      name: "医保审核入口路径不匹配",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-insurance" ? { ...item, path: "/qc/alerts" } : item,
+        ),
+      },
+    },
+    {
+      name: "评价指标不是医疗引擎运营员角色",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-eval-sets" ? { ...item, role: "platform-admin" } : item,
+        ),
+      },
+    },
+    {
+      name: "整改复核服务不是 2xx",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-alerts" ? { ...item, serviceStatus: 409 } : item,
+        ),
+      },
+    },
+    {
+      name: "医保审核服务缺少 insurance-audit",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-insurance"
+            ? { ...item, serviceOperation: "POST /api/v1/engine/quality/case-review" }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "质量风险概览没有来源对象审计链",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-dashboard" ? { ...item, sourceAuditVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "scope 过度宣称质量管理完整上线",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        scopeStatement:
+          "质量管理入口核心动作代表矩阵，质量管理 4 个入口全部完整上线已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整 DRG/DIP",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        scopeStatement:
+          "质量管理入口核心动作代表矩阵，不代表质量管理 4 个入口全部完整上线，完整 DRG/DIP 和医保支付审核已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线验收",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        scopeStatement:
+          "质量管理入口核心动作代表矩阵，不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，完整上线验收已完成。",
+      },
+    },
+  ])("does not declare quality management entry coverage when $name", ({ body }) => {
+    expectNoQualityManagementEntryCoreActionsCoverage(body);
   });
 
   it.each([

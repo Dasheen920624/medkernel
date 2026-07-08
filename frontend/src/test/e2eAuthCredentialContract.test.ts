@@ -696,6 +696,30 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain('runtimeHasActiveAsset(current.data, "RULE")');
   });
 
+  it("requires quality management entry rehearsal to activate the CLAIM indicator into hospital runtime before snapshot creation", () => {
+    const source = readFileSync(
+      "e2e/quality-management-entry-core-actions-rehearsal.spec.ts",
+      "utf8",
+    );
+    const scenarioBody = source.slice(
+      source.indexOf('test("质量风险概览、质量问题整改、医保审核和评价指标均完成真实前台代表动作"'),
+      source.indexOf("await attachQualityManagementEntryCoreActionEvidence"),
+    );
+
+    expect(source).toContain("requiredRuntimeAssetsForRehearsal");
+    expect(source).toContain("resolveBaselineRuntimeAssets");
+    expect(source).toContain("activateHospitalRuntimeWithClaimIndicator");
+    expect(source).toContain("activeAssets: uniqueRuntimeAssets");
+    expect(source).not.toContain("activeAssets: []");
+    expect(source).toContain("snapshot.runtimeReleaseId");
+    expect(scenarioBody.indexOf("createActiveClaimIndicatorFromUi")).toBeLessThan(
+      scenarioBody.indexOf("activateHospitalRuntimeWithClaimIndicator"),
+    );
+    expect(scenarioBody.indexOf("activateHospitalRuntimeWithClaimIndicator")).toBeLessThan(
+      scenarioBody.indexOf("preparePatientSnapshotFromUi"),
+    );
+  });
+
   it("builds a platform diagnostic-item knowledge request that matches report interpretation E2E", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;

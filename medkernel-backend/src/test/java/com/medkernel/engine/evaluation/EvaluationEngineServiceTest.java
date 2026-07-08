@@ -297,6 +297,10 @@ class EvaluationEngineServiceTest {
         assertThat(task.getValue().status()).isEqualTo(RectificationTaskStatus.ASSIGNED);
         verify(auditRecorder).record(AuditAction.EXECUTE, "evaluation_run",
             response.runId(), "接收评估运行 RUN.VTE");
+        verify(auditRecorder).record(AuditAction.CREATE, "quality_finding",
+            finding.getValue().findingId(), "记录质量问题 FIND.VTE.001");
+        verify(auditRecorder).record(AuditAction.CREATE, "rectification_task",
+            task.getValue().taskId(), "创建质量问题整改任务 " + finding.getValue().findingId());
     }
 
     @Test
@@ -359,6 +363,8 @@ class EvaluationEngineServiceTest {
         assertThat(submitted.taskStatus()).isEqualTo(RectificationTaskStatus.SUBMITTED);
         verify(auditRecorder).record(AuditAction.UPDATE, "quality_finding", "qf-1",
             "提交质量问题整改 task-1");
+        verify(auditRecorder).record(AuditAction.UPDATE, "rectification_task", "task-1",
+            "提交整改说明和证据 qf-1");
 
         QualityFinding remediating = finding("qf-1", QualityFindingSeverity.P1, QualityFindingStatus.REMEDIATING);
         RectificationTask submittedTask = task("task-1", RectificationTaskStatus.SUBMITTED);

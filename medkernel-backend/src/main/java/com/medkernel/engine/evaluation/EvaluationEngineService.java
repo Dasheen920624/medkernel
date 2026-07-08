@@ -601,9 +601,13 @@ public class EvaluationEngineService {
                     taskCount++;
                     transitions.record(TASK_ENTITY, taskId, null, RectificationTaskStatus.ASSIGNED.name(),
                         "创建质量问题整改任务", null);
+                    auditRecorder.record(AuditAction.CREATE, TASK_ENTITY, taskId,
+                        "创建质量问题整改任务 " + finding.findingId());
                 }
                 transitions.record(FINDING_ENTITY, finding.findingId(), null, finding.status().name(),
                     "记录质量问题", null);
+                auditRecorder.record(AuditAction.CREATE, FINDING_ENTITY, finding.findingId(),
+                    "记录质量问题 " + finding.findingCode());
             }
         }
         transitions.record(RUN_ENTITY, runId, null, savedRun.status().name(), "接收评估运行", null);
@@ -754,6 +758,7 @@ public class EvaluationEngineService {
         transitions.record(FINDING_ENTITY, findingId, finding.status().name(), remediating.status().name(),
             "责任科室提交整改", null);
         auditRecorder.record(AuditAction.UPDATE, FINDING_ENTITY, findingId, "提交质量问题整改 " + task.taskId());
+        auditRecorder.record(AuditAction.UPDATE, TASK_ENTITY, task.taskId(), "提交整改说明和证据 " + findingId);
         String traceId = traceId();
         saveIdempotencyKey(
             idempotencyKey, EvaluationIdempotencyOperation.RECTIFICATION_SUBMIT, findingId,
