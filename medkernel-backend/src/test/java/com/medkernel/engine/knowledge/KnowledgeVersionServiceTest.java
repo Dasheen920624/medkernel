@@ -21,6 +21,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.versioning.AssetVersion;
@@ -75,6 +77,7 @@ class KnowledgeVersionServiceTest {
     private PublicationQualityRecordService publicationQualityRecords;
     private AssetScopeResolver assetScopes;
     private UserRoleAssignmentRepository userRoleAssignments;
+    private AuditRecorder auditRecorder;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -96,11 +99,12 @@ class KnowledgeVersionServiceTest {
         publicationQualityRecords = Mockito.mock(PublicationQualityRecordService.class);
         assetScopes = Mockito.mock(AssetScopeResolver.class);
         userRoleAssignments = Mockito.mock(UserRoleAssignmentRepository.class);
+        auditRecorder = Mockito.mock(AuditRecorder.class);
         service = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVersionRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
             versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes,
-            new EffectivePermissionService(userRoleAssignments));
+            new EffectivePermissionService(userRoleAssignments), auditRecorder);
         when(userRoleAssignments.findActiveByTenantIdAndUserId(any(), any())).thenReturn(List.of());
         when(assetScopes.resolve(any(), any(OrgScope.class)))
             .thenAnswer(invocation -> {
@@ -1390,6 +1394,11 @@ class KnowledgeVersionServiceTest {
             .isEqualTo(KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE);
         verify(supersessionRepo, never()).save(any());
         verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+        verify(auditRecorder).record(
+            AuditAction.REVIEW,
+            "knowledge_candidate_classification",
+            "88",
+            "审核知识候选 RETURN identityId=1");
     }
 
     @Test

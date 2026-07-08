@@ -10,6 +10,46 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十二批本地推进：接上前序未提交的 `entry-core-actions-rehearsal.spec.ts`，按用户“前台演练需要按全角色真实操作、
+  不要片面优化、知识只是全局一点”的要求，把 **七个路由 / 六类入口族代表核心动作** 跑成真实前台闭环。本批不是完整上线、
+  不是 134 清库部署复演、不是 34 个入口全部业务动作闭环、不是完整 S0-S40、不是完整六态 / 分页筛选 / 导入导出覆盖，
+  也不是完整全知识供给链上线验收。本批只证明 `/security/baseline`、`/knowledge/governance`、`/rule/definitions`、
+  `/notifications`、`/notifications/settings`、`/sandbox`、`/advanced/provenance` 七个真实前台路由完成代表核心动作、
+  服务回读和审计证据，并通过 `launchCoverage` 仅声明
+  `entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE`。
+- 第一百七十二批真实红点与根因修复：目标 E2E 前序已修通知链路不再取未读第一页第一条，而是通过报告解读真实生成
+  `REPORT_INTERPRETATION` 待办，再精确匹配 `WORKFLOW_TODO/sourceId=todoId` 通知；沙盘不再找旧按钮“运行真实协同链路”，
+  改为真实点击“医生复核并触发 MedKernel”，并通过 `POST /engine/embed/origins` 用当前 `new URL(page.url()).origin`
+  自愈本地前端 Origin 白名单。本批继续修 `/advanced/provenance`：根因不是页面文案，而是 E2E 以前搜“血钾”并取
+  `identities[0]`，在共享演练环境里会选中无本轮来源引用或已自动选中的历史身份。已新增 `prepareProvenanceSeed(page)`：
+  由 `engine-operator` 真实登记受控来源 / 来源版本 / 来源片段，调用
+  `/engine/knowledge-production/generate` 生成唯一知识候选，绑定 `/engine/knowledge/citations`，生成
+  `/engine/knowledge-production/jobs/{jobCode}/publication-quality-records`，再审核 `APPROVE` 激活；`auditor`
+  前台直达 `/advanced/provenance?identityId={seed.identityId}`，API 强断言 `currentVersionId`、`citationId`、来源版本、
+  原文锚点和 `partial=false`，UI 只断言审计员可见的主题、版本沿革、精确来源锚点和原文摘录，不要求展示默认隐藏的
+  `sourceCode` 低频技术标识。
+- 第一百七十二批验证证据：使用既有 18092 dev/H2 本地后端和 5174 前端，
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-entry-core-actions-20260709-r37 npm --prefix frontend run e2e -- --project=chromium entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-entry-core-actions-20260709-r37/report/results.json` 为 `PASSED`
+  （1 expected，0 unexpected，0 flaky，0 skipped，duration=47821ms），`launchCoverage` 只声明
+  `entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE`。收尾验证：
+  `npm --prefix frontend run test -- e2eAuthCredentialContract` 通过（49 tests）；
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（224 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、
+  不暂存。
+- 第一百七十二批全局边界与下一步：已读取参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`，其结论仅作参考：
+  系统外资料准备不能替代 134，正式知识加工 / 审核 / 发布 / 生效必须回到 134。只读子代理盘点再次确认：
+  当前不能把知识问题单点化，也不能把七入口代表动作扩写成 34 入口上线完成。下一批 P0 应继续全局推进：
+  1）把 34 个入口统一成入口核心动作矩阵，逐项记录 `menuKey/path/role/action/service/readback/audit/sixState/pagination/importExport`；
+  2）优先补平台管理员入口族（租户开通、身份绑定、适配器、系统提供者、运行诊断）、临床 / 质量入口族（MPI、患者路径、
+  CDSS、随访、质控告警、医保审核）和运营员资产入口族（运行版本、术语映射、路径模板、机构知识、诊断知识、图谱探索、
+  AI 工作流）；3）知识 / 术语 / 字段目录 / 规则 / 路径 / 动作卡 / 值集 / 公式等供给链优先做检验危急值、抗菌药物审方、
+  专病路径、字段目录与标准资源、医嘱套餐与动作卡五个跨功能真实切片。标准术语、院内字典映射、值集成员、字段目录、
+  公式、医嘱套餐、安全红线、CDSS 风险矩阵等不能靠 AI 自动生成，需走标准包导入、院内字典同步、声明式维护、人工审核和版本发布；
+  模型候选仅可作为 `KNOWLEDGE/RULE/PATHWAY` 的受控候选来源之一。134 清库 / 重部署仍属于 destructive 外向操作，
+  执行前必须再次取得用户明确确认。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；
+  `test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十一批本地推进：继续按用户“不要片面优化、全角色真实前台操作、知识只是全局能力中的一个点”的要求，
   从五类医技报告族代表消费者矩阵推进到 **13 类标准患者资源真实接入与消费者代表矩阵**。本批不是完整上线、
   不是 134 清库部署复演、不是 13 类标准患者资源字段目录全量 coverage、不是完整 S0-S40、不是 34 入口全动作闭环、

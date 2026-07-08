@@ -1037,6 +1037,8 @@ export default function KnowledgeGovernance({
         idempotencyKey: `knowledge-review-${classificationReviewId}-${decision.toLowerCase()}`,
       });
       message.success(REVIEW_DECISION_SUCCESS_MESSAGES[decision]);
+      reviewForm.resetFields();
+      setSelectedCandidateId(undefined);
       await Promise.all([identitiesQuery.refetch(), candidatesQuery.refetch()]);
     } catch (error) {
       message.error(getApiErrorMessage(error, "知识候选审核失败"));

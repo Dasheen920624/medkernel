@@ -1559,6 +1559,128 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("activeAssets: []");
   });
 
+  it("requires entry core action rehearsal to keep representative scope and real service evidence", () => {
+    const e2eSource = readFileSync("e2e/entry-core-actions-rehearsal.spec.ts", "utf8");
+
+    expect(e2eSource).toContain("七个路由覆盖六类入口族完成真实前台核心动作代表闭环");
+    expect(e2eSource).toContain("entry-core-actions-codes");
+    expect(e2eSource).toContain("SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE");
+    expect(e2eSource).toContain("七个路由覆盖六类入口族");
+    expect(e2eSource).toContain("不代表 34 个入口全部业务动作闭环");
+    expect(e2eSource).toContain("不代表完整上线验收");
+    expect(e2eSource).toContain("getSystemConfigItem(page, securityConfigKey)");
+    expect(e2eSource).toContain("locateSystemConfigRow(page, before.displayName)");
+    expect(e2eSource).toContain("arrayData(await responseData(readback))");
+    expect(e2eSource).toContain("prepareKnowledgeReviewCandidate(page)");
+    expect(e2eSource).toContain("waitForResponseWithQuery");
+    expect(e2eSource).toContain("seed.identityCode");
+    expect(e2eSource).toContain("entry-core-review=");
+    expect(e2eSource).toContain("/engine/knowledge-production/generate");
+    expect(e2eSource).toContain('newIdentity: { domain: "GUIDELINE", subject, identityCode }');
+    expect(e2eSource).toContain("七入口知识审核候选必须生成审核分类");
+    expect(e2eSource).toContain(
+      'locator("main").getByRole("button", { name: "search", exact: true })',
+    );
+    expect(e2eSource).toContain(
+      'page.getByRole("dialog").filter({ hasText: "知识候选审核对照" }).last()',
+    );
+    expect(e2eSource).toContain(
+      'const returnReviewButton = page.getByRole("button", { name: /退\\s*修/u }).last()',
+    );
+    expect(e2eSource).toContain("await returnReviewButton.click()");
+    expect(e2eSource).toContain("parseKnowledgeCandidateRef");
+    expect(e2eSource).not.toContain("resourceId: versionId");
+    expect(e2eSource).toContain("auditEventExistsAsAuditor");
+    expect(e2eSource).toContain('ensureReadySession(page, "auditor")');
+    expect(e2eSource).toContain('resourceType: "knowledge_candidate_classification"');
+    expect(e2eSource).not.toContain('resourceType: "knowledge_asset_version"');
+    expect(e2eSource).toContain("platform-knowledge/t-1/literature-materials");
+    expect(e2eSource).not.toContain("medkernel://launch-entry-core");
+    expect(e2eSource).toContain('getByRole("checkbox", { name: "确认高风险影响" }).check()');
+    expect(e2eSource).toContain('chooseDialogOption(page, createDialog, "规则门类", "临床质控")');
+    expect(e2eSource).not.toContain(
+      'chooseDialogOption(page, createDialog, "规则门类", "质量规则")',
+    );
+    expect(e2eSource).toContain(
+      'chooseDialogOption(page, createDialog, "临床触发场景", "查看患者")',
+    );
+    expect(e2eSource).not.toContain(
+      'chooseDialogOption(page, createDialog, "临床触发场景", "患者概览")',
+    );
+    expect(e2eSource).toContain('getByRole("tab", { name: /L2 条件树/u }).click()');
+    expect(e2eSource).toContain(
+      'locator("#rule-condition-fact").fill("observations[].valueNumeric")',
+    );
+    expect(e2eSource).not.toContain('locator("#rule-condition-fact").fill("observations.0.value")');
+    expect(e2eSource).toContain('locator("#rule-condition-value").fill("6")');
+    expect(e2eSource).toContain('detailDrawer.getByRole("tab", { name: /发布验证用例/u }).click()');
+    expect(e2eSource).toContain(
+      'detailDrawer.getByRole("button", { name: "新增验证用例" }).click()',
+    );
+    expect(e2eSource).toContain("assertContextSnapshotSearchContains(page, snapshot)");
+    expect(e2eSource).toContain('const snapshotChoice = caseDialog.getByText("第 1 个临床快照")');
+    expect(e2eSource).toContain("await expect(snapshotChoice).toBeVisible");
+    expect(e2eSource).toContain("await snapshotChoice.click()");
+    expect(e2eSource).toContain('caseDialog.getByText("验证快照已关联")');
+    expect(e2eSource).not.toContain('caseDialog.getByText("临床快照已选择")');
+    expect(e2eSource).toContain('chooseDialogOption(page, caseDialog, "期望风险等级", "低风险")');
+    expect(e2eSource).toContain('chooseDialogOption(page, caseDialog, "期望处置动作", "一般提醒")');
+    expect(e2eSource).not.toContain('chooseDialogOption(page, caseDialog, "期望严重程度"');
+    expect(e2eSource).not.toContain('chooseDialogOption(page, caseDialog, "期望动作"');
+    expect(e2eSource).toContain('const caseId = textField(savedCase, "caseId")');
+    expect(e2eSource).toContain('textField(recordField(detail, "definition"), "ruleId")');
+    expect(e2eSource).toContain('arrayField(detail, "testCases").some');
+    expect(e2eSource).not.toContain('textField(detail, "ruleId") ?? textField(detail, "id")');
+    expect(e2eSource).toContain("prepareWorkflowTodoNotification(page)");
+    expect(e2eSource).toContain("/engine/recommendations/report-interpretation");
+    expect(e2eSource).toContain("/engine/workflow/todos?sourceType=REPORT_INTERPRETATION");
+    expect(e2eSource).toContain('textField(item, "sourceType") === "WORKFLOW_TODO"');
+    expect(e2eSource).toContain('textField(item, "sourceId") === todoId');
+    expect(e2eSource).not.toContain("pageItems(await responseData(unread))[0]");
+    expect(e2eSource).not.toContain('data-snapshot-id="${snapshot.snapshotId}"');
+    expect(e2eSource).toContain('getByRole("switch", { name: "免打扰偏好" })');
+    expect(e2eSource).toContain('getByLabel("免打扰开始时间")');
+    expect(e2eSource).toContain('getByLabel("免打扰结束时间")');
+    expect(e2eSource).toContain("ensureSandboxEmbedOrigin(page)");
+    expect(e2eSource).toContain("new URL(page.url()).origin");
+    expect(e2eSource).toContain('postApi(page, "/engine/embed/origins"');
+    expect(e2eSource).toContain('getByRole("button", { name: "医生复核并触发 MedKernel" })');
+    expect(e2eSource).not.toContain('getByRole("button", { name: "运行真实协同链路" }).first()');
+    expect(e2eSource).toContain("prepareProvenanceSeed(page)");
+    expect(e2eSource).toContain("/engine/knowledge/citations");
+    expect(e2eSource).toContain(
+      "/engine/knowledge-production/jobs/${encodeURIComponent(jobCode)}/publication-quality-records",
+    );
+    expect(e2eSource).toContain("/engine/knowledge/candidates/${classificationId}/review");
+    expect(e2eSource).toContain("assertProvenanceSeedReadback(page, seed)");
+    expect(e2eSource).toContain("appPath(`/advanced/provenance?identityId=${seed.identityId}`)");
+    expect(e2eSource).toContain("seed.anchorLabel");
+    expect(e2eSource).toContain("seed.citationId");
+    expect(e2eSource).toContain("seed.textExcerpt");
+    expect(e2eSource).toContain('numericField(provenance, "currentVersionId")');
+    expect(e2eSource).not.toContain('fill("血钾")');
+    expect(e2eSource).not.toContain("identities[0]");
+    for (const path of [
+      "/security/baseline",
+      "/knowledge/governance",
+      "/rule/definitions",
+      "/notifications",
+      "/notifications/settings",
+      "/sandbox",
+      "/advanced/provenance",
+    ]) {
+      expect(e2eSource).toContain(`path: "${path}"`);
+    }
+    expect(e2eSource).toContain("serviceStatus: ");
+    expect(e2eSource).toContain("readbackVerified: true");
+    expect(e2eSource).toContain("auditVerified");
+    expect(e2eSource).toContain('resourceType: "knowledge_identity"');
+    expect(e2eSource).toContain("代表核心动作必须能回读真实审计事件");
+    expect(e2eSource).not.toContain("auditVerified: true,");
+    expect(e2eSource).not.toContain("完整上线验收已完成");
+    expect(e2eSource).not.toContain("34 个入口全部业务动作已闭环");
+  });
+
   it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
     const e2eSource = readFileSync(
       "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",

@@ -1315,6 +1315,11 @@ class RuleEngineServiceTest {
         assertThat(response.results()).hasSize(2);
         verify(definitions, org.mockito.Mockito.never()).save(any());
         verify(versions, org.mockito.Mockito.never()).save(any());
+        verify(auditRecorder).record(
+            AuditAction.EXECUTE,
+            "rule_definition",
+            "rule-1",
+            "执行规则验证用例 2 项 allPassed=true");
     }
 
     @Test

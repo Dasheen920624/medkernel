@@ -644,6 +644,11 @@ public class RuleEngineService {
         List<RuleTestCaseResult> results = runTestCases(version, tenantId);
         boolean allPassed = !results.isEmpty()
             && results.stream().allMatch(result -> result.status() == RuleTestCaseStatus.PASS);
+        auditRecorder.record(
+            AuditAction.EXECUTE,
+            RULE_ENTITY,
+            ruleId,
+            "执行规则验证用例 " + results.size() + " 项 allPassed=" + allPassed);
         return new RuleTestRunResponse(
             ruleId, version.versionId(), allPassed, results, RequestContext.currentTraceId());
     }

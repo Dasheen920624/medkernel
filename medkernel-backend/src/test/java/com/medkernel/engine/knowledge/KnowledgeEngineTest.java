@@ -12,6 +12,7 @@ import org.mockito.Mockito;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -53,6 +54,7 @@ class KnowledgeEngineTest {
     private SourceVersionRepository sourceVerRepo;
     private SourceFragmentRepository sourceFragRepo;
     private CitationRepository citationRepo;
+    private AuditRecorder auditRecorder;
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
     private CandidateClassificationRepository candidateClassificationRepo;
     private ReviewAssignmentRepository reviewAssignmentRepo;
@@ -78,6 +80,7 @@ class KnowledgeEngineTest {
         sourceVerRepo = Mockito.mock(SourceVersionRepository.class);
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
+        auditRecorder = Mockito.mock(AuditRecorder.class);
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
         candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
         reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
@@ -93,14 +96,14 @@ class KnowledgeEngineTest {
 
         identityService = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
-            new com.medkernel.engine.versioning.AssetIdentityAllocator(), effectiveVersions
+            new com.medkernel.engine.versioning.AssetIdentityAllocator(), effectiveVersions, auditRecorder
         );
 
         versionService = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVerRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
             versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes,
-            new EffectivePermissionService(userRoleAssignments)
+            new EffectivePermissionService(userRoleAssignments), auditRecorder
         );
         when(userRoleAssignments.findActiveByTenantIdAndUserId(any(), any())).thenReturn(List.of());
         when(assetScopes.resolve(any(), any(OrgScope.class)))

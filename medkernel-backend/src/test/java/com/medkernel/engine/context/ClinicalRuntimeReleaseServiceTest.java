@@ -152,6 +152,28 @@ class ClinicalRuntimeReleaseServiceTest {
     }
 
     @Test
+    void rejectsEmptyActiveAssetSelectionBeforeCreatingRuntimeRelease() {
+        stubHospitalAndBaseline();
+
+        assertThatThrownBy(() -> service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            null,
+            List.of(),
+            "operator-A",
+            "trace-empty-assets"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("启用资产不能为空")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(runtimeItems, org.mockito.Mockito.never()).save(any(ClinicalRuntimeReleaseItem.class));
+    }
+
+    @Test
     void activatesAnyMixedAssetSetAndMaterializesTheCompleteManifest() {
         stubHospitalAndBaseline();
         AssetVersion localPathway = version(

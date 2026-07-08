@@ -114,7 +114,13 @@ class RuntimeReleaseControllerTest {
 
         controller.activateHospitalRuntime(
             "hospital-A",
-            new ClinicalRuntimeActivateRequest("baseline-A9", "runtime-H8", "digest-A9", List.of())
+            new ClinicalRuntimeActivateRequest(
+                "baseline-A9",
+                "runtime-H8",
+                "digest-A9",
+                List.of(ClinicalRuntimeAssetSelection.platform(
+                    VersionedAssetType.KNOWLEDGE, "KNOW.CKD"))
+            )
         );
 
         verify(runtimes).activate(any());

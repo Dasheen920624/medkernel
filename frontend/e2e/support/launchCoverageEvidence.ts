@@ -69,6 +69,7 @@ type CoverageProof = {
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
   requiresFourRoleCoreActionsAttachment?: boolean;
+  requiresSixEntryCoreActionsAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -369,6 +370,9 @@ const identityBindingClaims = [
 ];
 
 const fourRoleCoreActionsClaims = ["roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS"];
+const sixEntryCoreActionsClaims = [
+  "entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
+];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
@@ -861,6 +865,12 @@ const coverageProofs: CoverageProof[] = [
     claims: fourRoleCoreActionsClaims,
     requiresFourRoleCoreActionsAttachment: true,
   },
+  {
+    file: "entry-core-actions-rehearsal.spec.ts",
+    titleIncludes: "七个路由覆盖六类入口族完成真实前台核心动作代表闭环",
+    claims: sixEntryCoreActionsClaims,
+    requiresSixEntryCoreActionsAttachment: true,
+  },
 ];
 
 export function buildBrowserE2eLaunchEvidence(input: {
@@ -948,7 +958,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test)) &&
       (!proof.requiresFourRoleCoreActionsAttachment ||
-        hasRequiredFourRoleCoreActionsAttachment(test))
+        hasRequiredFourRoleCoreActionsAttachment(test)) &&
+      (!proof.requiresSixEntryCoreActionsAttachment ||
+        hasRequiredSixEntryCoreActionsAttachment(test))
     );
   });
 }
@@ -1035,7 +1047,12 @@ function hasCompleteStandardPatientResourceRow(
     : sourceId;
   if (!resolvedSourceId) return false;
   if (
-    !resourceMatchesStandardPatientResourceRow(resource, resourceType, sourceSystem, resolvedSourceId)
+    !resourceMatchesStandardPatientResourceRow(
+      resource,
+      resourceType,
+      sourceSystem,
+      resolvedSourceId,
+    )
   ) {
     return false;
   }
@@ -1064,7 +1081,10 @@ function hasCompleteStandardPatientResourceRow(
   return true;
 }
 
-function resourcePathMatchesStandardPatientResourceType(resourcePath: string, resourceType: string) {
+function resourcePathMatchesStandardPatientResourceType(
+  resourcePath: string,
+  resourceType: string,
+) {
   const prefix = standardPatientResourcePathPrefixes[resourceType];
   return Boolean(prefix) && resourcePath.startsWith(prefix);
 }
@@ -1101,7 +1121,10 @@ function resourceMatchesStandardPatientResourceRow(
   );
 }
 
-function resourceHasStandardPatientResourceShape(resource: Record<string, unknown>, resourceType: string) {
+function resourceHasStandardPatientResourceShape(
+  resource: Record<string, unknown>,
+  resourceType: string,
+) {
   switch (resourceType) {
     case "Patient":
       return hasText(resource.mpi) && hasText(resource.name);
@@ -1118,7 +1141,9 @@ function resourceHasStandardPatientResourceShape(resource: Record<string, unknow
     case "DiagnosticReport":
       return hasText(resource.reportId) || hasText(resource.reportType);
     case "Medication":
-      return hasText(resource.medicationId) || hasText(resource.code) || hasText(resource.standardCode);
+      return (
+        hasText(resource.medicationId) || hasText(resource.code) || hasText(resource.standardCode)
+      );
     case "Procedure":
       return hasText(resource.procedureId) || hasText(resource.code);
     case "Document":
@@ -1126,7 +1151,11 @@ function resourceHasStandardPatientResourceShape(resource: Record<string, unknow
     case "CarePlan":
       return hasText(resource.planId) || hasText(resource.planType);
     case "FollowUp":
-      return hasText(resource.followUpId) || hasText(resource.planId) || hasText(resource.questionnaireId);
+      return (
+        hasText(resource.followUpId) ||
+        hasText(resource.planId) ||
+        hasText(resource.questionnaireId)
+      );
     case "Claim":
       return hasText(resource.claimId) && hasText(resource.drgCode);
     default:
@@ -1249,6 +1278,86 @@ function hasCompleteFourRoleCoreAction(value: unknown, expectedRole: string) {
   return (
     action.role === expectedRole &&
     action.path === requiredFourRoleCoreActionPaths[expectedRole] &&
+    hasText(action.frontdeskAction) &&
+    hasText(action.serviceOperation) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true
+  );
+}
+
+const requiredSixEntryCoreActionPaths = [
+  "/security/baseline",
+  "/knowledge/governance",
+  "/rule/definitions",
+  "/notifications",
+  "/notifications/settings",
+  "/sandbox",
+  "/advanced/provenance",
+];
+
+const requiredSixEntryCoreActionRoles = [
+  "platform-admin",
+  "engine-operator",
+  "clinical-user",
+  "auditor",
+];
+
+function hasRequiredSixEntryCoreActionsAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find((item) => item.name === "entry-core-actions-codes");
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      matrixCode?: unknown;
+      scopeStatement?: unknown;
+      entryActions?: unknown;
+    };
+    if (parsed.matrixCode !== "SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE") return false;
+    if (!hasSixEntryCoreActionScopeBoundary(parsed.scopeStatement)) return false;
+    if (!Array.isArray(parsed.entryActions)) return false;
+    const paths = new Set<string>();
+    const roles = new Set<string>();
+    for (const item of parsed.entryActions) {
+      const action = recordValue(item);
+      if (!action) return false;
+      if (!hasCompleteSixEntryCoreAction(action)) return false;
+      const pathValue = textValue(action.path);
+      const roleValue = textValue(action.role);
+      if (!pathValue || !roleValue) return false;
+      if (!requiredSixEntryCoreActionPaths.includes(pathValue)) return false;
+      if (!requiredSixEntryCoreActionRoles.includes(roleValue)) return false;
+      paths.add(pathValue);
+      roles.add(roleValue);
+    }
+    return (
+      requiredSixEntryCoreActionPaths.every((pathValue) => paths.has(pathValue)) &&
+      requiredSixEntryCoreActionRoles.every((roleValue) => roles.has(roleValue))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasSixEntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("六入口核心动作代表闭环") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveFourRoleCoreActionCompleteScopeClaim(statement)
+  );
+}
+
+function hasCompleteSixEntryCoreAction(value: unknown) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  return (
+    hasText(action.role) &&
+    hasText(action.path) &&
     hasText(action.frontdeskAction) &&
     hasText(action.serviceOperation) &&
     typeof serviceStatus === "number" &&

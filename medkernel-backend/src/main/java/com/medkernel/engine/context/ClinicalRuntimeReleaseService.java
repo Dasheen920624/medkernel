@@ -137,6 +137,9 @@ public class ClinicalRuntimeReleaseService {
             .orElse(null);
         assertExpectedCurrent(current, command.expectedCurrentReleaseId());
         assertBaselineDoesNotDowngrade(current, baseline);
+        if (command.activeAssets().isEmpty()) {
+            throw validation("机构生效版本启用资产不能为空");
+        }
 
         Map<AssetKey, RuntimeEntry> platform = loadPlatformBaseline(baseline);
         Map<AssetKey, RuntimeEntry> manifest = disabledCopy(platform);

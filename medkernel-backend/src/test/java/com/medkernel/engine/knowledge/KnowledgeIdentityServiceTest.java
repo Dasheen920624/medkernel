@@ -14,6 +14,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
@@ -40,6 +42,7 @@ class KnowledgeIdentityServiceTest {
     private SourceVersionRepository sourceVerRepo;
     private SourceFragmentRepository sourceFragRepo;
     private CitationRepository citationRepo;
+    private AuditRecorder auditRecorder;
     private KnowledgeEffectiveVersionResolver effectiveVersions;
     private KnowledgeIdentityService service;
 
@@ -52,10 +55,11 @@ class KnowledgeIdentityServiceTest {
         sourceVerRepo = Mockito.mock(SourceVersionRepository.class);
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
+        auditRecorder = Mockito.mock(AuditRecorder.class);
         effectiveVersions = Mockito.mock(KnowledgeEffectiveVersionResolver.class);
         service = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
-            new AssetIdentityAllocator(), effectiveVersions
+            new AssetIdentityAllocator(), effectiveVersions, auditRecorder
         );
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
         when(identityRepo.save(any(KnowledgeIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -648,6 +652,30 @@ class KnowledgeIdentityServiceTest {
             assertThat(item.endOffset()).isEqualTo(12);
         });
         Mockito.verify(versionRepo, Mockito.never()).listByIdentity("t-1", 1L);
+    }
+
+    @Test
+    void provenanceReadRecordsAuditForKnowledgeIdentity() {
+        KnowledgeIdentity identity = identityRow(1L, "t-1", "DRUG.X", 99L);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        KnowledgeAssetVersion active = versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE);
+        PageRequest page = new PageRequest(1, 2, null);
+        when(versionRepo.countByTenantIdAndIdentityId("t-1", 1L)).thenReturn(1L);
+        when(versionRepo.pageByTenantIdAndIdentityId("t-1", 1L, 0, 2))
+            .thenReturn(List.of(active));
+        when(supersessionRepo.countByTenantIdAndIdentityId("t-1", 1L)).thenReturn(0L);
+        when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(resolvedKnowledge(identity, active)));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 20L))
+            .thenReturn(List.of());
+
+        service.getProvenance(1L, page);
+
+        Mockito.verify(auditRecorder).record(
+            eq(AuditAction.EXECUTE),
+            eq("knowledge_identity"),
+            eq("1"),
+            eq("查看知识来源血缘 DRUG.X"));
     }
 
     private KnowledgeIdentity identityRow(Long id) {

@@ -2024,6 +2024,29 @@ describe("KnowledgeGovernance", () => {
     });
   });
 
+  it("closes the review drawer after returning a candidate for revision", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "请补充来源锚点后重提。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          request: expect.objectContaining({ decision: "RETURN" }),
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("知识候选审核对照")).not.toBeVisible();
+    });
+  });
+
   it("does not submit a return decision when the revision reason is blank", async () => {
     const user = userEvent.setup();
     renderPage();

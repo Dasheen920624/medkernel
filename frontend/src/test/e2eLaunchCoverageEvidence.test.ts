@@ -4233,6 +4233,102 @@ function expectNoFourRoleCoreActionsCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.roleRepresentativeCoreActions).toBeUndefined();
 }
 
+const sixEntryCoreActionsEvidence = {
+  matrixCode: "SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
+  scopeStatement:
+    "六入口核心动作代表闭环：围绕安全与配置、知识审核发布中心、临床规则、消息通知、全真体验沙盘和来源血缘完成真实前台核心动作、服务回读与审计证据；不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  entryActions: [
+    {
+      role: "platform-admin",
+      path: "/security/baseline",
+      frontdeskAction: "前台保存配置、执行权限试算和脱敏预览",
+      serviceOperation: "PATCH /api/v1/system/config-items/{key}",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "engine-operator",
+      path: "/knowledge/governance",
+      frontdeskAction: "前台查看候选、打开审核对照并完成退修决策",
+      serviceOperation: "POST /api/v1/engine/knowledge/review/{versionId}/decisions",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "engine-operator",
+      path: "/rule/definitions",
+      frontdeskAction: "前台新建规则草稿、保存验证用例并执行全部用例",
+      serviceOperation: "POST /api/v1/engine/rules/{ruleId}/test-cases/run",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "clinical-user",
+      path: "/notifications",
+      frontdeskAction: "前台打开来源并标为已读",
+      serviceOperation: "POST /api/v1/notifications/{notificationId}/read",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "clinical-user",
+      path: "/notifications/settings",
+      frontdeskAction: "前台保存个人通知偏好并回读强制安全订阅",
+      serviceOperation: "PUT /api/v1/notifications/preferences/me",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "clinical-user",
+      path: "/sandbox",
+      frontdeskAction: "前台运行真实协同链路并查看运行证据摘要",
+      serviceOperation: "POST /api/v1/sandbox/scenarios/{scenarioCode}/run",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      role: "auditor",
+      path: "/advanced/provenance",
+      frontdeskAction: "前台检索来源血缘、选择版本并查看来源详情",
+      serviceOperation: "GET /api/v1/provenance/knowledge-identities",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+  ],
+};
+
+function sixEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/entry-core-actions-rehearsal.spec.ts",
+        title: "七个路由覆盖六类入口族完成真实前台核心动作代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoSixEntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = sixEntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+}
+
 const standardPatientResourceMatrixScope =
   "13 类标准患者资源真实接入与消费者代表矩阵：跨真实前台演练聚合 Patient、AllergyIntolerance、Encounter、Condition、NursingAssessment、Observation、DiagnosticReport、Medication、Procedure、Document、CarePlan、FollowUp 与 Claim 的标准资源回读、运行消费者、审计和数据质量证据；不代表每类字段目录全量落地，不代表完整 S0-S40，不代表完整上线验收。";
 
@@ -8595,6 +8691,75 @@ describe("browser E2E launch coverage evidence", () => {
     );
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares six-entry core action representative coverage only from complete real frontdesk action evidence", () => {
+    const evidence = sixEntryCoreActionsEvidenceResult(sixEntryCoreActionsEvidence);
+
+    expect(
+      evidence.launchCoverage.entryRepresentativeCoreActions?.map((item) => item.code),
+    ).toEqual(["SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.roleRepresentativeCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少来源血缘入口",
+      body: {
+        ...sixEntryCoreActionsEvidence,
+        entryActions: sixEntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.path !== "/advanced/provenance",
+        ),
+      },
+    },
+    {
+      name: "缺少审计员角色",
+      body: {
+        ...sixEntryCoreActionsEvidence,
+        entryActions: sixEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.role === "auditor" ? { ...item, role: "engine-operator" } : item,
+        ),
+      },
+    },
+    {
+      name: "scope 过度宣称 34 个入口全部业务动作已闭环",
+      body: {
+        ...sixEntryCoreActionsEvidence,
+        scopeStatement:
+          "六入口核心动作代表闭环，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "临床用户通知偏好没有服务端 2xx 证据",
+      body: {
+        ...sixEntryCoreActionsEvidence,
+        entryActions: sixEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.path === "/notifications/settings" ? { ...item, serviceStatus: 500 } : item,
+        ),
+      },
+    },
+    {
+      name: "临床规则动作没有回读证据",
+      body: {
+        ...sixEntryCoreActionsEvidence,
+        entryActions: sixEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.path === "/rule/definitions" ? { ...item, readbackVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "安全与配置动作没有审计证据",
+      body: {
+        ...sixEntryCoreActionsEvidence,
+        entryActions: sixEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.path === "/security/baseline" ? { ...item, auditVerified: false } : item,
+        ),
+      },
+    },
+  ])("does not declare six-entry core action coverage when $name", ({ body }) => {
+    expectNoSixEntryCoreActionsCoverage(body);
   });
 
   it("does not declare four-role core action coverage from menu or route reachability evidence", () => {

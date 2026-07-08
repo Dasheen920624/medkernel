@@ -19,6 +19,8 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditEvent;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
@@ -81,6 +83,7 @@ public class KnowledgeVersionService {
     private final PublicationQualityRecordService publicationQualityRecords;
     private final AssetScopeResolver assetScopes;
     private final EffectivePermissionService effectivePermissions;
+    private final AuditRecorder auditRecorder;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
@@ -98,7 +101,8 @@ public class KnowledgeVersionService {
                                    ReleasePort releasePort,
                                    PublicationQualityRecordService publicationQualityRecords,
                                    AssetScopeResolver assetScopes,
-                                   EffectivePermissionService effectivePermissions) {
+                                   EffectivePermissionService effectivePermissions,
+                                   AuditRecorder auditRecorder) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -116,6 +120,7 @@ public class KnowledgeVersionService {
         this.publicationQualityRecords = publicationQualityRecords;
         this.assetScopes = assetScopes;
         this.effectivePermissions = effectivePermissions;
+        this.auditRecorder = auditRecorder;
     }
 
     public PageResponse<KnowledgeAssetVersion> listByIdentity(Long identityId, PageRequest request) {
@@ -516,6 +521,7 @@ public class KnowledgeVersionService {
                 classification.basis(),
                 now,
                 actor));
+            recordCandidateReviewAudit(approved, request.decision());
             return new KnowledgeCandidateResponse(
                 classification.identityId(),
                 candidatePage(List.of(activated)),
@@ -567,6 +573,7 @@ public class KnowledgeVersionService {
                 appendReason(classification.basis(), request.reason()),
                 now,
                 actor));
+            recordCandidateReviewAudit(returned, request.decision());
             return new KnowledgeCandidateResponse(
                 classification.identityId(),
                 candidatePage(List.of(savedDraft)),
@@ -616,6 +623,7 @@ public class KnowledgeVersionService {
             appendReason(classification.basis(), request.reason()),
             now,
             actor));
+        recordCandidateReviewAudit(rejectedClassification, request.decision());
         return new KnowledgeCandidateResponse(
             classification.identityId(),
             candidatePage(List.of(saved)),
@@ -1396,6 +1404,16 @@ public class KnowledgeVersionService {
 
     private String currentOrgPath() {
         return AuditEvent.orgPath(RequestContext.currentOrgScope());
+    }
+
+    private void recordCandidateReviewAudit(
+            CandidateClassification classification,
+            KnowledgeCandidateReviewDecision decision) {
+        auditRecorder.record(
+            AuditAction.REVIEW,
+            "knowledge_candidate_classification",
+            String.valueOf(classification.id()),
+            "审核知识候选 " + decision.name() + " identityId=" + classification.identityId());
     }
 
     private String organizationScope(KnowledgeApiContext context, String tenantId) {
