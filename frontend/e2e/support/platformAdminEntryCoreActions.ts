@@ -6,7 +6,9 @@ export type PlatformAdminEntryCoreActionMenuKey =
   | "tenant-onboarding"
   | "identity-bindings"
   | "adapter-hub"
-  | "system-providers";
+  | "system-providers"
+  | "runtime-diagnostics"
+  | "domestic-check";
 
 export type PlatformAdminEntryCoreActionEvidence = {
   menuKey: PlatformAdminEntryCoreActionMenuKey;
@@ -24,14 +26,23 @@ const pathByMenuKey: Record<PlatformAdminEntryCoreActionMenuKey, string> = {
   "identity-bindings": "/security/identity-binding",
   "adapter-hub": "/adapter/hub",
   "system-providers": "/system/providers",
+  "runtime-diagnostics": "/system/runtime-diagnostics",
+  "domestic-check": "/advanced/domestic",
 };
 
 export const platformAdminEntryCoreActionScopeStatement =
   "平台管理员 P0 入口核心动作代表矩阵：围绕服务机构、身份来源、系统接入和服务运行保障四个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。";
 
+export const platformAdminP1EntryCoreActionScopeStatement =
+  "平台管理员 P1 系统运维入口核心动作代表矩阵：围绕运行诊断和国产化适配自检两个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。";
+
 export async function attachPlatformAdminEntryCoreActionEvidence(
   testInfo: TestInfo,
   evidence: PlatformAdminEntryCoreActionEvidence | PlatformAdminEntryCoreActionEvidence[],
+  options: {
+    matrixCode?: "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS" | "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS";
+    scopeStatement?: string;
+  } = {},
 ) {
   const entryActions = Array.isArray(evidence) ? evidence : [evidence];
   for (const action of entryActions) {
@@ -42,8 +53,8 @@ export async function attachPlatformAdminEntryCoreActionEvidence(
     recordPath,
     `${JSON.stringify(
       {
-        matrixCode: "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS",
-        scopeStatement: platformAdminEntryCoreActionScopeStatement,
+        matrixCode: options.matrixCode ?? "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS",
+        scopeStatement: options.scopeStatement ?? platformAdminEntryCoreActionScopeStatement,
         entryActions,
       },
       null,

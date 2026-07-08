@@ -10,6 +10,51 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十四批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、不要片面优化”的要求，
+  读取参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 后，将其结论作为参考而非主线替代：
+  系统外资料准备不能替代 134，正式知识加工 / 审核 / 发布 / 生效必须回到 134；知识供给链要纳入全局上线门禁，
+  但本批仍以真实可验证增量推进，不把知识单点化。两个只读子代理本批同步完成盘点：全角色入口缺口结论是
+  平台管理员 P1 可补，但下一批优先应转向临床协同入口族、质量整改入口族和知识运营资产入口族；知识供给链结论是
+  当前已有受控来源、原文、解析、候选、术语映射、声明式资产、运行版本、回滚 / 离线交付骨架和多个代表切片，
+  但未证明标准包导入、多资产逐类供给链、院内字典持续同步、字段级完整性、安全红线 / CDSS 风险回滚、全资产审核责任确认。
+- 第一百七十四批实现细节：新增
+  `frontend/e2e/platform-admin-p1-entry-core-actions-rehearsal.spec.ts`，由平台管理员真实进入
+  `/system/runtime-diagnostics` 和 `/advanced/domestic`，分别验证运行探针、系统运维快照、运行诊断服务目录、
+  扩展能力授权边界、国产化逐项筛选、国产化自检报告导出以及临床账号 403 权限边界。扩展
+  `frontend/e2e/support/platformAdminEntryCoreActions.ts`，同一附件名继续承载入口动作矩阵，但通过
+  `matrixCode` 区分 `PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS` 与 `PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS`；
+  新增 P1 scope 文案必须否定 `6 个平台管理员入口全部闭环`、`34 个入口全部业务动作闭环` 和 `完整上线验收`。
+  `launchCoverageEvidence.ts` 新增 `platformAdminP1EntryCoreActions:RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK` 门禁，
+  且 P0 / P1 parser 只消费自己的 `matrixCode`，允许同一报告内并存但不得互相冒领。
+  `e2eLaunchCoverageEvidence.test.ts` 增加 P1 正向、P0 不得冒领 P1，以及缺国产化入口、路径错误、非 2xx、
+  scope 过度声明等负向样例；红灯曾按预期失败于
+  `platformAdminP1EntryCoreActions` 未声明，补实现后定向与全量 coverage 单测转绿。
+- 第一百七十四批真实 E2E 与验证证据：复用既有 18092 dev/H2 本地后端和 5174 前端，健康检查
+  `http://localhost:18092/medkernel/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`。
+  目标真实 E2E 有两次测试断言修正：r1 红于把“服务契约”误当独立可见文本，实际页面为“服务目录”tab；
+  r2 红于 Playwright 点击 AntD Segmented 隐藏 radio，已改点可见 `option`。有效复跑：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-platform-admin-p1-entry-core-actions-20260709-r3 npm --prefix frontend run e2e -- --project=chromium platform-admin-p1-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-platform-admin-p1-entry-core-actions-20260709-r3/report/results.json` 为 `PASSED`
+  （1 expected，0 unexpected，0 flaky，0 skipped，duration=8890ms），只声明
+  `platformAdminP1EntryCoreActions:RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK`。附件证明：
+  `runtime-diagnostics` 回读 `/system/runtime`、`/system/operations`、`/system/runtime-diagnostics/api-contracts`
+  均 200，服务契约数量 `95`，临床账号 `/system/runtime` 为 403 且页面显示“当前权限不足”；
+  `domestic-check` 回读 `/system/operations` 和 `/system/operations/domestic-report` 均 200，报告包含国产化摘要，
+  前台完成“不兼容 / 待确认”筛选，临床账号 `/system/operations` 为 403 且页面显示“当前权限不足”。
+  收尾验证：`npm --prefix frontend run test -- e2eAuthCredentialContract` 通过（49 tests）；
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（237 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍只提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百七十四批全局边界与下一步：本批不是完整上线、不是 134 清库部署复演、不是 6 个平台管理员入口全部闭环、
+  不是 34 个入口全部业务动作闭环、不是完整 S0-S40，也不是完整全知识供给链上线验收。平台管理员 4 个 P0 +
+  2 个 P1 入口已有代表核心动作证据，但下一批不要继续只扩平台管理员，应优先按子代理盘点转向：
+  1）临床协同入口族 `/mpi`、`/pathway/patients`、`/cdss/fatigue`、`/workflow/todos`、`/clinical/followup`
+  的统一 `clinical-entry-core-actions` 矩阵；2）质量管理入口族 `/qc/alerts`、`/qc/insurance`、`/qc/eval/sets`、
+  `/qc/dashboard` 的问题确认、派发、复核、关闭和医保处置矩阵；3）知识运营资产入口族 `/config/releases`、
+  `/terminology/mapping`、`/pathway/templates`、`/knowledge/institution`、`/knowledge/diagnosis`、`/advanced/graph`
+  的标准包导入、院内字典同步、字段目录 / 值集 / 公式 / 医嘱套餐 / 动作卡 / 安全红线 / CDSS 风险矩阵全链路代表证据。
+  134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十三批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、不要片面优化”的要求，
   在只读子代理盘点平台管理员入口族和知识供给链差距后，先把 **平台管理员 4 个 P0 入口核心动作代表矩阵** 落成可验证 coverage。
   本批不是完整上线、不是 134 清库部署复演、不是 6 个平台管理员入口全部闭环、不是 34 个入口全部业务动作闭环、不是完整

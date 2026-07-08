@@ -4377,6 +4377,36 @@ const platformAdminEntryCoreActionsEvidence = {
   ],
 };
 
+const platformAdminP1EntryCoreActionsEvidence = {
+  matrixCode: "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS",
+  scopeStatement:
+    "平台管理员 P1 系统运维入口核心动作代表矩阵：围绕运行诊断和国产化适配自检两个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  entryActions: [
+    {
+      menuKey: "runtime-diagnostics",
+      role: "platform-admin",
+      path: "/system/runtime-diagnostics",
+      frontdeskAction: "前台核查运行摘要、服务契约和扩展能力授权边界",
+      serviceOperation:
+        "GET /api/v1/system/runtime + GET /api/v1/system/runtime-diagnostics/api-contracts",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "domestic-check",
+      role: "platform-admin",
+      path: "/advanced/domestic",
+      frontdeskAction: "前台筛选国产化待确认项并导出国产化适配自检报告",
+      serviceOperation:
+        "GET /api/v1/system/operations + GET /api/v1/system/operations/domestic-report",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+  ],
+};
+
 function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -4400,6 +4430,31 @@ function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknow
 function expectNoPlatformAdminEntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = platformAdminEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+}
+
+function platformAdminP1EntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/platform-admin-p1-entry-core-actions-rehearsal.spec.ts",
+        title: "平台管理员 P1 系统运维入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "platform-admin-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoPlatformAdminP1EntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = platformAdminP1EntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
 }
 
 function platformAdminEntryCoreActionSpecFile(menuKey: string) {
@@ -8824,6 +8879,68 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.platformAdminEntryCoreActions?.map((item) => item.code)).toEqual(
       ["FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS"],
     );
+  });
+
+  it("declares platform-admin P1 system-operations entry coverage only from runtime diagnostics and domestic check evidence", () => {
+    const evidence = platformAdminP1EntryCoreActionsEvidenceResult(
+      platformAdminP1EntryCoreActionsEvidence,
+    );
+
+    expect(
+      evidence.launchCoverage.platformAdminP1EntryCoreActions?.map((item) => item.code),
+    ).toEqual(["RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK"]);
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare platform-admin P1 entry coverage from only the P0 platform-admin matrix", () => {
+    const evidence = platformAdminEntryCoreActionsEvidenceResult(
+      platformAdminEntryCoreActionsEvidence,
+    );
+
+    expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少国产化适配自检入口",
+      body: {
+        ...platformAdminP1EntryCoreActionsEvidence,
+        entryActions: platformAdminP1EntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.menuKey !== "domestic-check",
+        ),
+      },
+    },
+    {
+      name: "运行诊断入口路径不匹配",
+      body: {
+        ...platformAdminP1EntryCoreActionsEvidence,
+        entryActions: platformAdminP1EntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "runtime-diagnostics" ? { ...item, path: "/system/providers" } : item,
+        ),
+      },
+    },
+    {
+      name: "国产化适配导出服务不是 2xx",
+      body: {
+        ...platformAdminP1EntryCoreActionsEvidence,
+        entryActions: platformAdminP1EntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "domestic-check" ? { ...item, serviceStatus: 500 } : item,
+        ),
+      },
+    },
+    {
+      name: "scope 过度宣称 6 个平台管理员入口全部闭环",
+      body: {
+        ...platformAdminP1EntryCoreActionsEvidence,
+        scopeStatement:
+          "平台管理员 P1 系统运维入口核心动作代表矩阵，6 个平台管理员入口全部闭环已完成，不代表完整上线验收。",
+      },
+    },
+  ])("does not declare platform-admin P1 entry coverage when $name", ({ body }) => {
+    expectNoPlatformAdminP1EntryCoreActionsCoverage(body);
   });
 
   it.each([

@@ -377,6 +377,9 @@ const sixEntryCoreActionsClaims = [
 const platformAdminEntryCoreActionsClaims = [
   "platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS",
 ];
+const platformAdminP1EntryCoreActionsClaims = [
+  "platformAdminP1EntryCoreActions:RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK",
+];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
@@ -912,6 +915,9 @@ export function buildBrowserE2eLaunchEvidence(input: {
   if (hasRequiredPlatformAdminEntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, platformAdminEntryCoreActionsClaims, generatedAt);
   }
+  if (hasRequiredPlatformAdminP1EntryCoreActionsAttachment(input.tests)) {
+    mergeClaims(evidence.launchCoverage, platformAdminP1EntryCoreActionsClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -1388,6 +1394,15 @@ const requiredPlatformAdminEntryCoreActionMenuKeys = Object.keys(
   requiredPlatformAdminEntryCoreActionPaths,
 );
 
+const requiredPlatformAdminP1EntryCoreActionPaths: Record<string, string> = {
+  "runtime-diagnostics": "/system/runtime-diagnostics",
+  "domestic-check": "/advanced/domestic",
+};
+
+const requiredPlatformAdminP1EntryCoreActionMenuKeys = Object.keys(
+  requiredPlatformAdminP1EntryCoreActionPaths,
+);
+
 function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   const actionsByMenuKey = new Map<string, Record<string, unknown>>();
   let sawAttachment = false;
@@ -1401,7 +1416,6 @@ function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTes
     }
     for (const attachment of test.attachments) {
       if (attachment.name !== "platform-admin-entry-core-actions-codes") continue;
-      sawAttachment = true;
       if (!attachment.body || attachment.contentType !== "application/json") return false;
       let parsed: unknown;
       try {
@@ -1411,7 +1425,8 @@ function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTes
       }
       const body = recordValue(parsed);
       if (!body) return false;
-      if (body.matrixCode !== "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS") return false;
+      if (body.matrixCode !== "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS") continue;
+      sawAttachment = true;
       if (!hasPlatformAdminEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
       if (!Array.isArray(body.entryActions)) return false;
       for (const item of body.entryActions) {
@@ -1449,6 +1464,70 @@ function hasPlatformAdminEntryCoreActionScopeBoundary(value: unknown) {
   );
 }
 
+function hasRequiredPlatformAdminP1EntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  let sawAttachment = false;
+  for (const test of tests) {
+    if (
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "platform-admin-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body || body.matrixCode !== "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS") continue;
+      sawAttachment = true;
+      if (!hasPlatformAdminP1EntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+      if (!Array.isArray(body.entryActions)) return false;
+      for (const item of body.entryActions) {
+        const action = recordValue(item);
+        const menuKey = textValue(action?.menuKey);
+        if (
+          !action ||
+          !menuKey ||
+          !hasCompletePlatformAdminEntryCoreAction(
+            action,
+            menuKey,
+            requiredPlatformAdminP1EntryCoreActionPaths,
+          ) ||
+          actionsByMenuKey.has(menuKey)
+        ) {
+          return false;
+        }
+        actionsByMenuKey.set(menuKey, action);
+      }
+    }
+  }
+  return (
+    sawAttachment &&
+    requiredPlatformAdminP1EntryCoreActionMenuKeys.every((menuKey) =>
+      actionsByMenuKey.has(menuKey),
+    )
+  );
+}
+
+function hasPlatformAdminP1EntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("平台管理员 P1 系统运维入口核心动作代表矩阵") &&
+    hasNegatedScopeTerm(statement, "6 个平台管理员入口全部闭环") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositivePlatformAdminEntryCompleteScopeClaim(statement)
+  );
+}
+
 function hasPositivePlatformAdminEntryCompleteScopeClaim(statement: string) {
   return [
     "6 个平台管理员入口全部闭环",
@@ -1460,14 +1539,18 @@ function hasPositivePlatformAdminEntryCompleteScopeClaim(statement: string) {
   ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
-function hasCompletePlatformAdminEntryCoreAction(value: unknown, expectedMenuKey: string) {
+function hasCompletePlatformAdminEntryCoreAction(
+  value: unknown,
+  expectedMenuKey: string,
+  pathByMenuKey: Record<string, string> = requiredPlatformAdminEntryCoreActionPaths,
+) {
   const action = recordValue(value);
   if (!action) return false;
   const serviceStatus = action.serviceStatus;
   return (
     action.menuKey === expectedMenuKey &&
     action.role === "platform-admin" &&
-    action.path === requiredPlatformAdminEntryCoreActionPaths[expectedMenuKey] &&
+    action.path === pathByMenuKey[expectedMenuKey] &&
     hasText(action.frontdeskAction) &&
     hasText(action.serviceOperation) &&
     typeof serviceStatus === "number" &&
