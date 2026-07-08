@@ -949,7 +949,7 @@ function hasFourRoleCoreActionScopeBoundary(value: unknown) {
 }
 
 function hasPositiveFourRoleCoreActionCompleteScopeClaim(statement: string) {
-  return /(?:34\s*个入口全部业务动作闭环|完整上线验收)(?:已上线|完整上线|完成上线|已完成|完成|完整覆盖|全面覆盖|通过)/u.test(
+  return /(?:34\s*个入口全部业务动作闭环|完整上线验收|完整上线|全量验收|上线验收|上线级验收)(?:已上线|完整上线|完成上线|已完成|完成|完整覆盖|全面覆盖|通过)/u.test(
     statement,
   );
 }

@@ -7974,6 +7974,22 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
+      name: "scope 过度宣称完整上线已完成",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        scopeStatement:
+          "四职责主动作代表闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收，完整上线已完成。",
+      },
+    },
+    {
+      name: "scope 过度宣称全量验收已完成",
+      body: {
+        ...fourRoleCoreActionsEvidence,
+        scopeStatement:
+          "四职责主动作代表闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收，全量验收已完成。",
+      },
+    },
+    {
       name: "运营员动作没有服务端 2xx 证据",
       body: {
         ...fourRoleCoreActionsEvidence,
