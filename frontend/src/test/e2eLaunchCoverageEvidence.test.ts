@@ -1075,6 +1075,21 @@ const diagnosticCriticalValueEvidence = {
   serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"],
   scopeStatement:
     "医技危急值代表切片：LIS/FHIR 入站 Observation 与 DiagnosticReport 后完成人工报告解读闭环，不代表完整 LIS/PACS/RIS/病理/心电全链路或完整危急值制度。",
+  thirdPartySystemFamilyConsumerSlice: {
+    systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    familyName: "PACS/RIS、超声、病理、内镜、心电",
+    sourceSystems: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG", "FHIR_R4"],
+    canonicalResources: ["Observation", "DiagnosticReport"],
+    consumer: "REPORT_INTERPRETATION",
+    consumerVerified: true,
+    standardResourceVerified: true,
+    degradationVerified: true,
+    auditVerified: true,
+    noAutoOrder: true,
+    noReportRewrite: true,
+    scopeStatement:
+      "PACS/RIS、超声、病理、内镜、心电系统族代表消费者切片：已验证医技报告标准资源入站、报告解读消费者、人工复核待办和断连诚实降级；不代表完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整第三方系统族覆盖或完整上线验收。",
+  },
   apiEvidence: {
     fhirObservationAccepted: true,
     fhirDiagnosticReportAccepted: true,
@@ -1329,6 +1344,13 @@ function expectNoDiagnosticCriticalValueCoverage(body: Record<string, unknown>) 
   const assets = evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? [];
   expect(assets).not.toEqual(expect.arrayContaining(["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]));
   expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S36");
+}
+
+function expectNoDiagnosticFamilyConsumerSliceCoverage(body: Record<string, unknown>) {
+  const evidence = diagnosticCriticalValueEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG");
 }
 
 const regionalDiagnosticMutualRecognitionEvidence = {
@@ -5461,6 +5483,15 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares PACS/RIS diagnostic family representative consumer slice only with S36 real consumer evidence", () => {
+    const evidence = diagnosticCriticalValueEvidenceResult(diagnosticCriticalValueEvidence);
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("declares S36 diagnostic critical-value coverage when FHIR retry compensation reaches NOT_CONNECTED", () => {
     const evidence = diagnosticCriticalValueEvidenceResult({
       ...diagnosticCriticalValueEvidence,
@@ -5602,6 +5633,38 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare diagnostic critical-value coverage when $name", ({ body }) => {
     expectNoDiagnosticCriticalValueCoverage(body);
+  });
+
+  it.each([
+    {
+      name: "缺少 PACS/RIS 医技系统族代表消费者证据",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        thirdPartySystemFamilyConsumerSlice: undefined,
+      },
+    },
+    {
+      name: "医技系统族代表消费者证据过度宣称完整覆盖",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        thirdPartySystemFamilyConsumerSlice: {
+          ...diagnosticCriticalValueEvidence.thirdPartySystemFamilyConsumerSlice,
+          scopeStatement: "完整 PACS/RIS/病理/内镜/心电系统族覆盖已完成。",
+        },
+      },
+    },
+    {
+      name: "系统族代码不是 PACS/RIS 医技系统族",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        thirdPartySystemFamilyConsumerSlice: {
+          ...diagnosticCriticalValueEvidence.thirdPartySystemFamilyConsumerSlice,
+          systemFamilyCode: "REGIONAL_REMOTE",
+        },
+      },
+    },
+  ])("does not declare PACS/RIS diagnostic family consumer slice when $name", ({ body }) => {
+    expectNoDiagnosticFamilyConsumerSliceCoverage(body);
   });
 
   it("declares S40 regional diagnostic mutual-recognition coverage only with trusted source, runtime assets and human closure", () => {

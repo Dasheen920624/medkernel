@@ -10,6 +10,57 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百六十八批本地推进：继续按用户“不要片面优化”的要求，从菜单可达性转向真实专业系统族消费者证据。
+  本批不是完整上线、不是 134 清库部署复演、不是完整 PACS/RIS / 病理 / 内镜 / 心电系统族覆盖、
+  也不是 13 类第三方系统族全量 coverage；本批专门把既有 S36 医技危急值真实前台链路补成
+  **PACS/RIS、超声、病理、内镜、心电系统族代表消费者切片**。`diagnostic-critical-value-frontdesk.spec.ts`
+  的真实附件 `diagnostic-critical-value-frontdesk-codes` 新增 `thirdPartySystemFamilyConsumerSlice`：
+  `systemFamilyCode=PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`，证据绑定外部 FHIR/LIS `Observation` 与
+  `DiagnosticReport` 入站、标准资源回读、当前机构生效版本中的 `KNOWLEDGE / FIELD_CATALOG / ACTION_CARD`、
+  报告解读消费者、人工复核待办、断连诚实降级、不改写报告和不自动开嘱。`launchCoverageEvidence.ts`
+  新增独立 coverage 维度 `thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`；
+  原 `thirdPartySystemFamilies` 全量门槛保持不变，仍要求 13 类系统族全部具备
+  `consumerVerified / standardResourceVerified / degradationVerified / auditVerified` 后才声明全覆盖。
+  `e2eLaunchCoverageEvidence.test.ts` 补红绿护栏：registration-only 仍不声明系统族覆盖，S36 真实附件可声明
+  PACS/RIS 医技系统族代表消费者 slice，但缺少该 slice、scope 过度宣称完整覆盖或系统族代码错误时不得声明。
+- 第一百六十八批调试与验证证据：红绿阶段先跑
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "PACS/RIS diagnostic family representative consumer slice|PACS/RIS diagnostic family consumer slice|diagnostic critical-value coverage"`
+  红于 `thirdPartySystemFamilyConsumerSlices` 维度不存在；实现 parser 与附件后该命令通过（15 selected）。
+  `npm --prefix frontend run typecheck -- --pretty false` 首次红于新 helper 中 `recordValue(item)` 可能为 `null`，
+  按根因加判空后通过。目标真实 E2E 使用 18088 dev/H2 本地后端
+  （`SPRING_PROFILES_ACTIVE=dev SERVER_PORT=18088 java -jar medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar`），
+  健康检查 `http://localhost:18088/medkernel/actuator/health` 返回
+  `{"status":"UP","groups":["liveness","readiness"]}`，独立 Vite 指向
+  `MEDKERNEL_API_PROXY_TARGET=http://localhost:18088`。首轮
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5173 E2E_API_BASE_URL=http://localhost:18088/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18088 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-diagnostic-family-consumer-slice-20260708-r1 npm --prefix frontend run e2e -- --project=chromium diagnostic-critical-value-frontdesk.spec.ts`
+  业务 E2E 通过，但 `results.json.launchCoverage={}`；根因不是业务链路，而是真实附件阶段文案为
+  “当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD”，parser 期望
+  “DIAGNOSTIC_ITEM 知识说明书”。修正文案后复跑
+  `/tmp/medkernel-e2e-diagnostic-family-consumer-slice-20260708-r2/report/results.json` 为 `PASSED`
+  （1 expected，0 unexpected，0 flaky，0 skipped，duration=13970ms），`launchCoverage` 正式声明
+  `scenarios:S36`、`productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、
+  `versionedAssets:KNOWLEDGE/FIELD_CATALOG/ACTION_CARD`、`deliveryShapes:API_EVENT`、
+  `serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME` 与
+  `thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`。附件 scope 明确“不代表完整
+  PACS/RIS/病理/内镜/心电系统族覆盖、完整第三方系统族覆盖或完整上线验收”。收尾验证：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（187 tests）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "diagnostic critical|PACS|third-party system family|launch coverage"`
+  通过（5 selected）；`npm --prefix frontend run typecheck -- --pretty false` 通过；
+  `npm --prefix frontend run format:check` 通过；`git diff --check` 退出码 0，但仍提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。18088 后端和 5173 Vite
+  临时进程已停止，端口无监听残留。
+- 第一百六十八批边界与下一步：本批只把“医技报告危急值 S36”提升为 PACS/RIS、超声、病理、内镜、心电系统族
+  的一个代表消费者证据；仍未证明该系统族下影像、超声、病理、内镜、心电五类报告的完整矩阵，
+  也未证明完整第三方系统族、13 类标准患者资源、完整 S0-S40、每页核心动作 / 六态 / 导入导出 / 分页筛选、
+  隐藏 / embedded / API-only 能力或 134 fresh deploy / 清库 / 重启 / 备份恢复。只读子代理本批盘点还指出：
+  coverage parser 目前没有 `standardPatientResources` 全量维度，且 S0、S9、S15、S16、S17、S22、S23、
+  S25、S28、S29、S30、S33、S34、S37、S38、S39 仍未形成浏览器 coverage 场景声明；四职责真实前台虽已覆盖
+  菜单点击和路由可达，但每页核心动作、审计员业务动作、六态、导入导出和分页筛选仍需继续补。
+  下一步建议优先二选一推进：其一，新增 `pacs-ris-report-family-frontdesk.spec.ts`，用
+  `PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG` 真实接入五类代表 `DiagnosticReport` 并完成报告解读 / 复核 / 降级证据；
+  其二，新增全角色核心动作门禁（如 `/admin/users`、`/knowledge/production`、`/workflow/todos`、`/admin/audit`）
+  覆盖保存 / 筛选 / 导出 / 详情 / 人工处理。134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十七批本地推进：继续按用户要求避免片面优化，把上一批“授权路由直达可达性”推进到
   **四职责真实菜单点击可达性**。本批仍不是完整上线、不是 134 清库部署复演、不是完整 S0-S40、
   也不是每页核心业务动作全闭环；本批专门补齐交接里点名未覆盖的桌面 SideMenu、移动抽屉、页头入口和个人菜单入口

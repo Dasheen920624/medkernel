@@ -59,6 +59,7 @@ type CoverageProof = {
   requiresCdssDeclarativeRuntimeAssetAttachment?: boolean;
   requiresMedicationSafetyFrontdeskAttachment?: boolean;
   requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
+  requiresDiagnosticFamilyConsumerSliceAttachment?: boolean;
   requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
@@ -165,6 +166,10 @@ const diagnosticCriticalValueFrontdeskClaims = [
   "deliveryShapes:API_EVENT",
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
+];
+
+const diagnosticFamilyConsumerSliceClaims = [
+  "thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
 ];
 
 const regionalDiagnosticMutualRecognitionFrontdeskClaims = [
@@ -690,6 +695,13 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosticCriticalValueFrontdeskAttachment: true,
   },
   {
+    file: "diagnostic-critical-value-frontdesk.spec.ts",
+    titleIncludes: "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
+    claims: diagnosticFamilyConsumerSliceClaims,
+    requiresDiagnosticCriticalValueFrontdeskAttachment: true,
+    requiresDiagnosticFamilyConsumerSliceAttachment: true,
+  },
+  {
     file: "regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
     titleIncludes: "临床用户与平台管理员完成区域医技报告互认代表闭环",
     claims: regionalDiagnosticMutualRecognitionFrontdeskClaims,
@@ -838,6 +850,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredMedicationSafetyFrontdeskAttachment(test)) &&
       (!proof.requiresDiagnosticCriticalValueFrontdeskAttachment ||
         hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) &&
+      (!proof.requiresDiagnosticFamilyConsumerSliceAttachment ||
+        hasRequiredDiagnosticFamilyConsumerSliceAttachment(test)) &&
       (!proof.requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment ||
         hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(test)) &&
       (!proof.requiresNursingContinuityFrontdeskAttachment ||
@@ -1209,6 +1223,29 @@ function hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test: BrowserE2eT
         observedStages.includes(stage),
       );
     });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredDiagnosticFamilyConsumerSliceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnostic-critical-value-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      thirdPartySystemFamilyConsumerSlice?: unknown;
+      inboundObservation?: unknown;
+      inboundDiagnosticReport?: unknown;
+      clinicalContext?: unknown;
+      recommendation?: unknown;
+      workflowTodo?: unknown;
+    };
+    return hasCompleteDiagnosticFamilyConsumerSlice(
+      parsed.thirdPartySystemFamilyConsumerSlice,
+      parsed,
+    );
   } catch {
     return false;
   }
@@ -3439,6 +3476,103 @@ function hasCompleteDiagnosticCriticalValueWorkflowTodo(value: unknown, recommen
     String(todo.completionReason).includes("不改写") &&
     todo.noAutoOrder === true
   );
+}
+
+function hasCompleteDiagnosticFamilyConsumerSlice(
+  value: unknown,
+  parsed: {
+    inboundObservation?: unknown;
+    inboundDiagnosticReport?: unknown;
+    clinicalContext?: unknown;
+    recommendation?: unknown;
+    workflowTodo?: unknown;
+  },
+) {
+  const slice = recordValue(value);
+  const observation = recordValue(parsed.inboundObservation);
+  const report = recordValue(parsed.inboundDiagnosticReport);
+  const context = recordValue(parsed.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const recommendation = recordValue(parsed.recommendation);
+  const todo = recordValue(parsed.workflowTodo);
+  const canonicalResources = Array.isArray(slice?.canonicalResources)
+    ? slice.canonicalResources
+    : [];
+  const sourceSystems = Array.isArray(slice?.sourceSystems) ? slice.sourceSystems : [];
+  return (
+    slice !== null &&
+    observation !== null &&
+    report !== null &&
+    context !== null &&
+    recommendation !== null &&
+    todo !== null &&
+    slice.systemFamilyCode === "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG" &&
+    hasText(slice.familyName) &&
+    String(slice.familyName).includes("PACS/RIS") &&
+    canonicalResources.includes("Observation") &&
+    canonicalResources.includes("DiagnosticReport") &&
+    sourceSystems.includes("PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG") &&
+    sourceSystems.includes("FHIR_R4") &&
+    slice.consumer === "REPORT_INTERPRETATION" &&
+    slice.consumerVerified === true &&
+    slice.standardResourceVerified === true &&
+    slice.degradationVerified === true &&
+    slice.auditVerified === true &&
+    slice.noAutoOrder === true &&
+    slice.noReportRewrite === true &&
+    hasDiagnosticFamilyConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    observation.fhirResourceType === "Observation" &&
+    observation.canonicalResourceType === "OBSERVATION" &&
+    observation.sourceSystem === "FHIR_R4" &&
+    report.fhirResourceType === "DiagnosticReport" &&
+    report.canonicalResourceType === "DIAGNOSTIC_REPORT" &&
+    report.sourceSystem === "FHIR_R4" &&
+    hasDiagnosticCriticalValueNotConnectedEvidence(observation) &&
+    hasDiagnosticCriticalValueNotConnectedEvidence(report) &&
+    context.runtimeReleaseId === report.runtimeReleaseId &&
+    context.patientId === report.patientId &&
+    Array.isArray(resources?.diagnosticReports) &&
+    resources.diagnosticReports.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        row.reportId === report.fhirId &&
+        row.reportType === report.reportType &&
+        row.sourceSystem === "FHIR_R4"
+      );
+    }) &&
+    recommendation.cardType === "LAB" &&
+    recommendation.triggerRuntimeReleaseId === report.runtimeReleaseId &&
+    recommendation.requiresPhysicianConfirmation === true &&
+    recommendation.aiGenerated === false &&
+    todo.status === "COMPLETED" &&
+    todo.category === "REPORT_INTERPRETATION" &&
+    todo.sourceId === recommendation.cardId &&
+    todo.noAutoOrder === true
+  );
+}
+
+function hasDiagnosticFamilyConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表消费者切片") &&
+    !hasUnnegatedDiagnosticFamilyConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 PACS/RIS/病理/内镜/心电系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedDiagnosticFamilyConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整 PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasCompleteRegionalDiagnosticMutualRecognitionApiEvidence(value: unknown) {

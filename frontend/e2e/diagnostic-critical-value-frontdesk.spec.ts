@@ -101,7 +101,7 @@ const requiredStages = [
   "外部 FHIR/LIS 入站 Observation 危急值并落标准资源",
   "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源",
   "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本",
-  "当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD",
+  "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
   "临床用户从真实前台生成医技报告解读",
   "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
   "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
@@ -127,7 +127,10 @@ test.describe("医技报告危急值真实前台闭环", () => {
         actionCard: diagnosticAssets.actionCard,
       });
       apiEvidence.currentRuntimeContainsDiagnosticAssets = true;
-      recordStage(observedStages, "当前机构生效版本包含 DIAGNOSTIC_ITEM、FIELD_CATALOG 与 ACTION_CARD");
+      recordStage(
+        observedStages,
+        "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
+      );
 
       const snapshot = await createCriticalValueContextFromFrontdesk(page, suffix);
       expect(
@@ -913,6 +916,21 @@ async function attachDiagnosticCriticalValueEvidence(
         serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"],
         scopeStatement:
           "医技危急值代表切片：FHIR/LIS 入站 Observation 与 DiagnosticReport 后完成人工报告解读闭环，不代表完整 LIS/PACS/RIS/病理/心电全链路或完整危急值制度。",
+        thirdPartySystemFamilyConsumerSlice: {
+          systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+          familyName: "PACS/RIS、超声、病理、内镜、心电",
+          sourceSystems: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG", "FHIR_R4"],
+          canonicalResources: ["Observation", "DiagnosticReport"],
+          consumer: "REPORT_INTERPRETATION",
+          consumerVerified: true,
+          standardResourceVerified: true,
+          degradationVerified: true,
+          auditVerified: true,
+          noAutoOrder: true,
+          noReportRewrite: true,
+          scopeStatement:
+            "PACS/RIS、超声、病理、内镜、心电系统族代表消费者切片：已验证医技报告标准资源入站、报告解读消费者、人工复核待办和断连诚实降级；不代表完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整第三方系统族覆盖或完整上线验收。",
+        },
         apiEvidence: evidence.apiEvidence,
         inboundObservation: evidence.inboundObservation,
         inboundDiagnosticReport: evidence.inboundDiagnosticReport,
