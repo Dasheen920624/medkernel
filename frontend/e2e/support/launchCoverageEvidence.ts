@@ -219,6 +219,7 @@ const requiredVersionedAssetRollbackRepresentativeAssets = [
   "FORMULA",
   "PATHWAY",
   "ORDER_SET",
+  "EVALUATION",
 ];
 
 const standardPatientResourceMatrixAttachmentNames: Record<string, string> = {
@@ -1145,7 +1146,9 @@ function collectVersionedAssetSupplyChainMatrixClaims(tests: BrowserE2eTestResul
   ) {
     representativeAssets.add("ORDER_SET");
   }
-  if (hasRequiredQualityManagementEntryCoreActionsAttachment(tests)) {
+  if (hasCompleteEvaluationAssetSupplyChainEvidence(tests)) {
+    representativeAssets.add("EVALUATION");
+  } else if (hasRequiredQualityManagementEntryCoreActionsAttachment(tests)) {
     knownGaps.add("EVALUATION");
   }
 
@@ -1200,6 +1203,13 @@ function collectVersionedAssetRollbackRepresentativeClaims(tests: BrowserE2eTest
     "pathway-lifecycle-scenario-codes",
   )
     .filter((asset) => asset === "ORDER_SET")
+    .forEach((asset) => representativeAssets.add(asset));
+  collectRollbackNegativeAssetsFromAttachment(
+    tests,
+    "quality-management-entry-core-actions-rehearsal.spec.ts",
+    "quality-management-entry-core-actions-codes",
+  )
+    .filter((asset) => asset === "EVALUATION")
     .forEach((asset) => representativeAssets.add(asset));
 
   if (
@@ -1907,8 +1917,13 @@ function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResu
 }
 
 function hasRequiredQualityManagementEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
-  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
-  let sawAttachment = false;
+  return qualityManagementEntryCoreActionAttachmentBodies(tests).some((body) =>
+    hasCompleteQualityManagementEntryCoreActionMatrix(body),
+  );
+}
+
+function qualityManagementEntryCoreActionAttachmentBodies(tests: BrowserE2eTestResult[]) {
+  const bodies: Array<Record<string, unknown>> = [];
   for (const test of tests) {
     if (
       test.status !== "passed" ||
@@ -1920,39 +1935,107 @@ function hasRequiredQualityManagementEntryCoreActionsAttachment(tests: BrowserE2
     if (path.basename(test.file) !== qualityManagementEntryCoreActionSpecFile) continue;
     for (const attachment of test.attachments) {
       if (attachment.name !== "quality-management-entry-core-actions-codes") continue;
-      if (!attachment.body || attachment.contentType !== "application/json") return false;
-      let parsed: unknown;
+      if (!attachment.body || attachment.contentType !== "application/json") return [];
       try {
-        parsed = JSON.parse(attachment.body);
-      } catch {
-        return false;
-      }
-      const body = recordValue(parsed);
-      if (!body || body.matrixCode !== "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS") continue;
-      sawAttachment = true;
-      if (!hasQualityManagementEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
-      if (!Array.isArray(body.entryActions)) return false;
-      for (const item of body.entryActions) {
-        const action = recordValue(item);
-        const menuKey = textValue(action?.menuKey);
-        if (
-          !action ||
-          !menuKey ||
-          !hasCompleteQualityManagementEntryCoreAction(action, menuKey) ||
-          actionsByMenuKey.has(menuKey)
-        ) {
-          return false;
+        const body = recordValue(JSON.parse(attachment.body));
+        if (body?.matrixCode === "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS") {
+          bodies.push(body);
         }
-        actionsByMenuKey.set(menuKey, action);
+      } catch {
+        return [];
       }
     }
   }
-  return (
-    sawAttachment &&
-    requiredQualityManagementEntryCoreActionMenuKeys.every((menuKey) =>
-      actionsByMenuKey.has(menuKey),
-    )
+  return bodies;
+}
+
+function hasCompleteQualityManagementEntryCoreActionMatrix(
+  body: Record<string, unknown>,
+) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  if (!hasQualityManagementEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+  if (!Array.isArray(body.entryActions)) return false;
+  for (const item of body.entryActions) {
+    const action = recordValue(item);
+    const menuKey = textValue(action?.menuKey);
+    if (
+      !action ||
+      !menuKey ||
+      !hasCompleteQualityManagementEntryCoreAction(action, menuKey) ||
+      actionsByMenuKey.has(menuKey)
+    ) {
+      return false;
+    }
+    actionsByMenuKey.set(menuKey, action);
+  }
+  return requiredQualityManagementEntryCoreActionMenuKeys.every((menuKey) =>
+    actionsByMenuKey.has(menuKey),
   );
+}
+
+function hasCompleteEvaluationAssetSupplyChainEvidence(tests: BrowserE2eTestResult[]) {
+  return qualityManagementEntryCoreActionAttachmentBodies(tests).some(
+    (body) =>
+      hasCompleteQualityManagementEntryCoreActionMatrix(body) &&
+      hasCompleteEvaluationAssetEvidence(body.evaluationAssetSupplyChainEvidence),
+  );
+}
+
+function hasCompleteEvaluationAssetEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  const candidate = parseRuntimeReleaseCandidate(evidence);
+  if (
+    !evidence ||
+    !candidate ||
+    candidate.assetType !== "EVALUATION" ||
+    !hasText(evidence.indicatorId) ||
+    evidence.indicatorPublished !== true ||
+    evidence.indicatorActivated !== true ||
+    evidence.runtimeActivationVerified !== true ||
+    evidence.runtimeConsumerReadbackVerified !== true ||
+    evidence.insuranceAuditEvaluationRunVerified !== true ||
+    evidence.findingBoundToIndicatorVerified !== true ||
+    evidence.auditVerified !== true
+  ) {
+    return false;
+  }
+  const runtimeReadback = recordValue(evidence.runtimeReadback);
+  const runtimeConsumer = recordValue(evidence.runtimeConsumer);
+  return (
+    runtimeReleasePayloadContainsCandidate(evidence.activationRequest, "activeAssets", candidate) &&
+    hasRuntimeReadbackCandidate(runtimeReadback, candidate) &&
+    hasRuntimeReadbackCandidate(runtimeConsumer, candidate) &&
+    textValue(runtimeConsumer?.contractVersion) === "v1" &&
+    textValue(runtimeReadback?.releaseId) === textValue(runtimeConsumer?.releaseId) &&
+    numberValue(runtimeReadback?.revisionNo) === numberValue(runtimeConsumer?.revisionNo) &&
+    textValue(runtimeReadback?.manifestSha256) === textValue(runtimeConsumer?.manifestSha256)
+  );
+}
+
+function hasRuntimeReadbackCandidate(
+  value: Record<string, unknown> | null,
+  candidate: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  return Boolean(
+    value &&
+      hasText(value.releaseId) &&
+      typeof value.revisionNo === "number" &&
+      value.revisionNo > 0 &&
+      isSha256(value.manifestSha256) &&
+      Array.isArray(value.assets) &&
+      runtimeReleasePayloadContainsCandidate(value, "assets", candidate, { requireActive: true }),
+  );
+}
+
+function numberValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
 }
 
 function hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(

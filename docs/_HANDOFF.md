@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十批本地推进：接第一百七十九批和只读全局 P0 盘点，选择非破坏、可本地验证的上线门禁缺口：
+  收口 13 类版本化资产矩阵中 `EVALUATION` known gap。134 清库 / 目标环境重部署、真实备份恢复、公网模型 Provider
+  和真实第三方回调仍属于需要再次确认或外部凭据 / 外部系统的事项，本批未擅自执行。
+- 第一百八十批实现细节：`frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts` 不再只产出质量管理四入口动作矩阵，
+  而是在同一真实前台链路里额外输出 `evaluationAssetSupplyChainEvidence` 和 `rollbackNegativeEvidence`：
+  由 `engine-operator` 前台创建、提交、发布、灰度并激活 CLAIM 评价指标，读取医院 `EVALUATION` runtime candidate，
+  保留 13 类平台基线资产后激活包含本轮 CLAIM 指标的医院生效版本，读回 current runtime 与第三方
+  `/engine/integration/knowledge-runtime/runtime-release/current` 契约；随后临床用户创建绑定该 runtime 的脱敏病案快照，
+  医保审核真实返回 `evaluationRunId`，质量问题详情绑定本轮 `indicatorId`，整改提交 / 复核闭环和质量概览下钻仍保留。
+  最后回滚到本轮指标进入 runtime 前的机构版本，并证明 current runtime 与第三方运行契约都不再包含同一
+  `EVALUATION + assetIdentity + versionId`。
+- 第一百八十批 coverage 门禁：`frontend/e2e/support/launchCoverageEvidence.ts` 将
+  `versionedAssetRepresentativeRows:EVALUATION` 从 known gap 收口为强证据行，但前提是质量管理附件同时满足四入口矩阵、
+  指标发布激活、激活请求包含本轮 EVALUATION、current runtime 包含 ACTIVE 本轮版本、第三方 runtime consumer 同步读回、
+  医保审核评价运行与质量问题绑定本轮指标、审计为真。`versionedAssetRollbackRepresentativeRows:EVALUATION`
+  也加入专项回滚负向代表矩阵，仍要求回滚后 current runtime 与第三方契约双读回排除本轮资产。
+  `frontend/e2e/support/qualityManagementEntryCoreActions.ts` 扩展附件类型；
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 新增强证据正向与缺 runtime consumer 仍保持 known gap 的负向样例；
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 锁定质量管理 E2E 必须保留 `evaluationAssetSupplyChainEvidence`、
+  `QUALITY_MANAGEMENT_EVALUATION_INDICATOR`、`runtime-candidates?assetType=EVALUATION` 和第三方 runtime consumer 读回。
+- 第一百八十批验证证据：TDD 红灯为
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 失败于 `EVALUATION` 未进入
+  `versionedAssetRepresentativeRows` 和 `versionedAssetRollbackRepresentativeRows`；补 parser 与真实 E2E 附件后，
+  快速门禁通过：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（291 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（54 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`。本地 18092 后端健康检查
+  `{"status":"UP","groups":["liveness","readiness"]}`，5174 前端返回 200；目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-quality-management-entry-core-actions-20260709-evaluation-r1 npm --prefix frontend run e2e -- --project=chromium quality-management-entry-core-actions-rehearsal.spec.ts`
+  通过，`/tmp/medkernel-e2e-quality-management-entry-core-actions-20260709-evaluation-r1/report/results.json`
+  为 `PASSED`（1 expected，0 unexpected，0 flaky，0 skipped，duration=39091ms）。附件确认本轮
+  `EVALUATION` 资产 `QC.MATRIX.CLAIM.*` 的 `indicatorPublished`、`indicatorActivated`、
+  `runtimeActivationVerified`、`runtimeConsumerReadbackVerified`、`insuranceAuditEvaluationRunVerified`、
+  `findingBoundToIndicatorVerified` 全为真，回滚负向 `consumer=QUALITY_MANAGEMENT_EVALUATION_INDICATOR` 且
+  `consumerProbeMatchedRemovedAssets=false`。
+- 第一百八十批边界与下一步：本批仍不是完整上线、不是 134 清库部署复演、不是完整全知识供给链上线验收、
+  不是 13 类资产所有专项发布链全部完成、不是所有医学知识和术语体系已收集完成、不是完整 S0-S40 或
+  34 个入口全部业务动作闭环。`EVALUATION` 当前已从 gap-aware known gap 收口为代表性强证据行；下一步优先：
+  1）补 `TERMINOLOGY`、`FIELD_CATALOG`、`PATHWAY` 专用发布链 / 契约证据，避免只依赖通用 release 框架；
+  2）推进全角色 / 全入口真实前台动作，从可达和代表动作继续下钻患者、医生、护士、药师、医技、质控、信息科长、
+  实施工程师、院长等视角；3）第三方系统族从登记 / 诚实降级补真实消费者与闭环回传；4）目标库迁移 smoke、
+  公网模型 Provider 真实证据、134 清库 / 重部署仍按 deferred / destructive 规则推进，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp`
+  产物不要暂存。
 - 第一百七十九批本地推进：继续按用户“允许使用子代理提升效率、前台演练要按全角色真实操作、知识只是全局一点、
   不要片面优化”的要求，先把第一百七十八批的 13 类资产 gap-aware 代表矩阵下钻为专项回滚负向代表门禁。
   参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 已再次核对，只作为背景输入：外部资料可做受控预备库，

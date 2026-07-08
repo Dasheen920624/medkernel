@@ -20,6 +20,38 @@ export type QualityManagementEntryCoreActionEvidence = {
   sourceAuditVerified?: boolean;
 };
 
+export type QualityManagementEvaluationAssetEvidence = {
+  assetType: "EVALUATION";
+  assetIdentity: string;
+  versionId: string;
+  indicatorId: string;
+  indicatorPublished: boolean;
+  indicatorActivated: boolean;
+  runtimeActivationVerified: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  insuranceAuditEvaluationRunVerified: boolean;
+  findingBoundToIndicatorVerified: boolean;
+  auditVerified: boolean;
+  activationRequest: unknown;
+  runtimeReadback: unknown;
+  runtimeConsumer: unknown;
+};
+
+export type QualityManagementRollbackNegativeEvidence = {
+  rollbackPosted: boolean;
+  currentRuntimeReadbackVerified: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  consumer: "QUALITY_MANAGEMENT_EVALUATION_INDICATOR";
+  consumerProbeMatchedRemovedAssets: false;
+  removedAssets: Array<{
+    assetType: "EVALUATION";
+    assetIdentity: string;
+    versionId: string;
+  }>;
+  currentRuntime: unknown;
+  runtimeConsumer: unknown;
+};
+
 const pathByMenuKey: Record<QualityManagementEntryCoreActionMenuKey, string> = {
   "qc-dashboard": "/qc/dashboard",
   "qc-alerts": "/qc/alerts",
@@ -35,6 +67,10 @@ export async function attachQualityManagementEntryCoreActionEvidence(
   evidence:
     | QualityManagementEntryCoreActionEvidence
     | QualityManagementEntryCoreActionEvidence[],
+  assetEvidence?: {
+    evaluationAssetSupplyChainEvidence: QualityManagementEvaluationAssetEvidence;
+    rollbackNegativeEvidence: QualityManagementRollbackNegativeEvidence;
+  },
 ) {
   const entryActions = Array.isArray(evidence) ? evidence : [evidence];
   for (const action of entryActions) {
@@ -47,6 +83,7 @@ export async function attachQualityManagementEntryCoreActionEvidence(
       {
         matrixCode: "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS",
         scopeStatement: qualityManagementEntryCoreActionScopeStatement,
+        ...assetEvidence,
         entryActions,
       },
       null,

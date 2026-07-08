@@ -16,6 +16,8 @@ import {
 import {
   attachQualityManagementEntryCoreActionEvidence,
   type QualityManagementEntryCoreActionEvidence,
+  type QualityManagementEvaluationAssetEvidence,
+  type QualityManagementRollbackNegativeEvidence,
 } from "./support/qualityManagementEntryCoreActions";
 
 type MpiPatient = {
@@ -47,6 +49,23 @@ type RuntimeCandidateSummary = RuntimeAssetSelection & {
   versionNo: string | null;
 };
 
+type RuntimeReadbackEvidence = {
+  releaseId: string;
+  revisionNo: number;
+  manifestSha256: string;
+  assets: Array<Record<string, unknown>>;
+};
+
+type ClaimRuntimeActivationSummary = {
+  releaseId: string;
+  hospitalId: string;
+  previousReleaseId: string | null;
+  candidate: RuntimeCandidateSummary & { versionId: string };
+  activationRequest: unknown;
+  runtimeReadback: RuntimeReadbackEvidence;
+  runtimeConsumer: RuntimeReadbackEvidence & { contractVersion: "v1" };
+};
+
 type InsuranceAuditSummary = {
   issueId: string;
   evaluationRunId: string;
@@ -72,24 +91,33 @@ test.describe("质量管理入口核心动作真实前台演练", () => {
     const suffix = Date.now().toString(36);
 
     const indicator = await createActiveClaimIndicatorFromUi(page, suffix);
-    const runtimeReleaseId = await activateHospitalRuntimeWithClaimIndicator(
+    const runtime = await activateHospitalRuntimeWithClaimIndicator(
       page,
       indicator.payload,
     );
     const snapshot = await preparePatientSnapshotFromUi(page, suffix);
     expect(snapshot.runtimeReleaseId, "病案快照必须绑定包含本轮 CLAIM 指标的机构生效版本").toBe(
-      runtimeReleaseId,
+      runtime.releaseId,
     );
     const insuranceAudit = await runInsuranceAuditFromUi(page, snapshot, indicator.payload);
     const rectification = await closeRectificationFromAlertsUi(page, insuranceAudit.payload);
     const dashboardAction = await drilldownQualityDashboardFromUi(page, rectification.payload);
+    const evaluationAssetSupplyChainEvidence = buildEvaluationAssetSupplyChainEvidence({
+      indicator: indicator.payload,
+      runtime,
+      insuranceAudit: insuranceAudit.payload,
+      indicatorAuditVerified: indicator.action.auditVerified,
+    });
+    const rollbackNegativeEvidence = await rollbackRuntimeAndAssertEvaluationRemoved(page, runtime);
 
-    await attachQualityManagementEntryCoreActionEvidence(testInfo, [
-      indicator.action,
-      insuranceAudit.action,
-      rectification.action,
-      dashboardAction,
-    ]);
+    await attachQualityManagementEntryCoreActionEvidence(
+      testInfo,
+      [indicator.action, insuranceAudit.action, rectification.action, dashboardAction],
+      {
+        evaluationAssetSupplyChainEvidence,
+        rollbackNegativeEvidence,
+      },
+    );
   });
 });
 
@@ -666,7 +694,7 @@ async function resolveLocalRehearsalHospital(page: Page): Promise<{ id: string; 
 async function activateHospitalRuntimeWithClaimIndicator(
   page: Page,
   indicator: ClaimIndicatorSummary,
-) {
+): Promise<ClaimRuntimeActivationSummary> {
   await ensureReadySession(page, "engine-operator");
   const hospital = await resolveLocalRehearsalHospital(page);
   const baseline = await getApi(page, "/engine/releases/platform-baselines/current");
@@ -737,7 +765,106 @@ async function activateHospitalRuntimeWithClaimIndicator(
   expect(textField(recordField(currentAfterRuntime, "release"), "releaseId")).toBe(releaseId);
   assertRuntimeCarriesRequiredAssets(currentAfterRuntime);
   assertRuntimeContainsClaimIndicator(currentAfterRuntime, indicator, candidate);
-  return releaseId ?? "";
+  const runtimeReadback = runtimeReadbackEvidence(currentAfterRuntime);
+  const runtimeConsumer = await readRuntimeConsumerEvidence(page, "读取包含 CLAIM 指标的第三方运行契约");
+  assertAssetsContain(runtimeConsumer.assets, [candidate], "第三方运行契约必须包含本轮 CLAIM 指标");
+  expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
+    runtimeReadback.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约 revisionNo 必须与 current 一致").toBe(
+    runtimeReadback.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约 manifestSha256 必须与 current 一致").toBe(
+    runtimeReadback.manifestSha256,
+  );
+  return {
+    releaseId: releaseId ?? "",
+    hospitalId: hospital.id,
+    previousReleaseId: currentReleaseId,
+    candidate: { ...candidate, versionId: candidate.versionId ?? "" },
+    activationRequest,
+    runtimeReadback,
+    runtimeConsumer,
+  };
+}
+
+function buildEvaluationAssetSupplyChainEvidence(options: {
+  indicator: ClaimIndicatorSummary;
+  runtime: ClaimRuntimeActivationSummary;
+  insuranceAudit: InsuranceAuditSummary;
+  indicatorAuditVerified: boolean;
+}): QualityManagementEvaluationAssetEvidence {
+  expect(options.insuranceAudit.evaluationRunId, "医保审核必须返回评价运行").toBeTruthy();
+  expect(options.insuranceAudit.findingId, "医保审核质量问题必须绑定本轮指标").toBeTruthy();
+  return {
+    assetType: "EVALUATION",
+    assetIdentity: options.runtime.candidate.assetIdentity,
+    versionId: options.runtime.candidate.versionId,
+    indicatorId: options.indicator.indicatorId,
+    indicatorPublished: true,
+    indicatorActivated: true,
+    runtimeActivationVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    insuranceAuditEvaluationRunVerified: true,
+    findingBoundToIndicatorVerified: true,
+    auditVerified: options.indicatorAuditVerified,
+    activationRequest: options.runtime.activationRequest,
+    runtimeReadback: options.runtime.runtimeReadback,
+    runtimeConsumer: options.runtime.runtimeConsumer,
+  };
+}
+
+async function rollbackRuntimeAndAssertEvaluationRemoved(
+  page: Page,
+  runtime: ClaimRuntimeActivationSummary,
+): Promise<QualityManagementRollbackNegativeEvidence> {
+  const targetReleaseId = runtime.previousReleaseId;
+  expect(targetReleaseId, "质量管理 EVALUATION 回滚负向证据必须有演练前机构生效版本").toBeTruthy();
+  await ensureReadySession(page, "engine-operator");
+  const removedAssets = [
+    {
+      assetType: "EVALUATION" as const,
+      assetIdentity: runtime.candidate.assetIdentity,
+      versionId: runtime.candidate.versionId,
+    },
+  ];
+  const rollback = await postApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(runtime.hospitalId)}/runtime-releases:rollback`,
+    { targetReleaseId },
+  );
+  await expectOk(rollback, "回滚质量管理 EVALUATION 机构生效版本");
+  const current = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(runtime.hospitalId)}/runtime-releases/current`,
+  );
+  await expectOk(current, "回读质量管理 EVALUATION 回滚后机构生效版本");
+  const currentRuntime = runtimeReadbackEvidence(await responseData(current));
+  assertAssetsRemoved(currentRuntime.assets, removedAssets, "回滚后 current runtime");
+  const runtimeConsumer = await readRuntimeConsumerEvidence(
+    page,
+    "读取质量管理 EVALUATION 回滚后第三方运行契约",
+  );
+  assertAssetsRemoved(runtimeConsumer.assets, removedAssets, "回滚后第三方运行契约");
+  expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
+    currentRuntime.releaseId,
+  );
+  expect(runtimeConsumer.revisionNo, "第三方运行契约 revisionNo 必须与 current 一致").toBe(
+    currentRuntime.revisionNo,
+  );
+  expect(runtimeConsumer.manifestSha256, "第三方运行契约 manifestSha256 必须与 current 一致").toBe(
+    currentRuntime.manifestSha256,
+  );
+  return {
+    rollbackPosted: true,
+    currentRuntimeReadbackVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    consumer: "QUALITY_MANAGEMENT_EVALUATION_INDICATOR",
+    consumerProbeMatchedRemovedAssets: false,
+    removedAssets,
+    currentRuntime,
+    runtimeConsumer,
+  };
 }
 
 async function readClaimRuntimeCandidate(
@@ -823,6 +950,98 @@ function assertRuntimeContainsClaimIndicator(
   expect(textField(match, "versionId"), "本轮 CLAIM 指标必须使用医院候选版本").toBe(
     candidate.versionId,
   );
+}
+
+function runtimeReadbackEvidence(value: unknown): RuntimeReadbackEvidence {
+  const evidence = {
+    releaseId: requireLocalText(
+      textField(recordField(value, "release"), "releaseId"),
+      "current runtime 必须返回 releaseId",
+    ),
+    revisionNo: numberField(recordField(value, "release"), "revisionNo") ?? 0,
+    manifestSha256: requireLocalText(
+      textField(recordField(value, "release"), "manifestSha256"),
+      "current runtime 必须返回 manifestSha256",
+    ),
+    assets: pageItems(value) as Array<Record<string, unknown>>,
+  };
+  expect(evidence.revisionNo, "current runtime 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "current runtime 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+async function readRuntimeConsumerEvidence(page: Page, label: string) {
+  const response = await getApi(page, "/engine/integration/knowledge-runtime/runtime-release/current");
+  await expectOk(response, label);
+  const value = await responseData(response);
+  const evidence = {
+    contractVersion: "v1" as const,
+    releaseId: requireLocalText(textField(value, "releaseId"), "runtime consumer 必须返回 releaseId"),
+    revisionNo: numberField(value, "revisionNo") ?? 0,
+    manifestSha256: requireLocalText(
+      textField(value, "manifestSha256"),
+      "runtime consumer 必须返回 manifestSha256",
+    ),
+    assets: (Array.isArray(recordField(value, "assets"))
+      ? recordField(value, "assets")
+      : []) as Array<Record<string, unknown>>,
+  };
+  expect(textField(value, "contractVersion"), "runtime consumer 必须返回 v1 契约").toBe("v1");
+  expect(evidence.revisionNo, "runtime consumer 必须返回 revisionNo").toBeGreaterThan(0);
+  expect(evidence.assets.length, "runtime consumer 必须返回资产清单").toBeGreaterThan(0);
+  return evidence;
+}
+
+function assertAssetsContain(
+  assets: Array<Record<string, unknown>>,
+  expectedAssets: Array<{ assetType: string; assetIdentity: string; versionId: string | null }>,
+  label: string,
+) {
+  for (const expected of expectedAssets) {
+    expect(
+      assets.some((asset) => runtimeAssetMatches(asset, expected)),
+      `${label} 必须包含 ${expected.assetType}:${expected.assetIdentity}`,
+    ).toBe(true);
+  }
+}
+
+function assertAssetsRemoved(
+  assets: Array<Record<string, unknown>>,
+  removedAssets: Array<{ assetType: string; assetIdentity: string; versionId: string }>,
+  label: string,
+) {
+  for (const removed of removedAssets) {
+    expect(
+      assets.some((asset) => runtimeAssetMatches(asset, removed)),
+      `${label} 不应继续包含本轮 ${removed.assetType}:${removed.assetIdentity}`,
+    ).toBe(false);
+  }
+}
+
+function runtimeAssetMatches(
+  asset: Record<string, unknown>,
+  candidate: { assetType: string; assetIdentity: string; versionId: string | null },
+) {
+  return (
+    textField(asset, "assetType") === candidate.assetType &&
+    textField(asset, "assetIdentity") === candidate.assetIdentity &&
+    textField(asset, "versionId") === candidate.versionId
+  );
+}
+
+function numberField(value: unknown, field: string) {
+  const raw = recordField(value, field);
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function requireLocalText(value: string | null, message: string) {
+  expect(value, message).toBeTruthy();
+  return value ?? "";
 }
 
 async function assertEvaluationIndicatorActive(

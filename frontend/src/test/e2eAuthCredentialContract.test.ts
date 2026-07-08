@@ -1314,8 +1314,18 @@ describe("E2E credential contract", () => {
     const medicationSource = readFileSync("e2e/medication-safety-frontdesk.spec.ts", "utf8");
     const criticalSource = readFileSync("e2e/critical-emergency-icu-frontdesk.spec.ts", "utf8");
     const pathwaySource = readFileSync("e2e/pathway-lifecycle-frontdesk.spec.ts", "utf8");
+    const qualitySource = readFileSync(
+      "e2e/quality-management-entry-core-actions-rehearsal.spec.ts",
+      "utf8",
+    );
 
-    for (const source of [cdssSource, medicationSource, criticalSource, pathwaySource]) {
+    for (const source of [
+      cdssSource,
+      medicationSource,
+      criticalSource,
+      pathwaySource,
+      qualitySource,
+    ]) {
       expect(source).toContain("rollbackNegativeEvidence");
       expect(source).toContain("runtime-releases:rollback");
       expect(source).toContain("currentRuntimeReadbackVerified");
@@ -1328,6 +1338,23 @@ describe("E2E credential contract", () => {
     expect(medicationSource).toContain("CDSS_RISK");
     expect(criticalSource).toContain("PATHWAY");
     expect(pathwaySource).toContain("ORDER_SET");
+    expect(qualitySource).toContain("EVALUATION");
+  });
+
+  it("requires quality management rehearsal to prove EVALUATION runtime consumer supply chain before closing the known gap", () => {
+    const source = readFileSync(
+      "e2e/quality-management-entry-core-actions-rehearsal.spec.ts",
+      "utf8",
+    );
+
+    expect(source).toContain("evaluationAssetSupplyChainEvidence");
+    expect(source).toContain("runtimeActivationVerified");
+    expect(source).toContain("runtimeConsumerReadbackVerified");
+    expect(source).toContain("insuranceAuditEvaluationRunVerified");
+    expect(source).toContain("findingBoundToIndicatorVerified");
+    expect(source).toContain("QUALITY_MANAGEMENT_EVALUATION_INDICATOR");
+    expect(source).toContain("runtime-candidates?assetType=EVALUATION");
+    expect(source).toContain("/engine/integration/knowledge-runtime/runtime-release/current");
   });
 
   it("requires nursing continuity rehearsal to use real nursing resources, followup backflow and strict evidence", () => {

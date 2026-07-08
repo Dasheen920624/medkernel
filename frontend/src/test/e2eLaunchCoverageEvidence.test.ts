@@ -29,6 +29,7 @@ const runtimeReleaseVersionedAssets = [
 const versionedAssetRepresentativeRows = runtimeReleaseVersionedAssets.filter(
   (asset) => asset !== "EVALUATION",
 );
+const fullVersionedAssetRepresentativeRows = runtimeReleaseVersionedAssets;
 
 const versionedAssetRollbackRepresentativeRows = [
   "SAFETY",
@@ -37,6 +38,10 @@ const versionedAssetRollbackRepresentativeRows = [
   "FORMULA",
   "PATHWAY",
   "ORDER_SET",
+];
+const fullVersionedAssetRollbackRepresentativeRows = [
+  ...versionedAssetRollbackRepresentativeRows,
+  "EVALUATION",
 ];
 
 function rollbackNegativeEvidence(
@@ -4551,6 +4556,65 @@ const qualityManagementEntryCoreActionsEvidence = {
   matrixCode: "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS",
   scopeStatement:
     "质量管理入口核心动作代表矩阵：围绕质量风险概览、质量问题与整改、医保审核和评价指标四个入口完成真实前台核心动作、服务回读与审计或来源对象审计链证据；不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，不代表完整 S9-S11，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  evaluationAssetSupplyChainEvidence: {
+    assetType: "EVALUATION",
+    assetIdentity: "QC.MATRIX.CLAIM.EVAL",
+    versionId: "av-evaluation-claim",
+    indicatorId: "ei-evaluation-claim",
+    indicatorPublished: true,
+    indicatorActivated: true,
+    runtimeActivationVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    insuranceAuditEvaluationRunVerified: true,
+    findingBoundToIndicatorVerified: true,
+    auditVerified: true,
+    activationRequest: {
+      activeAssets: [
+        {
+          assetType: "EVALUATION",
+          assetIdentity: "QC.MATRIX.CLAIM.EVAL",
+          versionId: "av-evaluation-claim",
+        },
+      ],
+    },
+    runtimeReadback: {
+      releaseId: "runtime-evaluation-claim",
+      revisionNo: 17,
+      manifestSha256: "e".repeat(64),
+      assets: [
+        {
+          assetType: "EVALUATION",
+          assetIdentity: "QC.MATRIX.CLAIM.EVAL",
+          versionId: "av-evaluation-claim",
+          entryState: "ACTIVE",
+        },
+      ],
+    },
+    runtimeConsumer: {
+      contractVersion: "v1",
+      releaseId: "runtime-evaluation-claim",
+      revisionNo: 17,
+      manifestSha256: "e".repeat(64),
+      assets: [
+        {
+          assetType: "EVALUATION",
+          assetIdentity: "QC.MATRIX.CLAIM.EVAL",
+          versionId: "av-evaluation-claim",
+          entryState: "ACTIVE",
+        },
+      ],
+    },
+  },
+  rollbackNegativeEvidence: rollbackNegativeEvidence(
+    [
+      {
+        assetType: "EVALUATION",
+        assetIdentity: "QC.MATRIX.CLAIM.EVAL",
+        versionId: "av-evaluation-claim",
+      },
+    ],
+    "QUALITY_MANAGEMENT_EVALUATION_INDICATOR",
+  ),
   entryActions: [
     {
       menuKey: "qc-eval-sets",
@@ -9586,10 +9650,8 @@ describe("browser E2E launch coverage evidence", () => {
     ).toEqual(["THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE"]);
     expect(
       evidence.launchCoverage.versionedAssetRepresentativeRows?.map((item) => item.code),
-    ).toEqual(versionedAssetRepresentativeRows);
-    expect(evidence.launchCoverage.versionedAssetKnownGaps?.map((item) => item.code)).toEqual([
-      "EVALUATION",
-    ]);
+    ).toEqual(fullVersionedAssetRepresentativeRows);
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
   });
 
   it("declares a gap-aware rollback-negative representative matrix only from asset-specific runtime consumer evidence", () => {
@@ -9603,7 +9665,7 @@ describe("browser E2E launch coverage evidence", () => {
     ).toEqual(["GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE"]);
     expect(
       evidence.launchCoverage.versionedAssetRollbackRepresentativeRows?.map((item) => item.code),
-    ).toEqual(versionedAssetRollbackRepresentativeRows);
+    ).toEqual(fullVersionedAssetRollbackRepresentativeRows);
   });
 
   it("does not declare rollback-negative representative matrix from generic runtime release rollback alone", () => {
@@ -9723,6 +9785,33 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
     expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
     expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it("keeps EVALUATION as a known gap when quality management evidence lacks runtime consumer proof", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "quality-management-entry-core-actions-rehearsal.spec.ts": {
+            ...qualityManagementEntryCoreActionsEvidence,
+            evaluationAssetSupplyChainEvidence: {
+              ...qualityManagementEntryCoreActionsEvidence.evaluationAssetSupplyChainEvidence,
+              runtimeConsumerReadbackVerified: false,
+            },
+          },
+        },
+      }),
+    });
+
+    expect(
+      evidence.launchCoverage.versionedAssetSupplyChainMatrix?.map((item) => item.code),
+    ).toEqual(["THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.versionedAssetRepresentativeRows?.map((item) => item.code),
+    ).toEqual(versionedAssetRepresentativeRows);
+    expect(evidence.launchCoverage.versionedAssetKnownGaps?.map((item) => item.code)).toEqual([
+      "EVALUATION",
+    ]);
   });
 
   it("does not declare the 13 asset supply-chain matrix without runtime release rollback evidence", () => {
