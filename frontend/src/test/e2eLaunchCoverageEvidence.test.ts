@@ -4233,6 +4233,262 @@ function expectNoFourRoleCoreActionsCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.roleRepresentativeCoreActions).toBeUndefined();
 }
 
+const standardPatientResourceMatrixScope =
+  "13 类标准患者资源真实接入与消费者代表矩阵：跨真实前台演练聚合 Patient、AllergyIntolerance、Encounter、Condition、NursingAssessment、Observation、DiagnosticReport、Medication、Procedure、Document、CarePlan、FollowUp 与 Claim 的标准资源回读、运行消费者、审计和数据质量证据；不代表每类字段目录全量落地，不代表完整 S0-S40，不代表完整上线验收。";
+
+const standardPatientResourceTypes = [
+  "Patient",
+  "AllergyIntolerance",
+  "Encounter",
+  "Condition",
+  "NursingAssessment",
+  "Observation",
+  "DiagnosticReport",
+  "Medication",
+  "Procedure",
+  "Document",
+  "CarePlan",
+  "FollowUp",
+  "Claim",
+] as const;
+
+type StandardPatientResourceType = (typeof standardPatientResourceTypes)[number];
+
+const standardPatientResourcePathByType: Record<StandardPatientResourceType, string> = {
+  Patient: "clinicalContext.resources.patient",
+  AllergyIntolerance: "clinicalContext.resources.allergyIntolerances[0]",
+  Encounter: "clinicalContext.resources.encounters[0]",
+  Condition: "clinicalContext.resources.conditions[0]",
+  NursingAssessment: "clinicalContext.resources.nursingAssessments[0]",
+  Observation: "clinicalContext.resources.observations[0]",
+  DiagnosticReport: "clinicalContext.resources.diagnosticReports[0]",
+  Medication: "clinicalContext.resources.medications[0]",
+  Procedure: "clinicalContext.resources.procedures[0]",
+  Document: "clinicalContext.resources.documents[0]",
+  CarePlan: "clinicalContext.resources.carePlans[0]",
+  FollowUp: "backflowContext.resources.followUps[0]",
+  Claim: "clinicalContext.resources.claims[0]",
+};
+
+const standardPatientResourceSourceIdByType: Record<StandardPatientResourceType, string> = {
+  Patient: "mpi-resource-matrix",
+  AllergyIntolerance: "allergy-resource-matrix",
+  Encounter: "enc-resource-matrix",
+  Condition: "cond-resource-matrix",
+  NursingAssessment: "nursing-resource-matrix",
+  Observation: "obs-resource-matrix",
+  DiagnosticReport: "report-resource-matrix",
+  Medication: "med-resource-matrix",
+  Procedure: "proc-resource-matrix",
+  Document: "doc-resource-matrix",
+  CarePlan: "care-resource-matrix",
+  FollowUp: "follow-resource-matrix",
+  Claim: "claim-resource-matrix",
+};
+
+function standardPatientResourceSourceSystem(type: StandardPatientResourceType) {
+  if (type === "DiagnosticReport" || type === "Observation") return "FHIR_R4";
+  if (type === "FollowUp") return "FOLLOWUP";
+  return "MEDKERNEL_FRONTDESK";
+}
+
+function standardPatientResourceObject(type: StandardPatientResourceType) {
+  const sourceRecordId = standardPatientResourceSourceIdByType[type];
+  const resourceShape: Record<StandardPatientResourceType, Record<string, unknown>> = {
+    Patient: { mpi: sourceRecordId, name: "脱敏患者" },
+    AllergyIntolerance: { allergyIntoleranceId: sourceRecordId, code: "J01C" },
+    Encounter: { encounterId: sourceRecordId, encounterType: "OUTPATIENT" },
+    Condition: { conditionId: sourceRecordId, code: "A41.9" },
+    NursingAssessment: { assessmentId: sourceRecordId, assessmentType: "FALL_RISK" },
+    Observation: { observationId: sourceRecordId, code: "LOINC-K" },
+    DiagnosticReport: { reportId: sourceRecordId, reportType: "CT" },
+    Medication: { medicationId: sourceRecordId, standardCode: "J01C" },
+    Procedure: { procedureId: sourceRecordId, code: "47.01" },
+    Document: { documentId: sourceRecordId, documentType: "SURGERY_SAFETY_CHECKLIST" },
+    CarePlan: { planId: sourceRecordId, planType: "FOLLOWUP" },
+    FollowUp: { followUpId: sourceRecordId, questionnaireId: "questionnaire-resource-matrix" },
+    Claim: { claimId: sourceRecordId, drgCode: "DRG-REAL-A" },
+  };
+  return {
+    ...resourceShape[type],
+    sourceSystem: standardPatientResourceSourceSystem(type),
+    sourceRecordId,
+    qualityStatus: "VALID",
+  };
+}
+
+function standardPatientResourceBody(
+  resourceTypes: readonly StandardPatientResourceType[],
+  overrides: Partial<{
+    scopeStatement: string;
+    rows: Array<Record<string, unknown>>;
+    clinicalContext: Record<string, unknown>;
+    consumerEvidence: Record<string, unknown>;
+    auditEvidence: Record<string, unknown>;
+    insuranceAudit: Record<string, unknown>;
+    qualityRectification: Record<string, unknown>;
+    followupPlanGenerationExplanation: Record<string, unknown>;
+  }> = {},
+) {
+  const resources = {
+    patient: standardPatientResourceObject("Patient"),
+    allergyIntolerances: [standardPatientResourceObject("AllergyIntolerance")],
+    encounters: [standardPatientResourceObject("Encounter")],
+    conditions: [standardPatientResourceObject("Condition")],
+    nursingAssessments: [standardPatientResourceObject("NursingAssessment")],
+    observations: [standardPatientResourceObject("Observation")],
+    diagnosticReports: [standardPatientResourceObject("DiagnosticReport")],
+    medications: [standardPatientResourceObject("Medication")],
+    procedures: [standardPatientResourceObject("Procedure")],
+    documents: [standardPatientResourceObject("Document")],
+    carePlans: [standardPatientResourceObject("CarePlan")],
+    followUps: [standardPatientResourceObject("FollowUp")],
+    claims: [standardPatientResourceObject("Claim")],
+  };
+  const consumerEvidence = Object.fromEntries(
+    standardPatientResourceTypes.map((type) => [type, { consumed: true }]),
+  );
+  const auditEvidence = Object.fromEntries(
+    standardPatientResourceTypes.map((type) => [type, { auditId: `audit-${type}` }]),
+  );
+  const rows =
+    overrides.rows ??
+    resourceTypes.map((type) => ({
+      resourceType: type,
+      resourcePath: standardPatientResourcePathByType[type],
+      sourceSystem: standardPatientResourceSourceSystem(type),
+      sourceId: standardPatientResourceSourceIdByType[type],
+      patientVerified: true,
+      encounterVerified: type !== "Patient",
+      snapshotReadbackVerified: true,
+      consumer: type === "Claim" ? "INSURANCE_AUDIT" : "REPRESENTATIVE_RUNTIME_CONSUMER",
+      consumerEvidencePaths:
+        type === "Claim" ? ["insuranceAudit.evaluationRunId"] : [`consumerEvidence.${type}`],
+      consumerVerified: true,
+      auditEvidencePaths:
+        type === "Claim"
+          ? ["insuranceAudit.issueId", "qualityRectification.taskId"]
+          : [`auditEvidence.${type}`],
+      auditVerified: true,
+      dataQualityVerified: true,
+      ...(type === "Claim"
+        ? { evaluationRunVerified: true, qualityRectificationVerified: true }
+        : {}),
+    }));
+  return {
+    clinicalContext: overrides.clinicalContext ?? {
+      patientId: "mpi-resource-matrix",
+      encounterId: "enc-resource-matrix",
+      contextSnapshotId: "ctx-resource-matrix",
+      resources,
+    },
+    backflowContext: {
+      resources: {
+        followUps: [standardPatientResourceObject("FollowUp")],
+      },
+    },
+    consumerEvidence: overrides.consumerEvidence ?? consumerEvidence,
+    auditEvidence: overrides.auditEvidence ?? auditEvidence,
+    insuranceAudit: overrides.insuranceAudit ?? {
+      issueId: "issue-resource-matrix",
+      evaluationRunId: "eval-resource-matrix",
+      auditStatus: "ISSUE_FOUND",
+    },
+    qualityRectification: overrides.qualityRectification ?? {
+      taskId: "task-resource-matrix",
+      taskStatus: "CLOSED",
+    },
+    followupPlanGenerationExplanation: overrides.followupPlanGenerationExplanation ?? {
+      nursingAssessmentEvidence: [{ consumed: true }],
+      carePlanEvidence: [{ consumed: true }],
+    },
+    standardPatientResourceConsumerMatrix: {
+      matrixCode: "THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE",
+      scopeStatement: overrides.scopeStatement ?? standardPatientResourceMatrixScope,
+      resources: rows,
+    },
+  };
+}
+
+function standardPatientResourceMatrixEvidenceResult(
+  bodies: Array<{
+    file: string;
+    title: string;
+    attachmentName: string;
+    body: Record<string, unknown>;
+  }>,
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: bodies.map((item) => ({
+      file: `/repo/frontend/e2e/${item.file}`,
+      title: item.title,
+      status: "passed",
+      attachments: [
+        {
+          name: item.attachmentName,
+          contentType: "application/json",
+          body: JSON.stringify(item.body),
+        },
+      ],
+    })),
+  });
+}
+
+function standardPatientResourceMatrixBodies(
+  overrides: Partial<
+    Record<
+      "medication" | "pharmacy" | "diagnostic" | "nursing" | "surgery" | "realFrontdesk",
+      Record<string, unknown>
+    >
+  > = {},
+) {
+  return [
+    {
+      file: "medication-safety-frontdesk.spec.ts",
+      title: "临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环",
+      attachmentName: "medication-safety-frontdesk-codes",
+      body:
+        overrides.medication ??
+        standardPatientResourceBody(["Patient", "AllergyIntolerance", "Encounter", "Medication"]),
+    },
+    {
+      file: "pharmacy-review-antimicrobial-frontdesk.spec.ts",
+      title:
+        "临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环",
+      attachmentName: "pharmacy-review-antimicrobial-frontdesk-codes",
+      body: overrides.pharmacy ?? standardPatientResourceBody(["Condition", "Observation"]),
+    },
+    {
+      file: "diagnostic-critical-value-frontdesk.spec.ts",
+      title: "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
+      attachmentName: "diagnostic-critical-value-frontdesk-codes",
+      body: overrides.diagnostic ?? standardPatientResourceBody(["DiagnosticReport"]),
+    },
+    {
+      file: "nursing-continuity-frontdesk.spec.ts",
+      title: "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
+      attachmentName: "nursing-continuity-frontdesk-codes",
+      body:
+        overrides.nursing ??
+        standardPatientResourceBody(["NursingAssessment", "CarePlan", "FollowUp"]),
+    },
+    {
+      file: "surgery-anesthesia-transfusion-frontdesk.spec.ts",
+      title: "临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环",
+      attachmentName: "surgery-anesthesia-transfusion-frontdesk-codes",
+      body: overrides.surgery ?? standardPatientResourceBody(["Procedure", "Document"]),
+    },
+    {
+      file: "real-frontdesk-rehearsal.spec.ts",
+      title:
+        "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+      attachmentName: "real-frontdesk-scenario-codes",
+      body: overrides.realFrontdesk ?? standardPatientResourceBody(["Claim"]),
+    },
+  ];
+}
+
 describe("browser E2E launch coverage evidence", () => {
   it("declares stakeholder views only when the real stakeholder rehearsal spec passes", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
@@ -5744,6 +6000,171 @@ describe("browser E2E launch coverage evidence", () => {
       evidence.launchCoverage.diagnosticReportFamilyConsumerMatrix?.map((item) => item.code),
     ).toEqual(["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares 13 standard patient resource representative consumer matrix only from cross-frontdesk resource evidence", () => {
+    const evidence = standardPatientResourceMatrixEvidenceResult(
+      standardPatientResourceMatrixBodies(),
+    );
+
+    expect(
+      evidence.launchCoverage.standardPatientResourceConsumerMatrix?.map((item) => item.code),
+    ).toEqual(["THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.standardPatientResourceRepresentativeRows?.map((item) => item.code),
+    ).toEqual([
+      "Patient",
+      "AllergyIntolerance",
+      "Encounter",
+      "Condition",
+      "NursingAssessment",
+      "Observation",
+      "DiagnosticReport",
+      "Medication",
+      "Procedure",
+      "Document",
+      "CarePlan",
+      "FollowUp",
+      "Claim",
+    ]);
+    expect(evidence.launchCoverage.standardPatientResources).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少 Claim 患者资源",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody([]),
+      }),
+    },
+    {
+      name: "重复资源类型伪造 13 类矩阵",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody([], {
+          rows: [
+            {
+              ...standardPatientResourceBody(["Observation"]).standardPatientResourceConsumerMatrix
+                .resources[0],
+              resourceType: "Observation",
+            },
+          ],
+        }),
+      }),
+    },
+    {
+      name: "包含未知资源类型",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody([], {
+          rows: [
+            {
+              ...standardPatientResourceBody(["Claim"]).standardPatientResourceConsumerMatrix
+                .resources[0],
+              resourceType: "BillingStatement",
+            },
+          ],
+        }),
+      }),
+    },
+    {
+      name: "只有附件常量没有绑定真实资源路径",
+      bodies: standardPatientResourceMatrixBodies({
+        medication: standardPatientResourceBody(["Patient"], {
+          rows: [
+            {
+              ...standardPatientResourceBody(["Patient"]).standardPatientResourceConsumerMatrix
+                .resources[0],
+              resourcePath: "clinicalContext.resources.patientMissing",
+            },
+          ],
+        }),
+      }),
+    },
+    {
+      name: "sourceIdPath 指向空值无法证明真实资源身份",
+      bodies: standardPatientResourceMatrixBodies({
+        surgery: standardPatientResourceBody(["Procedure", "Document"], {
+          rows: [
+            {
+              ...standardPatientResourceBody(["Procedure"]).standardPatientResourceConsumerMatrix
+                .resources[0],
+              sourceId: undefined,
+              sourceIdPath: "clinicalContext.resources.procedures[1].sourceRecordId",
+              resourcePath: "clinicalContext.resources.procedures[0]",
+            },
+            standardPatientResourceBody(["Document"]).standardPatientResourceConsumerMatrix
+              .resources[0],
+          ],
+        }),
+      }),
+    },
+    {
+      name: "Claim 未绑定医保审核评估运行",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody(["Claim"], {
+          insuranceAudit: {
+            issueId: "issue-resource-matrix",
+            evaluationRunId: "",
+            auditStatus: "ISSUE_FOUND",
+          },
+        }),
+      }),
+    },
+    {
+      name: "Claim 行冒用 Patient 资源路径",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody(["Claim"], {
+          rows: [
+            {
+              ...standardPatientResourceBody(["Claim"]).standardPatientResourceConsumerMatrix
+                .resources[0],
+              resourcePath: "clinicalContext.resources.patient",
+              sourceSystem: "MEDKERNEL_FRONTDESK",
+              sourceIdPath: "clinicalContext.resources.patient.sourceRecordId",
+            },
+          ],
+        }),
+      }),
+    },
+    {
+      name: "scope 漏写不代表完整 S0-S40",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody(["Claim"], {
+          scopeStatement:
+            "13 类标准患者资源真实接入与消费者代表矩阵：跨真实前台演练聚合资源证据；不代表每类字段目录全量落地，不代表完整上线验收。",
+        }),
+      }),
+    },
+    {
+      name: "scope 过度宣称 13 类标准患者资源全量上线完成",
+      bodies: standardPatientResourceMatrixBodies({
+        realFrontdesk: standardPatientResourceBody(["Claim"], {
+          scopeStatement:
+            "13 类标准患者资源真实接入与消费者代表矩阵：跨真实前台演练聚合资源证据；13 类标准患者资源全量上线完成。",
+        }),
+      }),
+    },
+  ])("does not declare standard patient resource matrix when $name", ({ bodies }) => {
+    const evidence = standardPatientResourceMatrixEvidenceResult(bodies);
+
+    expect(evidence.launchCoverage.standardPatientResourceConsumerMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.standardPatientResourceRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.standardPatientResources).toBeUndefined();
+  });
+
+  it("does not aggregate standard patient resource matrix from non-target attachments", () => {
+    const evidence = standardPatientResourceMatrixEvidenceResult([
+      ...standardPatientResourceMatrixBodies().slice(0, 5),
+      {
+        file: "ad-hoc-resource-dump.spec.ts",
+        title: "临时资源导出附件",
+        attachmentName: "ad-hoc-resource-dump",
+        body: standardPatientResourceBody(["Claim"]),
+      },
+    ]);
+
+    expect(evidence.launchCoverage.standardPatientResourceConsumerMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.standardPatientResourceRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.standardPatientResources).toBeUndefined();
   });
 
   it("declares S36 diagnostic critical-value coverage when FHIR retry compensation reaches NOT_CONNECTED", () => {

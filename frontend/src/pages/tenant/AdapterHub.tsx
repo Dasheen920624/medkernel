@@ -1844,6 +1844,8 @@ export default function AdapterHub() {
                         >
                           <Select
                             allowClear
+                            showSearch
+                            optionFilterProp="label"
                             placeholder="选择标准术语分类"
                             options={[...TERM_CATEGORY_OPTIONS]}
                           />

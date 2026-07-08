@@ -1,4 +1,11 @@
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -12,6 +19,7 @@ import {
   resolveBaselineRuntimeAssets,
   textField,
 } from "./support/auth";
+import { standardPatientResourceConsumerMatrix } from "./support/standardPatientResourceMatrix";
 
 type RuntimeAssetSelection = {
   assetType: string;
@@ -102,94 +110,97 @@ const requiredStages = [
 ] as const;
 
 test.describe("护理连续照护真实前台闭环", () => {
-  test(
-    "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(300_000);
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+  test("临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
 
-      await ensureReadySession(page, "engine-operator");
-      const hospitalId = await localRehearsalHospitalId(page);
-      const template = await createAndPublishNursingContinuityTemplate(page, suffix);
-      apiEvidence.followupTemplatePublished = true;
-      const runtime = await activateRuntimeWithNursingContinuityAssets(page, {
-        hospitalId,
-        followup: template,
-      });
-      apiEvidence.runtimeActivatedWithFollowupAsset = true;
-      recordStage(observedStages, "运营员发布 FOLLOWUP 随访方案并激活到当前机构生效版本");
+    await ensureReadySession(page, "engine-operator");
+    const hospitalId = await localRehearsalHospitalId(page);
+    const template = await createAndPublishNursingContinuityTemplate(page, suffix);
+    apiEvidence.followupTemplatePublished = true;
+    const runtime = await activateRuntimeWithNursingContinuityAssets(page, {
+      hospitalId,
+      followup: template,
+    });
+    apiEvidence.runtimeActivatedWithFollowupAsset = true;
+    recordStage(observedStages, "运营员发布 FOLLOWUP 随访方案并激活到当前机构生效版本");
 
-      const snapshot = await createNursingContinuityContextFromFrontdesk(page, suffix);
-      apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
-      expect(snapshot.runtimeReleaseId, "护理连续照护上下文必须绑定包含本轮 FOLLOWUP 的机构生效版本").toBe(
-        runtime.releaseId,
-      );
-      recordStage(observedStages, "临床用户从患者 360 建立护理高风险评估标准上下文");
+    const snapshot = await createNursingContinuityContextFromFrontdesk(page, suffix);
+    apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
+    expect(
+      snapshot.runtimeReleaseId,
+      "护理连续照护上下文必须绑定包含本轮 FOLLOWUP 的机构生效版本",
+    ).toBe(runtime.releaseId);
+    recordStage(observedStages, "临床用户从患者 360 建立护理高风险评估标准上下文");
 
-      const contextAfterCreate = await readContextSnapshot(page, snapshot.snapshotId);
-      const clinicalContext = assertContextContainsNursingContinuityFacts({
-        context: contextAfterCreate,
-        runtime,
-      });
-      apiEvidence.nursingAssessmentReadback = true;
-      apiEvidence.carePlanReadback = true;
-      recordStage(observedStages, "标准上下文回读 NursingAssessment 与 CarePlan 护理事实");
+    const contextAfterCreate = await readContextSnapshot(page, snapshot.snapshotId);
+    const clinicalContext = assertContextContainsNursingContinuityFacts({
+      context: contextAfterCreate,
+      runtime,
+    });
+    apiEvidence.nursingAssessmentReadback = true;
+    apiEvidence.carePlanReadback = true;
+    recordStage(observedStages, "标准上下文回读 NursingAssessment 与 CarePlan 护理事实");
 
-      const plan = await generateFollowupPlanFromFrontdesk(page, {
-        snapshot: contextAfterCreate,
-        template,
-        runtime,
-      });
-      apiEvidence.followupPlanGeneratedFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台基于护理上下文生成随访计划");
-      assertFollowupPlanConsumedNursingFacts(plan, {
-        snapshot: contextAfterCreate,
-        runtime,
-        template,
-      });
-      recordStage(observedStages, "随访计划解释消费 NursingAssessment 风险等级与护理计划节点");
+    const plan = await generateFollowupPlanFromFrontdesk(page, {
+      snapshot: contextAfterCreate,
+      template,
+      runtime,
+    });
+    apiEvidence.followupPlanGeneratedFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台基于护理上下文生成随访计划");
+    assertFollowupPlanConsumedNursingFacts(plan, {
+      snapshot: contextAfterCreate,
+      runtime,
+      template,
+    });
+    recordStage(observedStages, "随访计划解释消费 NursingAssessment 风险等级与护理计划节点");
 
-      const drawer = await openFollowupPlanDrawer(page, {
-        templateName: template.name,
-        patientId: contextAfterCreate.patientId,
-      });
-      const questionnaire = await submitQuestionnaireFromFrontdesk(drawer, page);
-      apiEvidence.questionnaireSubmitted = true;
-      const abnormalReport = await reportAbnormalReturnFromFrontdesk(drawer, page);
-      apiEvidence.abnormalReported = true;
-      recordStage(observedStages, "临床用户提交随访问卷并登记异常回院");
-      const refreshedPlan = await readFollowupPlan(page, requireText(plan.planId ?? null, "随访计划必须返回 planId"));
-      const followupPlan = mergePlanTasks(plan, refreshedPlan);
+    const drawer = await openFollowupPlanDrawer(page, {
+      templateName: template.name,
+      patientId: contextAfterCreate.patientId,
+    });
+    const questionnaire = await submitQuestionnaireFromFrontdesk(drawer, page);
+    apiEvidence.questionnaireSubmitted = true;
+    const abnormalReport = await reportAbnormalReturnFromFrontdesk(drawer, page);
+    apiEvidence.abnormalReported = true;
+    recordStage(observedStages, "临床用户提交随访问卷并登记异常回院");
+    const refreshedPlan = await readFollowupPlan(
+      page,
+      requireText(plan.planId ?? null, "随访计划必须返回 planId"),
+    );
+    const followupPlan = mergePlanTasks(plan, refreshedPlan);
 
-      const resultBackflow = await backflowFollowupResultFromFrontdesk(drawer, page);
-      apiEvidence.resultBackflowPosted = true;
-      const backflowContext = await readBackflowContext(page, {
-        contextSnapshotId: requireText(
-          textField(resultBackflow, "contextSnapshotId"),
-          "随访结果回流必须返回 contextSnapshotId",
-        ),
-        questionnaire,
-        runtime,
-      });
-      apiEvidence.backflowContextContainsFollowUp = true;
-      recordStage(observedStages, "随访结果回流生成 FollowUp 标准资源并绑定同一机构生效版本");
+    const resultBackflow = await backflowFollowupResultFromFrontdesk(drawer, page);
+    apiEvidence.resultBackflowPosted = true;
+    const backflowContext = await readBackflowContext(page, {
+      contextSnapshotId: requireText(
+        textField(resultBackflow, "contextSnapshotId"),
+        "随访结果回流必须返回 contextSnapshotId",
+      ),
+      questionnaire,
+      runtime,
+    });
+    apiEvidence.backflowContextContainsFollowUp = true;
+    recordStage(observedStages, "随访结果回流生成 FollowUp 标准资源并绑定同一机构生效版本");
 
-      await attachNursingContinuityEvidence(testInfo, {
-        apiEvidence,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext,
-        followupPlan,
-        questionnaire,
-        abnormalReport,
-        resultBackflow,
-        backflowContext,
-        observedStages,
-      });
-    },
-  );
+    await attachNursingContinuityEvidence(testInfo, {
+      apiEvidence,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext,
+      followupPlan,
+      questionnaire,
+      abnormalReport,
+      resultBackflow,
+      backflowContext,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): NursingContinuityApiEvidence {
@@ -220,9 +231,11 @@ async function createAndPublishNursingContinuityTemplate(
   await ensureReadySession(page, "engine-operator");
   await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "随访协同" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.locator("main").getByRole("heading", { name: "随访协同" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
   await page.getByRole("tab", { name: "随访方案" }).click();
 
   const templateCode = `FOLLOWUP.NURSING.CONTINUITY.${suffix}`;
@@ -250,7 +263,10 @@ async function createAndPublishNursingContinuityTemplate(
   const createResponse = await createResponsePromise;
   await expectHttpOk(createResponse, "创建护理连续照护随访方案");
   const created = await responseData(createResponse);
-  const templateId = requireText(textField(created, "templateId"), "随访方案创建响应必须返回 templateId");
+  const templateId = requireText(
+    textField(created, "templateId"),
+    "随访方案创建响应必须返回 templateId",
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
 
   await page.getByPlaceholder("按方案名称或适用范围检索").fill(templateName);
@@ -266,15 +282,23 @@ async function createAndPublishNursingContinuityTemplate(
   const publishResponse = await publishResponsePromise;
   await expectHttpOk(publishResponse, "发布护理连续照护随访方案");
   const published = await responseData(publishResponse);
-  expect(textField(published, "templateId"), "随访方案发布响应必须绑定本轮 templateId").toBe(templateId);
+  expect(textField(published, "templateId"), "随访方案发布响应必须绑定本轮 templateId").toBe(
+    templateId,
+  );
   expect(textField(published, "assetStatus"), "随访方案必须发布为 PUBLISHED").toBe("PUBLISHED");
 
   return {
     assetType: "FOLLOWUP",
     assetIdentity: templateCode,
-    versionId: requireText(textField(published, "assetVersionId"), "随访方案发布必须返回资产版本 ID"),
+    versionId: requireText(
+      textField(published, "assetVersionId"),
+      "随访方案发布必须返回资产版本 ID",
+    ),
     versionNo: `V${numberField(published, "versionNo") ?? 1}`,
-    contentHash: requireText(textField(published, "contentHash"), "随访方案发布必须返回 contentHash"),
+    contentHash: requireText(
+      textField(published, "contentHash"),
+      "随访方案发布必须返回 contentHash",
+    ),
     templateId,
     templateCode,
     name: textField(published, "name") ?? templateName,
@@ -444,8 +468,14 @@ async function createNursingContinuityContextFromFrontdesk(
   };
 }
 
-async function readContextSnapshot(page: Page, snapshotId: string): Promise<ContextSnapshotSummary> {
-  const response = await getApi(page, `/engine/context/snapshots/${encodeURIComponent(snapshotId)}`);
+async function readContextSnapshot(
+  page: Page,
+  snapshotId: string,
+): Promise<ContextSnapshotSummary> {
+  const response = await getApi(
+    page,
+    `/engine/context/snapshots/${encodeURIComponent(snapshotId)}`,
+  );
   await expectOk(response, "回读护理连续照护上下文快照");
   const context = await responseData(response);
   return {
@@ -508,15 +538,22 @@ async function generateFollowupPlanFromFrontdesk(
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "随访协同" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.locator("main").getByRole("heading", { name: "随访协同" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
   await page.getByRole("button", { name: "生成随访计划" }).click();
   const dialog = page.getByRole("dialog", { name: "生成随访计划" });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await dialog.getByLabel("随访快照患者信息").fill(options.snapshot.patientId);
-  const snapshotButton = dialog.locator(`button[data-snapshot-id="${options.snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `随访计划弹窗必须展示本轮上下文 ${options.snapshot.snapshotId}`).toBeVisible({
+  const snapshotButton = dialog.locator(
+    `button[data-snapshot-id="${options.snapshot.snapshotId}"]`,
+  );
+  await expect(
+    snapshotButton,
+    `随访计划弹窗必须展示本轮上下文 ${options.snapshot.snapshotId}`,
+  ).toBeVisible({
     timeout: 30_000,
   });
   await snapshotButton.click();
@@ -530,7 +567,9 @@ async function generateFollowupPlanFromFrontdesk(
   expect(plan.planId, "随访计划生成响应应返回计划身份").toBeTruthy();
   expect(plan.patientId, "随访计划必须绑定本轮患者").toBe(options.snapshot.patientId);
   expect(plan.encounterId, "随访计划必须绑定本轮就诊").toBe(options.snapshot.encounterId);
-  expect(plan.runtimeReleaseId, "随访计划必须使用上下文锁定 runtime").toBe(options.runtime.releaseId);
+  expect(plan.runtimeReleaseId, "随访计划必须使用上下文锁定 runtime").toBe(
+    options.runtime.releaseId,
+  );
   expect(plan.templateId, "随访计划必须绑定本轮随访方案").toBe(options.template.templateId);
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   return plan;
@@ -589,7 +628,13 @@ async function openFollowupPlanDrawer(
 ) {
   const drawer = page.getByRole("dialog", { name: "随访计划办理" });
   if (await drawer.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    if (await drawer.getByText(options.templateName, { exact: false }).first().isVisible().catch(() => false)) {
+    if (
+      await drawer
+        .getByText(options.templateName, { exact: false })
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
       return drawer;
     }
     await drawer.getByRole("button", { name: /close/i }).click();
@@ -600,7 +645,9 @@ async function openFollowupPlanDrawer(
   await page.getByRole("button", { name: /查\s*询/ }).click();
   const listResponse = await listResponsePromise;
   await expectHttpOk(listResponse, "按本次患者线索查询护理连续照护随访计划");
-  const row = page.getByRole("row", { name: new RegExp(escapeRegExp(options.templateName)) }).first();
+  const row = page
+    .getByRole("row", { name: new RegExp(escapeRegExp(options.templateName)) })
+    .first();
   await expect(row, "新生成护理连续照护随访计划必须能按患者线索定位").toBeVisible({
     timeout: 30_000,
   });
@@ -630,7 +677,10 @@ async function submitQuestionnaireFromFrontdesk(drawer: Locator, page: Page) {
     timeout: 20_000,
   });
   const questionnaire = await responseData(questionnaireResponse);
-  expect(textField(questionnaire, "questionnaireId"), "问卷提交响应必须返回 questionnaireId").toBeTruthy();
+  expect(
+    textField(questionnaire, "questionnaireId"),
+    "问卷提交响应必须返回 questionnaireId",
+  ).toBeTruthy();
   expect(textField(questionnaire, "status"), "问卷提交后必须完成任务").toBe("COMPLETED");
   return questionnaire;
 }
@@ -662,7 +712,10 @@ async function backflowFollowupResultFromFrontdesk(drawer: Locator, page: Page) 
   await expect(drawer.getByText("随访结果回流已完成")).toBeVisible({ timeout: 20_000 });
   const backflow = await responseData(backflowResponse);
   expect(textField(backflow, "eventId"), "随访结果回流响应必须返回事件 ID").toBeTruthy();
-  expect(textField(backflow, "contextSnapshotId"), "随访结果回流响应必须返回上下文 ID").toBeTruthy();
+  expect(
+    textField(backflow, "contextSnapshotId"),
+    "随访结果回流响应必须返回上下文 ID",
+  ).toBeTruthy();
   return backflow;
 }
 
@@ -672,7 +725,10 @@ async function readFollowupPlan(page: Page, planId: string): Promise<FollowupPla
   return (await responseData(response)) as FollowupPlanEvidence;
 }
 
-function mergePlanTasks(plan: FollowupPlanEvidence, refreshed: FollowupPlanEvidence): FollowupPlanEvidence {
+function mergePlanTasks(
+  plan: FollowupPlanEvidence,
+  refreshed: FollowupPlanEvidence,
+): FollowupPlanEvidence {
   return {
     ...plan,
     tasks: refreshed.tasks ?? plan.tasks ?? [],
@@ -752,6 +808,55 @@ async function attachNursingContinuityEvidence(
         serviceCombinations: ["CLINICAL_RUNTIME"],
         scopeStatement:
           "护理连续照护代表切片：围绕 NursingAssessment、CarePlan 与 FollowUp 完成高风险护理评估后的随访计划、异常回院和结果回流，不代表完整护理专业智能、完整护理计划执行或完整 S20/S35 上线。",
+        standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
+          {
+            resourceType: "NursingAssessment",
+            resourcePath: "clinicalContext.resources.nursingAssessments[0]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.nursingAssessments[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "FOLLOWUP_PLAN_GENERATION",
+            consumerEvidencePaths: [
+              "followupPlanGenerationExplanation.nursingAssessmentEvidence[0]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["questionnaire.questionnaireId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "CarePlan",
+            resourcePath: "clinicalContext.resources.carePlans[0]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.carePlans[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "FOLLOWUP_PLAN_GENERATION",
+            consumerEvidencePaths: ["followupPlanGenerationExplanation.carePlanEvidence[0]"],
+            consumerVerified: true,
+            auditEvidencePaths: ["abnormalReport.eventId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "FollowUp",
+            resourcePath: "backflowContext.resources.followUps[0]",
+            sourceSystem: "FOLLOWUP",
+            sourceIdPath: "backflowContext.resources.followUps[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "FOLLOWUP_RESULT_BACKFLOW",
+            consumerEvidencePaths: ["resultBackflow.contextSnapshotId"],
+            consumerVerified: true,
+            auditEvidencePaths: ["resultBackflow.eventId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+        ]),
         apiEvidence: evidence.apiEvidence,
         runtime: {
           releaseId: evidence.runtime.releaseId,
@@ -764,6 +869,9 @@ async function attachNursingContinuityEvidence(
         activationRequest: evidence.activationRequest,
         clinicalContext: evidence.clinicalContext,
         followupPlan: evidence.followupPlan,
+        followupPlanGenerationExplanation: parseJsonRecord(
+          recordValue(evidence.followupPlan)?.generationExplanation,
+        ),
         questionnaire: evidence.questionnaire,
         abnormalReport: evidence.abnormalReport,
         resultBackflow: {
@@ -775,17 +883,21 @@ async function attachNursingContinuityEvidence(
         scenarioEvidence: [
           {
             code: "S20",
-            observedStages: Array.from(evidence.observedStages).filter((stage) =>
-              stage.includes("FOLLOWUP") ||
-              stage.includes("随访") ||
-              stage.includes("回流") ||
-              stage.includes("异常"),
+            observedStages: Array.from(evidence.observedStages).filter(
+              (stage) =>
+                stage.includes("FOLLOWUP") ||
+                stage.includes("随访") ||
+                stage.includes("回流") ||
+                stage.includes("异常"),
             ),
           },
           {
             code: "S35",
-            observedStages: Array.from(evidence.observedStages).filter((stage) =>
-              stage.includes("护理") || stage.includes("NursingAssessment") || stage.includes("CarePlan"),
+            observedStages: Array.from(evidence.observedStages).filter(
+              (stage) =>
+                stage.includes("护理") ||
+                stage.includes("NursingAssessment") ||
+                stage.includes("CarePlan"),
             ),
           },
         ],
@@ -857,19 +969,22 @@ function assertRuntimeContainsAsset(
       item.versionId === candidate.versionId &&
       item.entryState === "ACTIVE",
   );
-  expect(asset, `机构生效版本必须包含 ${candidate.assetType} ${candidate.assetIdentity}`).toBeTruthy();
+  expect(
+    asset,
+    `机构生效版本必须包含 ${candidate.assetType} ${candidate.assetIdentity}`,
+  ).toBeTruthy();
   expect(asset?.versionNo, "FOLLOWUP runtime 清单必须返回版本号").toBe(candidate.versionNo);
   expect(asset?.contentHash, "FOLLOWUP runtime 清单必须返回正文 hash").toBe(candidate.contentHash);
   return asset as RuntimeReleaseItem;
 }
 
-async function chooseDialogOption(
-  page: Page,
-  dialog: Locator,
-  label: string,
-  optionText: string,
-) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
   const field = dialog.getByLabel(label);

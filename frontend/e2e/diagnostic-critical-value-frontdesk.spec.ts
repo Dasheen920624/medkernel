@@ -1,4 +1,11 @@
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { createHmac } from "node:crypto";
 
 import {
@@ -20,6 +27,7 @@ import {
   type DiagnosticRuntimeAssetCandidate,
   type DiagnosticRuntimeReleaseItem,
 } from "./support/diagnosticRuntime";
+import { standardPatientResourceConsumerMatrix } from "./support/standardPatientResourceMatrix";
 
 type RuntimeReleaseItem = DiagnosticRuntimeReleaseItem;
 
@@ -160,139 +168,141 @@ const diagnosticReportFamilyFixtures: DiagnosticReportFamilyFixture[] = [
 ];
 
 test.describe("医技报告危急值真实前台闭环", () => {
-  test(
-    "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(300_000);
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+  test("临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
 
-      await ensureReadySession(page, "engine-operator");
-      const runtime = await ensureDiagnosticCriticalValueRuntime(page, suffix, {
-        includeReportFamilyMatrixKnowledge: true,
-      });
-      const diagnosticAssets = {
-        knowledge: {
-          assetType: "KNOWLEDGE" as const,
-          assetIdentity: diagnosticKnowledgeIdentity,
-          versionId: runtime.knowledgeAsset.versionId ?? "",
-          versionNo: runtime.knowledgeAsset.versionNo ?? "",
-          contentHash: runtime.knowledgeAsset.contentHash ?? "",
-        },
-      };
-      apiEvidence.currentRuntimeContainsDiagnosticAssets = true;
-      recordStage(
-        observedStages,
-        "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
+    await ensureReadySession(page, "engine-operator");
+    const runtime = await ensureDiagnosticCriticalValueRuntime(page, suffix, {
+      includeReportFamilyMatrixKnowledge: true,
+    });
+    const diagnosticAssets = {
+      knowledge: {
+        assetType: "KNOWLEDGE" as const,
+        assetIdentity: diagnosticKnowledgeIdentity,
+        versionId: runtime.knowledgeAsset.versionId ?? "",
+        versionNo: runtime.knowledgeAsset.versionNo ?? "",
+        contentHash: runtime.knowledgeAsset.contentHash ?? "",
+      },
+    };
+    apiEvidence.currentRuntimeContainsDiagnosticAssets = true;
+    recordStage(
+      observedStages,
+      "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
+    );
+
+    const snapshot = await createCriticalValueContextFromFrontdesk(page, suffix);
+    expect(
+      snapshot.runtimeReleaseId,
+      "危急值上下文必须绑定包含报告解读运行资产的当前机构生效版本",
+    ).toBe(runtime.releaseId);
+
+    await ensureReadySession(page, "platform-admin");
+    const fhir = await createFhirInboundAdapter(page, suffix);
+    const inboundObservation = await postSignedFhirResource(page, {
+      adapterId: fhir.adapterId,
+      secret: fhir.sharedSecret,
+      snapshot,
+      resourceType: "Observation",
+      resource: criticalObservationResource(snapshot, suffix),
+    });
+    apiEvidence.fhirObservationAccepted = true;
+    recordStage(observedStages, "外部 FHIR/LIS 入站 Observation 危急值并落标准资源");
+
+    const inboundDiagnosticReport = await postSignedFhirResource(page, {
+      adapterId: fhir.adapterId,
+      secret: fhir.sharedSecret,
+      snapshot,
+      resourceType: "DiagnosticReport",
+      resource: criticalDiagnosticReportResource(snapshot, suffix),
+    });
+    apiEvidence.fhirDiagnosticReportAccepted = true;
+    recordStage(observedStages, "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源");
+
+    const inboundReportFamilyMatrix = [];
+    for (const fixture of diagnosticReportFamilyFixtures) {
+      inboundReportFamilyMatrix.push(
+        await postSignedFhirResource(page, {
+          adapterId: fhir.adapterId,
+          secret: fhir.sharedSecret,
+          snapshot,
+          resourceType: "DiagnosticReport",
+          resource: diagnosticReportFamilyResource(snapshot, fixture, suffix),
+        }),
       );
+    }
 
-      const snapshot = await createCriticalValueContextFromFrontdesk(page, suffix);
-      expect(
-        snapshot.runtimeReleaseId,
-        "危急值上下文必须绑定包含报告解读运行资产的当前机构生效版本",
-      ).toBe(runtime.releaseId);
+    const contextAfterInbound = await readContextSnapshot(page, snapshot.snapshotId);
+    const clinicalContext = assertContextContainsInboundCriticalResources({
+      context: contextAfterInbound,
+      runtime,
+      inboundObservation,
+      inboundDiagnosticReport,
+    });
+    assertContextContainsDiagnosticReportFamilyMatrix({
+      context: contextAfterInbound,
+      inboundReports: inboundReportFamilyMatrix,
+    });
+    apiEvidence.contextSnapshotContainsInboundResources = true;
+    recordStage(
+      observedStages,
+      "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本",
+    );
 
-      await ensureReadySession(page, "platform-admin");
-      const fhir = await createFhirInboundAdapter(page, suffix);
-      const inboundObservation = await postSignedFhirResource(page, {
-        adapterId: fhir.adapterId,
-        secret: fhir.sharedSecret,
-        snapshot,
-        resourceType: "Observation",
-        resource: criticalObservationResource(snapshot, suffix),
-      });
-      apiEvidence.fhirObservationAccepted = true;
-      recordStage(observedStages, "外部 FHIR/LIS 入站 Observation 危急值并落标准资源");
+    const interpretation = await generateReportInterpretationFromFrontdesk(page, {
+      snapshot: contextAfterInbound,
+      runtime,
+      knowledge: diagnosticAssets.knowledge,
+    });
+    apiEvidence.reportInterpretationTriggeredFromFrontdesk = true;
+    const reportFamilyMatrixRows = assertDiagnosticReportFamilyConsumerMatrix({
+      interpretation,
+      context: contextAfterInbound,
+      inboundReports: inboundReportFamilyMatrix,
+    });
+    apiEvidence.diagnosticReportFamilyMatrixVerified = true;
+    recordStage(observedStages, "临床用户从真实前台生成医技报告解读");
 
-      const inboundDiagnosticReport = await postSignedFhirResource(page, {
-        adapterId: fhir.adapterId,
-        secret: fhir.sharedSecret,
-        snapshot,
-        resourceType: "DiagnosticReport",
-        resource: criticalDiagnosticReportResource(snapshot, suffix),
-      });
-      apiEvidence.fhirDiagnosticReportAccepted = true;
-      recordStage(observedStages, "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源");
+    const recommendation = await findReportInterpretationRecommendation(page, {
+      interpretation,
+      snapshot: contextAfterInbound,
+      runtime,
+    });
+    apiEvidence.criticalRecommendationPersisted = true;
+    recordStage(
+      observedStages,
+      "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
+    );
 
-      const inboundReportFamilyMatrix = [];
-      for (const fixture of diagnosticReportFamilyFixtures) {
-        inboundReportFamilyMatrix.push(
-          await postSignedFhirResource(page, {
-            adapterId: fhir.adapterId,
-            secret: fhir.sharedSecret,
-            snapshot,
-            resourceType: "DiagnosticReport",
-            resource: diagnosticReportFamilyResource(snapshot, fixture, suffix),
-          }),
-        );
-      }
+    const workflowTodo = await completeReportInterpretationTodo(page, {
+      cardId: recommendation.cardId,
+      reportType: interpretation.interpretations?.[0]?.reportType ?? "血钾检验",
+    });
+    const reportFamilyMatrixRowsWithTodo = completeReportFamilyMatrixTodos(
+      reportFamilyMatrixRows,
+      workflowTodo.todoId,
+    );
+    apiEvidence.workflowTodoCompletedByHuman = true;
+    recordStage(observedStages, "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱");
 
-      const contextAfterInbound = await readContextSnapshot(page, snapshot.snapshotId);
-      const clinicalContext = assertContextContainsInboundCriticalResources({
-        context: contextAfterInbound,
-        runtime,
-        inboundObservation,
-        inboundDiagnosticReport,
-      });
-      assertContextContainsDiagnosticReportFamilyMatrix({
-        context: contextAfterInbound,
-        inboundReports: inboundReportFamilyMatrix,
-      });
-      apiEvidence.contextSnapshotContainsInboundResources = true;
-      recordStage(observedStages, "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本");
-
-      const interpretation = await generateReportInterpretationFromFrontdesk(page, {
-        snapshot: contextAfterInbound,
-        runtime,
-        knowledge: diagnosticAssets.knowledge,
-      });
-      apiEvidence.reportInterpretationTriggeredFromFrontdesk = true;
-      const reportFamilyMatrixRows = assertDiagnosticReportFamilyConsumerMatrix({
-        interpretation,
-        context: contextAfterInbound,
-        inboundReports: inboundReportFamilyMatrix,
-      });
-      apiEvidence.diagnosticReportFamilyMatrixVerified = true;
-      recordStage(observedStages, "临床用户从真实前台生成医技报告解读");
-
-      const recommendation = await findReportInterpretationRecommendation(page, {
-        interpretation,
-        snapshot: contextAfterInbound,
-        runtime,
-      });
-      apiEvidence.criticalRecommendationPersisted = true;
-      recordStage(
-        observedStages,
-        "报告解读推荐卡证明危急风险、字段目录和提示卡按当前机构生效版本消费",
-      );
-
-      const workflowTodo = await completeReportInterpretationTodo(page, {
-        cardId: recommendation.cardId,
-        reportType: interpretation.interpretations?.[0]?.reportType ?? "血钾检验",
-      });
-      const reportFamilyMatrixRowsWithTodo = completeReportFamilyMatrixTodos(
-        reportFamilyMatrixRows,
-        workflowTodo.todoId,
-      );
-      apiEvidence.workflowTodoCompletedByHuman = true;
-      recordStage(observedStages, "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱");
-
-      await attachDiagnosticCriticalValueEvidence(testInfo, {
-        apiEvidence,
-        inboundObservation,
-        inboundDiagnosticReport,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext,
-        interpretation,
-        recommendation,
-        workflowTodo,
-        reportFamilyMatrixRows: reportFamilyMatrixRowsWithTodo,
-        observedStages,
-      });
-    },
-  );
+    await attachDiagnosticCriticalValueEvidence(testInfo, {
+      apiEvidence,
+      inboundObservation,
+      inboundDiagnosticReport,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext,
+      interpretation,
+      recommendation,
+      workflowTodo,
+      reportFamilyMatrixRows: reportFamilyMatrixRowsWithTodo,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): DiagnosticCriticalValueApiEvidence {
@@ -355,7 +365,9 @@ async function createCriticalValueContextFromFrontdesk(
   await contextDialog.getByLabel("医技报告项目").fill("血钾检验");
   await contextDialog.getByLabel("报告结论").fill("待外部 LIS/FHIR 入站危急值报告回流。");
   await contextDialog.getByLabel("异常重点").fill("等待危急值入站");
-  await contextDialog.getByLabel("建立原因").fill("S36 医技报告危急值代表切片：准备外部入站上下文。");
+  await contextDialog
+    .getByLabel("建立原因")
+    .fill("S36 医技报告危急值代表切片：准备外部入站上下文。");
   const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
   await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
   const contextResponse = await contextResponsePromise;
@@ -485,8 +497,8 @@ async function postSignedFhirResource(
       criticalFlag: "HH",
     };
   }
-  const familyFixture = diagnosticReportFamilyFixtures.find(
-    (fixture) => fhirId.startsWith(`${fixture.fhirIdPrefix}-`),
+  const familyFixture = diagnosticReportFamilyFixtures.find((fixture) =>
+    fhirId.startsWith(`${fixture.fhirIdPrefix}-`),
   );
   if (familyFixture) {
     return {
@@ -509,7 +521,10 @@ async function postSignedFhirResource(
   };
 }
 
-function criticalObservationResource(snapshot: Pick<ContextSnapshotSummary, "patientId">, suffix: string) {
+function criticalObservationResource(
+  snapshot: Pick<ContextSnapshotSummary, "patientId">,
+  suffix: string,
+) {
   return {
     resourceType: "Observation",
     id: `obs-critical-k-${suffix.toLowerCase()}`,
@@ -589,8 +604,14 @@ function diagnosticReportFamilyResource(
   };
 }
 
-async function readContextSnapshot(page: Page, snapshotId: string): Promise<ContextSnapshotSummary> {
-  const response = await getApi(page, `/engine/context/snapshots/${encodeURIComponent(snapshotId)}`);
+async function readContextSnapshot(
+  page: Page,
+  snapshotId: string,
+): Promise<ContextSnapshotSummary> {
+  const response = await getApi(
+    page,
+    `/engine/context/snapshots/${encodeURIComponent(snapshotId)}`,
+  );
   await expectOk(response, "回读 S36 危急值上下文快照");
   const context = await responseData(response);
   return {
@@ -703,7 +724,9 @@ function assertDiagnosticReportFamilyConsumerMatrix(options: {
       `报告解读消费者必须处理 ${inbound.reportFamilyName ?? inbound.reportType}`,
     ).toBeTruthy();
     expect(
-      interpretation?.recommendations?.some((text) => text.includes("不自动") && text.includes("医嘱")),
+      interpretation?.recommendations?.some(
+        (text) => text.includes("不自动") && text.includes("医嘱"),
+      ),
       `${inbound.reportFamilyName ?? inbound.reportType} 解读建议必须保留不自动开嘱边界`,
     ).toBe(true);
     return {
@@ -766,8 +789,13 @@ async function generateReportInterpretationFromFrontdesk(
   if (options.snapshot.encounterId) {
     await dialog.getByLabel("就诊信息").fill(options.snapshot.encounterId);
   }
-  const snapshotButton = dialog.locator(`button[data-snapshot-id="${options.snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `报告解读弹窗必须展示本轮上下文 ${options.snapshot.snapshotId}`).toBeVisible({
+  const snapshotButton = dialog.locator(
+    `button[data-snapshot-id="${options.snapshot.snapshotId}"]`,
+  );
+  await expect(
+    snapshotButton,
+    `报告解读弹窗必须展示本轮上下文 ${options.snapshot.snapshotId}`,
+  ).toBeVisible({
     timeout: 20_000,
   });
   await snapshotButton.click();
@@ -860,7 +888,11 @@ async function findReportInterpretationRecommendation(
     options.runtime.knowledgeAsset.contentHash,
   );
   expect(booleanField(explanation, "criticalRisk"), "解释必须证明危急风险").toBe(true);
-  assertRuntimeAssetEvidence(explanation, options.runtime.fieldCatalogAsset, options.runtime.actionCardAsset);
+  assertRuntimeAssetEvidence(
+    explanation,
+    options.runtime.fieldCatalogAsset,
+    options.runtime.actionCardAsset,
+  );
   return {
     cardId,
     cardStatus: textFieldAtPath(detail, "card.status"),
@@ -879,9 +911,11 @@ async function completeReportInterpretationTodo(
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
   const cardLink = page.locator(`a[href*="cardId=${options.cardId}"]`).first();
   await expect(cardLink, "应能定位本轮推荐卡对应的报告解读待办链接").toBeVisible({
     timeout: 30_000,
@@ -954,6 +988,23 @@ async function attachDiagnosticCriticalValueEvidence(
         serviceCombinations: ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"],
         scopeStatement:
           "医技危急值代表切片：FHIR/LIS 入站 Observation 与 DiagnosticReport 后完成人工报告解读闭环，不代表完整 LIS/PACS/RIS/病理/心电全链路或完整危急值制度。",
+        standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
+          {
+            resourceType: "DiagnosticReport",
+            resourcePath: "clinicalContext.resources.diagnosticReports[0]",
+            sourceSystem: "FHIR_R4",
+            sourceIdPath: "clinicalContext.resources.diagnosticReports[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "REPORT_INTERPRETATION",
+            consumerEvidencePaths: ["interpretation.interpretations[0]"],
+            consumerVerified: true,
+            auditEvidencePaths: ["workflowTodo.todoId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+        ]),
         thirdPartySystemFamilyConsumerSlice: {
           systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
           familyName: "PACS/RIS、超声、病理、内镜、心电",
@@ -1068,13 +1119,13 @@ function recordStage(stages: Set<string>, stage: (typeof requiredStages)[number]
   stages.add(stage);
 }
 
-async function chooseDialogOption(
-  page: Page,
-  dialog: Locator,
-  label: string,
-  optionText: string,
-) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
   const field = dialog.getByLabel(label);

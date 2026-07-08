@@ -823,6 +823,7 @@ describe("E2E credential contract", () => {
 
   it("requires insurance frontdesk rehearsal to be driven by an active CLAIM evaluation indicator", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
+    const adapterHubSource = readFileSync("src/pages/tenant/AdapterHub.tsx", "utf8");
 
     expect(source).toContain("createActiveClaimEvaluationIndicatorFromUi");
     expect(source).toContain('subjectType: "CLAIM"');
@@ -847,6 +848,108 @@ describe("E2E credential contract", () => {
     expect(insuranceSnapshotSelectorBody).toContain("snapshot.snapshotId");
     expect(insuranceSnapshotSelectorBody).toContain("name: `选择 ${snapshot.snapshotId}`");
     expect(insuranceSnapshotSelectorBody).not.toContain("选择第 1 个病案快照");
+    const adapterCreationBody = source.slice(
+      source.indexOf("async function createAdapterFromUi"),
+      source.indexOf("async function createIntegrationOnboardingFromUi"),
+    );
+    expect(adapterCreationBody).toContain(
+      'await dialog.getByLabel("目标标准字典").fill("ICD-10");',
+    );
+    expect(adapterCreationBody).toContain(
+      'await searchDialogOption(page, dialog, "术语分类", "诊断", "诊断");',
+    );
+    const adapterFieldMappingBody = adapterHubSource.slice(
+      adapterHubSource.indexOf('name={[name, "category"]}'),
+      adapterHubSource.indexOf("{fields.length > 1 &&"),
+    );
+    expect(adapterFieldMappingBody).toContain("showSearch");
+    expect(adapterFieldMappingBody).toContain('optionFilterProp="label"');
+    expect(adapterFieldMappingBody).toContain("TERM_CATEGORY_OPTIONS");
+    const antdOptionBody = source.slice(
+      source.indexOf("async function dispatchAntdOptionByText"),
+      source.indexOf("async function openAntdSelect"),
+    );
+    expect(antdOptionBody).toContain(".rc-virtual-list-holder");
+    expect(antdOptionBody).toContain("page.mouse.wheel");
+    expect(antdOptionBody).toContain("scanPositions");
+    expect(antdOptionBody).toContain("requestAnimationFrame");
+    expect(antdOptionBody).toContain("wheelAntdVirtualDropdownToOption");
+    expect(antdOptionBody).toContain("selectOpenAntdOptionByKeyboard");
+    expect(antdOptionBody).not.toContain('new WheelEvent("wheel"');
+    expect(antdOptionBody).not.toContain("holder.scrollTop = scrollTop");
+    expect(antdOptionBody).not.toContain("if (holder.scrollTop > 0)");
+    const runtimeActivationBody = source.slice(
+      source.indexOf("async function activateHospitalRuntimeWithClaimIndicatorFromUi"),
+      source.indexOf("async function assertCurrentRuntimeContainsClaimIndicator"),
+    );
+    expect(runtimeActivationBody).toContain(
+      "await deselectUnrelatedHospitalLocalCandidates(page, [",
+    );
+    expect(runtimeActivationBody).toContain("claimIndicator.indicatorCode");
+    expect(runtimeActivationBody).toContain("followupTemplate.templateCode");
+    expect(runtimeActivationBody).toContain("followupTemplate");
+    expect(runtimeActivationBody).toContain("selectHospitalLocalFollowupTemplateCandidate");
+    expect(runtimeActivationBody).toMatch(
+      /deselectUnrelatedHospitalLocalCandidates\(page, \[[\s\S]*selectHospitalLocalClaimIndicatorCandidate/,
+    );
+    expect(runtimeActivationBody).toMatch(
+      /selectHospitalLocalClaimIndicatorCandidate[\s\S]*selectHospitalLocalFollowupTemplateCandidate/,
+    );
+    expect(runtimeActivationBody).toContain("assertRuntimeReleaseRequestContainsFollowupTemplate");
+    expect(runtimeActivationBody).toContain('hasText: "本院 · 随访内容"');
+    expect(runtimeActivationBody).toContain("启用本院随访内容");
+    expect(runtimeActivationBody).not.toContain('hasText: "本院 · 随访方案内容"');
+    expect(runtimeActivationBody).not.toContain("启用本院随访方案内容");
+    const followupPlanBody = source.slice(
+      source.indexOf("async function generateFollowupPlanAndHandlePatientFeedbackFromUi"),
+      source.indexOf("async function chooseDialogOption"),
+    );
+    expect(followupPlanBody).toContain("snapshot.snapshotId");
+    expect(followupPlanBody).toContain('`button[data-snapshot-id="${snapshot.snapshotId}"]`');
+    expect(followupPlanBody).not.toContain("选择第 1 个随访上下文快照");
+  });
+
+  it("requires real frontdesk resource evidence to aggregate the 13 standard patient resource consumer matrix", () => {
+    const sources = [
+      "e2e/medication-safety-frontdesk.spec.ts",
+      "e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts",
+      "e2e/diagnostic-critical-value-frontdesk.spec.ts",
+      "e2e/nursing-continuity-frontdesk.spec.ts",
+      "e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts",
+      "e2e/real-frontdesk-rehearsal.spec.ts",
+    ].map((file) => readFileSync(file, "utf8"));
+    const joined = sources.join("\n");
+
+    for (const source of sources) {
+      expect(source).toContain("standardPatientResourceConsumerMatrix");
+    }
+    for (const resourceType of [
+      "Patient",
+      "AllergyIntolerance",
+      "Encounter",
+      "Condition",
+      "NursingAssessment",
+      "Observation",
+      "DiagnosticReport",
+      "Medication",
+      "Procedure",
+      "Document",
+      "CarePlan",
+      "FollowUp",
+      "Claim",
+    ]) {
+      expect(joined).toContain(`resourceType: "${resourceType}"`);
+    }
+    expect(joined).toContain("consumerEvidencePaths");
+    expect(joined).toContain("auditEvidencePaths");
+    expect(joined).toContain("sourceIdPath");
+    expect(joined).toContain('consumer: "INSURANCE_AUDIT"');
+    expect(joined).toContain("insuranceAudit.evaluationRunId");
+    expect(joined).toContain("qualityRectification.taskId");
+    expect(joined).toContain("evaluationRunVerified: true");
+    expect(joined).toContain("qualityRectificationVerified: true");
+    expect(joined).not.toContain("13 类标准患者资源全量上线完成");
+    expect(joined).not.toContain("完整上线验收已完成");
   });
 
   it("requires CDSS frontdesk rehearsal to select the exact active context snapshot", () => {
@@ -949,6 +1052,21 @@ describe("E2E credential contract", () => {
     expect(source).toContain("/engine/terminology/assets/drafts");
     expect(source).toContain("terminologyCoverageGateActivated");
     expect(source).toContain("TERMINOLOGY");
+    expect(source).toContain("const localCode = `J01C-${suffix}`");
+    expect(source).not.toContain('const localCode = "J01C";');
+    const medicationTerminologyBody = source.slice(
+      source.indexOf("async function generateAndConfirmMedicationSafetyTermMapping"),
+      source.indexOf("async function waitForMedicationSafetyTerminologyCandidate"),
+    );
+    expect(medicationTerminologyBody).toContain("standardTermId");
+    const medicationCandidateWaitBody = source.slice(
+      source.indexOf("async function waitForMedicationSafetyTerminologyCandidate"),
+      source.indexOf("async function createAndPublishMedicationSafetyRule"),
+    );
+    expect(medicationCandidateWaitBody).toContain(
+      'numberField(item, "standardTermId") === options.standardTermId',
+    );
+    expect(medicationCandidateWaitBody).not.toContain("includes(options.localCode)");
     expect(source).toContain("运营员补齐 ATC:J01C 术语映射并激活到当前机构生效版本");
     expect(source).toContain("/engine/rule/rules");
     expect(source).toContain(
@@ -1113,8 +1231,11 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("deliveryPath");
     expect(e2eSource).toContain("waitForPharmacyReviewCompensation");
     expect(e2eSource).toContain('lastStatus === "NOT_CONNECTED"');
+    expect(e2eSource).toMatch(
+      /const compensationStatus = requireText\(\s*textField\(compensation, "status"\)/u,
+    );
     expect(e2eSource).toContain(
-      'const compensationStatus = requireText(textField(compensation, "status")',
+      'const compensationRequired = compensationStatus === "NOT_CONNECTED"',
     );
     expect(e2eSource).toContain("PHARMACY_REVIEW 出站补偿日志");
     expect(e2eSource).toContain("进入非诚实断连状态");
@@ -1155,8 +1276,8 @@ describe("E2E credential contract", () => {
       'const departmentId = await localRehearsalQualityDepartmentId(page, options.suffix);\n  await ensureReadySession(page, "engine-operator");',
     );
     expect(e2eSource).not.toContain('"quality-controller"');
-    expect(e2eSource).toContain(
-      'await ensureReadySession(page, "engine-operator");\n  const submit = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,',
+    expect(e2eSource).toMatch(
+      /await ensureReadySession\(page, "engine-operator"\);\s*const submit = await postApi\(\s*page,\s*`\/engine\/rectifications\/\$\{encodeURIComponent\(taskId\)\}\/submit`/u,
     );
     expect(e2eSource).toContain('await ensureReadySession(page, "platform-admin");');
     expect(e2eSource).not.toContain("sortOrder");

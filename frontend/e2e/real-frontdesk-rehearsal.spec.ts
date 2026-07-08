@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from "@playwrigh
 import { writeFile } from "node:fs/promises";
 
 import { ensureReadySession, requiredRuntimeAssetsForRehearsal } from "./support/auth";
+import { standardPatientResourceConsumerMatrix } from "./support/standardPatientResourceMatrix";
 
 type RuntimeCollectors = {
   browserErrors: string[];
@@ -23,6 +24,7 @@ type ContextSnapshotSummary = {
   snapshotId: string;
   patientId: string;
   encounterId?: string | null;
+  resources?: Record<string, unknown>;
 };
 
 type OrgUnitSummary = {
@@ -78,6 +80,15 @@ type ClaimRuntimeCandidateSummary = {
   status: "PUBLISHED";
 };
 
+type LocalRuntimeCandidateSummary = {
+  assetType: string;
+  assetIdentity: string;
+  versionId: string;
+  versionNo?: string;
+  sourceLayer?: string;
+  status?: string;
+};
+
 type RuntimeAssetSelection = {
   assetType?: string;
   assetIdentity?: string;
@@ -103,6 +114,12 @@ type RuntimeReleaseDetailPayload = {
 type InsuranceAuditSummary = {
   issueId: string;
   evaluationRunId: string;
+};
+
+type QualityRectificationSummary = {
+  findingId: string;
+  taskId: string;
+  taskStatus: string;
 };
 
 type QualityAlertPayload = {
@@ -162,6 +179,9 @@ test.describe("全前台真实操作演练", () => {
     const runtime = collectRuntime(page);
     const records: RuntimeRecord[] = [];
     const suffix = Date.now().toString(36);
+    let snapshot: ContextSnapshotSummary | null = null;
+    let insuranceAudit: InsuranceAuditSummary | null = null;
+    let qualityRectification: QualityRectificationSummary | null = null;
 
     try {
       await page.setViewportSize({ width: 1440, height: 960 });
@@ -191,9 +211,10 @@ test.describe("全前台真实操作演练", () => {
         runtime,
         records,
         claimIndicator,
+        followupTemplate,
       );
-      const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
-      const insuranceAudit = await runInsuranceAuditFromUi(
+      snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
+      insuranceAudit = await runInsuranceAuditFromUi(
         page,
         testInfo,
         runtime,
@@ -202,7 +223,13 @@ test.describe("全前台真实操作演练", () => {
         claimIndicator,
       );
       await assertInsuranceAuditUsesEvaluationRun(page, insuranceAudit, claimIndicator);
-      await closeQualityRectificationFromAlertsUi(page, testInfo, runtime, records, insuranceAudit);
+      qualityRectification = await closeQualityRectificationFromAlertsUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        insuranceAudit,
+      );
       await runCdssRecommendationFromUi(page, testInfo, runtime, records, snapshot);
       await generateFollowupPlanAndHandlePatientFeedbackFromUi(
         page,
@@ -213,7 +240,11 @@ test.describe("全前台真实操作演练", () => {
         snapshot,
       );
     } finally {
-      await attachScenarioEvidence(testInfo, records);
+      await attachScenarioEvidence(testInfo, records, {
+        snapshot,
+        insuranceAudit,
+        qualityRectification,
+      });
       await attachRuntimeRecords(testInfo, records);
     }
   });
@@ -243,7 +274,8 @@ async function createAdapterFromUi(
   await dialog.getByLabel("服务地址").fill("https://his.real-frontdesk.example.test/api");
   await dialog.getByLabel("来源字段路径").fill("/patient/identifier");
   await dialog.getByLabel("标准字段路径").fill("/subject/id");
-  await dialog.getByLabel("目标标准字典").fill("MEDKERNEL-REAL-FRONTDESK");
+  await dialog.getByLabel("目标标准字典").fill("ICD-10");
+  await searchDialogOption(page, dialog, "术语分类", "诊断", "诊断");
 
   const responsePromise = waitForPost(page, "/api/v1/engine/integration/adapters");
   await dialog.getByRole("button", { name: "提交适配器" }).click();
@@ -492,7 +524,10 @@ async function createContextSnapshotFromUi(
     `前台建立当前就诊上下文应返回成功 status=${response.status()} body=${responseBody}`,
   ).toBe(true);
   const result = JSON.parse(responseBody) as {
-    data?: { snapshotId?: string; resources?: { encounters?: Array<{ encounterId?: string }> } };
+    data?: {
+      snapshotId?: string;
+      resources?: Record<string, unknown> & { encounters?: Array<{ encounterId?: string }> };
+    };
   };
   expect(result.data?.snapshotId, "上下文创建响应应返回快照身份").toBeTruthy();
   await expect(dialog).toBeHidden({ timeout: 20_000 });
@@ -503,6 +538,7 @@ async function createContextSnapshotFromUi(
     snapshotId: result.data?.snapshotId ?? "",
     patientId: patient.mpiId,
     encounterId: result.data?.resources?.encounters?.[0]?.encounterId ?? null,
+    resources: result.data?.resources ?? {},
   };
 }
 
@@ -791,6 +827,7 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
   claimIndicator: ClaimEvaluationIndicatorSummary,
+  followupTemplate: { templateCode: string },
 ) {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
@@ -806,8 +843,18 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
     hospital.id ?? "",
     claimIndicator,
   );
+  const followupCandidate = await assertHospitalRuntimeCandidateContainsFollowupTemplate(
+    page,
+    hospital.id ?? "",
+    followupTemplate,
+  );
   await selectRequiredPlatformRuntimeAssetsForClaimActivation(page);
+  await deselectUnrelatedHospitalLocalCandidates(page, [
+    claimIndicator.indicatorCode,
+    followupTemplate.templateCode,
+  ]);
   await selectHospitalLocalClaimIndicatorCandidate(page, claimIndicator, claimCandidate);
+  await selectHospitalLocalFollowupTemplateCandidate(page, followupTemplate, followupCandidate);
   await assessLocalReleaseImpactIfRequired(page);
 
   const activateResponsePromise = waitForPostMatching(
@@ -825,6 +872,11 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
     activateResponse.request().postDataJSON(),
     claimIndicator,
     claimCandidate,
+  );
+  assertRuntimeReleaseRequestContainsFollowupTemplate(
+    activateResponse.request().postDataJSON(),
+    followupTemplate,
+    followupCandidate,
   );
   assertRuntimeReleaseRequestCarriesRequiredBaselineAssets(
     activateResponse.request().postDataJSON(),
@@ -897,6 +949,67 @@ async function assertHospitalRuntimeCandidateContainsClaimIndicator(
   };
 }
 
+async function assertHospitalRuntimeCandidateContainsFollowupTemplate(
+  page: Page,
+  hospitalId: string,
+  followupTemplate: { templateCode: string },
+): Promise<LocalRuntimeCandidateSummary> {
+  expect(hospitalId, "读取机构生效版本候选前必须解析本地上线演练医院 ID").toBeTruthy();
+  const response = await page.request.get(
+    `/medkernel/api/v1/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/runtime-candidates`,
+    {
+      params: {
+        assetType: "FOLLOWUP",
+        keyword: followupTemplate.templateCode,
+        page: "1",
+        size: "20",
+      },
+      headers: { "X-Trace-Id": `e2e-runtime-candidate-followup-${Date.now()}` },
+    },
+  );
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `应能读取本轮 FOLLOWUP 随访方案机构候选 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const parsed = JSON.parse(text) as {
+    data?: {
+      items?: Array<{
+        assetType?: string;
+        assetIdentity?: string;
+        versionId?: string;
+        versionNo?: string;
+        sourceLayer?: string;
+        status?: string;
+      }>;
+    };
+  };
+  const followupCandidate = (parsed.data?.items ?? []).find(
+    (item) =>
+      item.assetType === "FOLLOWUP" &&
+      item.assetIdentity === followupTemplate.templateCode &&
+      item.status === "PUBLISHED",
+  );
+  expect(
+    followupCandidate,
+    `机构生效版本候选 API 必须包含本轮 FOLLOWUP 随访方案 ${followupTemplate.templateCode}`,
+  ).toBeTruthy();
+  expect(followupCandidate?.versionId, "本轮 FOLLOWUP 候选必须返回可发布版本 ID").toBeTruthy();
+  expect(followupCandidate?.sourceLayer, "本轮 FOLLOWUP 必须作为本院内容进入机构版本").toBe(
+    "HOSPITAL",
+  );
+  return {
+    assetType: "FOLLOWUP",
+    assetIdentity: followupCandidate?.assetIdentity ?? followupTemplate.templateCode,
+    versionId: followupCandidate?.versionId ?? "",
+    versionNo: followupCandidate?.versionNo,
+    sourceLayer: followupCandidate?.sourceLayer,
+    status: followupCandidate?.status,
+  };
+}
+
 async function selectHospitalLocalClaimIndicatorCandidate(
   page: Page,
   claimIndicator: ClaimEvaluationIndicatorSummary,
@@ -931,6 +1044,82 @@ async function selectHospitalLocalClaimIndicatorCandidate(
   await expect(claimRow, "前台选择的 CLAIM 指标行必须对应候选版本").toContainText(
     claimCandidate.versionNo ?? claimCandidate.versionId,
   );
+}
+
+async function selectHospitalLocalFollowupTemplateCandidate(
+  page: Page,
+  followupTemplate: { templateCode: string },
+  followupCandidate: LocalRuntimeCandidateSummary,
+) {
+  await enableEvidenceDetails(page);
+  const localContentCard = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("集团与本院内容", { exact: true }) })
+    .first();
+  await expect(localContentCard, "机构生效版本页必须展示集团与本院内容清单").toBeVisible({
+    timeout: 20_000,
+  });
+  const followupRow = localContentCard
+    .getByRole("row")
+    .filter({ hasText: followupTemplate.templateCode })
+    .filter({ hasText: "本院 · 随访内容" })
+    .first();
+  await expect(
+    followupRow,
+    `集团与本院内容必须展示本轮 FOLLOWUP 随访方案 ${followupTemplate.templateCode}`,
+  ).toBeVisible({ timeout: 20_000 });
+  const enableCheckbox = followupRow.getByRole("checkbox", { name: /启用本院随访内容/u });
+  await expect(
+    enableCheckbox,
+    `本轮 FOLLOWUP 随访方案 ${followupTemplate.templateCode} 必须可勾选进入机构生效版本`,
+  ).toBeVisible();
+  if (!(await enableCheckbox.isChecked())) {
+    await enableCheckbox.check();
+  }
+  await expect(enableCheckbox, "本轮 FOLLOWUP 随访方案必须已选入机构生效版本").toBeChecked();
+  await expect(followupRow, "前台选择的 FOLLOWUP 随访方案行必须对应候选版本").toContainText(
+    followupCandidate.versionNo ?? followupCandidate.versionId,
+  );
+}
+
+async function deselectUnrelatedHospitalLocalCandidates(
+  page: Page,
+  retainedAssetIdentities: string[],
+) {
+  await enableEvidenceDetails(page);
+  const retained = new Set(retainedAssetIdentities);
+  const localContentCard = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("集团与本院内容", { exact: true }) })
+    .first();
+  await expect(localContentCard, "机构生效版本页必须展示集团与本院内容清单").toBeVisible({
+    timeout: 20_000,
+  });
+  const rows = localContentCard.getByRole("row");
+  const rowCount = await rows.count();
+  for (let index = 0; index < rowCount; index += 1) {
+    const row = rows.nth(index);
+    const checkbox = row.getByRole("checkbox", { name: /启用/ }).first();
+    if ((await checkbox.count()) === 0) {
+      continue;
+    }
+    if (await rowContainsAnyAssetIdentity(row, retained)) {
+      continue;
+    }
+    if (await checkbox.isChecked()) {
+      await checkbox.uncheck();
+      await expect(checkbox, "非本轮本院候选不应被带入 CLAIM 机构生效版本").not.toBeChecked();
+    }
+  }
+}
+
+async function rowContainsAnyAssetIdentity(row: Locator, retained: Set<string>) {
+  for (const assetIdentity of retained) {
+    if (await row.getByText(assetIdentity, { exact: true }).isVisible()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function selectRequiredPlatformRuntimeAssetsForClaimActivation(page: Page) {
@@ -982,10 +1171,30 @@ function assertRuntimeReleaseRequestContainsClaimIndicator(
     match,
     `生成机构生效版本请求必须携带本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
   ).toBeTruthy();
+  expect(match?.versionId, `本轮 CLAIM 指标必须使用本院候选版本 ${claimCandidate.versionId}`).toBe(
+    claimCandidate.versionId,
+  );
+}
+
+function assertRuntimeReleaseRequestContainsFollowupTemplate(
+  value: unknown,
+  followupTemplate: { templateCode: string },
+  followupCandidate: LocalRuntimeCandidateSummary,
+) {
+  const activeAssets = Array.isArray((value as { activeAssets?: unknown }).activeAssets)
+    ? ((value as { activeAssets: RuntimeAssetSelection[] }).activeAssets ?? [])
+    : [];
+  const match = activeAssets.find(
+    (item) => item.assetType === "FOLLOWUP" && item.assetIdentity === followupTemplate.templateCode,
+  );
+  expect(
+    match,
+    `生成机构生效版本请求必须携带本轮 FOLLOWUP 随访方案 ${followupTemplate.templateCode}`,
+  ).toBeTruthy();
   expect(
     match?.versionId,
-    `本轮 CLAIM 指标必须使用本院候选版本 ${claimCandidate.versionId}`,
-  ).toBe(claimCandidate.versionId);
+    `本轮 FOLLOWUP 随访方案必须使用本院候选版本 ${followupCandidate.versionId}`,
+  ).toBe(followupCandidate.versionId);
 }
 
 function assertRuntimeReleaseRequestCarriesRequiredBaselineAssets(value: unknown) {
@@ -1238,10 +1447,9 @@ async function assertInsuranceAuditUsesEvaluationRun(
 
 async function selectInsuranceAuditSnapshotFromUi(page: Page, snapshot: ContextSnapshotSummary) {
   const evidenceButton = page.getByRole("button", { name: `选择 ${snapshot.snapshotId}` });
-  await expect(
-    evidenceButton,
-    `医保审核页必须展示本轮病案快照 ${snapshot.snapshotId}`,
-  ).toBeVisible({ timeout: 20_000 });
+  await expect(evidenceButton, `医保审核页必须展示本轮病案快照 ${snapshot.snapshotId}`).toBeVisible(
+    { timeout: 20_000 },
+  );
   await evidenceButton.click();
 }
 
@@ -1251,7 +1459,7 @@ async function closeQualityRectificationFromAlertsUi(
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
   audit: InsuranceAuditSummary,
-) {
+): Promise<QualityRectificationSummary> {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
   await page.goto("/qc/alerts", { waitUntil: "networkidle" });
@@ -1356,6 +1564,11 @@ async function closeQualityRectificationFromAlertsUi(
   await expect(qualityAlertRowBySourceId(page, findingId)).toBeVisible({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-qc-alerts-rectification-closed");
   recordCleanRuntime(page, "前台提交并复核关闭质量整改任务", runtime, records);
+  return {
+    findingId,
+    taskId,
+    taskStatus: review.data?.taskStatus ?? "",
+  };
 }
 
 async function runCdssRecommendationFromUi(
@@ -1380,9 +1593,11 @@ async function runCdssRecommendationFromUi(
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
   const snapshotButton = dialog.getByRole("button", { name: `选择 ${snapshot.snapshotId}` });
-  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible({
-    timeout: 20_000,
-  });
+  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible(
+    {
+      timeout: 20_000,
+    },
+  );
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "查看患者");
 
@@ -1623,10 +1838,12 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   const dialog = page.getByRole("dialog", { name: "生成随访计划" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("随访快照患者信息").fill(snapshot.patientId);
-  await expect(dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" })).toBeVisible({
-    timeout: 20_000,
-  });
-  await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
+  const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
+  await expect(
+    snapshotButton,
+    `随访计划弹窗必须展示本轮上下文 ${snapshot.snapshotId}`,
+  ).toBeVisible({ timeout: 20_000 });
+  await snapshotButton.click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
   await searchDialogOption(page, dialog, "随访方案", template.defaultName, template.defaultName);
 
@@ -1863,28 +2080,44 @@ async function clickAntdOption(
   timeout = 5_000,
   optionText?: string,
 ) {
-  await expect(optionLocator, `${label} 下拉选项应可见`).toBeVisible({ timeout });
-  await optionLocator.scrollIntoViewIfNeeded({ timeout }).catch(() => undefined);
-  await optionLocator.click({ timeout: Math.min(timeout, 1_500) }).catch(async (error) => {
-    const clickedVisibleOption = await optionLocator
-      .evaluate((element) => {
-        (element as HTMLElement).click();
-        return true;
-      })
-      .catch(() => false);
-    if (clickedVisibleOption) {
-      return;
-    }
+  const visibleOption = await optionLocator
+    .waitFor({ state: "visible", timeout: optionText ? Math.min(timeout, 1_000) : timeout })
+    .then(() => true)
+    .catch(() => false);
+  if (!visibleOption) {
     if (!optionText) {
-      throw error;
-    }
+      await expect(optionLocator, `${label} 下拉选项应可见`).toBeVisible({ timeout });
+    } else {
     const selectedByText = await dispatchAntdOptionByText(
       optionLocator.page(),
       optionText,
-      Math.min(timeout, 2_000),
+      timeout,
     );
-    expect(selectedByText, `应能在当前 AntD 下拉中选择 ${optionText}`).toBe(true);
-  });
+      expect(selectedByText, `应能在当前 AntD 下拉中选择 ${optionText}`).toBe(true);
+    }
+  } else {
+    await optionLocator.scrollIntoViewIfNeeded({ timeout }).catch(() => undefined);
+    await optionLocator.click({ timeout: Math.min(timeout, 1_500) }).catch(async (error) => {
+      const clickedVisibleOption = await optionLocator
+        .evaluate((element) => {
+          (element as HTMLElement).click();
+          return true;
+        })
+        .catch(() => false);
+      if (clickedVisibleOption) {
+        return;
+      }
+      if (!optionText) {
+        throw error;
+      }
+      const selectedByText = await dispatchAntdOptionByText(
+        optionLocator.page(),
+        optionText,
+        timeout,
+      );
+      expect(selectedByText, `应能在当前 AntD 下拉中选择 ${optionText}`).toBe(true);
+    });
+  }
   await expect(
     optionLocator.page().locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)"),
   )
@@ -1893,46 +2126,94 @@ async function clickAntdOption(
 }
 
 async function dispatchAntdOptionByText(page: Page, optionText: string, timeout = 2_000) {
-  return expect
-    .poll(
-      () =>
-        page.evaluate((expected) => {
-          const normalize = (value: string | null | undefined) => (value ?? "").trim();
-          const dispatchMouseSelection = (target: HTMLElement) => {
-            const eventInit: MouseEventInit = {
-              bubbles: true,
-              button: 0,
-              cancelable: true,
-              view: window,
-            };
-            target.dispatchEvent(new MouseEvent("mousemove", eventInit));
-            target.dispatchEvent(new MouseEvent("mousedown", { ...eventInit, buttons: 1 }));
-            target.dispatchEvent(new MouseEvent("mouseup", eventInit));
-            target.dispatchEvent(new MouseEvent("click", eventInit));
-            return true;
-          };
-          const dropdowns = Array.from(
-            document.querySelectorAll<HTMLElement>(
-              ".ant-select-dropdown:not(.ant-select-dropdown-hidden)",
-            ),
-          );
-          const dropdown = dropdowns.at(-1);
-          if (!dropdown) {
-            return false;
-          }
-          const options = Array.from(
-            dropdown.querySelectorAll<HTMLElement>(
-              ".ant-select-item-option:not(.ant-select-item-option-disabled)",
-            ),
-          );
-          const option = options.find((item) => normalize(item.textContent) === expected);
-          return option ? dispatchMouseSelection(option) : false;
-        }, optionText),
-      { message: `应能在当前 AntD 下拉中选择 ${optionText}`, timeout },
-    )
-    .toBe(true)
-    .then(() => true)
-    .catch(() => false);
+  const clickedVisibleOption = await clickVisibleAntdOptionByText(page, optionText);
+  if (clickedVisibleOption) {
+    return true;
+  }
+  const clickedByWheel = await wheelAntdVirtualDropdownToOption(page, optionText, timeout);
+  if (clickedByWheel) {
+    return true;
+  }
+  return selectOpenAntdOptionByKeyboard(page, optionText);
+}
+
+async function clickVisibleAntdOptionByText(page: Page, optionText: string) {
+  const option = page
+    .locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")
+    .last()
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}\\s*$`) })
+    .first();
+  if (!(await option.isVisible().catch(() => false))) {
+    return false;
+  }
+  await option.scrollIntoViewIfNeeded().catch(() => undefined);
+  await option.click({ timeout: 1_500 }).catch(async () => {
+    const box = await option.boundingBox();
+    if (!box) {
+      throw new Error(`AntD 下拉可见选项 ${optionText} 缺少可点击位置`);
+    }
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  });
+  return true;
+}
+
+async function wheelAntdVirtualDropdownToOption(page: Page, optionText: string, timeout: number) {
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  const holder = dropdown.locator(".rc-virtual-list-holder").first();
+  if ((await holder.count()) === 0) {
+    return false;
+  }
+  const holderBox = await holder.boundingBox();
+  if (!holderBox) {
+    return false;
+  }
+  const scanPositions = [
+    { deltaY: -holderBox.height * 8, attempts: 8 },
+    { deltaY: holderBox.height * 0.85, attempts: 24 },
+  ];
+  const deadline = Date.now() + timeout;
+  await page.mouse.move(holderBox.x + holderBox.width / 2, holderBox.y + holderBox.height / 2);
+  for (const scan of scanPositions) {
+    for (let attempt = 0; attempt < scan.attempts && Date.now() < deadline; attempt += 1) {
+      if (await clickVisibleAntdOptionByText(page, optionText)) {
+        return true;
+      }
+      await page.mouse.wheel(0, scan.deltaY);
+      await waitForAnimationFrame(page);
+      await waitForAnimationFrame(page);
+    }
+  }
+  return clickVisibleAntdOptionByText(page, optionText);
+}
+
+async function selectOpenAntdOptionByKeyboard(page: Page, optionText: string) {
+  const option = page.getByRole("option", { name: optionText }).first();
+  if (!(await option.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+  await option.click({ timeout: 1_500 }).catch(async () => {
+    await page.keyboard.press("Home");
+    await waitForAnimationFrame(page);
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      if (await clickVisibleAntdOptionByText(page, optionText)) {
+        return;
+      }
+      await page.keyboard.press("ArrowDown");
+      await waitForAnimationFrame(page);
+    }
+    throw new Error(`键盘扫描未能选择 AntD 下拉选项 ${optionText}`);
+  });
+  return true;
+}
+
+async function waitForAnimationFrame(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      }),
+  );
 }
 
 async function openAntdSelect(select: Locator, label: string, timeout = 5_000) {
@@ -2176,7 +2457,15 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
   });
 }
 
-async function attachScenarioEvidence(testInfo: TestInfo, records: RuntimeRecord[]) {
+async function attachScenarioEvidence(
+  testInfo: TestInfo,
+  records: RuntimeRecord[],
+  resourceEvidence: {
+    snapshot: ContextSnapshotSummary | null;
+    insuranceAudit: InsuranceAuditSummary | null;
+    qualityRectification: QualityRectificationSummary | null;
+  },
+) {
   const observedStageSet = new Set(records.map((record) => record.stage));
   const scenarioEvidence = requiredFrontdeskScenarioEvidence.map((scenario) => ({
     code: scenario.code,
@@ -2197,6 +2486,39 @@ async function attachScenarioEvidence(testInfo: TestInfo, records: RuntimeRecord
         {
           scenarioCodes: completedScenarioCodes,
           scenarioEvidence,
+          ...(resourceEvidence.snapshot &&
+          resourceEvidence.insuranceAudit &&
+          resourceEvidence.qualityRectification
+            ? {
+                clinicalContext: {
+                  patientId: resourceEvidence.snapshot.patientId,
+                  encounterId: resourceEvidence.snapshot.encounterId,
+                  contextSnapshotId: resourceEvidence.snapshot.snapshotId,
+                  resources: resourceEvidence.snapshot.resources ?? {},
+                },
+                insuranceAudit: resourceEvidence.insuranceAudit,
+                qualityRectification: resourceEvidence.qualityRectification,
+                standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
+                  {
+                    resourceType: "Claim",
+                    resourcePath: "clinicalContext.resources.claims[0]",
+                    sourceSystem: "MEDKERNEL_FRONTDESK",
+                    sourceIdPath: "clinicalContext.resources.claims[0].sourceRecordId",
+                    patientVerified: true,
+                    encounterVerified: true,
+                    snapshotReadbackVerified: true,
+                    consumer: "INSURANCE_AUDIT",
+                    consumerEvidencePaths: ["insuranceAudit.evaluationRunId"],
+                    consumerVerified: true,
+                    auditEvidencePaths: ["insuranceAudit.issueId", "qualityRectification.taskId"],
+                    auditVerified: true,
+                    dataQualityVerified: true,
+                    evaluationRunVerified: true,
+                    qualityRectificationVerified: true,
+                  },
+                ]),
+              }
+            : {}),
         },
         null,
         2,

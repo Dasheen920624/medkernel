@@ -178,6 +178,57 @@ const diagnosticReportFamilyMatrixClaims = [
   "diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
 ];
 
+const requiredStandardPatientResourceTypes = [
+  "Patient",
+  "AllergyIntolerance",
+  "Encounter",
+  "Condition",
+  "NursingAssessment",
+  "Observation",
+  "DiagnosticReport",
+  "Medication",
+  "Procedure",
+  "Document",
+  "CarePlan",
+  "FollowUp",
+  "Claim",
+];
+
+const standardPatientResourceConsumerMatrixClaims = [
+  "standardPatientResourceConsumerMatrix:THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE",
+];
+
+const standardPatientResourceRepresentativeRowClaims = requiredStandardPatientResourceTypes.map(
+  (code) => `standardPatientResourceRepresentativeRows:${code}`,
+);
+
+const standardPatientResourceMatrixAttachmentNames: Record<string, string> = {
+  "medication-safety-frontdesk.spec.ts": "medication-safety-frontdesk-codes",
+  "pharmacy-review-antimicrobial-frontdesk.spec.ts":
+    "pharmacy-review-antimicrobial-frontdesk-codes",
+  "diagnostic-critical-value-frontdesk.spec.ts": "diagnostic-critical-value-frontdesk-codes",
+  "nursing-continuity-frontdesk.spec.ts": "nursing-continuity-frontdesk-codes",
+  "surgery-anesthesia-transfusion-frontdesk.spec.ts":
+    "surgery-anesthesia-transfusion-frontdesk-codes",
+  "real-frontdesk-rehearsal.spec.ts": "real-frontdesk-scenario-codes",
+};
+
+const standardPatientResourcePathPrefixes: Record<string, string> = {
+  Patient: "clinicalContext.resources.patient",
+  AllergyIntolerance: "clinicalContext.resources.allergyIntolerances[",
+  Encounter: "clinicalContext.resources.encounters[",
+  Condition: "clinicalContext.resources.conditions[",
+  NursingAssessment: "clinicalContext.resources.nursingAssessments[",
+  Observation: "clinicalContext.resources.observations[",
+  DiagnosticReport: "clinicalContext.resources.diagnosticReports[",
+  Medication: "clinicalContext.resources.medications[",
+  Procedure: "clinicalContext.resources.procedures[",
+  Document: "clinicalContext.resources.documents[",
+  CarePlan: "clinicalContext.resources.carePlans[",
+  FollowUp: "backflowContext.resources.followUps[",
+  Claim: "clinicalContext.resources.claims[",
+};
+
 const regionalDiagnosticMutualRecognitionFrontdeskClaims = [
   "scenarios:S40",
   "productLayers:CLINICAL_EXECUTION",
@@ -317,9 +368,7 @@ const identityBindingClaims = [
   "serviceCombinations:COMPLIANCE_OPERATIONS",
 ];
 
-const fourRoleCoreActionsClaims = [
-  "roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS",
-];
+const fourRoleCoreActionsClaims = ["roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS"];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
@@ -612,9 +661,7 @@ const requiredPathwayLifecycleScenarioEvidence: Record<string, string[]> = {
   ],
 };
 
-const requiredPathwayLifecycleScenarioCodes = Object.keys(
-  requiredPathwayLifecycleScenarioEvidence,
-);
+const requiredPathwayLifecycleScenarioCodes = Object.keys(requiredPathwayLifecycleScenarioEvidence);
 
 const requiredPathwayMilestoneStages = [
   "SCREENING_TRIAGE",
@@ -650,9 +697,7 @@ const requiredIdentityBindingScenarioEvidence: Record<string, string[]> = {
   ],
 };
 
-const requiredIdentityBindingScenarioCodes = Object.keys(
-  requiredIdentityBindingScenarioEvidence,
-);
+const requiredIdentityBindingScenarioCodes = Object.keys(requiredIdentityBindingScenarioEvidence);
 
 const coverageProofs: CoverageProof[] = [
   {
@@ -681,8 +726,7 @@ const coverageProofs: CoverageProof[] = [
   },
   {
     file: "s2-s4-terminology-integration-rehearsal.spec.ts",
-    titleIncludes:
-      "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
+    titleIncludes: "平台管理员完成系统接入且运营员完成术语映射后真实入站消息按当前机构生效版本归一",
     claims: s2s4RuntimeMappingClaims,
     requiresS2S4RuntimeMappingAttachment: true,
   },
@@ -794,7 +838,8 @@ const coverageProofs: CoverageProof[] = [
   },
   {
     file: "pathway-lifecycle-frontdesk.spec.ts",
-    titleIncludes: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+    titleIncludes:
+      "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
     claims: pathwayLifecycleClaims,
     requiresPathwayLifecycleAttachment: true,
   },
@@ -840,6 +885,16 @@ export function buildBrowserE2eLaunchEvidence(input: {
       mergeClaims(evidence.launchCoverage, proof.claims, generatedAt);
     }
   }
+  if (hasCompleteStandardPatientResourceConsumerMatrix(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...standardPatientResourceConsumerMatrixClaims,
+        ...standardPatientResourceRepresentativeRowClaims,
+      ],
+      generatedAt,
+    );
+  }
   return evidence;
 }
 
@@ -861,7 +916,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) &&
       (!proof.requiresRuntimeReleaseAttachment || hasRequiredRuntimeReleaseAttachment(test)) &&
       (!proof.requiresSourceLineageAttachment || hasRequiredSourceLineageAttachment(test)) &&
-      (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
+      (!proof.requiresEmbedBusinessHostAttachment ||
+        hasRequiredEmbedBusinessHostAttachment(test)) &&
       (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test)) &&
       (!proof.requiresSystemProvidersAttachment || hasRequiredSystemProvidersAttachment(test)) &&
       (!proof.requiresIdentityBindingAttachment || hasRequiredIdentityBindingAttachment(test)) &&
@@ -895,6 +951,225 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredFourRoleCoreActionsAttachment(test))
     );
   });
+}
+
+function hasCompleteStandardPatientResourceConsumerMatrix(tests: BrowserE2eTestResult[]) {
+  const observedResources = new Map<string, { file: string; row: Record<string, unknown> }>();
+  for (const test of tests) {
+    if (
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    const fileName = path.basename(test.file);
+    const expectedAttachmentName = standardPatientResourceMatrixAttachmentNames[fileName];
+    if (!expectedAttachmentName) continue;
+    for (const attachment of test.attachments) {
+      if (
+        attachment.name !== expectedAttachmentName ||
+        !attachment.body ||
+        attachment.contentType !== "application/json"
+      ) {
+        continue;
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const matrix = recordValue(recordValue(parsed)?.standardPatientResourceConsumerMatrix);
+      if (!matrix) continue;
+      if (!hasValidStandardPatientResourceMatrixHeader(matrix)) return false;
+      const rows = Array.isArray(matrix.resources) ? matrix.resources : [];
+      for (const item of rows) {
+        const row = recordValue(item);
+        if (!row) return false;
+        const resourceType = textValue(row.resourceType);
+        if (
+          !resourceType ||
+          !requiredStandardPatientResourceTypes.includes(resourceType) ||
+          observedResources.has(resourceType) ||
+          !hasCompleteStandardPatientResourceRow(parsed, row, resourceType)
+        ) {
+          return false;
+        }
+        observedResources.set(resourceType, { file: test.file, row });
+      }
+    }
+  }
+  return requiredStandardPatientResourceTypes.every((type) => observedResources.has(type));
+}
+
+function hasValidStandardPatientResourceMatrixHeader(matrix: Record<string, unknown>) {
+  const scope = textValue(matrix.scopeStatement);
+  return (
+    matrix.matrixCode === "THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE" &&
+    Boolean(scope) &&
+    String(scope).includes("代表矩阵") &&
+    String(scope).includes("不代表每类字段目录全量落地") &&
+    String(scope).includes("不代表完整 S0-S40") &&
+    String(scope).includes("不代表完整上线验收") &&
+    !hasUnnegatedStandardPatientResourceScopeClaim(String(scope))
+  );
+}
+
+function hasCompleteStandardPatientResourceRow(
+  attachmentBody: unknown,
+  row: Record<string, unknown>,
+  resourceType: string,
+) {
+  const resourcePath = textValue(row.resourcePath);
+  const sourceSystem = textValue(row.sourceSystem);
+  const sourceId = textValue(row.sourceId);
+  const sourceIdPath = textValue(row.sourceIdPath);
+  const consumer = textValue(row.consumer);
+  if (!resourcePath || !sourceSystem || (!sourceId && !sourceIdPath) || !consumer) return false;
+  if (!resourcePathMatchesStandardPatientResourceType(resourcePath, resourceType)) return false;
+  const resource = recordValue(valueAtEvidencePath(attachmentBody, resourcePath));
+  if (!resource) return false;
+  const resolvedSourceId = sourceIdPath
+    ? textValue(valueAtEvidencePath(attachmentBody, sourceIdPath))
+    : sourceId;
+  if (!resolvedSourceId) return false;
+  if (
+    !resourceMatchesStandardPatientResourceRow(resource, resourceType, sourceSystem, resolvedSourceId)
+  ) {
+    return false;
+  }
+  if (
+    row.patientVerified !== true ||
+    row.snapshotReadbackVerified !== true ||
+    row.consumerVerified !== true ||
+    row.auditVerified !== true ||
+    row.dataQualityVerified !== true
+  ) {
+    return false;
+  }
+  if (resourceType !== "Patient" && row.encounterVerified !== true) return false;
+  if (!evidencePathsResolve(attachmentBody, row.consumerEvidencePaths)) return false;
+  if (!evidencePathsResolve(attachmentBody, row.auditEvidencePaths)) return false;
+  if (resourceType === "Claim") {
+    return (
+      consumer === "INSURANCE_AUDIT" &&
+      row.evaluationRunVerified === true &&
+      row.qualityRectificationVerified === true &&
+      hasText(valueAtEvidencePath(attachmentBody, "insuranceAudit.evaluationRunId")) &&
+      hasText(valueAtEvidencePath(attachmentBody, "insuranceAudit.issueId")) &&
+      hasText(valueAtEvidencePath(attachmentBody, "qualityRectification.taskId"))
+    );
+  }
+  return true;
+}
+
+function resourcePathMatchesStandardPatientResourceType(resourcePath: string, resourceType: string) {
+  const prefix = standardPatientResourcePathPrefixes[resourceType];
+  return Boolean(prefix) && resourcePath.startsWith(prefix);
+}
+
+function resourceMatchesStandardPatientResourceRow(
+  resource: Record<string, unknown>,
+  resourceType: string,
+  sourceSystem: string,
+  sourceId: string,
+) {
+  const candidateIds = [
+    textValue(resource.sourceRecordId),
+    textValue(resource.sourceId),
+    textValue(resource.fhirId),
+    textValue(resource.mpi),
+    textValue(resource.encounterId),
+    textValue(resource.observationId),
+    textValue(resource.reportId),
+    textValue(resource.medicationId),
+    textValue(resource.allergyIntoleranceId),
+    textValue(resource.conditionId),
+    textValue(resource.assessmentId),
+    textValue(resource.procedureId),
+    textValue(resource.documentId),
+    textValue(resource.planId),
+    textValue(resource.followUpId),
+    textValue(resource.claimId),
+  ].filter((value): value is string => Boolean(value));
+  return (
+    resource.sourceSystem === sourceSystem &&
+    resource.qualityStatus === "VALID" &&
+    candidateIds.includes(sourceId) &&
+    resourceHasStandardPatientResourceShape(resource, resourceType)
+  );
+}
+
+function resourceHasStandardPatientResourceShape(resource: Record<string, unknown>, resourceType: string) {
+  switch (resourceType) {
+    case "Patient":
+      return hasText(resource.mpi) && hasText(resource.name);
+    case "AllergyIntolerance":
+      return hasText(resource.allergyIntoleranceId) || hasText(resource.code);
+    case "Encounter":
+      return hasText(resource.encounterId) && hasText(resource.encounterType);
+    case "Condition":
+      return hasText(resource.conditionId) || hasText(resource.code);
+    case "NursingAssessment":
+      return hasText(resource.assessmentId) || hasText(resource.assessmentType);
+    case "Observation":
+      return hasText(resource.observationId) || hasText(resource.code);
+    case "DiagnosticReport":
+      return hasText(resource.reportId) || hasText(resource.reportType);
+    case "Medication":
+      return hasText(resource.medicationId) || hasText(resource.code) || hasText(resource.standardCode);
+    case "Procedure":
+      return hasText(resource.procedureId) || hasText(resource.code);
+    case "Document":
+      return hasText(resource.documentId) || hasText(resource.documentType);
+    case "CarePlan":
+      return hasText(resource.planId) || hasText(resource.planType);
+    case "FollowUp":
+      return hasText(resource.followUpId) || hasText(resource.planId) || hasText(resource.questionnaireId);
+    case "Claim":
+      return hasText(resource.claimId) && hasText(resource.drgCode);
+    default:
+      return false;
+  }
+}
+
+function evidencePathsResolve(root: unknown, paths: unknown) {
+  if (!Array.isArray(paths)) return false;
+  const resolvedPaths = paths.filter((path): path is string => hasText(path));
+  return (
+    resolvedPaths.length > 0 &&
+    resolvedPaths.every((path) => {
+      const value = valueAtEvidencePath(root, path);
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === "string") return value.trim().length > 0;
+      return value !== null && value !== undefined;
+    })
+  );
+}
+
+function valueAtEvidencePath(root: unknown, pathExpression: string) {
+  let current = root;
+  for (const segment of pathExpression.split(".")) {
+    if (!segment) return undefined;
+    const match = /^([^\[\]]+)(?:\[(\d+)\])?$/u.exec(segment);
+    if (!match) return undefined;
+    const [, key, indexText] = match;
+    const currentRecord = recordValue(current);
+    if (!currentRecord) return undefined;
+    current = currentRecord[key];
+    if (indexText !== undefined) {
+      if (!Array.isArray(current)) return undefined;
+      current = current[Number(indexText)];
+    }
+  }
+  return current;
+}
+
+function hasUnnegatedStandardPatientResourceScopeClaim(statement: string) {
+  return ["13 类标准患者资源", "标准患者资源", "每类字段目录", "完整 S0-S40", "完整上线验收"].some(
+    (term) => hasScopeCompletionClaimWithoutNegation(statement, term),
+  );
 }
 
 const requiredFourRoleCoreActionRoles = [
@@ -942,8 +1217,7 @@ function hasRequiredFourRoleCoreActionsAttachment(test: BrowserE2eTestResult) {
       const action = actionsByRole.get(role);
       const detail = recordValue(parsed[fourRoleCoreActionDetailKeys[role] as keyof typeof parsed]);
       return (
-        hasCompleteFourRoleCoreAction(action, role) &&
-        hasCompleteFourRoleCoreAction(detail, role)
+        hasCompleteFourRoleCoreAction(action, role) && hasCompleteFourRoleCoreAction(detail, role)
       );
     });
   } catch {
@@ -1000,7 +1274,8 @@ function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
       .filter((code): code is string => typeof code === "string")
       .sort();
     return (
-      JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort()) &&
+      JSON.stringify(observed) ===
+        JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort()) &&
       hasCompleteThirdPartySystemFamilyConsumerEvidence(parsed.consumerEvidence)
     );
   } catch {
@@ -1036,9 +1311,7 @@ function hasCompleteThirdPartySystemFamilyConsumerEvidence(value: unknown) {
 }
 
 function hasRequiredS2S4RuntimeMappingAttachment(test: BrowserE2eTestResult) {
-  const attachment = test.attachments?.find(
-    (item) => item.name === "s2-s4-runtime-mapping-codes",
-  );
+  const attachment = test.attachments?.find((item) => item.name === "s2-s4-runtime-mapping-codes");
   if (!attachment?.body) return false;
   try {
     const parsed = JSON.parse(attachment.body) as {
@@ -1063,10 +1336,7 @@ function hasRequiredS2S4RuntimeMappingAttachment(test: BrowserE2eTestResult) {
       !arrayEquals(parsed.productLayers, ["DATA_INTEROPERABILITY", "MEDICAL_ASSET"]) ||
       !arrayEquals(parsed.versionedAssets, ["TERMINOLOGY"]) ||
       !arrayEquals(parsed.deliveryShapes, ["MANAGEMENT_WORKSPACE", "API_EVENT"]) ||
-      !arrayEquals(parsed.serviceCombinations, [
-        "THIRD_PARTY_INTERFACE",
-        "CLINICAL_RUNTIME",
-      ]) ||
+      !arrayEquals(parsed.serviceCombinations, ["THIRD_PARTY_INTERFACE", "CLINICAL_RUNTIME"]) ||
       !hasCompleteS2S4RuntimeMappingApiEvidence(parsed.apiEvidence) ||
       !hasCompleteS2S4AdapterEvidence(parsed.adapter, terminology) ||
       !terminology ||
@@ -1138,7 +1408,11 @@ function hasRequiredCdssDeclarativeRuntimeAssetAttachment(test: BrowserE2eTestRe
       !ruleRuntimeCandidate ||
       !cdssRuntimeRuleMatchesRuntime(ruleRuntimeCandidate, runtime.ruleAsset) ||
       !cdssDeclarativeCreatedAssetsMatchRuntime(createdAssets, runtime.assets) ||
-      !hasCompleteCdssDeclarativeActivationRequest(parsed.activationRequest, runtime.assets, ruleRuntimeCandidate) ||
+      !hasCompleteCdssDeclarativeActivationRequest(
+        parsed.activationRequest,
+        runtime.assets,
+        ruleRuntimeCandidate,
+      ) ||
       !hasCompleteCdssDeclarativeTriggerEvidence(parsed.clinicalTrigger, runtime.releaseId) ||
       !hasCompleteCdssDeclarativeRecommendationEvidence(
         parsed.recommendation,
@@ -1416,7 +1690,10 @@ function hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(
     };
     const runtime = parseRegionalDiagnosticMutualRecognitionRuntimeEvidence(parsed.runtime);
     if (
-      !arrayEquals(parsed.scenarioCodes, requiredRegionalDiagnosticMutualRecognitionScenarioCodes) ||
+      !arrayEquals(
+        parsed.scenarioCodes,
+        requiredRegionalDiagnosticMutualRecognitionScenarioCodes,
+      ) ||
       !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
       !arrayEquals(parsed.versionedAssets, ["KNOWLEDGE", "FIELD_CATALOG", "ACTION_CARD"]) ||
       !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
@@ -1597,7 +1874,10 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
     };
     const runtime = parsePharmacyReviewRuntimeEvidence(parsed.runtime);
     if (
-      !arrayEquals(parsed.scenarioCodes, requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes) ||
+      !arrayEquals(
+        parsed.scenarioCodes,
+        requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes,
+      ) ||
       !arrayEquals(parsed.productLayers, [
         "CLINICAL_EXECUTION",
         "DATA_INTEROPERABILITY",
@@ -1666,10 +1946,7 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
         parsed.ruleAsset,
       ) ||
       !hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback, runtime.actionCardAsset) ||
-      !hasCompletePharmacyReviewRectification(
-        parsed.qualityRectification,
-        parsed.recommendation,
-      ) ||
+      !hasCompletePharmacyReviewRectification(parsed.qualityRectification, parsed.recommendation) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -1749,25 +2026,16 @@ function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: Browser
       !hasInfectionPublicHealthSafetyScopeBoundary(parsed.scopeStatement) ||
       !hasCompleteInfectionPublicHealthApiEvidence(parsed.apiEvidence) ||
       !hasCompleteInfectionPublicHealthAdapterEvidence(parsed.adapter) ||
-      !hasCompleteInfectionPublicHealthWebhookEvidence(
-        parsed.webhookSignature,
-        parsed.adapter,
-      ) ||
+      !hasCompleteInfectionPublicHealthWebhookEvidence(parsed.webhookSignature, parsed.adapter) ||
       !runtime ||
-      !infectionPublicHealthRuntimeAssetMatches(
-        parsed.terminologyGate,
-        runtime.terminologyAsset,
-      ) ||
+      !infectionPublicHealthRuntimeAssetMatches(parsed.terminologyGate, runtime.terminologyAsset) ||
       !infectionPublicHealthRuntimeAssetMatches(parsed.ruleAsset, runtime.ruleAsset) ||
       !infectionPublicHealthRuntimeAssetMatches(parsed.actionCard, runtime.actionCardAsset) ||
       !hasCompleteInfectionPublicHealthTerminologyGate(parsed.terminologyGate) ||
       !hasCompleteInfectionPublicHealthActionCard(parsed.actionCard) ||
       !hasCompleteInfectionPublicHealthRuleAsset(parsed.ruleAsset) ||
       !hasCompleteInfectionPublicHealthActivationRequest(parsed.activationRequest, runtime) ||
-      !hasCompleteInfectionPublicHealthClinicalContext(
-        parsed.clinicalContext,
-        runtime.releaseId,
-      ) ||
+      !hasCompleteInfectionPublicHealthClinicalContext(parsed.clinicalContext, runtime.releaseId) ||
       !hasCompleteInfectionPublicHealthOutbound(
         parsed.outboundPrefill,
         parsed.adapter,
@@ -1787,10 +2055,7 @@ function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: Browser
         parsed.clinicalTrigger,
         parsed.ruleAsset,
       ) ||
-      !hasCompleteInfectionPublicHealthManualReview(
-        parsed.manualReview,
-        runtime.actionCardAsset,
-      ) ||
+      !hasCompleteInfectionPublicHealthManualReview(parsed.manualReview, runtime.actionCardAsset) ||
       !hasCompleteInfectionPublicHealthRectification(
         parsed.qualityRectification,
         parsed.recommendation,
@@ -1855,7 +2120,10 @@ function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: Browse
     };
     const runtime = parseSurgeryAnesthesiaTransfusionRuntimeEvidence(parsed.runtime);
     if (
-      !arrayEquals(parsed.scenarioCodes, requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes) ||
+      !arrayEquals(
+        parsed.scenarioCodes,
+        requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes,
+      ) ||
       !arrayEquals(parsed.productLayers, [
         "CLINICAL_EXECUTION",
         "DATA_INTEROPERABILITY",
@@ -1891,13 +2159,19 @@ function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: Browse
       !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.safetyRedline, runtime.safetyAsset) ||
       !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.riskMatrix, runtime.cdssRiskAsset) ||
       !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.ruleAsset, runtime.ruleAsset) ||
-      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(parsed.actionCard, runtime.actionCardAsset) ||
+      !surgeryAnesthesiaTransfusionRuntimeAssetMatches(
+        parsed.actionCard,
+        runtime.actionCardAsset,
+      ) ||
       !hasCompleteSurgeryAnesthesiaTransfusionTerminologyGate(parsed.terminologyGate) ||
       !hasCompleteSurgeryAnesthesiaTransfusionSafetyRedline(parsed.safetyRedline) ||
       !hasCompleteSurgeryAnesthesiaTransfusionRiskMatrix(parsed.riskMatrix) ||
       !hasCompleteSurgeryAnesthesiaTransfusionActionCard(parsed.actionCard) ||
       !hasCompleteSurgeryAnesthesiaTransfusionRuleAsset(parsed.ruleAsset) ||
-      !hasCompleteSurgeryAnesthesiaTransfusionActivationRequest(parsed.activationRequest, runtime) ||
+      !hasCompleteSurgeryAnesthesiaTransfusionActivationRequest(
+        parsed.activationRequest,
+        runtime,
+      ) ||
       !hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
         parsed.clinicalContext,
         runtime.releaseId,
@@ -2403,12 +2677,12 @@ function hasCompleteS2S4AdapterEvidence(
   ) {
     return false;
   }
-  const mappings = adapter.fieldMappings.filter(
-    (item): item is Record<string, unknown> =>
-      Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  const mappings = adapter.fieldMappings.filter((item): item is Record<string, unknown> =>
+    Boolean(item && typeof item === "object" && !Array.isArray(item)),
   );
   const hasPlainField = mappings.some(
-    (item) => hasText(item.sourcePath) && hasText(item.targetPath) && !hasText(item.targetDictionaryKey),
+    (item) =>
+      hasText(item.sourcePath) && hasText(item.targetPath) && !hasText(item.targetDictionaryKey),
   );
   const hasTerminologyField = mappings.some(
     (item) =>
@@ -2472,11 +2746,15 @@ function parseS2S4RuntimeEvidence(
     !/^[0-9a-f]{64}$/i.test(runtime.manifestSha256) ||
     !Array.isArray(runtime.assets) ||
     !runtime.assets.some((asset) =>
-      runtimeReleaseAssetMatchesCandidate(asset, {
-        assetType: terminology.assetType,
-        assetIdentity: terminology.assetIdentity,
-        versionId: terminology.versionId,
-      }, { requireActive: true }),
+      runtimeReleaseAssetMatchesCandidate(
+        asset,
+        {
+          assetType: terminology.assetType,
+          assetIdentity: terminology.assetIdentity,
+          versionId: terminology.versionId,
+        },
+        { requireActive: true },
+      ),
     )
   ) {
     return null;
@@ -2717,11 +2995,11 @@ function hasCompleteCdssDeclarativeActivationRequest(
   ruleAsset: CdssRuntimeRuleAsset,
 ) {
   return [ruleAsset, ...assets].every((asset) =>
-      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-        assetType: asset.assetType,
-        assetIdentity: asset.assetIdentity,
-        versionId: asset.versionId,
-      }),
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: asset.versionId,
+    }),
   );
 }
 
@@ -2813,10 +3091,7 @@ function cdssRuntimeRuleMatchesRuntime(
   );
 }
 
-function cdssRuntimeAssetEvidenceMatches(
-  values: unknown[],
-  asset: CdssDeclarativeRuntimeAsset,
-) {
+function cdssRuntimeAssetEvidenceMatches(values: unknown[], asset: CdssDeclarativeRuntimeAsset) {
   return values.some((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return false;
     const evidence = item as Record<string, unknown>;
@@ -2957,7 +3232,7 @@ function hasCompleteMedicationSafetyRedline(value: unknown, riskMatrixValue: unk
     hasText(redline.releaseGate) &&
     hasText(redline.conditionDsl) &&
     String(redline.conditionDsl).includes("allergyIntolerances[].code") &&
-    String(redline.conditionDsl).includes("\"fact\"") &&
+    String(redline.conditionDsl).includes('"fact"') &&
     hasText(redline.trialId)
   );
 }
@@ -3059,8 +3334,7 @@ function hasCompleteMedicationSafetyTerminologyGate(
         asset.contentHash === terminology.contentHash &&
         asset.entryState === "ACTIVE"
       );
-    }) &&
-    runtimeReleasePayloadContainsCandidate(activationRequestValue, "activeAssets", candidate)
+    }) && runtimeReleasePayloadContainsCandidate(activationRequestValue, "activeAssets", candidate)
   );
 }
 
@@ -3207,11 +3481,7 @@ function hasCompleteMedicationSafetyRuleRecommendationEvidence(
 function medicationSafetyRuleConditionMatched(values: unknown[], fact: string) {
   return values.some((item) => {
     const evidence = recordValue(item);
-    return (
-      evidence?.fact === fact &&
-      evidence.operator === "contains" &&
-      evidence.matched === true
-    );
+    return evidence?.fact === fact && evidence.operator === "contains" && evidence.matched === true;
   });
 }
 
@@ -3409,7 +3679,10 @@ function hasCompleteDiagnosticCriticalValueActivationRequest(
   );
 }
 
-function hasCompleteDiagnosticCriticalValueInboundObservation(value: unknown, runtimeReleaseId: string) {
+function hasCompleteDiagnosticCriticalValueInboundObservation(
+  value: unknown,
+  runtimeReleaseId: string,
+) {
   const observation = recordValue(value);
   return (
     observation?.fhirResourceType === "Observation" &&
@@ -3430,7 +3703,10 @@ function hasCompleteDiagnosticCriticalValueInboundObservation(value: unknown, ru
   );
 }
 
-function hasCompleteDiagnosticCriticalValueInboundReport(value: unknown, runtimeReleaseId?: string) {
+function hasCompleteDiagnosticCriticalValueInboundReport(
+  value: unknown,
+  runtimeReleaseId?: string,
+) {
   const report = recordValue(value);
   return (
     report?.fhirResourceType === "DiagnosticReport" &&
@@ -3597,7 +3873,10 @@ function diagnosticCriticalValueRuntimeAssetEvidenceMatches(
   });
 }
 
-function hasCompleteDiagnosticCriticalValueWorkflowTodo(value: unknown, recommendationValue: unknown) {
+function hasCompleteDiagnosticCriticalValueWorkflowTodo(
+  value: unknown,
+  recommendationValue: unknown,
+) {
   const todo = recordValue(value);
   const recommendation = recordValue(recommendationValue);
   return (
@@ -3811,10 +4090,7 @@ function hasCompleteDiagnosticReportFamilyMatrixRow(row: Record<string, unknown>
   );
 }
 
-function diagnosticReportFamilyMatrixResourceMatches(
-  value: unknown,
-  row: Record<string, unknown>,
-) {
+function diagnosticReportFamilyMatrixResourceMatches(value: unknown, row: Record<string, unknown>) {
   const report = recordValue(value);
   if (!report) return false;
   return (
@@ -3897,9 +4173,7 @@ function hasCompleteRegionalDiagnosticMutualRecognitionOnboarding(value: unknown
     ["REQUESTED", "AUTH_CONFIGURED", "MAPPING_CONFIGURED", "ONLINE"].includes(
       String(onboarding.status),
     ) &&
-    ["NOT_CONNECTED", "DEGRADED", "UNKNOWN", "HEALTHY"].includes(
-      String(onboarding.healthStatus),
-    )
+    ["NOT_CONNECTED", "DEGRADED", "UNKNOWN", "HEALTHY"].includes(String(onboarding.healthStatus))
   );
 }
 
@@ -4178,7 +4452,10 @@ function regionalDiagnosticMutualRecognitionRuntimeAssetEvidenceMatches(
       const fields = Array.isArray(evidence.fields) ? evidence.fields : [];
       return (
         fields.includes("diagnosticReports[].conclusion") &&
-        fields.some((field) => field === "diagnosticReports[].signedAt" || field === "observations[].criticalFlag")
+        fields.some(
+          (field) =>
+            field === "diagnosticReports[].signedAt" || field === "observations[].criticalFlag",
+        )
       );
     }
     if (asset.assetType === "ACTION_CARD") {
@@ -4344,10 +4621,7 @@ function hasCompleteNursingContinuityActivationRequest(
   });
 }
 
-function hasCompleteNursingContinuityClinicalContext(
-  value: unknown,
-  runtimeReleaseId: string,
-) {
+function hasCompleteNursingContinuityClinicalContext(value: unknown, runtimeReleaseId: string) {
   const context = recordValue(value);
   const resources = recordValue(context?.resources);
   const nursingAssessments = Array.isArray(resources?.nursingAssessments)
@@ -4439,10 +4713,7 @@ function hasCompleteNursingContinuityFollowupPlan(
   );
 }
 
-function hasCompleteNursingContinuityQuestionnaire(
-  value: unknown,
-  planValue: unknown,
-) {
+function hasCompleteNursingContinuityQuestionnaire(value: unknown, planValue: unknown) {
   const questionnaire = recordValue(value);
   const plan = recordValue(planValue);
   if (!questionnaire) return false;
@@ -4464,10 +4735,7 @@ function hasCompleteNursingContinuityQuestionnaire(
   );
 }
 
-function hasCompleteNursingContinuityAbnormalReport(
-  value: unknown,
-  planValue: unknown,
-) {
+function hasCompleteNursingContinuityAbnormalReport(value: unknown, planValue: unknown) {
   const abnormal = recordValue(value);
   const plan = recordValue(planValue);
   if (!abnormal) return false;
@@ -4561,17 +4829,11 @@ function parsePharmacyReviewRuntimeEvidence(value: unknown) {
   ) {
     return null;
   }
-  const terminologyAsset = parsePharmacyReviewRuntimeAsset(
-    runtime.terminologyAsset,
-    "TERMINOLOGY",
-  );
+  const terminologyAsset = parsePharmacyReviewRuntimeAsset(runtime.terminologyAsset, "TERMINOLOGY");
   const safetyAsset = parsePharmacyReviewRuntimeAsset(runtime.safetyAsset, "SAFETY");
   const cdssRiskAsset = parsePharmacyReviewRuntimeAsset(runtime.cdssRiskAsset, "CDSS_RISK");
   const ruleAsset = parsePharmacyReviewRuntimeAsset(runtime.ruleAsset, "RULE");
-  const actionCardAsset = parsePharmacyReviewRuntimeAsset(
-    runtime.actionCardAsset,
-    "ACTION_CARD",
-  );
+  const actionCardAsset = parsePharmacyReviewRuntimeAsset(runtime.actionCardAsset, "ACTION_CARD");
   const runtimeAssets = runtime.assets;
   const assets = [terminologyAsset, safetyAsset, cdssRiskAsset, ruleAsset, actionCardAsset];
   if (
@@ -4848,8 +5110,7 @@ function hasCompletePharmacyReviewTerminologyGate(
         asset.contentHash === terminology.contentHash &&
         asset.entryState === "ACTIVE"
       );
-    }) &&
-    runtimeReleasePayloadContainsCandidate(activationRequestValue, "activeAssets", candidate)
+    }) && runtimeReleasePayloadContainsCandidate(activationRequestValue, "activeAssets", candidate)
   );
 }
 
@@ -4967,7 +5228,9 @@ function hasCompletePharmacyReviewInbound(
     hasText(review.pharmacistOpinion) &&
     medications.some((item) => {
       const medication = recordValue(item);
-      return medication?.standardCode === "J01C" && medication.runtimeReleaseId === runtimeReleaseId;
+      return (
+        medication?.standardCode === "J01C" && medication.runtimeReleaseId === runtimeReleaseId
+      );
     }) &&
     conditions.some((item) => {
       const condition = recordValue(item);
@@ -5028,8 +5291,10 @@ function hasNegatedScopeTerm(statement: string, term: string) {
     matchingSegments.every((segment) => {
       const termIndex = segment.indexOf(term);
       const prefix = segment.slice(0, termIndex);
-      return /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix)
-        || /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(segment);
+      return (
+        /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(prefix) ||
+        /(?:不代表|不声明|未完成|不得外推|不能外推|不等于|并非|不是)/u.test(segment)
+      );
     })
   );
 }
@@ -5433,8 +5698,7 @@ function hasCompleteInfectionPublicHealthClinicalContext(value: unknown, runtime
     documents.some((item) => {
       const document = recordValue(item);
       return (
-        document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" &&
-        hasText(document.contentDigest)
+        document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" && hasText(document.contentDigest)
       );
     }) &&
     publicHealthReport?.manualSubmitRequired === true &&
@@ -5538,8 +5802,7 @@ function hasCompleteInfectionPublicHealthInbound(
     documents.some((item) => {
       const document = recordValue(item);
       return (
-        document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" &&
-        hasText(document.contentDigest)
+        document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" && hasText(document.contentDigest)
       );
     })
   );
@@ -5901,7 +6164,10 @@ function hasCompleteSurgeryAnesthesiaTransfusionTerminologyGate(value: unknown) 
     terminology.category === "PROCEDURE" &&
     typeof terminology.mappingId === "number" &&
     terminology.mappingId > 0 &&
-    hasCompleteSurgeryAnesthesiaTransfusionConfirmedMapping(terminology.confirmedMapping, terminology)
+    hasCompleteSurgeryAnesthesiaTransfusionConfirmedMapping(
+      terminology.confirmedMapping,
+      terminology,
+    )
   );
 }
 
@@ -6035,8 +6301,7 @@ function hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
     documents.some((item) => {
       const document = recordValue(item);
       return (
-        document?.documentType === "SURGERY_SAFETY_CHECKLIST" &&
-        hasText(document.contentDigest)
+        document?.documentType === "SURGERY_SAFETY_CHECKLIST" && hasText(document.contentDigest)
       );
     }) &&
     surgeryPlan?.surgeryLevel === "LEVEL_3" &&
@@ -6135,8 +6400,7 @@ function hasCompleteSurgeryAnesthesiaTransfusionInbound(
     documents.some((item) => {
       const document = recordValue(item);
       return (
-        document?.documentType === "SURGERY_SAFETY_CHECKLIST" &&
-        hasText(document.contentDigest)
+        document?.documentType === "SURGERY_SAFETY_CHECKLIST" && hasText(document.contentDigest)
       );
     }) &&
     surgeryPlan?.timeOutRequired === true &&
@@ -6386,10 +6650,7 @@ function parseCriticalEmergencyIcuRuntimeEvidence(value: unknown) {
     runtime.terminologyAsset,
     "TERMINOLOGY",
   );
-  const cdssRiskAsset = parseCriticalEmergencyIcuRuntimeAsset(
-    runtime.cdssRiskAsset,
-    "CDSS_RISK",
-  );
+  const cdssRiskAsset = parseCriticalEmergencyIcuRuntimeAsset(runtime.cdssRiskAsset, "CDSS_RISK");
   const ruleAsset = parseCriticalEmergencyIcuRuntimeAsset(runtime.ruleAsset, "RULE");
   const pathwayAsset = parseCriticalEmergencyIcuRuntimeAsset(runtime.pathwayAsset, "PATHWAY");
   const actionCardAsset = parseCriticalEmergencyIcuRuntimeAsset(
@@ -6402,11 +6663,9 @@ function parseCriticalEmergencyIcuRuntimeEvidence(value: unknown) {
     assets.some((asset) => asset === null) ||
     !assets.every((asset) =>
       runtimeAssets.some((item) =>
-        criticalEmergencyIcuRuntimeAssetMatches(
-          item,
-          asset as CriticalEmergencyIcuRuntimeAsset,
-          { requireActive: true },
-        ),
+        criticalEmergencyIcuRuntimeAssetMatches(item, asset as CriticalEmergencyIcuRuntimeAsset, {
+          requireActive: true,
+        }),
       ),
     )
   ) {
@@ -6479,18 +6738,12 @@ function hasCompleteCriticalEmergencyIcuAdapterEvidence(value: unknown) {
     criticalEmergencyIcuMappingTargets(mappings, "/observations/0/valueNumeric") &&
     criticalEmergencyIcuMappingTargets(mappings, "/observations/1", "LOINC") &&
     criticalEmergencyIcuMappingTargets(mappings, "/observations/1/valueNumeric") &&
-    criticalEmergencyIcuMappingTargets(
-      mappings,
-      "/extensions/local/criticalCare/ventilatorMode",
-    ) &&
+    criticalEmergencyIcuMappingTargets(mappings, "/extensions/local/criticalCare/ventilatorMode") &&
     criticalEmergencyIcuMappingTargets(
       mappings,
       "/extensions/local/criticalCare/vasopressorRunning",
     ) &&
-    criticalEmergencyIcuMappingTargets(
-      mappings,
-      "/extensions/local/criticalCare/noDeviceControl",
-    )
+    criticalEmergencyIcuMappingTargets(mappings, "/extensions/local/criticalCare/noDeviceControl")
   );
 }
 
@@ -6648,10 +6901,7 @@ function hasCompleteCriticalEmergencyIcuActivationRequest(
   );
 }
 
-function hasCompleteCriticalEmergencyIcuClinicalContext(
-  value: unknown,
-  runtimeReleaseId: string,
-) {
+function hasCompleteCriticalEmergencyIcuClinicalContext(value: unknown, runtimeReleaseId: string) {
   const context = recordValue(value);
   const resources = recordValue(context?.resources);
   const encounters = Array.isArray(resources?.encounters) ? resources.encounters : [];
@@ -7195,7 +7445,11 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
   apiEvidence?: unknown;
   offlineDelivery?: unknown;
 }) {
-  if (!value.apiEvidence || typeof value.apiEvidence !== "object" || Array.isArray(value.apiEvidence)) {
+  if (
+    !value.apiEvidence ||
+    typeof value.apiEvidence !== "object" ||
+    Array.isArray(value.apiEvidence)
+  ) {
     return false;
   }
   const apiEvidence = value.apiEvidence as Record<string, unknown>;
@@ -7211,7 +7465,11 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
   ) {
     return false;
   }
-  if (!value.offlineDelivery || typeof value.offlineDelivery !== "object" || Array.isArray(value.offlineDelivery)) {
+  if (
+    !value.offlineDelivery ||
+    typeof value.offlineDelivery !== "object" ||
+    Array.isArray(value.offlineDelivery)
+  ) {
     return false;
   }
   const evidence = value.offlineDelivery as Record<string, unknown>;
@@ -7219,7 +7477,14 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
   const preview = parseRuntimeReleaseOfflineImportPreview(evidence.importPreview);
   const restore = parseRuntimeReleaseOfflineRestore(evidence.restore);
   const file = evidence.downloadedFile;
-  if (!delivery || !preview || !restore || !file || typeof file !== "object" || Array.isArray(file)) {
+  if (
+    !delivery ||
+    !preview ||
+    !restore ||
+    !file ||
+    typeof file !== "object" ||
+    Array.isArray(file)
+  ) {
     return false;
   }
   const downloaded = file as Record<string, unknown>;
@@ -7231,10 +7496,9 @@ function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
   const runtimeAfterRestore = parseRuntimeReleaseOfflineRuntimeSnapshotWithSelection(
     evidence.runtimeAfterRestore,
   );
-  const runtimeConsumerAfterRestore =
-    parseRuntimeReleaseOfflineRuntimeSnapshotWithSelection(
-      evidence.runtimeConsumerAfterRestore,
-    );
+  const runtimeConsumerAfterRestore = parseRuntimeReleaseOfflineRuntimeSnapshotWithSelection(
+    evidence.runtimeConsumerAfterRestore,
+  );
   return (
     delivery.deliveryKind === "CLINICAL_RUNTIME_RELEASE" &&
     delivery.runtimeMutation === false &&
@@ -7430,7 +7694,11 @@ function hasCompleteRuntimeReleasePartialSelectionEvidence(value: {
   runtimeConsumerReadback?: unknown;
   partialSelection?: unknown;
 }) {
-  if (!value.apiEvidence || typeof value.apiEvidence !== "object" || Array.isArray(value.apiEvidence)) {
+  if (
+    !value.apiEvidence ||
+    typeof value.apiEvidence !== "object" ||
+    Array.isArray(value.apiEvidence)
+  ) {
     return false;
   }
   if ((value.apiEvidence as Record<string, unknown>).partialSelectionProved !== true) {
@@ -7439,7 +7707,11 @@ function hasCompleteRuntimeReleasePartialSelectionEvidence(value: {
   const selected = parseRuntimeReleaseCandidate(value.localCandidate);
   const unselected = parseRuntimeReleaseCandidate(value.unselectedLocalCandidate);
   if (!selected || !unselected || runtimeReleaseSameCandidate(selected, unselected)) return false;
-  if (!value.partialSelection || typeof value.partialSelection !== "object" || Array.isArray(value.partialSelection)) {
+  if (
+    !value.partialSelection ||
+    typeof value.partialSelection !== "object" ||
+    Array.isArray(value.partialSelection)
+  ) {
     return false;
   }
   const partial = value.partialSelection as Record<string, unknown>;
@@ -7737,9 +8009,7 @@ function hasRequiredSystemProvidersAttachment(test: BrowserE2eTestResult) {
         ? stages.filter((stage): stage is string => typeof stage === "string")
         : [];
     });
-    return requiredSystemProvidersScenarioEvidence.every((stage) =>
-      observedStages.includes(stage),
-    );
+    return requiredSystemProvidersScenarioEvidence.every((stage) => observedStages.includes(stage));
   } catch {
     return false;
   }
@@ -7854,9 +8124,8 @@ function hasCompleteIdentityBindingApiEvidence(value: unknown) {
 function hasCompleteIdentityBindingCreatedPersonnel(value: unknown, boundUserId?: unknown) {
   if (!Array.isArray(value) || !hasText(boundUserId)) return false;
   const expectedBoundUserId = String(boundUserId);
-  const personnel = value.filter(
-    (item): item is Record<string, unknown> =>
-      Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  const personnel = value.filter((item): item is Record<string, unknown> =>
+    Boolean(item && typeof item === "object" && !Array.isArray(item)),
   );
   if (personnel.length < 2) return false;
   const userIds = new Set<string>();
@@ -7964,9 +8233,8 @@ function hasCompleteSystemProvidersDependencyEvidence(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
   if (!Array.isArray(evidence.dependencies)) return false;
-  const dependencies = evidence.dependencies.filter(
-    (item): item is Record<string, unknown> =>
-      Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  const dependencies = evidence.dependencies.filter((item): item is Record<string, unknown> =>
+    Boolean(item && typeof item === "object" && !Array.isArray(item)),
   );
   const hasBackup = dependencies.some(
     (item) =>

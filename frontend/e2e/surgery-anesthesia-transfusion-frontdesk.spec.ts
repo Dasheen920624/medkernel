@@ -1,5 +1,12 @@
 import { createHmac } from "node:crypto";
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -15,6 +22,7 @@ import {
   resolvedTenantIdFor,
   waitForPollingInterval,
 } from "./support/auth";
+import { standardPatientResourceConsumerMatrix } from "./support/standardPatientResourceMatrix";
 
 type RuntimeAssetSelection = {
   assetType: string;
@@ -124,208 +132,222 @@ const requiredStages = {
 } as const;
 
 test.describe("围手术期麻醉输血代表切片真实前台闭环", () => {
-  test(
-    "临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(420_000);
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
+  test("临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(420_000);
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
 
-      await ensureReadySession(page, "engine-operator");
-      const hospitalId = await localRehearsalHospitalId(page);
-      const riskMatrix = await createPeriopRiskMatrix(page, suffix);
-      apiEvidence.surgeryRiskMatrixCreated = true;
+    await ensureReadySession(page, "engine-operator");
+    const hospitalId = await localRehearsalHospitalId(page);
+    const riskMatrix = await createPeriopRiskMatrix(page, suffix);
+    apiEvidence.surgeryRiskMatrixCreated = true;
 
-      const safetyRedline = await createPromotedPeriopRedline(page, {
-        suffix,
-        riskMatrix,
-      });
-      apiEvidence.surgerySafetyAssetPromoted = true;
+    const safetyRedline = await createPromotedPeriopRedline(page, {
+      suffix,
+      riskMatrix,
+    });
+    apiEvidence.surgerySafetyAssetPromoted = true;
 
-      const terminologyGate = await createPeriopTerminologyGate(page, suffix);
-      apiEvidence.surgeryTerminologyActivated = true;
+    const terminologyGate = await createPeriopTerminologyGate(page, suffix);
+    apiEvidence.surgeryTerminologyActivated = true;
 
-      const actionCard = await createPeriopActionCard(page, suffix);
-      apiEvidence.surgeryActionCardPublished = true;
+    const actionCard = await createPeriopActionCard(page, suffix);
+    apiEvidence.surgeryActionCardPublished = true;
 
-      const preRuleCandidates = await readPeriopPreRuleRuntimeCandidates(page, hospitalId, {
-        safetyIdentity: safetyRedline.assetIdentity,
-      });
-      const preRuleRuntime = await activateRuntimeWithPeriopPreRuleAssets(page, {
-        hospitalId,
-        terminology: terminologyGate,
-        safety: preRuleCandidates.safety,
-        cdssRisk: preRuleCandidates.cdssRisk,
-        actionCard,
-      });
-      const ruleValidationAdapterId = await ensureTemporaryAdapterForRuleValidation(page, suffix);
+    const preRuleCandidates = await readPeriopPreRuleRuntimeCandidates(page, hospitalId, {
+      safetyIdentity: safetyRedline.assetIdentity,
+    });
+    const preRuleRuntime = await activateRuntimeWithPeriopPreRuleAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      safety: preRuleCandidates.safety,
+      cdssRisk: preRuleCandidates.cdssRisk,
+      actionCard,
+    });
+    const ruleValidationAdapterId = await ensureTemporaryAdapterForRuleValidation(page, suffix);
 
-      const positivePatient = await createPeriopPatientFromFrontdesk(page, `${suffix}-POS`);
-      const positiveInbound = await createPeriopContextBySignedInbound(page, {
-        suffix: `${suffix}-POS`,
-        runtimeReleaseId: preRuleRuntime.releaseId,
-        patient: positivePatient,
-        adapterId: ruleValidationAdapterId,
-      });
-      const negativePatient = await createPeriopPatientFromFrontdesk(page, `${suffix}-NEG`);
-      const negativeInbound = await createPeriopContextBySignedInbound(page, {
-        suffix: `${suffix}-NEG`,
-        runtimeReleaseId: preRuleRuntime.releaseId,
-        patient: negativePatient,
-        adapterId: ruleValidationAdapterId,
-        positive: false,
-      });
+    const positivePatient = await createPeriopPatientFromFrontdesk(page, `${suffix}-POS`);
+    const positiveInbound = await createPeriopContextBySignedInbound(page, {
+      suffix: `${suffix}-POS`,
+      runtimeReleaseId: preRuleRuntime.releaseId,
+      patient: positivePatient,
+      adapterId: ruleValidationAdapterId,
+    });
+    const negativePatient = await createPeriopPatientFromFrontdesk(page, `${suffix}-NEG`);
+    const negativeInbound = await createPeriopContextBySignedInbound(page, {
+      suffix: `${suffix}-NEG`,
+      runtimeReleaseId: preRuleRuntime.releaseId,
+      patient: negativePatient,
+      adapterId: ruleValidationAdapterId,
+      positive: false,
+    });
 
-      const rule = await createAndPublishPeriopRule(page, suffix, {
-        positiveContextSnapshotId: positiveInbound.snapshot.snapshotId,
-        negativeContextSnapshotId: negativeInbound.snapshot.snapshotId,
-        actionCard,
-      });
-      apiEvidence.surgeryRuleCreated = true;
-      recordStage(observedStages, "运营员发布手术操作术语、高危安全红线、麻醉用血风险矩阵、术前核查规则和动作卡资产");
+    const rule = await createAndPublishPeriopRule(page, suffix, {
+      positiveContextSnapshotId: positiveInbound.snapshot.snapshotId,
+      negativeContextSnapshotId: negativeInbound.snapshot.snapshotId,
+      actionCard,
+    });
+    apiEvidence.surgeryRuleCreated = true;
+    recordStage(
+      observedStages,
+      "运营员发布手术操作术语、高危安全红线、麻醉用血风险矩阵、术前核查规则和动作卡资产",
+    );
 
-      const candidates = await readPeriopRuntimeCandidates(page, hospitalId, {
-        safetyIdentity: safetyRedline.assetIdentity,
-        ruleIdentity: rule.assetIdentity,
-      });
-      const safetyEvidence = {
-        ...safetyRedline,
-        versionId: candidates.safety.versionId,
-        versionNo: candidates.safety.versionNo,
-        contentHash: candidates.safety.contentHash,
-      };
-      const riskMatrixEvidence = {
-        ...riskMatrix,
-        versionId: candidates.cdssRisk.versionId,
-        versionNo: candidates.cdssRisk.versionNo,
-        contentHash: candidates.cdssRisk.contentHash,
-      };
-      const ruleEvidence = {
-        ...rule,
-        versionId: candidates.rule.versionId,
-        versionNo: candidates.rule.versionNo,
-        contentHash: candidates.rule.contentHash,
-      };
-      const runtime = await activateRuntimeWithPeriopAssets(page, {
-        hospitalId,
-        terminology: terminologyGate,
-        safety: candidates.safety,
-        cdssRisk: candidates.cdssRisk,
-        rule: candidates.rule,
-        actionCard,
-      });
-      apiEvidence.runtimeActivatedWithSurgeryAssets = true;
-      recordStage(observedStages, "当前机构生效版本包含围手术期五类运行资产");
+    const candidates = await readPeriopRuntimeCandidates(page, hospitalId, {
+      safetyIdentity: safetyRedline.assetIdentity,
+      ruleIdentity: rule.assetIdentity,
+    });
+    const safetyEvidence = {
+      ...safetyRedline,
+      versionId: candidates.safety.versionId,
+      versionNo: candidates.safety.versionNo,
+      contentHash: candidates.safety.contentHash,
+    };
+    const riskMatrixEvidence = {
+      ...riskMatrix,
+      versionId: candidates.cdssRisk.versionId,
+      versionNo: candidates.cdssRisk.versionNo,
+      contentHash: candidates.cdssRisk.contentHash,
+    };
+    const ruleEvidence = {
+      ...rule,
+      versionId: candidates.rule.versionId,
+      versionNo: candidates.rule.versionNo,
+      contentHash: candidates.rule.contentHash,
+    };
+    const runtime = await activateRuntimeWithPeriopAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      safety: candidates.safety,
+      cdssRisk: candidates.cdssRisk,
+      rule: candidates.rule,
+      actionCard,
+    });
+    apiEvidence.runtimeActivatedWithSurgeryAssets = true;
+    recordStage(observedStages, "当前机构生效版本包含围手术期五类运行资产");
 
-      await ensureReadySession(page, "platform-admin");
-      const adapter = await createPeriopAdapter(page, suffix);
-      apiEvidence.surgeryAdapterCreatedThroughRealService = true;
-      const webhook = await createPeriopWebhook(page, suffix);
-      apiEvidence.surgeryWebhookCreatedThroughRealService = true;
-      await generatePeriopSignaturePreview(page, webhook.webhookId);
-      apiEvidence.webhookSignaturePreviewGenerated = true;
-      recordStage(observedStages, "平台管理员访问真实前台并经真实服务创建 NURSING_ANESTHESIA_TRANSFUSION_ICU 适配器、回调通道和签名预览");
+    await ensureReadySession(page, "platform-admin");
+    const adapter = await createPeriopAdapter(page, suffix);
+    apiEvidence.surgeryAdapterCreatedThroughRealService = true;
+    const webhook = await createPeriopWebhook(page, suffix);
+    apiEvidence.surgeryWebhookCreatedThroughRealService = true;
+    await generatePeriopSignaturePreview(page, webhook.webhookId);
+    apiEvidence.webhookSignaturePreviewGenerated = true;
+    recordStage(
+      observedStages,
+      "平台管理员访问真实前台并经真实服务创建 NURSING_ANESTHESIA_TRANSFUSION_ICU 适配器、回调通道和签名预览",
+    );
 
-      const patient = await createPeriopPatientFromFrontdesk(page, suffix);
-      const inbound = await postSignedPeriopInbound(page, {
-        suffix,
-        adapterId: adapter.adapterId,
+    const patient = await createPeriopPatientFromFrontdesk(page, suffix);
+    const inbound = await postSignedPeriopInbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patient,
+      runtimeReleaseId: runtime.releaseId,
+    });
+    apiEvidence.inboundSurgeryEventAccepted = true;
+    const snapshot = await readLatestContextForPatient(page, patient.patientId);
+    expect(snapshot.runtimeReleaseId, "S26 入站上下文必须绑定本轮 runtime").toBe(runtime.releaseId);
+    assertSnapshotContainsPeriopFacts(snapshot.resources);
+    inbound.contextSnapshotId = snapshot.snapshotId;
+    apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
+    recordStage(
+      observedStages,
+      "签名入站事件生成 Procedure、Observation、Medication、Document 和手麻输血本地扩展上下文",
+    );
+
+    const outbound = await sendPeriopOutbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      snapshot,
+      traceId: inbound.traceId,
+    });
+    apiEvidence.outboundChecklistRequested = true;
+    recordStage(
+      observedStages,
+      "系统向 NURSING_ANESTHESIA_TRANSFUSION_ICU 发出核查确认回传并诚实断连降级",
+    );
+
+    const recommendation = await triggerPeriopRecommendationFromFrontdesk(page, {
+      snapshot,
+      runtime,
+      rule: ruleEvidence,
+    });
+    apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台触发 order-sign 推荐评估");
+    recordStage(observedStages, "推荐卡证明术前核查规则、安全红线和动作卡按当前机构生效版本消费");
+
+    const manualConfirmation = await completePeriopManualConfirmation(page, {
+      cardId: recommendation.cardId,
+      actionCard,
+      actionCardAsset: runtime.actionCardAsset,
+    });
+    expect(manualConfirmation.cardStatus, "临床人工确认后推荐卡应为 ACCEPTED").toBe("ACCEPTED");
+    apiEvidence.humanRiskConfirmationRecorded = true;
+    recordStage(
+      observedStages,
+      "临床用户人工确认围手术期风险，系统不自动输血、不自动开嘱、不自动手术",
+    );
+
+    const qualityRectification = await createAndClosePeriopRectification(page, {
+      suffix,
+      recommendation,
+      snapshot,
+      runtimeReleaseId: runtime.releaseId,
+    });
+    apiEvidence.qualityRectificationSubmittedAndReviewed = true;
+    recordStage(observedStages, "围手术期时序质控形成整改任务并由固定职责账号复核关闭");
+
+    await attachPeriopEvidence(testInfo, {
+      apiEvidence,
+      adapter,
+      webhookSignature: {
         webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patient,
-        runtimeReleaseId: runtime.releaseId,
-      });
-      apiEvidence.inboundSurgeryEventAccepted = true;
-      const snapshot = await readLatestContextForPatient(page, patient.patientId);
-      expect(snapshot.runtimeReleaseId, "S26 入站上下文必须绑定本轮 runtime").toBe(runtime.releaseId);
-      assertSnapshotContainsPeriopFacts(snapshot.resources);
-      inbound.contextSnapshotId = snapshot.snapshotId;
-      apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
-      recordStage(observedStages, "签名入站事件生成 Procedure、Observation、Medication、Document 和手麻输血本地扩展上下文");
-
-      const outbound = await sendPeriopOutbound(page, {
-        suffix,
         adapterId: adapter.adapterId,
-        snapshot,
-        traceId: inbound.traceId,
-      });
-      apiEvidence.outboundChecklistRequested = true;
-      recordStage(observedStages, "系统向 NURSING_ANESTHESIA_TRANSFUSION_ICU 发出核查确认回传并诚实断连降级");
-
-      const recommendation = await triggerPeriopRecommendationFromFrontdesk(page, {
-        snapshot,
-        runtime,
-        rule: ruleEvidence,
-      });
-      apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台触发 order-sign 推荐评估");
-      recordStage(observedStages, "推荐卡证明术前核查规则、安全红线和动作卡按当前机构生效版本消费");
-
-      const manualConfirmation = await completePeriopManualConfirmation(page, {
-        cardId: recommendation.cardId,
-        actionCard,
-        actionCardAsset: runtime.actionCardAsset,
-      });
-      expect(manualConfirmation.cardStatus, "临床人工确认后推荐卡应为 ACCEPTED").toBe("ACCEPTED");
-      apiEvidence.humanRiskConfirmationRecorded = true;
-      recordStage(observedStages, "临床用户人工确认围手术期风险，系统不自动输血、不自动开嘱、不自动手术");
-
-      const qualityRectification = await createAndClosePeriopRectification(page, {
-        suffix,
-        recommendation,
-        snapshot,
+        signatureAlgorithm: "HMAC-SHA256",
+        canonicalPayloadIncludesTraceId: true,
+        previewGenerated: true,
+      },
+      terminologyGate,
+      safetyRedline: safetyEvidence,
+      riskMatrix: riskMatrixEvidence,
+      actionCard: {
+        ...actionCard,
+        versionId: runtime.actionCardAsset.versionId ?? actionCard.versionId,
+        versionNo: runtime.actionCardAsset.versionNo ?? actionCard.versionNo,
+        contentHash: runtime.actionCardAsset.contentHash ?? actionCard.contentHash,
+      },
+      rule: ruleEvidence,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext: {
+        patientId: snapshot.patientId,
+        encounterId: snapshot.encounterId,
+        contextSnapshotId: snapshot.snapshotId,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        resources: snapshot.resources,
+      },
+      outboundChecklist: outbound,
+      inboundSurgeryEvent: inbound,
+      clinicalTrigger: {
+        triggerId: recommendation.triggerId,
+        contextSnapshotId: snapshot.snapshotId,
         runtimeReleaseId: runtime.releaseId,
-      });
-      apiEvidence.qualityRectificationSubmittedAndReviewed = true;
-      recordStage(observedStages, "围手术期时序质控形成整改任务并由固定职责账号复核关闭");
-
-      await attachPeriopEvidence(testInfo, {
-        apiEvidence,
-        adapter,
-        webhookSignature: {
-          webhookId: webhook.webhookId,
-          adapterId: adapter.adapterId,
-          signatureAlgorithm: "HMAC-SHA256",
-          canonicalPayloadIncludesTraceId: true,
-          previewGenerated: true,
-        },
-        terminologyGate,
-        safetyRedline: safetyEvidence,
-        riskMatrix: riskMatrixEvidence,
-        actionCard: {
-          ...actionCard,
-          versionId: runtime.actionCardAsset.versionId ?? actionCard.versionId,
-          versionNo: runtime.actionCardAsset.versionNo ?? actionCard.versionNo,
-          contentHash: runtime.actionCardAsset.contentHash ?? actionCard.contentHash,
-        },
-        rule: ruleEvidence,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext: {
-          patientId: snapshot.patientId,
-          encounterId: snapshot.encounterId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          resources: snapshot.resources,
-        },
-        outboundChecklist: outbound,
-        inboundSurgeryEvent: inbound,
-        clinicalTrigger: {
-          triggerId: recommendation.triggerId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: runtime.releaseId,
-          triggerType: "order-sign",
-          cardId: recommendation.cardId,
-          relatedCardIds: recommendation.relatedCardIds,
-        },
-        recommendation,
-        manualConfirmation,
-        qualityRectification,
-        observedStages,
-      });
-    },
-  );
+        triggerType: "order-sign",
+        cardId: recommendation.cardId,
+        relatedCardIds: recommendation.relatedCardIds,
+      },
+      recommendation,
+      manualConfirmation,
+      qualityRectification,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): PeriopApiEvidence {
@@ -381,10 +403,16 @@ async function createPeriopRiskMatrix(page: Page, suffix: string) {
     assetType: "CDSS_RISK" as const,
     assetIdentity: "CDSS.RISK.MATRIX",
     matrixId: requireText(textField(rule, "matrixId"), "风险矩阵响应必须返回 matrixId"),
-    matrixVersion: requireText(textField(rule, "matrixVersion"), "风险矩阵响应必须返回 matrixVersion"),
+    matrixVersion: requireText(
+      textField(rule, "matrixVersion"),
+      "风险矩阵响应必须返回 matrixVersion",
+    ),
     triggerPoint: requireText(textField(rule, "triggerPoint"), "风险矩阵必须返回触发点"),
     riskLevel: requireText(textField(rule, "riskLevel"), "风险矩阵必须返回风险等级"),
-    reviewRequirement: requireText(textField(rule, "reviewRequirement"), "风险矩阵必须返回复核要求"),
+    reviewRequirement: requireText(
+      textField(rule, "reviewRequirement"),
+      "风险矩阵必须返回复核要求",
+    ),
     automationLevel: requireText(textField(rule, "automationLevel"), "风险矩阵必须返回自动化等级"),
     autoExecutionAllowed: booleanField(rule, "autoExecutionAllowed"),
   };
@@ -418,7 +446,8 @@ async function createPromotedPeriopRedline(
     silentRunHours: 168,
     releaseGate: "S26_SURGERY_ANESTHESIA_TRANSFUSION",
     title: `围手术期麻醉输血高危核查 ${options.suffix}`,
-    clinicalHazard: "术前核查、麻醉风险和用血确认必须由临床人工确认；系统不得自动手术、输血、开嘱或控制设备。",
+    clinicalHazard:
+      "术前核查、麻醉风险和用血确认必须由临床人工确认；系统不得自动手术、输血、开嘱或控制设备。",
     conditionDsl,
     evidenceSource: "S26 围手术期麻醉输血代表切片演练证据",
     evidenceReference: "evidence://local-e2e/surgery-anesthesia-transfusion/redline",
@@ -438,7 +467,10 @@ async function createPromotedPeriopRedline(
     operatorNote: "S26 围手术期代表切片：静默试运行达标，不自动输血、不自动手术。",
   });
   await expectOk(dryRun, "提交围手术期 SAFETY 静默试运行");
-  const trialId = requireText(textField(await responseData(dryRun), "trialId"), "静默试运行必须返回 trialId");
+  const trialId = requireText(
+    textField(await responseData(dryRun), "trialId"),
+    "静默试运行必须返回 trialId",
+  );
   const promoted = await postApi(page, "/engine/safety/redlines:promote", {
     redlineId,
     trialId,
@@ -456,30 +488,41 @@ async function createPromotedPeriopRedline(
     category: "SURGERY_ANESTHESIA_TRANSFUSION",
     conditionDsl,
     trialId,
-    hazardSeverity: requireText(textField(promotedData, "hazardSeverity"), "红线上线响应必须返回严重度"),
-    reviewRequirement: requireText(textField(promotedData, "reviewRequirement"), "红线上线响应必须返回复核要求"),
+    hazardSeverity: requireText(
+      textField(promotedData, "hazardSeverity"),
+      "红线上线响应必须返回严重度",
+    ),
+    reviewRequirement: requireText(
+      textField(promotedData, "reviewRequirement"),
+      "红线上线响应必须返回复核要求",
+    ),
     noAutoTransfusion: true,
     noAutoSurgery: true,
   };
 }
 
-async function createPeriopTerminologyGate(page: Page, suffix: string): Promise<PeriopAssetCandidate & {
-  standardSystem: string;
-  standardCode: string;
-  localCode: string;
-  localTermId: number;
-  standardTermId: number;
-  sourceSystem: string;
-  category: string;
-  mappingId: number;
-  confirmedMapping: {
-    mappingId: number;
+async function createPeriopTerminologyGate(
+  page: Page,
+  suffix: string,
+): Promise<
+  PeriopAssetCandidate & {
+    standardSystem: string;
+    standardCode: string;
+    localCode: string;
     localTermId: number;
     standardTermId: number;
     sourceSystem: string;
     category: string;
-  };
-}> {
+    mappingId: number;
+    confirmedMapping: {
+      mappingId: number;
+      localTermId: number;
+      standardTermId: number;
+      sourceSystem: string;
+      category: string;
+    };
+  }
+> {
   const standard = await postApi(page, "/engine/terminology/terms/standard", {
     ...apiContext(suffix, "term-standard"),
     standardSystem: "ICD-9-CM-3",
@@ -573,7 +616,10 @@ async function readOrConfirmTerminologyMapping(
     semanticAssistEnabled: true,
   });
   await expectOk(generation, "生成手术操作术语映射候选");
-  const jobCode = requireText(textField(await responseData(generation), "jobCode"), "术语候选任务必须返回 jobCode");
+  const jobCode = requireText(
+    textField(await responseData(generation), "jobCode"),
+    "术语候选任务必须返回 jobCode",
+  );
   const candidate = await waitForTerminologyCandidate(page, jobCode, {
     localCode: options.localCode,
     localTermId: options.localTermId,
@@ -595,7 +641,9 @@ async function readOrConfirmTerminologyMapping(
   const confirmedData = await responseData(confirmed);
   const mapping = confirmedMappingEvidence(confirmedData);
   expect(mapping.localTermId, "确认映射必须绑定本轮 localTermId").toBe(options.localTermId);
-  expect(mapping.standardTermId, "确认映射必须绑定本轮 standardTermId").toBe(options.standardTermId);
+  expect(mapping.standardTermId, "确认映射必须绑定本轮 standardTermId").toBe(
+    options.standardTermId,
+  );
   expect(mapping.sourceSystem, "确认映射必须绑定本轮 sourceSystem").toBe(options.sourceSystem);
   return mapping;
 }
@@ -674,7 +722,10 @@ async function waitForTerminologyCandidate(
   );
 }
 
-async function createPeriopActionCard(page: Page, suffix: string): Promise<PeriopActionCardCandidate> {
+async function createPeriopActionCard(
+  page: Page,
+  suffix: string,
+): Promise<PeriopActionCardCandidate> {
   const assetIdentity = `${actionCardIdentityPrefix}.${suffix}`;
   const response = await postApi(page, "/engine/authoring/declarative-assets", {
     assetType: "ACTION_CARD",
@@ -688,9 +739,12 @@ async function createPeriopActionCard(page: Page, suffix: string): Promise<Perio
       atSeverity: "HIGH",
       indicator: "critical",
       summary: "围手术期、麻醉与用血风险需人工确认。",
-      detail: "提示卡只进入临床人工确认链路，不替代手麻、手术室、输血系统，不自动开嘱、手术或输血。",
+      detail:
+        "提示卡只进入临床人工确认链路，不替代手麻、手术室、输血系统，不自动开嘱、手术或输血。",
       source: { label: "MedKernel S26 本地上线演练" },
-      suggestions: [{ label: "核查围手术期风险", actionType: "OPEN_FORM", payload: { target: "S26" } }],
+      suggestions: [
+        { label: "核查围手术期风险", actionType: "OPEN_FORM", payload: { target: "S26" } },
+      ],
       overrideReasons: ["临床团队已完成人工核查与责任确认"],
       requiresPhysicianConfirmation: true,
       noAutoOrder: true,
@@ -743,7 +797,8 @@ async function createAndPublishPeriopRule(
     dedupeWindowSeconds: 0,
     applicableOrgUnitId: null,
     sourceRef: "local-e2e:surgery-anesthesia-transfusion",
-    changeSummary: "S26 代表切片：规则引用 Procedure、Observation、extensions.local.transfusionRequest 和 ACTION_CARD。",
+    changeSummary:
+      "S26 代表切片：规则引用 Procedure、Observation、extensions.local.transfusionRequest 和 ACTION_CARD。",
     dsl: {
       applicability: {
         population: {},
@@ -755,7 +810,11 @@ async function createAndPublishPeriopRule(
         all: [
           { fact: "procedures[].code", operator: "contains", value: procedureStandardCode },
           { fact: "observations[].valueString", operator: "equals", value: "III" },
-          { fact: "extensions.local.transfusionRequest.noAutoTransfusion", operator: "equals", value: true },
+          {
+            fact: "extensions.local.transfusionRequest.noAutoTransfusion",
+            operator: "equals",
+            value: true,
+          },
         ],
       },
       then: [
@@ -764,7 +823,8 @@ async function createAndPublishPeriopRule(
           atSeverity: "HIGH",
           indicator: "critical",
           summary: "围手术期麻醉输血风险需人工确认",
-          detail: "术前安全核查、麻醉风险和用血确认必须由临床人工确认；系统不自动开嘱、手术或输血。",
+          detail:
+            "术前安全核查、麻醉风险和用血确认必须由临床人工确认；系统不自动开嘱、手术或输血。",
           source: { label: "S26 围手术期代表切片" },
           actionCardRef: options.actionCard.assetIdentity,
           suggestions: [],
@@ -788,46 +848,91 @@ async function createAndPublishPeriopRule(
   const created = await responseData(create);
   const ruleId = requireText(textField(created, "ruleId"), "规则创建响应必须返回 ruleId");
   for (const testCase of [
-    { caseType: "POSITIVE", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "NEGATIVE", expectedHit: false, expectedSeverity: null, expectedActionCode: null, contextSnapshotId: options.negativeContextSnapshotId },
-    { caseType: "BOUNDARY", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "CONFLICT", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
+    {
+      caseType: "POSITIVE",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "NEGATIVE",
+      expectedHit: false,
+      expectedSeverity: null,
+      expectedActionCode: null,
+      contextSnapshotId: options.negativeContextSnapshotId,
+    },
+    {
+      caseType: "BOUNDARY",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "CONFLICT",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
   ]) {
-    const response = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`, {
-      ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
-      ...testCase,
-    });
+    const response = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`,
+      {
+        ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
+        ...testCase,
+      },
+    );
     await expectOk(response, `新增围手术期规则发布验证用例 ${testCase.caseType}`);
   }
-  const testRun = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`, apiContext(ruleId, "rule-test-run"));
+  const testRun = await postApi(
+    page,
+    `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`,
+    apiContext(ruleId, "rule-test-run"),
+  );
   await expectOk(testRun, "执行围手术期规则发布验证用例");
-  expect(booleanField(await responseData(testRun), "allPassed"), "规则发布验证用例必须全部通过").toBe(true);
+  expect(
+    booleanField(await responseData(testRun), "allPassed"),
+    "规则发布验证用例必须全部通过",
+  ).toBe(true);
   for (const targetState of ["REVIEWED", "SHADOW", "CANARY", "FULL"]) {
     const impact = await getApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/impact`);
     await expectOk(impact, `读取围手术期规则 ${targetState} 影响摘要`);
-    const transition = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`, {
-      ...apiContext(ruleId, `rule-governance-${targetState}`),
-      targetState,
-      impactDigest: requireText(textField(await responseData(impact), "impactDigest"), "规则影响摘要必须返回 digest"),
-      reason: `S26 围手术期麻醉输血规则推进至 ${targetState}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: `S26 围手术期规则 ${targetState} 推进质量门已通过`,
+    const transition = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`,
+      {
+        ...apiContext(ruleId, `rule-governance-${targetState}`),
+        targetState,
+        impactDigest: requireText(
+          textField(await responseData(impact), "impactDigest"),
+          "规则影响摘要必须返回 digest",
+        ),
+        reason: `S26 围手术期麻醉输血规则推进至 ${targetState}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: `S26 围手术期规则 ${targetState} 推进质量门已通过`,
+          },
         },
       },
-    });
+    );
     await expectOk(transition, `围手术期规则治理推进至 ${targetState}`);
   }
   return {
     assetType: "RULE" as const,
     assetIdentity: ruleCode,
     ruleId,
-    ruleVersionId: requireText(textField(created, "versionId"), "规则创建响应必须返回规则 versionId"),
+    ruleVersionId: requireText(
+      textField(created, "versionId"),
+      "规则创建响应必须返回规则 versionId",
+    ),
   };
 }
 
@@ -876,9 +981,18 @@ async function readHospitalRuntimeCandidate(
   return {
     assetType,
     assetIdentity,
-    versionId: requireText(textField(candidate, "versionId"), `${assetType} 候选必须返回 versionId`),
-    versionNo: requireText(textField(candidate, "versionNo"), `${assetType} 候选必须返回 versionNo`),
-    contentHash: requireText(textField(candidate, "contentHash"), `${assetType} 候选必须返回 contentHash`),
+    versionId: requireText(
+      textField(candidate, "versionId"),
+      `${assetType} 候选必须返回 versionId`,
+    ),
+    versionNo: requireText(
+      textField(candidate, "versionNo"),
+      `${assetType} 候选必须返回 versionNo`,
+    ),
+    contentHash: requireText(
+      textField(candidate, "contentHash"),
+      `${assetType} 候选必须返回 contentHash`,
+    ),
   };
 }
 
@@ -913,7 +1027,13 @@ async function activateRuntimeWithPeriopAssets(
 ) {
   const { releaseId, activationRequest } = await activateRuntimeRelease(page, {
     hospitalId: options.hospitalId,
-    assets: [options.terminology, options.safety, options.cdssRisk, options.rule, options.actionCard],
+    assets: [
+      options.terminology,
+      options.safety,
+      options.cdssRisk,
+      options.rule,
+      options.actionCard,
+    ],
     label: "激活包含围手术期资产的医院生效版本",
     returnRequest: true,
   });
@@ -923,11 +1043,16 @@ async function activateRuntimeWithPeriopAssets(
   );
   await expectOk(currentAfter, "回读围手术期医院生效版本");
   const detail = (await responseData(currentAfter)) as RuntimeReleaseDetail;
-  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(releaseId);
+  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(
+    releaseId,
+  );
   return {
     releaseId,
     revisionNo: numberFieldAtPath(detail, "release.revisionNo") ?? 0,
-    manifestSha256: requireText(textFieldAtPath(detail, "release.manifestSha256"), "机构生效版本必须返回 manifestSha256"),
+    manifestSha256: requireText(
+      textFieldAtPath(detail, "release.manifestSha256"),
+      "机构生效版本必须返回 manifestSha256",
+    ),
     assets: detail.items ?? [],
     terminologyAsset: assertRuntimeContainsAsset(detail, options.terminology),
     safetyAsset: assertRuntimeContainsAsset(detail, options.safety),
@@ -954,7 +1079,8 @@ async function activateRuntimeRelease(
   for (const required of requiredRuntimeAssetsForRehearsal) {
     expect(
       baselineAssets.activeAssets.some(
-        (asset) => asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
+        (asset) =>
+          asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
       ),
       `平台标准版本缺少 ${required.assetType}:${required.assetIdentity}`,
     ).toBe(true);
@@ -980,8 +1106,13 @@ async function activateRuntimeRelease(
     activationRequest,
   );
   await expectOk(activated, options.label);
-  const releaseId = requireText(textField(await responseData(activated), "releaseId"), "激活必须返回 releaseId");
-  return options.returnRequest ? { releaseId, activationRequest } : { releaseId, activationRequest: undefined };
+  const releaseId = requireText(
+    textField(await responseData(activated), "releaseId"),
+    "激活必须返回 releaseId",
+  );
+  return options.returnRequest
+    ? { releaseId, activationRequest }
+    : { releaseId, activationRequest: undefined };
 }
 
 async function createPeriopPatientFromFrontdesk(page: Page, suffix: string) {
@@ -1004,7 +1135,10 @@ async function createPeriopPatientFromFrontdesk(page: Page, suffix: string) {
   await dialog.getByRole("button", { name: "保存患者" }).click();
   const response = await responsePromise;
   await expectHttpOk(response, "创建围手术期演练脱敏患者");
-  const patientId = requireText(textField(await responseData(response), "mpiId"), "患者创建响应必须返回 MPI");
+  const patientId = requireText(
+    textField(await responseData(response), "mpiId"),
+    "患者创建响应必须返回 MPI",
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   return {
     patientId,
@@ -1077,7 +1211,14 @@ function periopAdapterConfig() {
     requestTimeoutMs: 1200,
     fieldMappings: [
       { sourcePath: "/patientId", targetPath: "/patient/mpi" },
-      { sourcePath: "/procedureCode", targetPath: "/procedures/0", targetDictionaryKey: "ICD-9-CM-3", category: "PROCEDURE" },
+      {
+        sourcePath: "/procedureCode",
+        targetPath: "/procedures/0",
+        targetDictionaryKey: "ICD-9-CM-3",
+        category: "PROCEDURE",
+      },
+      { sourcePath: "/procedures/0/procedureId", targetPath: "/procedures/0/procedureId" },
+      { sourcePath: "/procedures/0/sourceId", targetPath: "/procedures/0/sourceId" },
       { sourcePath: "/procedureName", targetPath: "/procedures/0/displayName" },
       { sourcePath: "/anesthesiaType", targetPath: "/procedures/0/anesthesiaType" },
       { sourcePath: "/surgeonId", targetPath: "/procedures/0/surgeonId" },
@@ -1088,14 +1229,34 @@ function periopAdapterConfig() {
       { sourcePath: "/anesthesiaDrugName", targetPath: "/medications/0/displayName" },
       { sourcePath: "/checklistType", targetPath: "/documents/0/documentType" },
       { sourcePath: "/checklistDigest", targetPath: "/documents/0/contentDigest" },
+      { sourcePath: "/documents/0/documentId", targetPath: "/documents/0/documentId" },
+      { sourcePath: "/documents/0/sourceId", targetPath: "/documents/0/sourceId" },
       { sourcePath: "/surgeryPlan/surgeryLevel", targetPath: "/surgeryPlan/surgeryLevel" },
-      { sourcePath: "/surgeryPlan/preOpAssessmentStatus", targetPath: "/surgeryPlan/preOpAssessmentStatus" },
+      {
+        sourcePath: "/surgeryPlan/preOpAssessmentStatus",
+        targetPath: "/surgeryPlan/preOpAssessmentStatus",
+      },
       { sourcePath: "/surgeryPlan/timeOutRequired", targetPath: "/surgeryPlan/timeOutRequired" },
-      { sourcePath: "/anesthesiaAssessment/airwayRisk", targetPath: "/anesthesiaAssessment/airwayRisk" },
-      { sourcePath: "/anesthesiaAssessment/anesthesiologistReviewRequired", targetPath: "/anesthesiaAssessment/anesthesiologistReviewRequired" },
-      { sourcePath: "/transfusionRequest/crossmatchStatus", targetPath: "/transfusionRequest/crossmatchStatus" },
-      { sourcePath: "/transfusionRequest/transfusionConsentConfirmed", targetPath: "/transfusionRequest/transfusionConsentConfirmed" },
-      { sourcePath: "/transfusionRequest/noAutoTransfusion", targetPath: "/transfusionRequest/noAutoTransfusion" },
+      {
+        sourcePath: "/anesthesiaAssessment/airwayRisk",
+        targetPath: "/anesthesiaAssessment/airwayRisk",
+      },
+      {
+        sourcePath: "/anesthesiaAssessment/anesthesiologistReviewRequired",
+        targetPath: "/anesthesiaAssessment/anesthesiologistReviewRequired",
+      },
+      {
+        sourcePath: "/transfusionRequest/crossmatchStatus",
+        targetPath: "/transfusionRequest/crossmatchStatus",
+      },
+      {
+        sourcePath: "/transfusionRequest/transfusionConsentConfirmed",
+        targetPath: "/transfusionRequest/transfusionConsentConfirmed",
+      },
+      {
+        sourcePath: "/transfusionRequest/noAutoTransfusion",
+        targetPath: "/transfusionRequest/noAutoTransfusion",
+      },
     ],
   };
 }
@@ -1119,7 +1280,10 @@ async function createPeriopWebhook(page: Page, suffix: string) {
 async function generatePeriopSignaturePreview(page: Page, webhookId: string) {
   const response = await postApi(page, "/engine/integration/webhooks/test", {
     webhookId,
-    payload: JSON.stringify({ traceId: `preview-${webhookId}`, eventType: "SURGERY_ANESTHESIA_TRANSFUSION_EVENT" }),
+    payload: JSON.stringify({
+      traceId: `preview-${webhookId}`,
+      eventType: "SURGERY_ANESTHESIA_TRANSFUSION_EVENT",
+    }),
   });
   await expectOk(response, "生成 S26 回调签名预览");
   const data = await responseData(response);
@@ -1153,6 +1317,12 @@ async function postSignedPeriopInbound(
     occurredAt: "2026-07-07T02:15:00Z",
     payload: {
       patientId: options.patient.patientId,
+      procedures: [
+        {
+          procedureId: `proc-surgery-${options.suffix}`,
+          sourceId: `src-procedure-${options.suffix}`,
+        },
+      ],
       procedureCode: procedureLocalCode,
       procedureName: positive ? "腹腔镜阑尾切除术" : "浅表清创术",
       anesthesiaType: positive ? "GENERAL" : "LOCAL",
@@ -1164,6 +1334,12 @@ async function postSignedPeriopInbound(
       anesthesiaDrugName: "七氟烷",
       checklistDigest: `sha256:surgery-safety-checklist-${options.suffix}`,
       checklistType: "SURGERY_SAFETY_CHECKLIST",
+      documents: [
+        {
+          documentId: `doc-checklist-${options.suffix}`,
+          sourceId: `src-document-${options.suffix}`,
+        },
+      ],
       surgeryPlan: {
         surgeryLevel: positive ? "LEVEL_3" : "LEVEL_1",
         preOpAssessmentStatus: positive ? "PASSED_WITH_RISK" : "PASSED",
@@ -1193,8 +1369,15 @@ async function postSignedPeriopInbound(
   );
   await expectOk(response, "S26 手麻手术室输血签名入站");
   const data = await responseData(response);
-  const clinicalEventId = requireText(textField(data, "clinicalEventId"), "入站必须返回 clinicalEventId");
-  const clinicalEvent = await waitForClinicalEventProcessed(page, clinicalEventId, options.runtimeReleaseId);
+  const clinicalEventId = requireText(
+    textField(data, "clinicalEventId"),
+    "入站必须返回 clinicalEventId",
+  );
+  const clinicalEvent = await waitForClinicalEventProcessed(
+    page,
+    clinicalEventId,
+    options.runtimeReleaseId,
+  );
   return {
     messageId: requireText(textField(data, "messageId"), "入站必须返回 messageId"),
     traceId: requireText(textField(data, "traceId"), "入站必须返回 traceId"),
@@ -1242,10 +1425,15 @@ async function waitForClinicalEventProcessed(
     }
     await waitForPollingInterval(250);
   }
-  throw new Error(`S26 入站事件 ${eventId} 未处理到 PROCESSED，最后状态：${last?.status ?? "UNKNOWN"}`);
+  throw new Error(
+    `S26 入站事件 ${eventId} 未处理到 PROCESSED，最后状态：${last?.status ?? "UNKNOWN"}`,
+  );
 }
 
-async function readLatestContextForPatient(page: Page, patientId: string): Promise<ContextSnapshotSummary> {
+async function readLatestContextForPatient(
+  page: Page,
+  patientId: string,
+): Promise<ContextSnapshotSummary> {
   const list = await getApi(
     page,
     `/engine/context/snapshots?patientId=${encodeURIComponent(patientId)}&status=ACTIVE&page=1&size=5&sort=createdAt,desc`,
@@ -1259,9 +1447,15 @@ async function readLatestContextForPatient(page: Page, patientId: string): Promi
   await expectOk(detail, "读取入站事件生成的上下文详情");
   const context = await responseData(detail);
   return {
-    patientId: requireText(textFieldAtPath(context, "resources.patient.mpi"), "上下文详情必须返回 patient.mpi"),
+    patientId: requireText(
+      textFieldAtPath(context, "resources.patient.mpi"),
+      "上下文详情必须返回 patient.mpi",
+    ),
     snapshotId: requireText(textField(context, "snapshotId"), "上下文详情必须返回 snapshotId"),
-    runtimeReleaseId: requireText(textField(context, "runtimeReleaseId"), "上下文详情必须返回 runtimeReleaseId"),
+    runtimeReleaseId: requireText(
+      textField(context, "runtimeReleaseId"),
+      "上下文详情必须返回 runtimeReleaseId",
+    ),
     encounterId: textFieldAtPath(context, "resources.encounters.0.encounterId"),
     resources: recordValue(recordField(context, "resources")) ?? {},
   };
@@ -1270,9 +1464,12 @@ async function readLatestContextForPatient(page: Page, patientId: string): Promi
 function assertSnapshotContainsPeriopFacts(resources: Record<string, unknown>) {
   expect(
     arrayField(resources, "procedures").some(
-      (item) => textField(item, "code") === procedureStandardCode && textField(item, "anesthesiaType") === "GENERAL",
+      (item) =>
+        textField(item, "code") === procedureStandardCode &&
+        textField(item, "anesthesiaType") === "GENERAL" &&
+        Boolean(textField(item, "sourceRecordId")),
     ),
-    "上下文必须包含 Procedure 手术操作和麻醉方式",
+    "上下文必须包含带来源身份的 Procedure 手术操作和麻醉方式",
   ).toBe(true);
   expect(
     arrayField(resources, "observations").some(
@@ -1282,19 +1479,31 @@ function assertSnapshotContainsPeriopFacts(resources: Record<string, unknown>) {
   ).toBe(true);
   expect(
     arrayField(resources, "medications").some(
-      (item) => textField(item, "code") === "N01AB06" || textField(item, "standardCode") === "N01AB06",
+      (item) =>
+        textField(item, "code") === "N01AB06" || textField(item, "standardCode") === "N01AB06",
     ),
     "上下文必须包含麻醉用药 Medication",
   ).toBe(true);
   expect(
     arrayField(resources, "documents").some(
-      (item) => textField(item, "documentType") === "SURGERY_SAFETY_CHECKLIST",
+      (item) =>
+        textField(item, "documentType") === "SURGERY_SAFETY_CHECKLIST" &&
+        Boolean(textField(item, "sourceRecordId")),
     ),
-    "上下文必须包含手术安全核查单 Document",
+    "上下文必须包含带来源身份的手术安全核查单 Document",
   ).toBe(true);
-  expect(booleanFieldAtPath(resources, "extensions.local.surgeryPlan.timeOutRequired"), "术前核查必须要求 time-out").toBe(true);
-  expect(textFieldAtPath(resources, "extensions.local.anesthesiaAssessment.airwayRisk"), "麻醉风险扩展必须保留").toBe("DIFFICULT_AIRWAY");
-  expect(booleanFieldAtPath(resources, "extensions.local.transfusionRequest.noAutoTransfusion"), "输血扩展必须禁止自动输血").toBe(true);
+  expect(
+    booleanFieldAtPath(resources, "extensions.local.surgeryPlan.timeOutRequired"),
+    "术前核查必须要求 time-out",
+  ).toBe(true);
+  expect(
+    textFieldAtPath(resources, "extensions.local.anesthesiaAssessment.airwayRisk"),
+    "麻醉风险扩展必须保留",
+  ).toBe("DIFFICULT_AIRWAY");
+  expect(
+    booleanFieldAtPath(resources, "extensions.local.transfusionRequest.noAutoTransfusion"),
+    "输血扩展必须禁止自动输血",
+  ).toBe(true);
 }
 
 async function sendPeriopOutbound(
@@ -1339,7 +1548,10 @@ async function sendPeriopOutbound(
     protocolType: "Webhook",
     status,
     compensationStatus: requireText(textField(compensation, "status"), "补偿日志必须返回状态"),
-    compensationMessageId: requireText(textField(compensation, "messageId"), "补偿日志必须返回 messageId"),
+    compensationMessageId: requireText(
+      textField(compensation, "messageId"),
+      "补偿日志必须返回 messageId",
+    ),
     blocksMainFlow: booleanField(data, "blocksMainFlow"),
     compensationRequired: textField(compensation, "status") === "NOT_CONNECTED",
     payload: {
@@ -1376,7 +1588,11 @@ async function triggerPeriopRecommendationFromFrontdesk(
   page: Page,
   options: {
     snapshot: ContextSnapshotSummary;
-    runtime: { releaseId: string; ruleAsset: RuntimeReleaseItem; actionCardAsset: RuntimeReleaseItem };
+    runtime: {
+      releaseId: string;
+      ruleAsset: RuntimeReleaseItem;
+      actionCardAsset: RuntimeReleaseItem;
+    };
     rule: PeriopAssetCandidate & { ruleId: string; ruleVersionId: string };
   },
 ) {
@@ -1392,7 +1608,10 @@ async function triggerPeriopRecommendationFromFrontdesk(
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
   const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `提醒推荐页必须展示本轮 S26 快照 ${snapshot.snapshotId}`).toBeVisible({ timeout: 20_000 });
+  await expect(
+    snapshotButton,
+    `提醒推荐页必须展示本轮 S26 快照 ${snapshot.snapshotId}`,
+  ).toBeVisible({ timeout: 20_000 });
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "签署医嘱");
   const evaluateResponsePromise = waitForEvaluateResponse(page, snapshot);
@@ -1400,7 +1619,10 @@ async function triggerPeriopRecommendationFromFrontdesk(
   const evaluateResponse = await evaluateResponsePromise;
   await expectHttpOk(evaluateResponse, "临床用户从真实前台触发 S26 推荐评估");
   const evaluation = await responseData(evaluateResponse);
-  const triggerId = requireText(textField(evaluation, "triggerId"), "推荐评估响应必须返回 triggerId");
+  const triggerId = requireText(
+    textField(evaluation, "triggerId"),
+    "推荐评估响应必须返回 triggerId",
+  );
   const relatedCardIds = await readRecommendationTriggerDiagnose(page, triggerId);
   const recommendation = await findPeriopRuleCard(page, relatedCardIds, {
     triggerId,
@@ -1422,7 +1644,11 @@ async function findPeriopRuleCard(
   options: {
     triggerId: string;
     snapshot: ContextSnapshotSummary;
-    runtime: { releaseId: string; ruleAsset: RuntimeReleaseItem; actionCardAsset: RuntimeReleaseItem };
+    runtime: {
+      releaseId: string;
+      ruleAsset: RuntimeReleaseItem;
+      actionCardAsset: RuntimeReleaseItem;
+    };
     rule: PeriopAssetCandidate & { ruleId: string; ruleVersionId: string };
   },
 ) {
@@ -1437,7 +1663,10 @@ async function findPeriopRuleCard(
   }> = [];
   const inspected: Array<Record<string, unknown>> = [];
   for (const cardId of Array.from(new Set(relatedCardIds))) {
-    const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+    const detailResponse = await getApi(
+      page,
+      `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    );
     await expectOk(detailResponse, `推荐卡 ${cardId} 详情应可读取`);
     const detail = await responseData(detailResponse);
     const explanation = parseJsonRecord(
@@ -1483,8 +1712,15 @@ async function findPeriopRuleCard(
       textField(runtimeRelease, "assetVersionId") === options.runtime.ruleAsset.versionId &&
       textField(runtimeRelease, "assetVersionNo") === options.runtime.ruleAsset.versionNo &&
       textField(runtimeRelease, "contentHash") === options.runtime.ruleAsset.contentHash &&
-      conditionEvidence.some((item) => textField(item, "fact") === "procedures[].code" && booleanField(item, "matched") === true) &&
-      conditionEvidence.some((item) => textField(item, "fact") === "observations[].valueString" && booleanField(item, "matched") === true) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "procedures[].code" && booleanField(item, "matched") === true,
+      ) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "observations[].valueString" &&
+          booleanField(item, "matched") === true,
+      ) &&
       conditionEvidence.some(
         (item) =>
           textField(item, "fact") === "extensions.local.transfusionRequest.noAutoTransfusion" &&
@@ -1503,7 +1739,10 @@ async function findPeriopRuleCard(
       cardStatus: textFieldAtPath(detail, "card.status"),
       triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
       cardType: textFieldAtPath(detail, "card.cardType") ?? "WARNING",
-      requiresPhysicianConfirmation: booleanFieldAtPath(detail, "card.requiresPhysicianConfirmation"),
+      requiresPhysicianConfirmation: booleanFieldAtPath(
+        detail,
+        "card.requiresPhysicianConfirmation",
+      ),
       aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
       explanation,
     });
@@ -1526,7 +1765,9 @@ async function completePeriopManualConfirmation(
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/cdss/fatigue"), { waitUntil: "networkidle" });
   await page.getByLabel("患者或证据线索").fill(options.cardId);
-  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
   const drawer = page.getByRole("dialog", { name: "推荐详情与反馈闭环" });
   await expect(drawer).toBeVisible({ timeout: 20_000 });
@@ -1539,7 +1780,10 @@ async function completePeriopManualConfirmation(
   const response = await responsePromise;
   await expectHttpOk(response, "登记 S26 围手术期人工确认");
   const feedback = await responseData(response);
-  const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(options.cardId)}`);
+  const detailResponse = await getApi(
+    page,
+    `/engine/recommendations/cards/${encodeURIComponent(options.cardId)}`,
+  );
   await expectOk(detailResponse, "回读 S26 推荐卡反馈详情");
   const detail = await responseData(detailResponse);
   const persisted = arrayField(detail, "feedback").find(
@@ -1621,7 +1865,10 @@ async function createAndClosePeriopRectification(
     ],
   });
   await expectOk(run, "创建 S26 围手术期质量问题");
-  const issues = await getApi(page, "/engine/evaluation/issues?severity=P1&status=ASSIGNED&page=1&size=20&sort=createdAt,desc");
+  const issues = await getApi(
+    page,
+    "/engine/evaluation/issues?severity=P1&status=ASSIGNED&page=1&size=20&sort=createdAt,desc",
+  );
   await expectOk(issues, "读取 S26 质量问题");
   const finding = pageItems(await responseData(issues)).find((item) =>
     String(textField(item, "findingCode") ?? "").includes(options.suffix),
@@ -1629,17 +1876,28 @@ async function createAndClosePeriopRectification(
   const findingId = requireText(textField(finding, "findingId"), "必须回读本轮 S26 质量问题");
   const detail = await getApi(page, `/engine/evaluation/issues/${encodeURIComponent(findingId)}`);
   await expectOk(detail, "读取 S26 质量问题详情");
-  const taskId = requireText(textFieldAtPath(await responseData(detail), "rectificationTask.taskId"), "质量问题必须自动派发整改任务");
-  const submit = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/submit`, {
-    rectificationSummary: "已补充术前 time-out、困难气道复核和输血人工确认记录。",
-    evidenceRef: `surgery-anesthesia-transfusion-evidence-${options.suffix}`,
-  });
+  const taskId = requireText(
+    textFieldAtPath(await responseData(detail), "rectificationTask.taskId"),
+    "质量问题必须自动派发整改任务",
+  );
+  const submit = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
+    {
+      rectificationSummary: "已补充术前 time-out、困难气道复核和输血人工确认记录。",
+      evidenceRef: `surgery-anesthesia-transfusion-evidence-${options.suffix}`,
+    },
+  );
   await expectOk(submit, "提交 S26 整改证据");
-  const review = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/review`, {
-    decision: "APPROVED",
-    comment: "复核通过，整改证据与本轮 S26 推荐卡一致。",
-    evidenceRef: `surgery-anesthesia-transfusion-review-${options.suffix}`,
-  });
+  const review = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
+    {
+      decision: "APPROVED",
+      comment: "复核通过，整改证据与本轮 S26 推荐卡一致。",
+      evidenceRef: `surgery-anesthesia-transfusion-review-${options.suffix}`,
+    },
+  );
   await expectOk(review, "复核关闭 S26 整改任务");
   const reviewData = await responseData(review);
   return {
@@ -1670,7 +1928,11 @@ async function createActiveEvaluationIndicator(page: Page, suffix: string, depar
     denominatorDefinition: JSON.stringify({
       all: [
         { fact: "procedures[].code", operator: "contains", value: procedureStandardCode },
-        { fact: "extensions.local.transfusionRequest.noAutoTransfusion", operator: "equals", value: true },
+        {
+          fact: "extensions.local.transfusionRequest.noAutoTransfusion",
+          operator: "equals",
+          value: true,
+        },
       ],
     }),
     numeratorDefinition: JSON.stringify({
@@ -1684,21 +1946,28 @@ async function createActiveEvaluationIndicator(page: Page, suffix: string, depar
     sourceRef: "local-e2e:surgery-anesthesia-transfusion",
   });
   await expectOk(created, "创建 S26 评价指标");
-  const indicatorId = requireText(textField(await responseData(created), "indicatorId"), "评价指标必须返回 indicatorId");
+  const indicatorId = requireText(
+    textField(await responseData(created), "indicatorId"),
+    "评价指标必须返回 indicatorId",
+  );
   for (const action of ["submit", "publish", "gray", "activate"]) {
-    const response = await postApi(page, `/engine/evaluation/indicators/${encodeURIComponent(indicatorId)}/${action}`, {
-      reason: `S26 围手术期指标 ${action}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: "S26 围手术期代表切片指标质量门已通过",
+    const response = await postApi(
+      page,
+      `/engine/evaluation/indicators/${encodeURIComponent(indicatorId)}/${action}`,
+      {
+        reason: `S26 围手术期指标 ${action}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: "S26 围手术期代表切片指标质量门已通过",
+          },
         },
       },
-    });
+    );
     await expectOk(response, `评价指标 ${action}`);
   }
   return { indicatorId, indicatorCode };
@@ -1758,6 +2027,40 @@ async function attachPeriopEvidence(
         ],
         scopeStatement:
           "围手术期、麻醉与输血代表切片：NURSING_ANESTHESIA_TRANSFUSION_ICU 入站、术前核查、麻醉风险、用血确认、人工确认和时序质控整改闭环，不代表完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖或完整上线验收。",
+        standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
+          {
+            resourceType: "Procedure",
+            resourcePath: "clinicalContext.resources.procedures[0]",
+            sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            sourceIdPath: "clinicalContext.resources.procedures[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "SURGERY_ANESTHESIA_TRANSFUSION_RULE",
+            consumerEvidencePaths: [
+              "recommendation.explanation.ruleExplanation.conditionEvidence[0]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["qualityRectification.findingId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "Document",
+            resourcePath: "clinicalContext.resources.documents[0]",
+            sourceSystem: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            sourceIdPath: "clinicalContext.resources.documents[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "SURGERY_ANESTHESIA_TRANSFUSION_RULE",
+            consumerEvidencePaths: ["inboundSurgeryEvent.mappedPayload.documents[0]"],
+            consumerVerified: true,
+            auditEvidencePaths: ["manualConfirmation.persisted.feedbackId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+        ]),
         apiEvidence: evidence.apiEvidence,
         adapter: evidence.adapter,
         webhookSignature: evidence.webhookSignature,
@@ -1823,7 +2126,10 @@ async function readRecommendationTriggerDiagnose(page: Page, triggerId: string) 
 }
 
 async function localRehearsalHospitalId(page: Page) {
-  const response = await getApi(page, "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20");
+  const response = await getApi(
+    page,
+    "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20",
+  );
   await expectOk(response, "读取本地上线演练医院");
   const hospital = pageItems(await responseData(response)).find(
     (item) =>
@@ -1913,7 +2219,9 @@ async function waitForPost(page: Page, pathIncludes: string) {
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
   const field = dialog.getByRole("combobox", { name: label }).first();
   const selector = field
-    .locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]")
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]",
+    )
     .first()
     .locator(".ant-select-selector")
     .first();

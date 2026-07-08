@@ -1,4 +1,11 @@
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -14,6 +21,7 @@ import {
   resolvedTenantIdFor,
   waitForPollingInterval,
 } from "./support/auth";
+import { standardPatientResourceConsumerMatrix } from "./support/standardPatientResourceMatrix";
 
 type RuntimeAssetSelection = {
   assetType: string;
@@ -104,149 +112,148 @@ const requiredStages = [
 ] as const;
 
 test.describe("用药安全代表切片真实前台闭环", () => {
-  test(
-    "临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(300_000);
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
+  test("临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
 
-      await ensureReadySession(page, "engine-operator");
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
-      const hospitalId = await localRehearsalHospitalId(page);
-      const riskMatrix = await createMedicationSafetyRiskMatrix(page, suffix);
-      apiEvidence.riskMatrixCreatedFromRealService = true;
-      recordStage(observedStages, "运营员创建真实 CDSS_RISK 风险矩阵");
+    await ensureReadySession(page, "engine-operator");
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+    const hospitalId = await localRehearsalHospitalId(page);
+    const riskMatrix = await createMedicationSafetyRiskMatrix(page, suffix);
+    apiEvidence.riskMatrixCreatedFromRealService = true;
+    recordStage(observedStages, "运营员创建真实 CDSS_RISK 风险矩阵");
 
-      const safetyRedline = await createPromotedMedicationAllergyRedline(page, {
-        suffix,
-        riskMatrix,
-      });
-      apiEvidence.safetyRedlineDraftCreated = true;
-      apiEvidence.safetyRedlineDryRunSubmitted = true;
-      apiEvidence.safetyAssetPromoted = true;
-      recordStage(observedStages, "运营员创建药物过敏禁忌 SAFETY 红线草稿");
-      recordStage(observedStages, "运营员提交静默试运行并上线 SAFETY 资产");
+    const safetyRedline = await createPromotedMedicationAllergyRedline(page, {
+      suffix,
+      riskMatrix,
+    });
+    apiEvidence.safetyRedlineDraftCreated = true;
+    apiEvidence.safetyRedlineDryRunSubmitted = true;
+    apiEvidence.safetyAssetPromoted = true;
+    recordStage(observedStages, "运营员创建药物过敏禁忌 SAFETY 红线草稿");
+    recordStage(observedStages, "运营员提交静默试运行并上线 SAFETY 资产");
 
-      const terminologyGate = await createMedicationSafetyTerminologyGate(page, suffix);
-      const terminologyRuntime = await activateRuntimeWithMedicationSafetyAssets(page, {
-        hospitalId,
-        extraAssets: [runtimeSelection(terminologyGate)],
-      });
-      assertRuntimeContainsTerminology(terminologyRuntime, terminologyGate);
-      apiEvidence.terminologyCoverageGateActivated = true;
-      recordStage(observedStages, "运营员补齐 ATC:J01C 术语映射并激活到当前机构生效版本");
+    const terminologyGate = await createMedicationSafetyTerminologyGate(page, suffix);
+    const terminologyRuntime = await activateRuntimeWithMedicationSafetyAssets(page, {
+      hospitalId,
+      extraAssets: [runtimeSelection(terminologyGate)],
+    });
+    assertRuntimeContainsTerminology(terminologyRuntime, terminologyGate);
+    apiEvidence.terminologyCoverageGateActivated = true;
+    recordStage(observedStages, "运营员补齐 ATC:J01C 术语映射并激活到当前机构生效版本");
 
-      const rulePositiveSnapshot = await createMedicationSafetyContextFromFrontdesk(
-        page,
-        `${suffix}-RULE-POS`,
-      );
-      const ruleNegativeSnapshot = await createMedicationSafetyContextFromFrontdesk(
-        page,
-        `${suffix}-RULE-NEG`,
-        { allergyText: "头孢菌素：呼吸困难" },
-      );
-      await ensureReadySession(page, "engine-operator");
-      const rule = await createAndPublishMedicationSafetyRule(page, suffix, {
-        positiveContextSnapshotId: rulePositiveSnapshot.snapshotId,
-        negativeContextSnapshotId: ruleNegativeSnapshot.snapshotId,
-      });
-      apiEvidence.ruleCreatedForMedicationPrescribe = true;
-      recordStage(observedStages, "运营员创建 medication-prescribe 规则资产");
+    const rulePositiveSnapshot = await createMedicationSafetyContextFromFrontdesk(
+      page,
+      `${suffix}-RULE-POS`,
+    );
+    const ruleNegativeSnapshot = await createMedicationSafetyContextFromFrontdesk(
+      page,
+      `${suffix}-RULE-NEG`,
+      { allergyText: "头孢菌素：呼吸困难" },
+    );
+    await ensureReadySession(page, "engine-operator");
+    const rule = await createAndPublishMedicationSafetyRule(page, suffix, {
+      positiveContextSnapshotId: rulePositiveSnapshot.snapshotId,
+      negativeContextSnapshotId: ruleNegativeSnapshot.snapshotId,
+    });
+    apiEvidence.ruleCreatedForMedicationPrescribe = true;
+    recordStage(observedStages, "运营员创建 medication-prescribe 规则资产");
 
-      const candidates = await readMedicationSafetyRuntimeCandidates(page, hospitalId, {
-        safetyIdentity: safetyRedline.assetIdentity,
-        ruleIdentity: rule.assetIdentity,
-      });
-      apiEvidence.ruleRuntimeCandidateResolvedFromCurrentHospital = true;
-      const riskMatrixEvidence = {
-        ...riskMatrix,
-        versionId: candidates.cdssRisk.versionId,
-        versionNo: candidates.cdssRisk.versionNo,
-        contentHash: candidates.cdssRisk.contentHash,
-      };
-      const safetyRedlineEvidence = {
-        ...safetyRedline,
-        versionId: candidates.safety.versionId,
-        versionNo: candidates.safety.versionNo,
-        contentHash: candidates.safety.contentHash,
-      };
-      const ruleEvidence = {
-        ...rule,
-        versionId: candidates.rule.versionId,
-        versionNo: candidates.rule.versionNo,
-        contentHash: candidates.rule.contentHash,
-      };
-      const runtime = await activateRuntimeWithMedicationSafetyAssets(page, {
-        hospitalId,
-        safety: candidates.safety,
-        cdssRisk: candidates.cdssRisk,
-        rule: candidates.rule,
-        extraAssets: [runtimeSelection(terminologyGate)],
-      });
-      expect(runtime.safetyAsset, "最终机构生效版本必须包含本轮 SAFETY 资产").toBeTruthy();
-      expect(runtime.cdssRiskAsset, "最终机构生效版本必须包含本轮 CDSS_RISK 资产").toBeTruthy();
-      expect(runtime.ruleAsset, "最终机构生效版本必须包含本轮 RULE 资产").toBeTruthy();
-      apiEvidence.runtimeActivatedWithSafetyRiskAndRule = true;
-      recordStage(observedStages, "当前机构生效版本包含 SAFETY、CDSS_RISK 与 RULE");
+    const candidates = await readMedicationSafetyRuntimeCandidates(page, hospitalId, {
+      safetyIdentity: safetyRedline.assetIdentity,
+      ruleIdentity: rule.assetIdentity,
+    });
+    apiEvidence.ruleRuntimeCandidateResolvedFromCurrentHospital = true;
+    const riskMatrixEvidence = {
+      ...riskMatrix,
+      versionId: candidates.cdssRisk.versionId,
+      versionNo: candidates.cdssRisk.versionNo,
+      contentHash: candidates.cdssRisk.contentHash,
+    };
+    const safetyRedlineEvidence = {
+      ...safetyRedline,
+      versionId: candidates.safety.versionId,
+      versionNo: candidates.safety.versionNo,
+      contentHash: candidates.safety.contentHash,
+    };
+    const ruleEvidence = {
+      ...rule,
+      versionId: candidates.rule.versionId,
+      versionNo: candidates.rule.versionNo,
+      contentHash: candidates.rule.contentHash,
+    };
+    const runtime = await activateRuntimeWithMedicationSafetyAssets(page, {
+      hospitalId,
+      safety: candidates.safety,
+      cdssRisk: candidates.cdssRisk,
+      rule: candidates.rule,
+      extraAssets: [runtimeSelection(terminologyGate)],
+    });
+    expect(runtime.safetyAsset, "最终机构生效版本必须包含本轮 SAFETY 资产").toBeTruthy();
+    expect(runtime.cdssRiskAsset, "最终机构生效版本必须包含本轮 CDSS_RISK 资产").toBeTruthy();
+    expect(runtime.ruleAsset, "最终机构生效版本必须包含本轮 RULE 资产").toBeTruthy();
+    apiEvidence.runtimeActivatedWithSafetyRiskAndRule = true;
+    recordStage(observedStages, "当前机构生效版本包含 SAFETY、CDSS_RISK 与 RULE");
 
-      const snapshot = await createMedicationSafetyContextFromFrontdesk(page, suffix);
-      expect(
-        snapshot.runtimeReleaseId,
-        "用药安全上下文必须绑定包含本轮 SAFETY/CDSS_RISK/RULE 的当前机构生效版本",
-      ).toBe(runtime.releaseId);
-      assertSnapshotContainsMedicationAllergy(snapshot.resources);
-      apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从患者 360 建立 Medication 与 AllergyIntolerance 上下文");
+    const snapshot = await createMedicationSafetyContextFromFrontdesk(page, suffix);
+    expect(
+      snapshot.runtimeReleaseId,
+      "用药安全上下文必须绑定包含本轮 SAFETY/CDSS_RISK/RULE 的当前机构生效版本",
+    ).toBe(runtime.releaseId);
+    assertSnapshotContainsMedicationAllergy(snapshot.resources);
+    apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从患者 360 建立 Medication 与 AllergyIntolerance 上下文");
 
-      const recommendation = await triggerMedicationSafetyRecommendationFromFrontdesk(page, {
-        snapshot,
-        runtime,
-        safety: candidates.safety,
-        cdssRisk: candidates.cdssRisk,
-        rule: ruleEvidence,
-        riskMatrix: riskMatrixEvidence,
-      });
-      apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台开立用药触发推荐评估");
+    const recommendation = await triggerMedicationSafetyRecommendationFromFrontdesk(page, {
+      snapshot,
+      runtime,
+      safety: candidates.safety,
+      cdssRisk: candidates.cdssRisk,
+      rule: ruleEvidence,
+      riskMatrix: riskMatrixEvidence,
+    });
+    apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台开立用药触发推荐评估");
 
-      const feedback = await completePharmacistAndPhysicianFeedback(page, recommendation.cardId);
-      expect(feedback.pharmacist.cardStatus, "药师复核不能关闭医生待确认链路").toBe("PENDING");
-      expect(feedback.physician.cardStatus, "医生确认后推荐卡才进入采纳状态").toBe("ACCEPTED");
-      apiEvidence.pharmacistReviewRecordedWithoutClosingPhysicianConfirmation = true;
-      apiEvidence.physicianConfirmationRecorded = true;
-      recordStage(observedStages, "药师登记红线复核且不关闭医生确认链路");
-      recordStage(observedStages, "医生逐条确认采纳，系统不自动开嘱");
+    const feedback = await completePharmacistAndPhysicianFeedback(page, recommendation.cardId);
+    expect(feedback.pharmacist.cardStatus, "药师复核不能关闭医生待确认链路").toBe("PENDING");
+    expect(feedback.physician.cardStatus, "医生确认后推荐卡才进入采纳状态").toBe("ACCEPTED");
+    apiEvidence.pharmacistReviewRecordedWithoutClosingPhysicianConfirmation = true;
+    apiEvidence.physicianConfirmationRecorded = true;
+    recordStage(observedStages, "药师登记红线复核且不关闭医生确认链路");
+    recordStage(observedStages, "医生逐条确认采纳，系统不自动开嘱");
 
-      await attachMedicationSafetyEvidence(testInfo, {
-        apiEvidence,
-        riskMatrix: riskMatrixEvidence,
-        safetyRedline: safetyRedlineEvidence,
-        rule: ruleEvidence,
-        terminologyGate,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext: {
-          patientId: snapshot.patientId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          encounterId: snapshot.encounterId,
-          resources: snapshot.resources,
-        },
-        clinicalTrigger: {
-          triggerId: recommendation.triggerId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          cardId: recommendation.cardId,
-          relatedCardIds: recommendation.relatedCardIds,
-        },
-        recommendation,
-        ruleRecommendation: recommendation.ruleRecommendation,
-        feedback,
-        observedStages,
-      });
-    },
-  );
+    await attachMedicationSafetyEvidence(testInfo, {
+      apiEvidence,
+      riskMatrix: riskMatrixEvidence,
+      safetyRedline: safetyRedlineEvidence,
+      rule: ruleEvidence,
+      terminologyGate,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext: {
+        patientId: snapshot.patientId,
+        contextSnapshotId: snapshot.snapshotId,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        encounterId: snapshot.encounterId,
+        resources: snapshot.resources,
+      },
+      clinicalTrigger: {
+        triggerId: recommendation.triggerId,
+        contextSnapshotId: snapshot.snapshotId,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        cardId: recommendation.cardId,
+        relatedCardIds: recommendation.relatedCardIds,
+      },
+      recommendation,
+      ruleRecommendation: recommendation.ruleRecommendation,
+      feedback,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): MedicationSafetyApiEvidence {
@@ -301,12 +308,18 @@ async function createMedicationSafetyRiskMatrix(page: Page, suffix: string) {
     assetType: "CDSS_RISK" as const,
     assetIdentity: "CDSS.RISK.MATRIX",
     matrixId: requireText(textField(rule, "matrixId"), "风险矩阵响应必须返回 matrixId"),
-    matrixVersion: requireText(textField(rule, "matrixVersion"), "风险矩阵响应必须返回 matrixVersion"),
+    matrixVersion: requireText(
+      textField(rule, "matrixVersion"),
+      "风险矩阵响应必须返回 matrixVersion",
+    ),
     triggerPoint: requireText(textField(rule, "triggerPoint"), "风险矩阵必须返回触发点"),
     severityLevel: requireText(textField(rule, "severityLevel"), "风险矩阵必须返回严重度"),
     automationLevel: requireText(textField(rule, "automationLevel"), "风险矩阵必须返回自动化等级"),
     riskLevel: requireText(textField(rule, "riskLevel"), "风险矩阵必须返回风险等级"),
-    reviewRequirement: requireText(textField(rule, "reviewRequirement"), "风险矩阵必须返回复核要求"),
+    reviewRequirement: requireText(
+      textField(rule, "reviewRequirement"),
+      "风险矩阵必须返回复核要求",
+    ),
     silentRunHours: numberField(rule, "silentRunHours") ?? 0,
     releaseGate: requireText(textField(rule, "releaseGate"), "风险矩阵必须返回上线门槛"),
     autoExecutionAllowed: booleanField(rule, "autoExecutionAllowed"),
@@ -367,7 +380,10 @@ async function createPromotedMedicationAllergyRedline(
     operatorNote: "P0 用药安全代表切片：静默试运行达标，不自动开嘱。",
   });
   await expectOk(dryRun, "提交 P0 用药过敏禁忌 SAFETY 静默试运行");
-  const trialId = requireText(textField(await responseData(dryRun), "trialId"), "静默试运行必须返回 trialId");
+  const trialId = requireText(
+    textField(await responseData(dryRun), "trialId"),
+    "静默试运行必须返回 trialId",
+  );
 
   const promoted = await postApi(page, "/engine/safety/redlines:promote", {
     redlineId,
@@ -385,8 +401,14 @@ async function createPromotedMedicationAllergyRedline(
     redlineVersion,
     conditionDsl,
     trialId,
-    hazardSeverity: requireText(textField(promotedData, "hazardSeverity"), "红线上线响应必须返回严重度"),
-    riskMatrixId: requireText(textField(promotedData, "riskMatrixId"), "红线上线响应必须返回风险矩阵 ID"),
+    hazardSeverity: requireText(
+      textField(promotedData, "hazardSeverity"),
+      "红线上线响应必须返回严重度",
+    ),
+    riskMatrixId: requireText(
+      textField(promotedData, "riskMatrixId"),
+      "红线上线响应必须返回风险矩阵 ID",
+    ),
     riskMatrixVersion: requireText(
       textField(promotedData, "riskMatrixVersion"),
       "红线上线响应必须返回风险矩阵版本",
@@ -395,7 +417,10 @@ async function createPromotedMedicationAllergyRedline(
       textField(promotedData, "reviewRequirement"),
       "红线上线响应必须返回医师确认要求",
     ),
-    releaseGate: requireText(textField(promotedData, "releaseGate"), "红线上线响应必须返回上线门槛"),
+    releaseGate: requireText(
+      textField(promotedData, "releaseGate"),
+      "红线上线响应必须返回上线门槛",
+    ),
     lowerTenantOverrideAllowed: booleanField(promotedData, "lowerTenantOverrideAllowed"),
     title: requireText(textField(draftData, "title"), "红线草稿响应必须返回标题"),
   };
@@ -421,7 +446,7 @@ async function createMedicationSafetyTerminologyGate(
   const standardData = await responseData(standard);
   const standardTermId = numberField(standardData, "id");
 
-  const localCode = "J01C";
+  const localCode = `J01C-${suffix}`;
   const sourceSystem = "MEDKERNEL_FRONTDESK";
   const local = await postApi(page, "/engine/terminology/terms/local", {
     ...terminologyApiContext(suffix, "local"),
@@ -435,13 +460,15 @@ async function createMedicationSafetyTerminologyGate(
   await expectOk(local, "登记 P0 用药安全前台院内药品术语");
 
   const coverageBeforeCandidate = await readMedicationSafetyTerminologyCoverage(page);
-  const mapping = coverageBeforeCandidate.status === "COVERED"
-    ? await readConfirmedMedicationSafetyTermMapping(page, { sourceSystem, standardTermId })
-    : await generateAndConfirmMedicationSafetyTermMapping(page, {
-        suffix,
-        sourceSystem,
-        localCode,
-      });
+  const mapping =
+    coverageBeforeCandidate.status === "COVERED"
+        ? await readConfirmedMedicationSafetyTermMapping(page, { sourceSystem, standardTermId })
+        : await generateAndConfirmMedicationSafetyTermMapping(page, {
+            suffix,
+            sourceSystem,
+            localCode,
+            standardTermId: typeof standardTermId === "number" ? standardTermId : null,
+          });
 
   const assetIdentity = `TERM.DRUG.MEDICATION.SAFETY.${suffix}`;
   const draft = await postApi(page, "/engine/terminology/assets/drafts", {
@@ -457,21 +484,30 @@ async function createMedicationSafetyTerminologyGate(
     assetIdentity: requireText(textField(draftData, "assetIdentity"), "术语资产草稿必须返回身份"),
     versionId: requireText(textField(draftData, "versionId"), "术语资产草稿必须返回 versionId"),
     versionNo: requireText(textField(draftData, "versionNo"), "术语资产草稿必须返回 versionNo"),
-    contentHash: requireText(textField(draftData, "contentHash"), "术语资产草稿必须返回 contentHash"),
+    contentHash: requireText(
+      textField(draftData, "contentHash"),
+      "术语资产草稿必须返回 contentHash",
+    ),
     standardSystem: "ATC",
     standardCode: "J01C",
     localCode,
     sourceSystem,
     category: "DRUG",
     mappingId: mapping.mappingId,
-    standardTermId: mapping.standardTermId ?? (typeof standardTermId === "number" ? standardTermId : null),
+    standardTermId:
+      mapping.standardTermId ?? (typeof standardTermId === "number" ? standardTermId : null),
   };
 }
 
 async function readMedicationSafetyTerminologyCoverage(page: Page) {
-  const response = await getApi(page, "/engine/terminology/mappings/coverage?standardSystem=ATC&codes=J01C");
+  const response = await getApi(
+    page,
+    "/engine/terminology/mappings/coverage?standardSystem=ATC&codes=J01C",
+  );
   await expectOk(response, "读取 P0 用药安全术语覆盖状态");
-  const item = arrayData(await responseData(response)).find((value) => textField(value, "code") === "J01C");
+  const item = arrayData(await responseData(response)).find(
+    (value) => textField(value, "code") === "J01C",
+  );
   const status = requireText(textField(item, "status"), "P0 用药安全术语覆盖必须返回状态");
   expect(["COVERED", "UNMAPPED", "NO_STANDARD_TERM"]).toContain(status);
   return {
@@ -508,7 +544,7 @@ async function readConfirmedMedicationSafetyTermMapping(
 
 async function generateAndConfirmMedicationSafetyTermMapping(
   page: Page,
-  options: { suffix: string; sourceSystem: string; localCode: string },
+  options: { suffix: string; sourceSystem: string; localCode: string; standardTermId: number | null },
 ) {
   const generation = await postApi(page, "/engine/terminology/mappings/candidates", {
     ...terminologyApiContext(options.suffix, "candidates"),
@@ -525,6 +561,7 @@ async function generateAndConfirmMedicationSafetyTermMapping(
     jobCode,
     sourceSystem: options.sourceSystem,
     localCode: options.localCode,
+    standardTermId: options.standardTermId,
   });
   const candidateId = numberField(candidate, "id");
   expect(candidateId, "P0 用药安全术语候选必须返回 id").toBeTruthy();
@@ -533,7 +570,7 @@ async function generateAndConfirmMedicationSafetyTermMapping(
     `/engine/terminology/mappings/${encodeURIComponent(String(candidateId))}/confirm`,
     {
       ...terminologyApiContext(options.suffix, "confirm"),
-      reviewNote: "P0 用药安全代表切片：确认前台药品编码 J01C 到 ATC:J01C。",
+      reviewNote: `P0 用药安全代表切片：确认前台药品编码 ${options.localCode} 到 ATC:J01C。`,
       evidenceOverride: "P0 用药安全代表切片规则发布前置术语覆盖门禁。",
     },
   );
@@ -549,7 +586,7 @@ async function generateAndConfirmMedicationSafetyTermMapping(
 
 async function waitForMedicationSafetyTerminologyCandidate(
   page: Page,
-  options: { jobCode: string; sourceSystem: string; localCode: string },
+  options: { jobCode: string; sourceSystem: string; localCode: string; standardTermId: number | null },
 ) {
   const deadline = Date.now() + 20_000;
   let lastStatus = "PENDING";
@@ -574,7 +611,8 @@ async function waitForMedicationSafetyTerminologyCandidate(
       (item) =>
         textField(item, "status") === "PENDING" &&
         textField(item, "generationJobCode") === options.jobCode &&
-        (textField(item, "evidenceText") ?? "").includes(options.localCode),
+        (options.standardTermId === null ||
+          numberField(item, "standardTermId") === options.standardTermId),
     );
     if (candidate) return candidate;
     await waitForPollingInterval(250);
@@ -641,7 +679,8 @@ async function createAndPublishMedicationSafetyRule(
       ],
       explain: {
         title: "P0 用药安全代表切片规则",
-        reason: "Medication 与 AllergyIntolerance 均来自当前临床上下文，规则由当前机构生效版本锁定。",
+        reason:
+          "Medication 与 AllergyIntolerance 均来自当前临床上下文，规则由当前机构生效版本锁定。",
         sourceRef: "local-e2e:medication-safety-frontdesk",
       },
     },
@@ -695,7 +734,10 @@ async function createAndPublishMedicationSafetyRule(
     assetType: "RULE" as const,
     assetIdentity: ruleCode,
     ruleId,
-    ruleVersionId: requireText(textField(created, "versionId"), "规则创建响应必须返回规则 versionId"),
+    ruleVersionId: requireText(
+      textField(created, "versionId"),
+      "规则创建响应必须返回规则 versionId",
+    ),
   };
 }
 
@@ -805,7 +847,10 @@ async function readHospitalRuntimeCandidate(
     assetType,
     assetIdentity,
     versionId,
-    versionNo: requireText(textField(candidate, "versionNo"), `${assetType} runtime 候选必须返回版本号`),
+    versionNo: requireText(
+      textField(candidate, "versionNo"),
+      `${assetType} runtime 候选必须返回版本号`,
+    ),
     contentHash: requireText(
       textField(candidate, "contentHash"),
       `${assetType} runtime 候选必须返回正文 hash`,
@@ -892,7 +937,9 @@ async function activateRuntimeWithMedicationSafetyAssets(
     releaseId,
   );
   const safetyAsset = options.safety ? assertRuntimeContainsAsset(detail, options.safety) : null;
-  const cdssRiskAsset = options.cdssRisk ? assertRuntimeContainsAsset(detail, options.cdssRisk) : null;
+  const cdssRiskAsset = options.cdssRisk
+    ? assertRuntimeContainsAsset(detail, options.cdssRisk)
+    : null;
   const ruleAsset = options.rule ? assertRuntimeContainsAsset(detail, options.rule) : null;
   return {
     releaseId,
@@ -963,7 +1010,9 @@ async function createMedicationSafetyContextFromFrontdesk(
     .fill(overrides.allergyText ?? "青霉素：皮疹；头孢菌素：呼吸困难");
   await contextDialog.getByLabel("身高 cm").fill("170");
   await contextDialog.getByLabel("体重 kg").fill("82");
-  await contextDialog.getByLabel("建立原因").fill("P0 用药安全代表切片：建立当前用药与过敏史上下文。");
+  await contextDialog
+    .getByLabel("建立原因")
+    .fill("P0 用药安全代表切片：建立当前用药与过敏史上下文。");
   const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
   await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
   const contextResponse = await contextResponsePromise;
@@ -1017,9 +1066,11 @@ async function triggerMedicationSafetyRecommendationFromFrontdesk(
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
   const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible({
-    timeout: 20_000,
-  });
+  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible(
+    {
+      timeout: 20_000,
+    },
+  );
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "开立用药");
   const evaluateResponsePromise = waitForMedicationSafetyEvaluateResponse(page, snapshot);
@@ -1037,13 +1088,21 @@ async function triggerMedicationSafetyRecommendationFromFrontdesk(
   expect(relatedCardIds, "触发诊断必须关联本次评估响应中的可见推荐卡").toEqual(
     expect.arrayContaining(responseCardIds),
   );
-  const recommendation = await findMedicationSafetyRecommendationCard(page, relatedCardIds, options);
-  const ruleRecommendation = await findMedicationSafetyRuleRecommendationCard(page, relatedCardIds, {
-    triggerId,
-    snapshot,
-    runtime: options.runtime,
-    rule: options.rule,
-  });
+  const recommendation = await findMedicationSafetyRecommendationCard(
+    page,
+    relatedCardIds,
+    options,
+  );
+  const ruleRecommendation = await findMedicationSafetyRuleRecommendationCard(
+    page,
+    relatedCardIds,
+    {
+      triggerId,
+      snapshot,
+      runtime: options.runtime,
+      rule: options.rule,
+    },
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await page.getByLabel("患者或证据线索").fill(recommendation.cardId);
   await expect(
@@ -1076,9 +1135,7 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
   const reviewResponse = await reviewResponsePromise;
   await expectHttpOk(reviewResponse, "登记 P0 用药安全药师复核");
   const pharmacist = await responseData(reviewResponse);
-  expect(textField(pharmacist, "cardStatus"), "药师复核响应必须保持医生待确认链路").toBe(
-    "PENDING",
-  );
+  expect(textField(pharmacist, "cardStatus"), "药师复核响应必须保持医生待确认链路").toBe("PENDING");
   await expect(drawer.getByText(/药师\s*·\s*完成复核/u)).toBeVisible({ timeout: 30_000 });
   await drawer.getByRole("button", { name: "Close" }).click();
   await expect(drawer).toBeHidden({ timeout: 20_000 });
@@ -1102,7 +1159,10 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
   await expectHttpOk(acceptResponse, "登记 P0 用药安全医生确认");
   const physician = await responseData(acceptResponse);
   await expect(refreshedDrawer.getByText(/医生\s*·\s*采纳建议/u)).toBeVisible({ timeout: 30_000 });
-  const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+  const detailResponse = await getApi(
+    page,
+    `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+  );
   await expectOk(detailResponse, "回读 P0 用药安全推荐卡反馈详情");
   const detail = await responseData(detailResponse);
   const persistedFeedback = arrayField(detail, "feedback");
@@ -1229,7 +1289,10 @@ async function findMedicationSafetyRecommendationCard(
     if (!matches) continue;
     matchedCards.push({
       cardId,
-      cardTitle: requireText(textFieldAtPath(detail, "card.title"), `推荐卡 ${cardId} 必须返回业务标题`),
+      cardTitle: requireText(
+        textFieldAtPath(detail, "card.title"),
+        `推荐卡 ${cardId} 必须返回业务标题`,
+      ),
       cardStatus: textFieldAtPath(detail, "card.status"),
       triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
       explanation,
@@ -1422,6 +1485,75 @@ async function attachMedicationSafetyEvidence(
         versionedAssets: ["SAFETY", "CDSS_RISK", "RULE"],
         serviceCombinations: ["CLINICAL_RUNTIME"],
         scopeStatement: "用药安全代表切片：药物过敏红线，不代表完整药事治理或第三方审方系统闭环。",
+        standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
+          {
+            resourceType: "Patient",
+            resourcePath: "clinicalContext.resources.patient",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.patient.mpi",
+            patientVerified: true,
+            encounterVerified: false,
+            snapshotReadbackVerified: true,
+            consumer: "MEDICATION_SAFETY_RULE",
+            consumerEvidencePaths: [
+              "ruleRecommendation.explanation.ruleExplanation.conditionEvidence[0]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["feedback.physician.persisted.feedbackId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "Encounter",
+            resourcePath: "clinicalContext.resources.encounters[0]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.encounters[0].encounterId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "MEDICATION_SAFETY_RULE",
+            consumerEvidencePaths: ["clinicalTrigger.contextSnapshotId"],
+            consumerVerified: true,
+            auditEvidencePaths: ["feedback.physician.persisted.feedbackId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "AllergyIntolerance",
+            resourcePath: "clinicalContext.resources.allergyIntolerances[0]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.allergyIntolerances[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "MEDICATION_SAFETY_RULE",
+            consumerEvidencePaths: [
+              "recommendation.explanation.redlineExplanation.conditionEvidence[0]",
+              "ruleRecommendation.explanation.ruleExplanation.conditionEvidence[1]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["feedback.pharmacist.persisted.feedbackId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "Medication",
+            resourcePath: "clinicalContext.resources.medications[0]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.medications[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "MEDICATION_SAFETY_RULE",
+            consumerEvidencePaths: [
+              "ruleRecommendation.explanation.ruleExplanation.conditionEvidence[0]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["feedback.physician.persisted.feedbackId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+        ]),
         apiEvidence: evidence.apiEvidence,
         riskMatrix: evidence.riskMatrix,
         safetyRedline: evidence.safetyRedline,
@@ -1578,7 +1710,10 @@ function assertRuntimeContainsAsset(
       item.versionId === candidate.versionId &&
       item.entryState === "ACTIVE",
   );
-  expect(asset, `机构生效版本必须包含本轮 ${candidate.assetType} ${candidate.assetIdentity}`).toBeTruthy();
+  expect(
+    asset,
+    `机构生效版本必须包含本轮 ${candidate.assetType} ${candidate.assetIdentity}`,
+  ).toBeTruthy();
   expect(asset?.versionNo, `${candidate.assetType} runtime 清单必须返回版本号`).toBe(
     candidate.versionNo,
   );
@@ -1601,16 +1736,18 @@ function assertRuntimeContainsTerminology(
   );
   expect(asset, `机构生效版本必须包含本轮术语资产 ${terminology.assetIdentity}`).toBeTruthy();
   expect(asset?.versionNo, "术语 runtime 清单必须返回本轮版本号").toBe(terminology.versionNo);
-  expect(asset?.contentHash, "术语 runtime 清单必须返回本轮正文 hash").toBe(terminology.contentHash);
+  expect(asset?.contentHash, "术语 runtime 清单必须返回本轮正文 hash").toBe(
+    terminology.contentHash,
+  );
 }
 
-async function chooseDialogOption(
-  page: Page,
-  dialog: Locator,
-  label: string,
-  optionText: string,
-) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
   const field = dialog.getByLabel(label);

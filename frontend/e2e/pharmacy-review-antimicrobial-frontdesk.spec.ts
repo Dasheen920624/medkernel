@@ -1,5 +1,12 @@
 import { createHmac } from "node:crypto";
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -15,6 +22,7 @@ import {
   resolvedTenantIdFor,
   waitForPollingInterval,
 } from "./support/auth";
+import { standardPatientResourceConsumerMatrix } from "./support/standardPatientResourceMatrix";
 
 type RuntimeAssetSelection = {
   assetType: string;
@@ -122,213 +130,215 @@ const requiredStages = {
 } as const;
 
 test.describe("药房审方与抗菌药物治理代表切片真实前台闭环", () => {
-  test(
-    "临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(420_000);
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
+  test("临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(420_000);
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
 
-      await ensureReadySession(page, "engine-operator");
-      const hospitalId = await localRehearsalHospitalId(page);
-      const riskMatrix = await createAntimicrobialRiskMatrix(page, suffix);
-      apiEvidence.antimicrobialRiskMatrixCreated = true;
+    await ensureReadySession(page, "engine-operator");
+    const hospitalId = await localRehearsalHospitalId(page);
+    const riskMatrix = await createAntimicrobialRiskMatrix(page, suffix);
+    apiEvidence.antimicrobialRiskMatrixCreated = true;
 
-      const safetyRedline = await createPromotedAntimicrobialRedline(page, {
-        suffix,
-        riskMatrix,
-      });
-      apiEvidence.antimicrobialSafetyAssetPromoted = true;
+    const safetyRedline = await createPromotedAntimicrobialRedline(page, {
+      suffix,
+      riskMatrix,
+    });
+    apiEvidence.antimicrobialSafetyAssetPromoted = true;
 
-      const terminologyGate = await createAntimicrobialTerminologyGate(page, suffix);
-      apiEvidence.antimicrobialTerminologyActivated = true;
+    const terminologyGate = await createAntimicrobialTerminologyGate(page, suffix);
+    apiEvidence.antimicrobialTerminologyActivated = true;
 
-      const actionCard = await createAntimicrobialActionCard(page, suffix);
-      apiEvidence.antimicrobialActionCardPublished = true;
+    const actionCard = await createAntimicrobialActionCard(page, suffix);
+    apiEvidence.antimicrobialActionCardPublished = true;
 
-      const preRuleCandidates = await readPharmacyReviewPreRuleRuntimeCandidates(page, hospitalId, {
-        safetyIdentity: safetyRedline.assetIdentity,
-      });
-      const preRuleRuntime = await activateRuntimeWithPharmacyReviewPreRuleAssets(page, {
-        hospitalId,
-        terminology: terminologyGate,
-        safety: preRuleCandidates.safety,
-        cdssRisk: preRuleCandidates.cdssRisk,
-        actionCard,
-      });
+    const preRuleCandidates = await readPharmacyReviewPreRuleRuntimeCandidates(page, hospitalId, {
+      safetyIdentity: safetyRedline.assetIdentity,
+    });
+    const preRuleRuntime = await activateRuntimeWithPharmacyReviewPreRuleAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      safety: preRuleCandidates.safety,
+      cdssRisk: preRuleCandidates.cdssRisk,
+      actionCard,
+    });
 
-      const positiveSnapshot = await createPharmacyReviewContextFromFrontdesk(page, `${suffix}-POS`);
-      expect(
-        positiveSnapshot.runtimeReleaseId,
-        "规则发布阳性用例快照必须绑定已包含 ACTION_CARD 的预备 runtime",
-      ).toBe(preRuleRuntime.releaseId);
-      const negativeSnapshot = await createPharmacyReviewContextFromFrontdesk(page, `${suffix}-NEG`, {
-        medicationText: "阿司匹林",
-        allergyText: "头孢菌素：呼吸困难",
-        diagnosisText: "普通复诊",
-        observationText: "CRP=4 mg/L",
-      });
-      expect(
-        negativeSnapshot.runtimeReleaseId,
-        "规则发布阴性用例快照必须绑定已包含 ACTION_CARD 的预备 runtime",
-      ).toBe(preRuleRuntime.releaseId);
-      await ensureReadySession(page, "engine-operator");
-      const rule = await createAndPublishAntimicrobialRule(page, suffix, {
-        positiveContextSnapshotId: positiveSnapshot.snapshotId,
-        negativeContextSnapshotId: negativeSnapshot.snapshotId,
-        actionCard,
-      });
-      apiEvidence.antimicrobialRuleCreated = true;
-      recordStage(observedStages, "运营员发布抗菌药物术语、红线、风险矩阵、规则和动作卡资产");
+    const positiveSnapshot = await createPharmacyReviewContextFromFrontdesk(page, `${suffix}-POS`);
+    expect(
+      positiveSnapshot.runtimeReleaseId,
+      "规则发布阳性用例快照必须绑定已包含 ACTION_CARD 的预备 runtime",
+    ).toBe(preRuleRuntime.releaseId);
+    const negativeSnapshot = await createPharmacyReviewContextFromFrontdesk(page, `${suffix}-NEG`, {
+      medicationText: "阿司匹林",
+      allergyText: "头孢菌素：呼吸困难",
+      diagnosisText: "普通复诊",
+      observationText: "CRP=4 mg/L",
+    });
+    expect(
+      negativeSnapshot.runtimeReleaseId,
+      "规则发布阴性用例快照必须绑定已包含 ACTION_CARD 的预备 runtime",
+    ).toBe(preRuleRuntime.releaseId);
+    await ensureReadySession(page, "engine-operator");
+    const rule = await createAndPublishAntimicrobialRule(page, suffix, {
+      positiveContextSnapshotId: positiveSnapshot.snapshotId,
+      negativeContextSnapshotId: negativeSnapshot.snapshotId,
+      actionCard,
+    });
+    apiEvidence.antimicrobialRuleCreated = true;
+    recordStage(observedStages, "运营员发布抗菌药物术语、红线、风险矩阵、规则和动作卡资产");
 
-      const candidates = await readPharmacyReviewRuntimeCandidates(page, hospitalId, {
-        safetyIdentity: safetyRedline.assetIdentity,
-        ruleIdentity: rule.assetIdentity,
-      });
-      const riskMatrixEvidence = {
-        ...riskMatrix,
-        versionId: candidates.cdssRisk.versionId,
-        versionNo: candidates.cdssRisk.versionNo,
-        contentHash: candidates.cdssRisk.contentHash,
-      };
-      const safetyRedlineEvidence = {
-        ...safetyRedline,
-        versionId: candidates.safety.versionId,
-        versionNo: candidates.safety.versionNo,
-        contentHash: candidates.safety.contentHash,
-      };
-      const ruleEvidence = {
-        ...rule,
-        versionId: candidates.rule.versionId,
-        versionNo: candidates.rule.versionNo,
-        contentHash: candidates.rule.contentHash,
-      };
-      const runtime = await activateRuntimeWithPharmacyReviewAssets(page, {
-        hospitalId,
-        terminology: terminologyGate,
-        safety: candidates.safety,
-        cdssRisk: candidates.cdssRisk,
-        rule: candidates.rule,
-        actionCard,
-      });
-      apiEvidence.runtimeActivatedWithAntimicrobialAssets = true;
-      recordStage(observedStages, "当前机构生效版本包含抗菌药物五类运行资产");
+    const candidates = await readPharmacyReviewRuntimeCandidates(page, hospitalId, {
+      safetyIdentity: safetyRedline.assetIdentity,
+      ruleIdentity: rule.assetIdentity,
+    });
+    const riskMatrixEvidence = {
+      ...riskMatrix,
+      versionId: candidates.cdssRisk.versionId,
+      versionNo: candidates.cdssRisk.versionNo,
+      contentHash: candidates.cdssRisk.contentHash,
+    };
+    const safetyRedlineEvidence = {
+      ...safetyRedline,
+      versionId: candidates.safety.versionId,
+      versionNo: candidates.safety.versionNo,
+      contentHash: candidates.safety.contentHash,
+    };
+    const ruleEvidence = {
+      ...rule,
+      versionId: candidates.rule.versionId,
+      versionNo: candidates.rule.versionNo,
+      contentHash: candidates.rule.contentHash,
+    };
+    const runtime = await activateRuntimeWithPharmacyReviewAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      safety: candidates.safety,
+      cdssRisk: candidates.cdssRisk,
+      rule: candidates.rule,
+      actionCard,
+    });
+    apiEvidence.runtimeActivatedWithAntimicrobialAssets = true;
+    recordStage(observedStages, "当前机构生效版本包含抗菌药物五类运行资产");
 
-      const snapshot = await createPharmacyReviewContextFromFrontdesk(page, suffix);
-      expect(snapshot.runtimeReleaseId, "审方上下文必须绑定本轮抗菌药物 runtime").toBe(
-        runtime.releaseId,
-      );
-      assertSnapshotContainsPharmacyReviewFacts(snapshot.resources);
-      apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
-      recordStage(
-        observedStages,
-        "临床用户从患者 360 建立 Medication、AllergyIntolerance、Condition 与 Observation 上下文",
-      );
+    const snapshot = await createPharmacyReviewContextFromFrontdesk(page, suffix);
+    expect(snapshot.runtimeReleaseId, "审方上下文必须绑定本轮抗菌药物 runtime").toBe(
+      runtime.releaseId,
+    );
+    assertSnapshotContainsPharmacyReviewFacts(snapshot.resources);
+    apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
+    recordStage(
+      observedStages,
+      "临床用户从患者 360 建立 Medication、AllergyIntolerance、Condition 与 Observation 上下文",
+    );
 
-      await ensureReadySession(page, "platform-admin");
-      const adapter = await createPharmacyReviewAdapter(page, suffix);
-      apiEvidence.pharmacyReviewAdapterCreatedThroughRealService = true;
-      const webhook = await createPharmacyReviewWebhook(page, suffix);
-      apiEvidence.pharmacyReviewWebhookCreatedThroughRealService = true;
-      await generatePharmacyReviewSignaturePreview(page, webhook.webhookId);
-      apiEvidence.webhookSignaturePreviewGenerated = true;
-      recordStage(observedStages, "平台管理员访问真实前台并经真实服务创建 PHARMACY_REVIEW 适配器、回调通道和签名预览");
+    await ensureReadySession(page, "platform-admin");
+    const adapter = await createPharmacyReviewAdapter(page, suffix);
+    apiEvidence.pharmacyReviewAdapterCreatedThroughRealService = true;
+    const webhook = await createPharmacyReviewWebhook(page, suffix);
+    apiEvidence.pharmacyReviewWebhookCreatedThroughRealService = true;
+    await generatePharmacyReviewSignaturePreview(page, webhook.webhookId);
+    apiEvidence.webhookSignaturePreviewGenerated = true;
+    recordStage(
+      observedStages,
+      "平台管理员访问真实前台并经真实服务创建 PHARMACY_REVIEW 适配器、回调通道和签名预览",
+    );
 
-      const outboundReview = await sendPharmacyReviewOutbound(page, {
-        suffix,
-        adapterId: adapter.adapterId,
-        snapshot,
-      });
-      apiEvidence.outboundReviewRequested = true;
-      recordStage(observedStages, "系统向 PHARMACY_REVIEW 发出审方请求并诚实断连降级");
+    const outboundReview = await sendPharmacyReviewOutbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      snapshot,
+    });
+    apiEvidence.outboundReviewRequested = true;
+    recordStage(observedStages, "系统向 PHARMACY_REVIEW 发出审方请求并诚实断连降级");
 
-      const inboundReview = await postSignedPharmacyReviewInbound(page, {
-        suffix,
-        adapterId: adapter.adapterId,
+    const inboundReview = await postSignedPharmacyReviewInbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      snapshot,
+      runtimeReleaseId: runtime.releaseId,
+      traceId: outboundReview.traceId,
+    });
+    apiEvidence.inboundReviewAccepted = true;
+    recordStage(observedStages, "PHARMACY_REVIEW 签名回传审方结果并生成标准临床事件");
+
+    const recommendation = await triggerPharmacyReviewRecommendationFromFrontdesk(page, {
+      snapshot,
+      runtime,
+      riskMatrix: riskMatrixEvidence,
+      safetyRedline: safetyRedlineEvidence,
+      rule: ruleEvidence,
+    });
+    apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台触发 medication-prescribe 推荐评估");
+    recordStage(observedStages, "推荐卡证明抗菌药物红线、规则和动作卡按当前机构生效版本消费");
+
+    const feedback = await completePharmacistAndPhysicianFeedback(page, {
+      cardId: recommendation.cardId,
+      actionCardAsset: runtime.actionCardAsset,
+      actionCard,
+    });
+    expect(feedback.pharmacist.cardStatus, "药师审方复核不能关闭医生确认链路").toBe("PENDING");
+    expect(feedback.physician.cardStatus, "医生确认后推荐卡才进入采纳状态").toBe("ACCEPTED");
+    apiEvidence.pharmacistReviewRecordedWithoutClosingPhysicianConfirmation = true;
+    apiEvidence.physicianConfirmationRecorded = true;
+    recordStage(observedStages, "药师登记审方复核且不关闭医生确认链路");
+    recordStage(observedStages, "医生逐条确认采纳，系统不自动开嘱");
+
+    const qualityRectification = await createAndClosePharmacyReviewRectification(page, {
+      suffix,
+      recommendation,
+      snapshot,
+      runtimeReleaseId: runtime.releaseId,
+    });
+    apiEvidence.qualityRectificationSubmittedAndReviewed = true;
+    recordStage(observedStages, "药事治理问题形成整改任务");
+    recordStage(observedStages, "固定四职责账号提交并复核关闭本轮整改任务");
+
+    await attachPharmacyReviewAntimicrobialEvidence(testInfo, {
+      apiEvidence,
+      adapter,
+      webhookSignature: {
         webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        snapshot,
+        adapterId: adapter.adapterId,
+        signatureAlgorithm: "HMAC-SHA256",
+        canonicalPayloadIncludesTraceId: true,
+        previewGenerated: true,
+      },
+      terminologyGate,
+      riskMatrix: riskMatrixEvidence,
+      safetyRedline: safetyRedlineEvidence,
+      actionCard,
+      rule: ruleEvidence,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext: {
+        patientId: snapshot.patientId,
+        encounterId: snapshot.encounterId,
+        contextSnapshotId: snapshot.snapshotId,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        resources: snapshot.resources,
+      },
+      outboundReview,
+      inboundReview,
+      clinicalTrigger: {
+        triggerId: recommendation.triggerId,
+        contextSnapshotId: snapshot.snapshotId,
         runtimeReleaseId: runtime.releaseId,
-        traceId: outboundReview.traceId,
-      });
-      apiEvidence.inboundReviewAccepted = true;
-      recordStage(observedStages, "PHARMACY_REVIEW 签名回传审方结果并生成标准临床事件");
-
-      const recommendation = await triggerPharmacyReviewRecommendationFromFrontdesk(page, {
-        snapshot,
-        runtime,
-        riskMatrix: riskMatrixEvidence,
-        safetyRedline: safetyRedlineEvidence,
-        rule: ruleEvidence,
-      });
-      apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台触发 medication-prescribe 推荐评估");
-      recordStage(observedStages, "推荐卡证明抗菌药物红线、规则和动作卡按当前机构生效版本消费");
-
-      const feedback = await completePharmacistAndPhysicianFeedback(page, {
         cardId: recommendation.cardId,
-        actionCardAsset: runtime.actionCardAsset,
-        actionCard,
-      });
-      expect(feedback.pharmacist.cardStatus, "药师审方复核不能关闭医生确认链路").toBe("PENDING");
-      expect(feedback.physician.cardStatus, "医生确认后推荐卡才进入采纳状态").toBe("ACCEPTED");
-      apiEvidence.pharmacistReviewRecordedWithoutClosingPhysicianConfirmation = true;
-      apiEvidence.physicianConfirmationRecorded = true;
-      recordStage(observedStages, "药师登记审方复核且不关闭医生确认链路");
-      recordStage(observedStages, "医生逐条确认采纳，系统不自动开嘱");
-
-      const qualityRectification = await createAndClosePharmacyReviewRectification(page, {
-        suffix,
-        recommendation,
-        snapshot,
-        runtimeReleaseId: runtime.releaseId,
-      });
-      apiEvidence.qualityRectificationSubmittedAndReviewed = true;
-      recordStage(observedStages, "药事治理问题形成整改任务");
-      recordStage(observedStages, "固定四职责账号提交并复核关闭本轮整改任务");
-
-      await attachPharmacyReviewAntimicrobialEvidence(testInfo, {
-        apiEvidence,
-        adapter,
-        webhookSignature: {
-          webhookId: webhook.webhookId,
-          adapterId: adapter.adapterId,
-          signatureAlgorithm: "HMAC-SHA256",
-          canonicalPayloadIncludesTraceId: true,
-          previewGenerated: true,
-        },
-        terminologyGate,
-        riskMatrix: riskMatrixEvidence,
-        safetyRedline: safetyRedlineEvidence,
-        actionCard,
-        rule: ruleEvidence,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext: {
-          patientId: snapshot.patientId,
-          encounterId: snapshot.encounterId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          resources: snapshot.resources,
-        },
-        outboundReview,
-        inboundReview,
-        clinicalTrigger: {
-          triggerId: recommendation.triggerId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: runtime.releaseId,
-          cardId: recommendation.cardId,
-          relatedCardIds: recommendation.relatedCardIds,
-        },
-        recommendation,
-        ruleRecommendation: recommendation.ruleRecommendation,
-        feedback,
-        qualityRectification,
-        observedStages,
-      });
-    },
-  );
+        relatedCardIds: recommendation.relatedCardIds,
+      },
+      recommendation,
+      ruleRecommendation: recommendation.ruleRecommendation,
+      feedback,
+      qualityRectification,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): PharmacyReviewApiEvidence {
@@ -385,12 +395,18 @@ async function createAntimicrobialRiskMatrix(page: Page, suffix: string) {
     assetType: "CDSS_RISK" as const,
     assetIdentity: "CDSS.RISK.MATRIX",
     matrixId: requireText(textField(rule, "matrixId"), "风险矩阵响应必须返回 matrixId"),
-    matrixVersion: requireText(textField(rule, "matrixVersion"), "风险矩阵响应必须返回 matrixVersion"),
+    matrixVersion: requireText(
+      textField(rule, "matrixVersion"),
+      "风险矩阵响应必须返回 matrixVersion",
+    ),
     triggerPoint: requireText(textField(rule, "triggerPoint"), "风险矩阵必须返回触发点"),
     severityLevel: requireText(textField(rule, "severityLevel"), "风险矩阵必须返回严重度"),
     automationLevel: requireText(textField(rule, "automationLevel"), "风险矩阵必须返回自动化等级"),
     riskLevel: requireText(textField(rule, "riskLevel"), "风险矩阵必须返回风险等级"),
-    reviewRequirement: requireText(textField(rule, "reviewRequirement"), "风险矩阵必须返回复核要求"),
+    reviewRequirement: requireText(
+      textField(rule, "reviewRequirement"),
+      "风险矩阵必须返回复核要求",
+    ),
     silentRunHours: numberField(rule, "silentRunHours") ?? 0,
     releaseGate: requireText(textField(rule, "releaseGate"), "风险矩阵必须返回上线门槛"),
     autoExecutionAllowed: booleanField(rule, "autoExecutionAllowed"),
@@ -445,7 +461,10 @@ async function createPromotedAntimicrobialRedline(
     operatorNote: "S18/S31 药房审方代表切片：静默试运行达标，不自动开嘱。",
   });
   await expectOk(dryRun, "提交抗菌药物 SAFETY 静默试运行");
-  const trialId = requireText(textField(await responseData(dryRun), "trialId"), "静默试运行必须返回 trialId");
+  const trialId = requireText(
+    textField(await responseData(dryRun), "trialId"),
+    "静默试运行必须返回 trialId",
+  );
   const promoted = await postApi(page, "/engine/safety/redlines:promote", {
     redlineId,
     trialId,
@@ -463,11 +482,26 @@ async function createPromotedAntimicrobialRedline(
     category: "ANTIMICROBIAL_RESTRICTION",
     conditionDsl,
     trialId,
-    hazardSeverity: requireText(textField(promotedData, "hazardSeverity"), "红线上线响应必须返回严重度"),
-    riskMatrixId: requireText(textField(promotedData, "riskMatrixId"), "红线上线响应必须返回风险矩阵 ID"),
-    riskMatrixVersion: requireText(textField(promotedData, "riskMatrixVersion"), "红线上线响应必须返回风险矩阵版本"),
-    reviewRequirement: requireText(textField(promotedData, "reviewRequirement"), "红线上线响应必须返回医师确认要求"),
-    releaseGate: requireText(textField(promotedData, "releaseGate"), "红线上线响应必须返回上线门槛"),
+    hazardSeverity: requireText(
+      textField(promotedData, "hazardSeverity"),
+      "红线上线响应必须返回严重度",
+    ),
+    riskMatrixId: requireText(
+      textField(promotedData, "riskMatrixId"),
+      "红线上线响应必须返回风险矩阵 ID",
+    ),
+    riskMatrixVersion: requireText(
+      textField(promotedData, "riskMatrixVersion"),
+      "红线上线响应必须返回风险矩阵版本",
+    ),
+    reviewRequirement: requireText(
+      textField(promotedData, "reviewRequirement"),
+      "红线上线响应必须返回医师确认要求",
+    ),
+    releaseGate: requireText(
+      textField(promotedData, "releaseGate"),
+      "红线上线响应必须返回上线门槛",
+    ),
     lowerTenantOverrideAllowed: booleanField(promotedData, "lowerTenantOverrideAllowed"),
   };
 }
@@ -597,7 +631,10 @@ async function createAntimicrobialTerminologyGate(page: Page, suffix: string) {
     assetIdentity: requireText(textField(draftData, "assetIdentity"), "术语资产草稿必须返回身份"),
     versionId: requireText(textField(draftData, "versionId"), "术语资产草稿必须返回 versionId"),
     versionNo: requireText(textField(draftData, "versionNo"), "术语资产草稿必须返回 versionNo"),
-    contentHash: requireText(textField(draftData, "contentHash"), "术语资产草稿必须返回 contentHash"),
+    contentHash: requireText(
+      textField(draftData, "contentHash"),
+      "术语资产草稿必须返回 contentHash",
+    ),
     standardSystem: "ATC" as const,
     standardCode: "J01C",
     localCode: drugLocalCode,
@@ -665,7 +702,10 @@ async function readOrConfirmTerminologyMapping(
     semanticAssistEnabled: true,
   });
   await expectOk(generation, `生成 ${options.category} 术语映射候选`);
-  const jobCode = requireText(textField(await responseData(generation), "jobCode"), "术语候选任务必须返回 jobCode");
+  const jobCode = requireText(
+    textField(await responseData(generation), "jobCode"),
+    "术语候选任务必须返回 jobCode",
+  );
   const candidate = await waitForTerminologyCandidate(page, jobCode, options.localCode);
   const candidateId = numberField(candidate, "id");
   expect(candidateId, "术语候选必须返回 id").toBeTruthy();
@@ -804,7 +844,8 @@ async function createAndPublishAntimicrobialRule(
       ],
       explain: {
         title: "抗菌药物审方代表切片规则",
-        reason: "Medication、Condition、Observation 均来自当前临床上下文，规则由当前机构生效版本锁定。",
+        reason:
+          "Medication、Condition、Observation 均来自当前临床上下文，规则由当前机构生效版本锁定。",
         sourceRef: "local-e2e:pharmacy-review-antimicrobial",
       },
     },
@@ -818,46 +859,91 @@ async function createAndPublishAntimicrobialRule(
   const created = await responseData(create);
   const ruleId = requireText(textField(created, "ruleId"), "规则创建响应必须返回 ruleId");
   for (const testCase of [
-    { caseType: "POSITIVE", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "NEGATIVE", expectedHit: false, expectedSeverity: null, expectedActionCode: null, contextSnapshotId: options.negativeContextSnapshotId },
-    { caseType: "BOUNDARY", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "CONFLICT", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
+    {
+      caseType: "POSITIVE",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "NEGATIVE",
+      expectedHit: false,
+      expectedSeverity: null,
+      expectedActionCode: null,
+      contextSnapshotId: options.negativeContextSnapshotId,
+    },
+    {
+      caseType: "BOUNDARY",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "CONFLICT",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
   ]) {
-    const response = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`, {
-      ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
-      ...testCase,
-    });
+    const response = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`,
+      {
+        ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
+        ...testCase,
+      },
+    );
     await expectOk(response, `新增抗菌药物规则发布验证用例 ${testCase.caseType}`);
   }
-  const testRun = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`, apiContext(ruleId, "rule-test-run"));
+  const testRun = await postApi(
+    page,
+    `/engine/rule/rules/${encodeURIComponent(ruleId)}/test`,
+    apiContext(ruleId, "rule-test-run"),
+  );
   await expectOk(testRun, "执行抗菌药物规则发布验证用例");
-  expect(booleanField(await responseData(testRun), "allPassed"), "规则发布验证用例必须全部通过").toBe(true);
+  expect(
+    booleanField(await responseData(testRun), "allPassed"),
+    "规则发布验证用例必须全部通过",
+  ).toBe(true);
   for (const targetState of ["REVIEWED", "SHADOW", "CANARY", "FULL"]) {
     const impact = await getApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/impact`);
     await expectOk(impact, `读取抗菌药物规则 ${targetState} 影响摘要`);
-    const transition = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`, {
-      ...apiContext(ruleId, `rule-governance-${targetState}`),
-      targetState,
-      impactDigest: requireText(textField(await responseData(impact), "impactDigest"), "规则影响摘要必须返回 digest"),
-      reason: `S18/S31 抗菌药物审方规则推进至 ${targetState}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: `抗菌药物审方规则 ${targetState} 推进质量门已通过`,
+    const transition = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`,
+      {
+        ...apiContext(ruleId, `rule-governance-${targetState}`),
+        targetState,
+        impactDigest: requireText(
+          textField(await responseData(impact), "impactDigest"),
+          "规则影响摘要必须返回 digest",
+        ),
+        reason: `S18/S31 抗菌药物审方规则推进至 ${targetState}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: `抗菌药物审方规则 ${targetState} 推进质量门已通过`,
+          },
         },
       },
-    });
+    );
     await expectOk(transition, `抗菌药物规则治理推进至 ${targetState}`);
   }
   return {
     assetType: "RULE" as const,
     assetIdentity: ruleCode,
     ruleId,
-    ruleVersionId: requireText(textField(created, "versionId"), "规则创建响应必须返回规则 versionId"),
+    ruleVersionId: requireText(
+      textField(created, "versionId"),
+      "规则创建响应必须返回规则 versionId",
+    ),
   };
 }
 
@@ -911,9 +997,18 @@ async function readHospitalRuntimeCandidate(
   return {
     assetType,
     assetIdentity,
-    versionId: requireText(textField(candidate, "versionId"), `${assetType} 候选必须返回 versionId`),
-    versionNo: requireText(textField(candidate, "versionNo"), `${assetType} 候选必须返回 versionNo`),
-    contentHash: requireText(textField(candidate, "contentHash"), `${assetType} 候选必须返回 contentHash`),
+    versionId: requireText(
+      textField(candidate, "versionId"),
+      `${assetType} 候选必须返回 versionId`,
+    ),
+    versionNo: requireText(
+      textField(candidate, "versionNo"),
+      `${assetType} 候选必须返回 versionNo`,
+    ),
+    contentHash: requireText(
+      textField(candidate, "contentHash"),
+      `${assetType} 候选必须返回 contentHash`,
+    ),
   };
 }
 
@@ -947,13 +1042,18 @@ async function activateRuntimeWithPharmacyReviewPreRuleAssets(
       confirmedPlatformUpgradeDigest: null,
       activeAssets: uniqueRuntimeAssets([
         ...baselineAssets.activeAssets,
-        ...[options.terminology, options.safety, options.cdssRisk, options.actionCard].map(runtimeSelection),
+        ...[options.terminology, options.safety, options.cdssRisk, options.actionCard].map(
+          runtimeSelection,
+        ),
       ]),
     },
   );
   await expectOk(activated, "激活规则发布验证所需抗菌药物审方预备 runtime");
   return {
-    releaseId: requireText(textField(await responseData(activated), "releaseId"), "预备 runtime 激活必须返回 releaseId"),
+    releaseId: requireText(
+      textField(await responseData(activated), "releaseId"),
+      "预备 runtime 激活必须返回 releaseId",
+    ),
   };
 }
 
@@ -975,7 +1075,8 @@ async function activateRuntimeWithPharmacyReviewAssets(
   for (const required of requiredRuntimeAssetsForRehearsal) {
     expect(
       baselineAssets.activeAssets.some(
-        (asset) => asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
+        (asset) =>
+          asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
       ),
       `平台标准版本缺少 ${required.assetType}:${required.assetIdentity}`,
     ).toBe(true);
@@ -993,7 +1094,13 @@ async function activateRuntimeWithPharmacyReviewAssets(
     confirmedPlatformUpgradeDigest: null,
     activeAssets: uniqueRuntimeAssets([
       ...baselineAssets.activeAssets,
-      ...[options.terminology, options.safety, options.cdssRisk, options.rule, options.actionCard].map(runtimeSelection),
+      ...[
+        options.terminology,
+        options.safety,
+        options.cdssRisk,
+        options.rule,
+        options.actionCard,
+      ].map(runtimeSelection),
     ]),
   };
   const activated = await postApi(
@@ -1002,18 +1109,26 @@ async function activateRuntimeWithPharmacyReviewAssets(
     activationRequest,
   );
   await expectOk(activated, "激活包含抗菌药物审方资产的医院生效版本");
-  const releaseId = requireText(textField(await responseData(activated), "releaseId"), "激活必须返回 releaseId");
+  const releaseId = requireText(
+    textField(await responseData(activated), "releaseId"),
+    "激活必须返回 releaseId",
+  );
   const currentAfter = await getApi(
     page,
     `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases/current`,
   );
   await expectOk(currentAfter, "回读抗菌药物审方医院生效版本");
   const detail = (await responseData(currentAfter)) as RuntimeReleaseDetail;
-  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(releaseId);
+  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(
+    releaseId,
+  );
   return {
     releaseId,
     revisionNo: numberFieldAtPath(detail, "release.revisionNo") ?? 0,
-    manifestSha256: requireText(textFieldAtPath(detail, "release.manifestSha256"), "机构生效版本必须返回 manifestSha256"),
+    manifestSha256: requireText(
+      textFieldAtPath(detail, "release.manifestSha256"),
+      "机构生效版本必须返回 manifestSha256",
+    ),
     assets: detail.items ?? [],
     terminologyAsset: assertRuntimeContainsAsset(detail, options.terminology),
     safetyAsset: assertRuntimeContainsAsset(detail, options.safety),
@@ -1053,27 +1168,42 @@ async function createPharmacyReviewContextFromFrontdesk(
   await patientDialog.getByRole("button", { name: "保存患者" }).click();
   const patientResponse = await patientResponsePromise;
   await expectHttpOk(patientResponse, "创建药房审方演练脱敏患者");
-  const patientId = requireText(textField(await responseData(patientResponse), "mpiId"), "患者创建响应必须返回 MPI");
+  const patientId = requireText(
+    textField(await responseData(patientResponse), "mpiId"),
+    "患者创建响应必须返回 MPI",
+  );
   await expect(patientDialog).toBeHidden({ timeout: 20_000 });
 
   await page.getByPlaceholder("支持按姓名或院内患者编号检索...").fill(maskedName);
   await page.getByRole("button", { name: /检索过滤/ }).click();
-  const row = page.getByRole("row", { name: new RegExp(`${escapeRegExp(maskedName)}.*${idLast4}`) }).first();
+  const row = page
+    .getByRole("row", { name: new RegExp(`${escapeRegExp(maskedName)}.*${idLast4}`) })
+    .first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.getByRole("button", { name: /患者360/ }).click();
-  await expect(page.getByRole("button", { name: "建立当前就诊上下文" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "建立当前就诊上下文" })).toBeVisible({
+    timeout: 20_000,
+  });
   await page.getByRole("button", { name: "建立当前就诊上下文" }).click();
   const contextDialog = page.getByRole("dialog", { name: "建立当前就诊上下文" });
   await expect(contextDialog).toBeVisible();
   await chooseDialogOption(page, contextDialog, "就诊类型", "门诊复诊");
   await contextDialog.getByLabel("诊断/随访病种").fill(overrides.diagnosisText ?? "J18.900");
   await chooseDialogOption(page, contextDialog, "风险分层", "高风险");
-  await contextDialog.getByLabel("当前用药").fill(overrides.medicationText ?? `青霉素、抗菌药物审方演练 ${suffix}`);
-  await contextDialog.getByLabel("过敏/不良反应").fill(overrides.allergyText ?? "青霉素：皮疹；头孢菌素：呼吸困难");
-  await contextDialog.getByLabel("监测指标").fill(overrides.observationText ?? "CRP=128 mg/L；PCT=2.4 ng/mL");
+  await contextDialog
+    .getByLabel("当前用药")
+    .fill(overrides.medicationText ?? `青霉素、抗菌药物审方演练 ${suffix}`);
+  await contextDialog
+    .getByLabel("过敏/不良反应")
+    .fill(overrides.allergyText ?? "青霉素：皮疹；头孢菌素：呼吸困难");
+  await contextDialog
+    .getByLabel("监测指标")
+    .fill(overrides.observationText ?? "CRP=128 mg/L；PCT=2.4 ng/mL");
   await contextDialog.getByLabel("身高 cm").fill("170");
   await contextDialog.getByLabel("体重 kg").fill("82");
-  await contextDialog.getByLabel("建立原因").fill("S18/S31 药房审方代表切片：建立抗菌药物、感染诊断、过敏史与监测指标上下文。");
+  await contextDialog
+    .getByLabel("建立原因")
+    .fill("S18/S31 药房审方代表切片：建立抗菌药物、感染诊断、过敏史与监测指标上下文。");
   const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
   await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
   const contextResponse = await contextResponsePromise;
@@ -1083,7 +1213,10 @@ async function createPharmacyReviewContextFromFrontdesk(
   return {
     patientId,
     snapshotId: requireText(textField(context, "snapshotId"), "上下文响应必须返回 snapshotId"),
-    runtimeReleaseId: requireText(textField(context, "runtimeReleaseId"), "上下文响应必须锁定 runtimeReleaseId"),
+    runtimeReleaseId: requireText(
+      textField(context, "runtimeReleaseId"),
+      "上下文响应必须锁定 runtimeReleaseId",
+    ),
     encounterId: textFieldAtPath(context, "resources.encounters[0].encounterId"),
     resources: recordValue(recordField(context, "resources")) ?? {},
   };
@@ -1103,12 +1236,25 @@ async function createPharmacyReviewAdapter(page: Page, suffix: string) {
     requestTimeoutMs: 1200,
     fieldMappings: [
       { sourcePath: "/patientId", targetPath: "/patient/mpi" },
-      { sourcePath: "/medicationCode", targetPath: "/medications/0", targetDictionaryKey: "ATC", category: "DRUG" },
-      { sourcePath: "/infectionCode", targetPath: "/conditions/0", targetDictionaryKey: "ICD-10", category: "DIAGNOSIS" },
+      {
+        sourcePath: "/medicationCode",
+        targetPath: "/medications/0",
+        targetDictionaryKey: "ATC",
+        category: "DRUG",
+      },
+      {
+        sourcePath: "/infectionCode",
+        targetPath: "/conditions/0",
+        targetDictionaryKey: "ICD-10",
+        category: "DIAGNOSIS",
+      },
       { sourcePath: "/observationCode", targetPath: "/observations/0/code" },
       { sourcePath: "/pct", targetPath: "/observations/0/valueNumeric" },
       { sourcePath: "/pharmacyReview/reviewResult", targetPath: "/pharmacyReview/reviewResult" },
-      { sourcePath: "/pharmacyReview/pharmacistOpinion", targetPath: "/pharmacyReview/pharmacistOpinion" },
+      {
+        sourcePath: "/pharmacyReview/pharmacistOpinion",
+        targetPath: "/pharmacyReview/pharmacistOpinion",
+      },
     ],
   };
   const response = await postApi(page, "/engine/integration/adapters", {
@@ -1141,7 +1287,10 @@ async function createPharmacyReviewWebhook(page: Page, suffix: string) {
 async function generatePharmacyReviewSignaturePreview(page: Page, webhookId: string) {
   const response = await postApi(page, "/engine/integration/webhooks/test", {
     webhookId,
-    payload: JSON.stringify({ traceId: `preview-${webhookId}`, eventType: "PHARMACY_REVIEW_RESULT" }),
+    payload: JSON.stringify({
+      traceId: `preview-${webhookId}`,
+      eventType: "PHARMACY_REVIEW_RESULT",
+    }),
   });
   await expectOk(response, "生成 PHARMACY_REVIEW 回调签名预览");
   const data = await responseData(response);
@@ -1175,14 +1324,23 @@ async function sendPharmacyReviewOutbound(
   const blocksMainFlow = booleanField(data, "blocksMainFlow");
   const initialCompensationRequired = booleanField(data, "compensationRequired");
   const status = requireText(textField(data, "status"), "出站审方必须返回诚实状态");
-  expect(["NOT_CONNECTED", "RETRYING"].includes(status), "出站审方不得把配置错误 FAILED 当成断连降级证据").toBe(true);
+  expect(
+    ["NOT_CONNECTED", "RETRYING"].includes(status),
+    "出站审方不得把配置错误 FAILED 当成断连降级证据",
+  ).toBe(true);
   expect(blocksMainFlow, "审方出站断连不得阻断医生主流程").toBe(false);
   const compensation = await waitForPharmacyReviewCompensation(
     page,
     requireText(textField(data, "messageId"), "出站审方必须返回 messageId"),
   );
-  const compensationStatus = requireText(textField(compensation, "status"), "出站审方补偿日志必须返回状态");
-  const compensationMessageId = requireText(textField(compensation, "messageId"), "出站审方补偿日志必须返回 messageId");
+  const compensationStatus = requireText(
+    textField(compensation, "status"),
+    "出站审方补偿日志必须返回状态",
+  );
+  const compensationMessageId = requireText(
+    textField(compensation, "messageId"),
+    "出站审方补偿日志必须返回 messageId",
+  );
   const compensationRequired = compensationStatus === "NOT_CONNECTED";
   expect(compensationRequired, "审方出站断连最终必须留下补偿证据").toBe(true);
   return {
@@ -1223,12 +1381,16 @@ async function waitForPharmacyReviewCompensation(page: Page, messageId: string) 
         return log;
       }
       if (lastStatus && lastStatus !== "RETRYING") {
-        throw new Error(`PHARMACY_REVIEW 出站补偿日志 ${messageId} 进入非诚实断连状态：${lastStatus}`);
+        throw new Error(
+          `PHARMACY_REVIEW 出站补偿日志 ${messageId} 进入非诚实断连状态：${lastStatus}`,
+        );
       }
     }
     await waitForPollingInterval(250);
   }
-  throw new Error(`PHARMACY_REVIEW 出站补偿日志 ${messageId} 未收敛到 NOT_CONNECTED，最后状态：${lastStatus}`);
+  throw new Error(
+    `PHARMACY_REVIEW 出站补偿日志 ${messageId} 未收敛到 NOT_CONNECTED，最后状态：${lastStatus}`,
+  );
 }
 
 async function postSignedPharmacyReviewInbound(
@@ -1282,7 +1444,10 @@ async function postSignedPharmacyReviewInbound(
   await expectOk(response, "PHARMACY_REVIEW 审方结果签名入站");
   const data = await responseData(response);
   const mappedPayload = recordValue(recordField(data, "mappedPayload")) ?? {};
-  const clinicalEventId = requireText(textField(data, "clinicalEventId"), "入站审方必须返回 clinicalEventId");
+  const clinicalEventId = requireText(
+    textField(data, "clinicalEventId"),
+    "入站审方必须返回 clinicalEventId",
+  );
   const clinicalEvent = await waitForClinicalEventProcessed(page, clinicalEventId);
   return {
     messageId: requireText(textField(data, "messageId"), "入站审方必须返回 messageId"),
@@ -1302,7 +1467,10 @@ async function postSignedPharmacyReviewInbound(
   };
 }
 
-async function waitForClinicalEventProcessed(page: Page, eventId: string): Promise<ClinicalEventDetailEvidence> {
+async function waitForClinicalEventProcessed(
+  page: Page,
+  eventId: string,
+): Promise<ClinicalEventDetailEvidence> {
   const deadline = Date.now() + 30_000;
   let lastDetail: ClinicalEventDetailEvidence | null = null;
   while (Date.now() < deadline) {
@@ -1368,7 +1536,10 @@ async function triggerPharmacyReviewRecommendationFromFrontdesk(
   const evaluateResponse = await evaluateResponsePromise;
   await expectHttpOk(evaluateResponse, "临床用户从真实前台触发抗菌药物推荐评估");
   const evaluation = await responseData(evaluateResponse);
-  const triggerId = requireText(textField(evaluation, "triggerId"), "推荐评估响应必须返回 triggerId");
+  const triggerId = requireText(
+    textField(evaluation, "triggerId"),
+    "推荐评估响应必须返回 triggerId",
+  );
   const responseCardIds = arrayField(evaluation, "cards")
     .map((card) => textField(card, "cardId"))
     .filter((cardId): cardId is string => cardId !== null);
@@ -1411,7 +1582,10 @@ async function findPharmacyReviewRedlineCard(
     riskMatrixExplanation: string;
   }> = [];
   for (const cardId of Array.from(new Set(relatedCardIds))) {
-    const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+    const detailResponse = await getApi(
+      page,
+      `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    );
     await expectOk(detailResponse, `推荐卡 ${cardId} 详情应可读取`);
     const detail = await responseData(detailResponse);
     const explanation = parseJsonRecord(
@@ -1426,15 +1600,26 @@ async function findPharmacyReviewRedlineCard(
       textField(explanation, "matchType") === "CLINICAL_REDLINE" &&
       textField(explanation, "riskMatrixId") === options.riskMatrix.matrixId &&
       textField(explanation, "riskMatrixVersion") === options.riskMatrix.matrixVersion &&
-      conditionEvidence.some((item) => textField(item, "fact") === "medications[].code" && booleanField(item, "matched") === true) &&
-      conditionEvidence.some((item) => textField(item, "fact") === "observations[].valueNumeric" && booleanField(item, "matched") === true);
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "medications[].code" &&
+          booleanField(item, "matched") === true,
+      ) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "observations[].valueNumeric" &&
+          booleanField(item, "matched") === true,
+      );
     if (!matches) continue;
     matched.push({
       cardId,
       cardStatus: textFieldAtPath(detail, "card.status"),
       triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
       cardType: textFieldAtPath(detail, "card.cardType") ?? "MEDICATION",
-      requiresPhysicianConfirmation: booleanFieldAtPath(detail, "card.requiresPhysicianConfirmation"),
+      requiresPhysicianConfirmation: booleanFieldAtPath(
+        detail,
+        "card.requiresPhysicianConfirmation",
+      ),
       aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
       explanation,
       riskMatrixExplanation: requireText(
@@ -1443,7 +1628,10 @@ async function findPharmacyReviewRedlineCard(
       ),
     });
   }
-  expect(matched.map((card) => card.cardId), "必须唯一定位本轮抗菌药物红线推荐卡").toHaveLength(1);
+  expect(
+    matched.map((card) => card.cardId),
+    "必须唯一定位本轮抗菌药物红线推荐卡",
+  ).toHaveLength(1);
   return matched[0];
 }
 
@@ -1453,7 +1641,11 @@ async function findPharmacyReviewRuleCard(
   options: {
     triggerId: string;
     snapshot: ContextSnapshotSummary;
-    runtime: { releaseId: string; ruleAsset: RuntimeReleaseItem; actionCardAsset: RuntimeReleaseItem };
+    runtime: {
+      releaseId: string;
+      ruleAsset: RuntimeReleaseItem;
+      actionCardAsset: RuntimeReleaseItem;
+    };
     rule: PharmacyReviewAssetCandidate & { ruleId: string; ruleVersionId: string };
   },
 ) {
@@ -1464,7 +1656,10 @@ async function findPharmacyReviewRuleCard(
     explanation: Record<string, unknown>;
   }> = [];
   for (const cardId of Array.from(new Set(relatedCardIds))) {
-    const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+    const detailResponse = await getApi(
+      page,
+      `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    );
     await expectOk(detailResponse, `规则推荐卡 ${cardId} 详情应可读取`);
     const detail = await responseData(detailResponse);
     const explanation = parseJsonRecord(
@@ -1483,9 +1678,20 @@ async function findPharmacyReviewRuleCard(
       textField(explanation, "ruleId") === options.rule.ruleId &&
       textField(explanation, "ruleCode") === options.rule.assetIdentity &&
       textField(runtimeRelease, "assetVersionId") === options.runtime.ruleAsset.versionId &&
-      conditionEvidence.some((item) => textField(item, "fact") === "medications[].code" && booleanField(item, "matched") === true) &&
-      conditionEvidence.some((item) => textField(item, "fact") === "conditions[].code" && booleanField(item, "matched") === true) &&
-      conditionEvidence.some((item) => textField(item, "fact") === "observations[].valueNumeric" && booleanField(item, "matched") === true) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "medications[].code" &&
+          booleanField(item, "matched") === true,
+      ) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "conditions[].code" && booleanField(item, "matched") === true,
+      ) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "observations[].valueNumeric" &&
+          booleanField(item, "matched") === true,
+      ) &&
       runtimeAssetEvidence.some(
         (item) =>
           textField(item, "assetType") === "ACTION_CARD" &&
@@ -1502,7 +1708,10 @@ async function findPharmacyReviewRuleCard(
       explanation,
     });
   }
-  expect(matched.map((card) => card.cardId), "必须唯一定位本轮抗菌药物 RULE 推荐卡").toHaveLength(1);
+  expect(
+    matched.map((card) => card.cardId),
+    "必须唯一定位本轮抗菌药物 RULE 推荐卡",
+  ).toHaveLength(1);
   return matched[0];
 }
 
@@ -1518,12 +1727,16 @@ async function completePharmacistAndPhysicianFeedback(
   await page.goto(appPath("/cdss/fatigue"), { waitUntil: "networkidle" });
   const cardId = recommendation.cardId;
   await page.getByLabel("患者或证据线索").fill(cardId);
-  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
   const drawer = page.getByRole("dialog", { name: "推荐详情与反馈闭环" });
   await expect(drawer).toBeVisible({ timeout: 20_000 });
   await drawer.getByRole("tab", { name: "药师复核" }).click();
-  await drawer.getByLabel("药师复核说明").fill("药师已复核抗菌药物审方结果，医生仍需逐条确认；未填写患者明文身份。");
+  await drawer
+    .getByLabel("药师复核说明")
+    .fill("药师已复核抗菌药物审方结果，医生仍需逐条确认；未填写患者明文身份。");
   const reviewResponsePromise = waitForPost(page, "/engine/recommendations/cards/");
   await drawer.getByRole("button", { name: "登记药师复核" }).click();
   const reviewResponse = await reviewResponsePromise;
@@ -1532,17 +1745,24 @@ async function completePharmacistAndPhysicianFeedback(
   await drawer.getByRole("button", { name: "Close" }).click();
   await expect(drawer).toBeHidden({ timeout: 20_000 });
   await page.getByLabel("患者或证据线索").fill(cardId);
-  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
   const refreshedDrawer = page.getByRole("dialog", { name: "推荐详情与反馈闭环" });
   await refreshedDrawer.getByRole("tab", { name: /医师反馈/u }).click();
-  await refreshedDrawer.getByLabel("采纳说明（可选）").fill("医生已结合感染指标和药师意见逐条确认，是否开嘱仍在 HIS 中人工确认。");
+  await refreshedDrawer
+    .getByLabel("采纳说明（可选）")
+    .fill("医生已结合感染指标和药师意见逐条确认，是否开嘱仍在 HIS 中人工确认。");
   const acceptResponsePromise = waitForPost(page, "/engine/recommendations/cards/");
   await refreshedDrawer.getByRole("button", { name: "确认采纳建议" }).click();
   const acceptResponse = await acceptResponsePromise;
   await expectHttpOk(acceptResponse, "登记抗菌药物医生确认");
   const physician = await responseData(acceptResponse);
-  const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+  const detailResponse = await getApi(
+    page,
+    `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+  );
   await expectOk(detailResponse, "回读抗菌药物推荐卡反馈详情");
   const detail = await responseData(detailResponse);
   const persistedFeedback = arrayField(detail, "feedback");
@@ -1602,7 +1822,9 @@ function pharmacyReviewActionCardFeedbackEvidence(options: {
   );
   expect(actionCard.requiresPhysicianConfirmation, "动作卡治理证据必须要求医生确认").toBe(true);
   expect(actionCard.noAutoOrder, "动作卡治理证据必须禁止自动开嘱").toBe(true);
-  expect(runtimeAsset.entryState, "反馈闭环必须绑定当前机构生效版本中的 ACTION_CARD").toBe("ACTIVE");
+  expect(runtimeAsset.entryState, "反馈闭环必须绑定当前机构生效版本中的 ACTION_CARD").toBe(
+    "ACTIVE",
+  );
   return {
     assetType: runtimeAsset.assetType,
     assetIdentity: runtimeAsset.assetIdentity,
@@ -1663,7 +1885,10 @@ async function createAndClosePharmacyReviewRectification(
     ],
   });
   await expectOk(run, "创建药事治理质量问题");
-  const issues = await getApi(page, "/engine/evaluation/issues?severity=P1&status=ASSIGNED&page=1&size=20&sort=createdAt,desc");
+  const issues = await getApi(
+    page,
+    "/engine/evaluation/issues?severity=P1&status=ASSIGNED&page=1&size=20&sort=createdAt,desc",
+  );
   await expectOk(issues, "读取药事治理质量问题");
   const finding = pageItems(await responseData(issues)).find((item) =>
     String(textField(item, "findingCode") ?? "").includes(options.suffix),
@@ -1671,18 +1896,29 @@ async function createAndClosePharmacyReviewRectification(
   const findingId = requireText(textField(finding, "findingId"), "必须回读本轮药事治理质量问题");
   const detail = await getApi(page, `/engine/evaluation/issues/${encodeURIComponent(findingId)}`);
   await expectOk(detail, "读取药事治理质量问题详情");
-  const taskId = requireText(textFieldAtPath(await responseData(detail), "rectificationTask.taskId"), "质量问题必须自动派发整改任务");
+  const taskId = requireText(
+    textFieldAtPath(await responseData(detail), "rectificationTask.taskId"),
+    "质量问题必须自动派发整改任务",
+  );
   await ensureReadySession(page, "engine-operator");
-  const submit = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/submit`, {
-    rectificationSummary: "已补充抗菌药物使用依据、感染指标复核和药师审方意见归档。",
-    evidenceRef: `pharmacy-review-antimicrobial-evidence-${options.suffix}`,
-  });
+  const submit = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
+    {
+      rectificationSummary: "已补充抗菌药物使用依据、感染指标复核和药师审方意见归档。",
+      evidenceRef: `pharmacy-review-antimicrobial-evidence-${options.suffix}`,
+    },
+  );
   await expectOk(submit, "提交药事治理整改证据");
-  const review = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/review`, {
-    decision: "APPROVED",
-    comment: "质控复核通过，整改证据与本轮审方推荐卡一致。",
-    evidenceRef: `pharmacy-review-antimicrobial-review-${options.suffix}`,
-  });
+  const review = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
+    {
+      decision: "APPROVED",
+      comment: "质控复核通过，整改证据与本轮审方推荐卡一致。",
+      evidenceRef: `pharmacy-review-antimicrobial-review-${options.suffix}`,
+    },
+  );
   await expectOk(review, "复核关闭药事治理整改任务");
   const reviewData = await responseData(review);
   return {
@@ -1711,7 +1947,11 @@ async function createActiveEvaluationIndicator(page: Page, suffix: string, depar
     subjectType: "PATIENT",
     denominatorDefinition: JSON.stringify({
       all: [
-        { fact: "recommendation.matchType", operator: "equals", value: "ANTIMICROBIAL_RESTRICTION" },
+        {
+          fact: "recommendation.matchType",
+          operator: "equals",
+          value: "ANTIMICROBIAL_RESTRICTION",
+        },
         { fact: "conditions[].code", operator: "equals", value: "J18.900" },
       ],
     }),
@@ -1729,21 +1969,28 @@ async function createActiveEvaluationIndicator(page: Page, suffix: string, depar
     sourceRef: "local-e2e:pharmacy-review-antimicrobial",
   });
   await expectOk(created, "创建药事治理评价指标");
-  const indicatorId = requireText(textField(await responseData(created), "indicatorId"), "评价指标必须返回 indicatorId");
+  const indicatorId = requireText(
+    textField(await responseData(created), "indicatorId"),
+    "评价指标必须返回 indicatorId",
+  );
   for (const action of ["submit", "publish", "gray", "activate"]) {
-    const response = await postApi(page, `/engine/evaluation/indicators/${encodeURIComponent(indicatorId)}/${action}`, {
-      reason: `S31 药事治理代表切片指标 ${action}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: "S31 药事治理代表切片指标质量门已通过",
+    const response = await postApi(
+      page,
+      `/engine/evaluation/indicators/${encodeURIComponent(indicatorId)}/${action}`,
+      {
+        reason: `S31 药事治理代表切片指标 ${action}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: "S31 药事治理代表切片指标质量门已通过",
+          },
         },
       },
-    });
+    );
     await expectOk(response, `评价指标 ${action}`);
   }
   return { indicatorId, indicatorCode };
@@ -1804,6 +2051,42 @@ async function attachPharmacyReviewAntimicrobialEvidence(
         ],
         scopeStatement:
           "药房审方与抗菌药物治理代表切片：PHARMACY_REVIEW 双向审方、抗菌药物风险推荐、药师/医生人工确认和 S31 整改闭环，不代表完整药事治理、完整抗菌药物分级管理或第三方药房审方系统族完整覆盖。",
+        standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
+          {
+            resourceType: "Condition",
+            resourcePath: "clinicalContext.resources.conditions[0]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.conditions[0].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "PHARMACY_REVIEW_RULE",
+            consumerEvidencePaths: [
+              "ruleRecommendation.explanation.ruleExplanation.conditionEvidence[1]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["qualityRectification.findingId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+          {
+            resourceType: "Observation",
+            resourcePath: "clinicalContext.resources.observations[1]",
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceIdPath: "clinicalContext.resources.observations[1].sourceRecordId",
+            patientVerified: true,
+            encounterVerified: true,
+            snapshotReadbackVerified: true,
+            consumer: "PHARMACY_REVIEW_RULE",
+            consumerEvidencePaths: [
+              "recommendation.ruleRecommendation.explanation.ruleExplanation.conditionEvidence[2]",
+            ],
+            consumerVerified: true,
+            auditEvidencePaths: ["qualityRectification.findingId"],
+            auditVerified: true,
+            dataQualityVerified: true,
+          },
+        ]),
         apiEvidence: evidence.apiEvidence,
         adapter: evidence.adapter,
         webhookSignature: evidence.webhookSignature,
@@ -1848,11 +2131,23 @@ function recordStage(stages: Set<string>, stage: string) {
 }
 
 function assertSnapshotContainsPharmacyReviewFacts(resources: Record<string, unknown>) {
-  expect(arrayField(resources, "medications").some((item) => textField(item, "code") === "J01C"), "上下文必须包含 Medication J01C").toBe(true);
-  expect(arrayField(resources, "allergyIntolerances").some((item) => textField(item, "code") === "J01C"), "上下文必须包含 AllergyIntolerance J01C").toBe(true);
-  expect(arrayField(resources, "conditions").some((item) => textField(item, "code")), "上下文必须包含 Condition").toBe(true);
   expect(
-    arrayField(resources, "observations").some((item) => textField(item, "code") === "PCT" && typeof numberField(item, "valueNumeric") === "number"),
+    arrayField(resources, "medications").some((item) => textField(item, "code") === "J01C"),
+    "上下文必须包含 Medication J01C",
+  ).toBe(true);
+  expect(
+    arrayField(resources, "allergyIntolerances").some((item) => textField(item, "code") === "J01C"),
+    "上下文必须包含 AllergyIntolerance J01C",
+  ).toBe(true);
+  expect(
+    arrayField(resources, "conditions").some((item) => textField(item, "code")),
+    "上下文必须包含 Condition",
+  ).toBe(true);
+  expect(
+    arrayField(resources, "observations").some(
+      (item) =>
+        textField(item, "code") === "PCT" && typeof numberField(item, "valueNumeric") === "number",
+    ),
     "上下文必须包含 Observation PCT 监测指标",
   ).toBe(true);
 }
@@ -1893,7 +2188,10 @@ async function readRecommendationTriggerDiagnose(page: Page, triggerId: string) 
 }
 
 async function localRehearsalHospitalId(page: Page) {
-  const hospitals = await getApi(page, "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20");
+  const hospitals = await getApi(
+    page,
+    "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20",
+  );
   await expectOk(hospitals, "读取本地上线演练医院");
   const hospital = pageItems(await responseData(hospitals)).find(
     (item) =>
@@ -1940,7 +2238,11 @@ function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
   return Array.from(byKey.values());
 }
 
-function runtimeSelection(candidate: { assetType: string; assetIdentity: string; versionId: string }) {
+function runtimeSelection(candidate: {
+  assetType: string;
+  assetIdentity: string;
+  versionId: string;
+}) {
   return {
     assetType: candidate.assetType,
     assetIdentity: candidate.assetIdentity,
@@ -1948,7 +2250,10 @@ function runtimeSelection(candidate: { assetType: string; assetIdentity: string;
   };
 }
 
-function assertRuntimeContainsAsset(runtime: RuntimeReleaseDetail, candidate: PharmacyReviewAssetCandidate) {
+function assertRuntimeContainsAsset(
+  runtime: RuntimeReleaseDetail,
+  candidate: PharmacyReviewAssetCandidate,
+) {
   const asset = (runtime.items ?? []).find(
     (item) =>
       item.assetType === candidate.assetType &&
@@ -1956,17 +2261,32 @@ function assertRuntimeContainsAsset(runtime: RuntimeReleaseDetail, candidate: Ph
       item.versionId === candidate.versionId &&
       item.entryState === "ACTIVE",
   );
-  expect(asset, `机构生效版本必须包含本轮 ${candidate.assetType} ${candidate.assetIdentity}`).toBeTruthy();
-  expect(asset?.versionNo, `${candidate.assetType} runtime 清单必须返回版本号`).toBe(candidate.versionNo);
-  expect(asset?.contentHash, `${candidate.assetType} runtime 清单必须返回正文 hash`).toBe(candidate.contentHash);
+  expect(
+    asset,
+    `机构生效版本必须包含本轮 ${candidate.assetType} ${candidate.assetIdentity}`,
+  ).toBeTruthy();
+  expect(asset?.versionNo, `${candidate.assetType} runtime 清单必须返回版本号`).toBe(
+    candidate.versionNo,
+  );
+  expect(asset?.contentHash, `${candidate.assetType} runtime 清单必须返回正文 hash`).toBe(
+    candidate.contentHash,
+  );
   return asset as RuntimeReleaseItem;
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) return;
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  )
+    return;
   const field = dialog.getByLabel(label);
   const selectSelector = field
-    .locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]")
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]",
+    )
     .first()
     .locator(".ant-select-selector")
     .first();

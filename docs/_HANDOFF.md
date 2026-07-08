@@ -10,6 +10,60 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十一批本地推进：继续按用户“不要片面优化、全角色真实前台操作、知识只是全局能力中的一个点”的要求，
+  从五类医技报告族代表消费者矩阵推进到 **13 类标准患者资源真实接入与消费者代表矩阵**。本批不是完整上线、
+  不是 134 清库部署复演、不是 13 类标准患者资源字段目录全量 coverage、不是完整 S0-S40、不是 34 入口全动作闭环、
+  也不是完整第三方系统族或完整全知识生产上线验收。本批只证明跨六条真实前台链路聚合出 13 类标准患者资源
+  **代表消费者矩阵**：`Patient`、`AllergyIntolerance`、`Encounter`、`Condition`、`NursingAssessment`、
+  `Observation`、`DiagnosticReport`、`Medication`、`Procedure`、`Document`、`CarePlan`、`FollowUp`、`Claim`
+  各有真实标准资源回读、来源身份、运行消费者、审计和数据质量证据；`launchCoverage` 只声明
+  `standardPatientResourceConsumerMatrix:THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE` 与
+  13 个 `standardPatientResourceRepresentativeRows:*`，明确不声明 `standardPatientResources` 全量覆盖。
+- 第一百七十一批真实红点与根因修复：`real-frontdesk-rehearsal.spec.ts` 在真实前台新建适配器字段映射时，AntD
+  虚拟下拉无法稳定选择 `术语分类=诊断`；根因不是业务分类错误，`诊断` 是当前术语目录合法分类，而是客户前台下拉不可搜索。
+  已在 `frontend/src/pages/tenant/AdapterHub.tsx` 为术语分类 `Select` 增加 `showSearch` 与
+  `optionFilterProp="label"`，并把真实 E2E 改为搜索式选择。`e2eAuthCredentialContract.test.ts`
+  增加静态护栏，要求 AdapterHub 保留可搜索分类选择和真实前台搜索选择，不把问题降级为“其他”分类。
+- 第一百七十一批标准资源矩阵实现：新增 `frontend/e2e/support/standardPatientResourceMatrix.ts` 统一附件 scope 和矩阵行结构。
+  六条真实链路的代表资源分布为：用药安全链路提供 `Patient / AllergyIntolerance / Encounter / Medication`；
+  药房抗菌药物审方链路提供 `Condition / Observation`（使用 PCT 观察值，避免 S36 诊断链路中 `PARTIAL`
+  Observation 误入 13 类代表矩阵）；医技危急值链路提供 `DiagnosticReport`；护理连续照护链路提供
+  `NursingAssessment / CarePlan / FollowUp`；围手术期麻醉输血链路提供 `Procedure / Document`；真实前台综合链路提供
+  `Claim`。`nursing-continuity-frontdesk.spec.ts` 额外把随访计划 `generationExplanation` 从 JSON 字符串解析为
+  `followupPlanGenerationExplanation` 同级证据，保证 parser 能真实解析 `NursingAssessment` 与 `CarePlan` 的消费路径。
+  `diagnostic-critical-value-frontdesk.spec.ts` 不再把 `PARTIAL` Observation 纳入 13 类代表矩阵；`pharmacy-review-antimicrobial-frontdesk.spec.ts`
+  用审方规则解释中的 PCT 条件证据承担 `Observation` 代表行。
+- 第一百七十一批 coverage 防过度声明：`launchCoverageEvidence.ts` 新增收窄维度
+  `standardPatientResourceConsumerMatrix:THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE` 与 13 个代表行声明。parser 只聚合指定
+  6 个真实前台 spec 的指定 JSON 附件；每行必须匹配资源类型路径前缀、真实资源结构、`qualityStatus=VALID`、来源系统与
+  `sourceId/sourceIdPath`、消费者路径、审计路径、患者 / 就诊 / 快照 / 数据质量布尔证据。`Claim` 还必须绑定
+  `INSURANCE_AUDIT`、医保评估运行和质量整改任务。scope 必须包含“代表矩阵”“不代表每类字段目录全量落地”
+  “不代表完整 S0-S40”“不代表完整上线验收”，并阻断未否定的全量上线完成表述。`e2eLaunchCoverageEvidence.test.ts`
+  已覆盖 13 类成功声明、未知/重复资源、缺真实资源路径、空 sourceIdPath、Claim 缺医保评估、Claim 冒用 Patient 路径、
+  scope 漏写 S0-S40 边界、scope 过度宣称以及非目标附件不得聚合。
+- 第一百七十一批真实 E2E 与验证证据：使用既有 18091 dev/H2 本地后端，健康检查
+  `http://localhost:18091/medkernel/actuator/health` 返回
+  `{"status":"UP","groups":["liveness","readiness"]}`。复跑六条真实前台矩阵链路：
+  `E2E_BASE_URL=http://localhost:5173 E2E_API_BASE_URL=http://localhost:18091/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18091 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-standard-resource-matrix-20260708-r6 npm --prefix frontend run e2e -- --project=chromium medication-safety-frontdesk.spec.ts pharmacy-review-antimicrobial-frontdesk.spec.ts diagnostic-critical-value-frontdesk.spec.ts nursing-continuity-frontdesk.spec.ts surgery-anesthesia-transfusion-frontdesk.spec.ts real-frontdesk-rehearsal.spec.ts`
+  通过；`results.json` 为 `PASSED`（6 expected，0 unexpected，0 flaky，0 skipped，duration=191184ms），并声明
+  `standardPatientResourceConsumerMatrix:THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE` 与 13 个代表行，未声明
+  `standardPatientResources`。收尾门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（217 tests）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract` 通过（48 tests）；`npm --prefix frontend run typecheck -- --pretty false`
+  通过；`npm --prefix frontend run lint` 通过；`npm --prefix frontend run format:check` 通过；
+  `npm --prefix frontend run verify` 通过（lint、stylelint、test:lint-rules、format:check、typecheck、全量 Vitest：
+  116 files / 1273 tests）；`git diff --check` 退出码 0，仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百七十一批全局边界与下一步：用户补充“知识只是一个点，要全局考虑”。只读子代理盘点确认，当前不能把知识生产单独当成
+  一个页面优化：完整上线必须证明真实数据、术语映射、标准患者资源 / 字段目录、13 类版本化医疗资产、平台 / 机构生效版本、
+  临床运行、审计、回滚和离线交付的全链路。当前已有知识生产工作台、模型候选、安全门、发布质量记录和机构生效版本骨架，
+  但仍未证明 13 类版本化资产逐类从真实来源收集 / 导入 / AI 候选（仅 KNOWLEDGE/RULE/PATHWAY 适合模型候选）/ 人工审核 /
+  发布 / 机构生效 / 运行消费 / 持续迭代 / 回滚 / 离线交付完整闭环。下一批 P0 应继续全局推进而非单点优化：
+  1）34 个入口从菜单可达推进到真实前台核心动作、六态、分页筛选、导入导出、服务回读和审计；
+  2）13 类标准患者资源从代表矩阵推进到逐类字段目录、异常缺数、冲突、高危、消费者和审计导出；
+  3）第三方系统族逐族补真实适配器、签名入站、幂等重放、健康、死信、`NOT_CONNECTED` 降级、业务消费者和审计；
+  4）知识资源供给链优先做检验危急值、抗菌药物审方、专病路径、字段目录/标准资源、离线交付/回滚等跨资产真实切片。
+  134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 为本地未跟踪产物，不要暂存。
 - 第一百七十批本地推进：继续按用户“不要片面优化、前台演练按全角色真实操作”的要求，从上一批
   PACS/RIS、超声、病理、内镜、心电系统族代表消费者切片，推进到 **五类医技报告族真实消费者矩阵代表切片**。
   本批不是完整上线、不是 134 清库部署复演、不是完整 PACS/RIS / 超声 / 病理 / 内镜 / 心电系统族覆盖、
