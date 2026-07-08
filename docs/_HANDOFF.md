@@ -10,6 +10,44 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十三批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、不要片面优化”的要求，
+  在只读子代理盘点平台管理员入口族和知识供给链差距后，先把 **平台管理员 4 个 P0 入口核心动作代表矩阵** 落成可验证 coverage。
+  本批不是完整上线、不是 134 清库部署复演、不是 6 个平台管理员入口全部闭环、不是 34 个入口全部业务动作闭环、不是完整
+  S0-S40，也不是完整全知识供给链上线验收。本批只证明 `tenant-onboarding`（`/tenant/onboarding` 服务机构）、
+  `identity-bindings`（`/security/identity-binding` 身份来源）、`adapter-hub`（`/adapter/hub` 系统接入）、
+  `system-providers`（`/system/providers` 服务运行保障）四个 P0 入口分别完成真实前台核心动作、服务回读和矩阵附件证据；
+  `launchCoverage` 仅声明 `platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS`。`runtime-diagnostics`
+  和 `domestic-check` 本批仍只作为 P1 后续，不声明已闭环。
+- 第一百七十三批实现细节：新增 `frontend/e2e/support/platformAdminEntryCoreActions.ts`，统一生成
+  `platform-admin-entry-core-actions-codes` 附件，强制字段 `menuKey/path/role/frontdeskAction/serviceOperation/serviceStatus/readbackVerified/auditVerified`
+  完整、角色为 `platform-admin`、路径与 menuKey 匹配且服务状态为 2xx。`launchCoverageEvidence.ts` 新增聚合门禁：
+  可从既有真实前台 spec 的分散附件聚合 4 个 P0 入口行；每个附件 scope 必须写明“平台管理员 P0 入口核心动作代表矩阵”
+  且否定 `6 个平台管理员入口全部闭环`、`34 个入口全部业务动作闭环`、`完整上线验收`，否则不声明 coverage。
+  `e2eLaunchCoverageEvidence.test.ts` 增加成功样例、跨既有 spec 聚合样例，以及缺系统接入、缺 menuKey、角色错误、
+  非 2xx、scope 过度声明等拦截样例。四条既有真实 E2E 分别追加该矩阵附件：`service-organization-frontdesk.spec.ts`
+  贡献服务机构行，`identity-binding-frontdesk.spec.ts` 贡献身份来源行，`third-party-system-families-rehearsal.spec.ts`
+  贡献系统接入行，`system-providers-frontdesk.spec.ts` 贡献服务运行保障行。
+- 第一百七十三批真实 E2E 与验证证据：复用既有 18092 dev/H2 本地后端和 5174 前端，健康检查
+  `http://localhost:18092/medkernel/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`。
+  目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-platform-admin-entry-core-actions-20260709-r1 npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts identity-binding-frontdesk.spec.ts third-party-system-families-rehearsal.spec.ts system-providers-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-platform-admin-entry-core-actions-20260709-r1/report/results.json` 为 `PASSED`
+  （5 expected，0 unexpected，0 flaky，0 skipped，duration=71726ms），并声明
+  `platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS`。四个矩阵附件分别回读：
+  `tenant-onboarding`、`identity-bindings`、`adapter-hub`、`system-providers` 均为 `serviceStatus=200`、
+  `readbackVerified=true`、`auditVerified=true`。收尾验证：
+  `npm --prefix frontend run test -- e2eAuthCredentialContract` 通过（49 tests）；
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（231 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍只提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百七十三批全局边界与下一步：两个只读子代理结论已纳入当前判断，但不能替代真实验收。平台入口下一步建议补
+  `runtime-diagnostics` 的服务目录 / 扩展能力授权边界只读切片和 `domestic-check` 的国产化自检报告导出与筛选切片；
+  随后把临床 / 质量入口族（MPI、患者路径、提醒推荐、协同任务、随访、质控告警、医保审核）推进到同样的入口矩阵。
+  知识供给链方面，当前仍是骨架 + 代表切片：术语、值集、字段目录、公式、医嘱套餐、安全红线、CDSS 风险矩阵等不能靠 AI
+  自动生成；应继续以检验危急值、抗菌药物审方、专病路径、字段目录与标准资源、离线交付/回滚等跨功能切片，证明标准包导入、
+  院内字典同步、声明式维护、人工审核、版本发布、机构生效、运行消费、审计和回滚。134 清库 / 重部署仍属于 destructive
+  外向操作，执行前必须再次取得用户明确确认。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；
+  `test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十二批本地推进：接上前序未提交的 `entry-core-actions-rehearsal.spec.ts`，按用户“前台演练需要按全角色真实操作、
   不要片面优化、知识只是全局一点”的要求，把 **七个路由 / 六类入口族代表核心动作** 跑成真实前台闭环。本批不是完整上线、
   不是 134 清库部署复演、不是 34 个入口全部业务动作闭环、不是完整 S0-S40、不是完整六态 / 分页筛选 / 导入导出覆盖，

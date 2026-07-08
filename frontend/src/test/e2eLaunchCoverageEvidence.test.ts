@@ -4329,6 +4329,89 @@ function expectNoSixEntryCoreActionsCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
 }
 
+const platformAdminEntryCoreActionsEvidence = {
+  matrixCode: "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS",
+  scopeStatement:
+    "平台管理员 P0 入口核心动作代表矩阵：围绕服务机构、身份来源、系统接入和服务运行保障四个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  entryActions: [
+    {
+      menuKey: "tenant-onboarding",
+      role: "platform-admin",
+      path: "/tenant/onboarding",
+      frontdeskAction: "前台开通服务机构并回读组织树和职责范围",
+      serviceOperation: "POST /api/v1/admin/tenants",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "identity-bindings",
+      role: "platform-admin",
+      path: "/security/identity-binding",
+      frontdeskAction: "前台绑定院内身份来源、拒绝重复身份并解绑留痕",
+      serviceOperation: "POST /api/v1/compliance/identity-bindings",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "adapter-hub",
+      role: "platform-admin",
+      path: "/adapter/hub",
+      frontdeskAction: "前台登记系统适配器、接入申请、健康诊断和数据质量报告",
+      serviceOperation: "POST /api/v1/engine/integration/adapters",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "system-providers",
+      role: "platform-admin",
+      path: "/system/providers",
+      frontdeskAction: "前台核查运行快照、备份恢复证据和依赖诚实降级",
+      serviceOperation: "GET /api/v1/system/operations",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+  ],
+};
+
+function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/platform-admin-entry-core-actions-rehearsal.spec.ts",
+        title: "平台管理员 P0 入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "platform-admin-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoPlatformAdminEntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = platformAdminEntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+}
+
+function platformAdminEntryCoreActionSpecFile(menuKey: string) {
+  const files: Record<string, string> = {
+    "tenant-onboarding": "service-organization-frontdesk.spec.ts",
+    "identity-bindings": "identity-binding-frontdesk.spec.ts",
+    "adapter-hub": "third-party-system-families-rehearsal.spec.ts",
+    "system-providers": "system-providers-frontdesk.spec.ts",
+  };
+  return files[menuKey] ?? "unknown.spec.ts";
+}
+
 const standardPatientResourceMatrixScope =
   "13 类标准患者资源真实接入与消费者代表矩阵：跨真实前台演练聚合 Patient、AllergyIntolerance、Encounter、Condition、NursingAssessment、Observation、DiagnosticReport、Medication、Procedure、Document、CarePlan、FollowUp 与 Claim 的标准资源回读、运行消费者、审计和数据质量证据；不代表每类字段目录全量落地，不代表完整 S0-S40，不代表完整上线验收。";
 
@@ -8702,6 +8785,94 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.roleRepresentativeCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares platform-admin P0 entry core action coverage only from complete real frontdesk matrix evidence", () => {
+    const evidence = platformAdminEntryCoreActionsEvidenceResult(
+      platformAdminEntryCoreActionsEvidence,
+    );
+
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions?.map((item) => item.code)).toEqual(
+      ["FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS"],
+    );
+    expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("aggregates platform-admin P0 entry core action coverage from existing frontdesk specs", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: platformAdminEntryCoreActionsEvidence.entryActions.map((action) => ({
+        file: `/repo/frontend/e2e/${platformAdminEntryCoreActionSpecFile(action.menuKey)}`,
+        title: `平台管理员 ${action.menuKey} 真实前台核心动作`,
+        status: "passed",
+        attachments: [
+          {
+            name: "platform-admin-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify({
+              matrixCode: platformAdminEntryCoreActionsEvidence.matrixCode,
+              scopeStatement: platformAdminEntryCoreActionsEvidence.scopeStatement,
+              entryActions: [action],
+            }),
+          },
+        ],
+      })),
+    });
+
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions?.map((item) => item.code)).toEqual(
+      ["FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS"],
+    );
+  });
+
+  it.each([
+    {
+      name: "缺少系统接入入口",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.menuKey !== "adapter-hub",
+        ),
+      },
+    },
+    {
+      name: "身份来源入口没有 menuKey",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "identity-bindings" ? { ...item, menuKey: "" } : item,
+        ),
+      },
+    },
+    {
+      name: "服务运行保障不是平台管理员角色",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "system-providers" ? { ...item, role: "engine-operator" } : item,
+        ),
+      },
+    },
+    {
+      name: "服务机构服务端状态不是 2xx",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "tenant-onboarding" ? { ...item, serviceStatus: 500 } : item,
+        ),
+      },
+    },
+    {
+      name: "scope 过度宣称 34 个入口全部业务动作已闭环",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        scopeStatement:
+          "平台管理员 P0 入口核心动作代表矩阵，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+      },
+    },
+  ])("does not declare platform-admin entry core action coverage when $name", ({ body }) => {
+    expectNoPlatformAdminEntryCoreActionsCoverage(body);
   });
 
   it.each([

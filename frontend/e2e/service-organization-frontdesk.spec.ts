@@ -8,6 +8,7 @@ import {
   expectOk,
   patchApi,
 } from "./support/auth";
+import { attachPlatformAdminEntryCoreActionEvidence } from "./support/platformAdminEntryCoreActions";
 
 type OrgUnit = {
   id?: string;
@@ -26,6 +27,7 @@ type ProvisionedOrganization = {
   adminUserId: string;
   adminUsername: string;
   adminPassword: string;
+  provisionStatus: number;
 };
 
 type ProvisionedOrgTree = {
@@ -149,6 +151,18 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
       }
     }
     await attachServiceOrganizationScenarioEvidence(testInfo, observedStages);
+    await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
+      menuKey: "tenant-onboarding",
+      role: "platform-admin",
+      path: "/tenant/onboarding",
+      frontdeskAction: "前台开通服务机构、完成首次改密、创建组织树和职责范围账号并回读权限画像",
+      serviceOperation: "POST /api/v1/admin/tenants",
+      serviceStatus: provisionedOrganization?.provisionStatus ?? 0,
+      readbackVerified:
+        observedStages.has("前台回读服务机构组织树") &&
+        observedStages.has("临床账号首次登录后读取权限画像"),
+      auditVerified: observedStages.has("前台开通服务机构"),
+    });
   });
 });
 
@@ -196,6 +210,7 @@ async function provisionServiceOrganizationFromUi(
     ...organization,
     adminUserId: payload.data?.adminUserId ?? organization.adminUsername,
     adminPassword: payload.data?.tempPassword ?? "",
+    provisionStatus: response.status(),
   };
 }
 

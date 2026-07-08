@@ -8,6 +8,7 @@ import {
   ensureReadySession,
   expectOk,
 } from "./support/auth";
+import { attachPlatformAdminEntryCoreActionEvidence } from "./support/platformAdminEntryCoreActions";
 
 type RuntimeOperationsSnapshot = {
   healthStatus?: string;
@@ -204,6 +205,20 @@ test.describe("服务运行保障真实前台上线演练", () => {
       );
     } finally {
       await attachSystemProvidersCoverageEvidence(testInfo, coverageEvidence);
+      await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
+        menuKey: "system-providers",
+        role: "platform-admin",
+        path: "/system/providers",
+        frontdeskAction: "前台核查运行快照、备份恢复证据、依赖诚实降级和临床账号权限隔离",
+        serviceOperation: "GET /api/v1/system/operations",
+        serviceStatus: coverageEvidence.accessEvidence?.platformAdminOperationsStatus ?? 0,
+        readbackVerified:
+          coverageEvidence.apiEvidence.operationsSnapshotRead === true &&
+          coverageEvidence.apiEvidence.backupReadinessObserved === true &&
+          coverageEvidence.apiEvidence.honestDegradationObserved === true &&
+          coverageEvidence.apiEvidence.evidenceDetailsObserved === true,
+        auditVerified: coverageEvidence.apiEvidence.clinicalForbidden === true,
+      });
     }
   });
 

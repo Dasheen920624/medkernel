@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 import { apiBase, appPath, ensureReadySession, expectOk, patchApi, postApi } from "./support/auth";
+import { attachPlatformAdminEntryCoreActionEvidence } from "./support/platformAdminEntryCoreActions";
 
 type CreatedPersonnel = {
   userId: string;
@@ -148,6 +149,20 @@ test.describe("身份来源真实前台上线演练", () => {
           unbinding,
           cleanup: cleanupEvidence,
           scenarioEvidence: [{ code: "S14", observedStages: Array.from(observedStages) }],
+        });
+        await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
+          menuKey: "identity-bindings",
+          role: "platform-admin",
+          path: "/security/identity-binding",
+          frontdeskAction: "前台绑定院内身份来源、列表脱敏回读、重复身份拒绝并解绑留痕",
+          serviceOperation: "POST /api/v1/compliance/identity-bindings",
+          serviceStatus: apiEvidence.bindingPosted ? 200 : 0,
+          readbackVerified:
+            apiEvidence.bindingListRead &&
+            apiEvidence.plaintextNotPersisted &&
+            apiEvidence.duplicateRejected &&
+            apiEvidence.unbindPosted,
+          auditVerified: apiEvidence.bindingPosted && apiEvidence.unbindPosted,
         });
       }
     }

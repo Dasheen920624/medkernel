@@ -70,6 +70,7 @@ type CoverageProof = {
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
   requiresFourRoleCoreActionsAttachment?: boolean;
   requiresSixEntryCoreActionsAttachment?: boolean;
+  requiresPlatformAdminEntryCoreActionsAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -372,6 +373,9 @@ const identityBindingClaims = [
 const fourRoleCoreActionsClaims = ["roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS"];
 const sixEntryCoreActionsClaims = [
   "entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
+];
+const platformAdminEntryCoreActionsClaims = [
+  "platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS",
 ];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
@@ -905,6 +909,9 @@ export function buildBrowserE2eLaunchEvidence(input: {
       generatedAt,
     );
   }
+  if (hasRequiredPlatformAdminEntryCoreActionsAttachment(input.tests)) {
+    mergeClaims(evidence.launchCoverage, platformAdminEntryCoreActionsClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -960,7 +967,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresFourRoleCoreActionsAttachment ||
         hasRequiredFourRoleCoreActionsAttachment(test)) &&
       (!proof.requiresSixEntryCoreActionsAttachment ||
-        hasRequiredSixEntryCoreActionsAttachment(test))
+        hasRequiredSixEntryCoreActionsAttachment(test)) &&
+      (!proof.requiresPlatformAdminEntryCoreActionsAttachment ||
+        hasRequiredPlatformAdminEntryCoreActionsAttachment([test]))
     );
   });
 }
@@ -1358,6 +1367,107 @@ function hasCompleteSixEntryCoreAction(value: unknown) {
   return (
     hasText(action.role) &&
     hasText(action.path) &&
+    hasText(action.frontdeskAction) &&
+    hasText(action.serviceOperation) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true
+  );
+}
+
+const requiredPlatformAdminEntryCoreActionPaths: Record<string, string> = {
+  "tenant-onboarding": "/tenant/onboarding",
+  "identity-bindings": "/security/identity-binding",
+  "adapter-hub": "/adapter/hub",
+  "system-providers": "/system/providers",
+};
+
+const requiredPlatformAdminEntryCoreActionMenuKeys = Object.keys(
+  requiredPlatformAdminEntryCoreActionPaths,
+);
+
+function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  let sawAttachment = false;
+  for (const test of tests) {
+    if (
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "platform-admin-entry-core-actions-codes") continue;
+      sawAttachment = true;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body) return false;
+      if (body.matrixCode !== "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS") return false;
+      if (!hasPlatformAdminEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+      if (!Array.isArray(body.entryActions)) return false;
+      for (const item of body.entryActions) {
+        const action = recordValue(item);
+        const menuKey = textValue(action?.menuKey);
+        if (
+          !action ||
+          !menuKey ||
+          !hasCompletePlatformAdminEntryCoreAction(action, menuKey) ||
+          actionsByMenuKey.has(menuKey)
+        ) {
+          return false;
+        }
+        actionsByMenuKey.set(menuKey, action);
+      }
+    }
+  }
+  return (
+    sawAttachment &&
+    requiredPlatformAdminEntryCoreActionMenuKeys.every((menuKey) =>
+      actionsByMenuKey.has(menuKey),
+    )
+  );
+}
+
+function hasPlatformAdminEntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("平台管理员 P0 入口核心动作代表矩阵") &&
+    hasNegatedScopeTerm(statement, "6 个平台管理员入口全部闭环") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositivePlatformAdminEntryCompleteScopeClaim(statement)
+  );
+}
+
+function hasPositivePlatformAdminEntryCompleteScopeClaim(statement: string) {
+  return [
+    "6 个平台管理员入口全部闭环",
+    "六个平台管理员入口全部闭环",
+    "34 个入口全部业务动作闭环",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCompletePlatformAdminEntryCoreAction(value: unknown, expectedMenuKey: string) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  return (
+    action.menuKey === expectedMenuKey &&
+    action.role === "platform-admin" &&
+    action.path === requiredPlatformAdminEntryCoreActionPaths[expectedMenuKey] &&
     hasText(action.frontdeskAction) &&
     hasText(action.serviceOperation) &&
     typeof serviceStatus === "number" &&

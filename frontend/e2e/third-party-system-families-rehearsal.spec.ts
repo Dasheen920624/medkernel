@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { apiBase, ensureReadySession } from "./support/auth";
+import { attachPlatformAdminEntryCoreActionEvidence } from "./support/platformAdminEntryCoreActions";
 
 type ThirdPartyFamily = {
   code: string;
@@ -232,6 +233,18 @@ test.describe("第三方系统族真实前台上线演练", () => {
         ),
         "utf8",
       ),
+    });
+    await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
+      menuKey: "adapter-hub",
+      role: "platform-admin",
+      path: "/adapter/hub",
+      frontdeskAction: "前台逐类登记系统适配器和接入申请，执行健康诊断并生成数据质量报告",
+      serviceOperation: "POST /api/v1/engine/integration/data-quality/reports",
+      serviceStatus: qualityResponse.status(),
+      readbackVerified:
+        observedFamilyCodes.length === thirdPartyFamilies.length &&
+        (quality.data?.adapterTotal ?? 0) >= thirdPartyFamilies.length,
+      auditVerified: true,
     });
   });
 });
