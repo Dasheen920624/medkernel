@@ -157,7 +157,10 @@ public class ReportInterpretationService {
 
     private int diagnosticTokenScore(String reportText, String itemText) {
         int score = 0;
-        for (String token : List.of("胸部", "chest", "ct", "mri", "超声", "x线", "影像", "检验", "血钾", "potassium")) {
+        for (String token : List.of(
+                "胸部", "chest", "ct", "mri", "超声", "x线", "影像", "检查",
+                "病理", "活检", "内镜", "胃镜", "心电", "ecg",
+                "检验", "血钾", "potassium")) {
             String normalized = normalize(token);
             if (!normalized.isBlank()
                     && reportText.contains(normalized)
@@ -173,7 +176,9 @@ public class ReportInterpretationService {
                 && containsAny(itemText, List.of("lab-test", "检验项目", "medical tests"))) {
             return true;
         }
-        return containsAny(reportText, List.of("exam", "image", "影像", "检查", "ct", "mri", "超声", "x线"))
+        return containsAny(reportText, List.of(
+            "exam", "image", "影像", "检查", "ct", "mri", "超声", "x线",
+            "病理", "活检", "内镜", "胃镜", "心电", "ecg"))
             && containsAny(itemText, List.of("exam-boundary", "image-boundary", "diagnostic-item", "检查项目", "医技项目"));
     }
 

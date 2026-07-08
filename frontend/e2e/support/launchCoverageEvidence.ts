@@ -60,6 +60,7 @@ type CoverageProof = {
   requiresMedicationSafetyFrontdeskAttachment?: boolean;
   requiresDiagnosticCriticalValueFrontdeskAttachment?: boolean;
   requiresDiagnosticFamilyConsumerSliceAttachment?: boolean;
+  requiresDiagnosticReportFamilyMatrixAttachment?: boolean;
   requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
@@ -171,6 +172,10 @@ const diagnosticCriticalValueFrontdeskClaims = [
 
 const diagnosticFamilyConsumerSliceClaims = [
   "thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+];
+
+const diagnosticReportFamilyMatrixClaims = [
+  "diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
 ];
 
 const regionalDiagnosticMutualRecognitionFrontdeskClaims = [
@@ -707,6 +712,13 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosticFamilyConsumerSliceAttachment: true,
   },
   {
+    file: "diagnostic-critical-value-frontdesk.spec.ts",
+    titleIncludes: "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
+    claims: diagnosticReportFamilyMatrixClaims,
+    requiresDiagnosticCriticalValueFrontdeskAttachment: true,
+    requiresDiagnosticReportFamilyMatrixAttachment: true,
+  },
+  {
     file: "regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
     titleIncludes: "临床用户与平台管理员完成区域医技报告互认代表闭环",
     claims: regionalDiagnosticMutualRecognitionFrontdeskClaims,
@@ -863,6 +875,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) &&
       (!proof.requiresDiagnosticFamilyConsumerSliceAttachment ||
         hasRequiredDiagnosticFamilyConsumerSliceAttachment(test)) &&
+      (!proof.requiresDiagnosticReportFamilyMatrixAttachment ||
+        hasRequiredDiagnosticReportFamilyMatrixAttachment(test)) &&
       (!proof.requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment ||
         hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(test)) &&
       (!proof.requiresNursingContinuityFrontdeskAttachment ||
@@ -1345,6 +1359,27 @@ function hasRequiredDiagnosticFamilyConsumerSliceAttachment(test: BrowserE2eTest
     };
     return hasCompleteDiagnosticFamilyConsumerSlice(
       parsed.thirdPartySystemFamilyConsumerSlice,
+      parsed,
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredDiagnosticReportFamilyMatrixAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnostic-critical-value-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      diagnosticReportFamilyConsumerMatrix?: unknown;
+      clinicalContext?: unknown;
+      interpretation?: unknown;
+      workflowTodo?: unknown;
+    };
+    return hasCompleteDiagnosticReportFamilyConsumerMatrix(
+      parsed.diagnosticReportFamilyConsumerMatrix,
       parsed,
     );
   } catch {
@@ -3666,6 +3701,164 @@ function hasDiagnosticFamilyConsumerSliceScopeBoundary(value: unknown) {
 }
 
 function hasUnnegatedDiagnosticFamilyConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整 PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+const requiredDiagnosticReportFamilyCodes = [
+  "PACS_RIS",
+  "ULTRASOUND",
+  "PATHOLOGY",
+  "ENDOSCOPY",
+  "ECG",
+];
+
+function hasCompleteDiagnosticReportFamilyConsumerMatrix(
+  value: unknown,
+  parsed: {
+    clinicalContext?: unknown;
+    interpretation?: unknown;
+    workflowTodo?: unknown;
+  },
+) {
+  const matrix = recordValue(value);
+  const context = recordValue(parsed.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const interpretation = recordValue(parsed.interpretation);
+  const todo = recordValue(parsed.workflowTodo);
+  const rows = Array.isArray(matrix?.rows) ? matrix.rows.map(recordValue) : [];
+  const canonicalResources = Array.isArray(matrix?.canonicalResources)
+    ? matrix.canonicalResources
+    : [];
+  if (
+    matrix === null ||
+    context === null ||
+    resources === null ||
+    interpretation === null ||
+    todo === null ||
+    matrix.systemFamilyCode !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG" ||
+    !hasText(matrix.matrixName) ||
+    !String(matrix.matrixName).includes("五类医技报告族") ||
+    !canonicalResources.includes("DiagnosticReport") ||
+    matrix.consumer !== "REPORT_INTERPRETATION" ||
+    matrix.consumerVerified !== true ||
+    matrix.standardResourceVerified !== true ||
+    matrix.degradationVerified !== true ||
+    matrix.auditVerified !== true ||
+    matrix.noAutoOrder !== true ||
+    matrix.noReportRewrite !== true ||
+    !hasText(matrix.runtimeKnowledgeScope) ||
+    !String(matrix.runtimeKnowledgeScope).includes("不代表五类专属说明书全量发布") ||
+    !hasDiagnosticReportFamilyMatrixScopeBoundary(matrix.scopeStatement) ||
+    !Array.isArray(resources.diagnosticReports) ||
+    !Array.isArray(interpretation.interpretations) ||
+    todo.status !== "COMPLETED" ||
+    todo.category !== "REPORT_INTERPRETATION" ||
+    todo.noAutoOrder !== true ||
+    rows.length !== requiredDiagnosticReportFamilyCodes.length
+  ) {
+    return false;
+  }
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row) return false;
+    const familyCode = textValue(row.reportFamilyCode);
+    if (!familyCode || !requiredDiagnosticReportFamilyCodes.includes(familyCode)) {
+      return false;
+    }
+    if (seen.has(familyCode)) return false;
+    seen.add(familyCode);
+    if (!hasCompleteDiagnosticReportFamilyMatrixRow(row)) return false;
+    if (
+      !resources.diagnosticReports.some((item) =>
+        diagnosticReportFamilyMatrixResourceMatches(item, row),
+      )
+    ) {
+      return false;
+    }
+    if (
+      !interpretation.interpretations.some((item) =>
+        diagnosticReportFamilyMatrixInterpretationMatches(item, row),
+      )
+    ) {
+      return false;
+    }
+  }
+  return requiredDiagnosticReportFamilyCodes.every((code) => seen.has(code));
+}
+
+function hasCompleteDiagnosticReportFamilyMatrixRow(row: Record<string, unknown>) {
+  return (
+    hasText(row.reportFamilyName) &&
+    hasText(row.fhirId) &&
+    hasText(row.reportType) &&
+    hasText(row.fhirCode) &&
+    row.sourceSystem === "FHIR_R4" &&
+    row.standardResourceVerified === true &&
+    row.consumerVerified === true &&
+    row.workflowTodoCompleted === true &&
+    row.degradationVerified === true &&
+    row.noReportRewrite === true &&
+    row.noAutoOrder === true &&
+    row.reportInterpretationId === row.fhirId &&
+    hasText(row.workflowTodoId)
+  );
+}
+
+function diagnosticReportFamilyMatrixResourceMatches(
+  value: unknown,
+  row: Record<string, unknown>,
+) {
+  const report = recordValue(value);
+  if (!report) return false;
+  return (
+    report.reportId === row.fhirId &&
+    report.reportType === row.reportType &&
+    report.sourceSystem === "FHIR_R4" &&
+    hasText(report.conclusion)
+  );
+}
+
+function diagnosticReportFamilyMatrixInterpretationMatches(
+  value: unknown,
+  row: Record<string, unknown>,
+) {
+  const item = recordValue(value);
+  if (!item) return false;
+  return (
+    item.reportId === row.fhirId &&
+    item.reportType === row.reportType &&
+    hasText(item.itemCode) &&
+    hasText(item.versionNo) &&
+    Array.isArray(item.recommendations) &&
+    item.recommendations.some(
+      (recommendation) =>
+        typeof recommendation === "string" &&
+        recommendation.includes("不自动") &&
+        recommendation.includes("医嘱"),
+    )
+  );
+}
+
+function hasDiagnosticReportFamilyMatrixScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("五类医技报告族真实消费者矩阵代表切片") &&
+    !hasUnnegatedDiagnosticReportFamilyMatrixScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 PACS/RIS/病理/内镜/心电系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedDiagnosticReportFamilyMatrixScopeClaim(statement: string) {
   return [
     "完整 PACS/RIS/病理/内镜/心电系统族覆盖",
     "完整PACS/RIS/病理/内镜/心电系统族覆盖",

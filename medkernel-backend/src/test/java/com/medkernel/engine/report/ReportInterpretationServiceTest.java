@@ -266,6 +266,59 @@ class ReportInterpretationServiceTest {
     }
 
     @Test
+    void matchesFiveDiagnosticReportFamiliesToGenericDiagnosticBoundaryKnowledge() {
+        when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(
+            report(
+                "dr-pacs-chest-ct",
+                "胸部 CT 影像报告",
+                "胸部 CT 影像报告提示右下肺斑片影，需结合临床上下文人工复核。",
+                List.of("PACS/RIS 已签发影像报告")),
+            report(
+                "dr-ultrasound-abdomen",
+                "腹部超声检查报告",
+                "腹部超声检查提示胆囊壁增厚，建议结合症状和既往检查人工复核。",
+                List.of("超声报告已签发")),
+            report(
+                "dr-pathology-biopsy",
+                "胃镜活检病理报告",
+                "病理报告提示慢性活动性炎症伴局灶异型增生，需医师人工复核。",
+                List.of("病理报告已签发")),
+            report(
+                "dr-endoscopy-gastroscopy",
+                "胃镜检查报告",
+                "内镜检查报告提示胃窦溃疡样改变，建议结合病理和用药史人工复核。",
+                List.of("内镜报告已签发")),
+            report(
+                "dr-ecg-resting",
+                "十二导联心电图报告",
+                "心电图报告提示 ST-T 改变，需结合症状、肌钙蛋白和既往心电人工复核。",
+                List.of("心电报告已签发")))));
+        when(diagnosticItems.select("t-1", "runtime-release-report")).thenReturn(List.of(
+            new RuntimeDiagnosticItemReference(
+                "t-1",
+                101L,
+                "launch.diagnostic-item.image-boundary.s36",
+                "五类医技报告解读通用边界说明书",
+                22L,
+                "2026.07",
+                SourceAuthorityLevel.D_HOSPITAL.name(),
+                "hash-report-family-boundary")));
+
+        ReportInterpretationResponse response = service.interpret(new ReportInterpretationRequest("snap-report"));
+
+        assertThat(response.interpretations()).hasSize(5);
+        assertThat(response.interpretations()).extracting(ReportInterpretationItem::reportId)
+            .containsExactly(
+                "dr-pacs-chest-ct",
+                "dr-ultrasound-abdomen",
+                "dr-pathology-biopsy",
+                "dr-endoscopy-gastroscopy",
+                "dr-ecg-resting");
+        assertThat(response.interpretations()).extracting(ReportInterpretationItem::itemCode)
+            .containsOnly("launch.diagnostic-item.image-boundary.s36");
+    }
+
+    @Test
     void emptyStateDoesNotPersistRecommendationCard() {
         when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(report(
             "report-plain-1",

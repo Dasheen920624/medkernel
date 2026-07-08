@@ -10,6 +10,59 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十批本地推进：继续按用户“不要片面优化、前台演练按全角色真实操作”的要求，从上一批
+  PACS/RIS、超声、病理、内镜、心电系统族代表消费者切片，推进到 **五类医技报告族真实消费者矩阵代表切片**。
+  本批不是完整上线、不是 134 清库部署复演、不是完整 PACS/RIS / 超声 / 病理 / 内镜 / 心电系统族覆盖、
+  不是完整第三方系统族覆盖，也不是完整 S0-S40 或 34 入口全动作闭环。`diagnostic-critical-value-frontdesk.spec.ts`
+  在既有 S36 医技危急值真实前台链路内，新增五类 `DiagnosticReport` 标准资源入站：
+  `PACS_RIS`、`ULTRASOUND`、`PATHOLOGY`、`ENDOSCOPY`、`ECG`；前台生成报告解读后逐类断言标准资源回读、
+  `interpretation.interpretations` 消费、人工复核待办完成、断连诚实降级、不改写报告和不自动开嘱。
+  `diagnosticRuntime.ts` 支持可选创建五类报告族通用边界知识，并修正知识候选引用解析为真实运行时返回的
+  `kv:{identityId}:{versionNo}`。`launchCoverageEvidence.ts` 新增收窄维度
+  `diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`，只有附件
+  `diagnosticReportFamilyConsumerMatrix` 明确五类矩阵、资源回读、消费者、待办完成和“不代表完整覆盖 / 不代表完整上线”
+  边界时才声明；缺矩阵、缺 ECG、未知/重复 family、缺资源回读、缺解读、待办未完成或 scope 过度宣称均不声明。
+- 第一百七十批真实红点与后端根因：目标 E2E 前两轮先后暴露两个真实问题。r1 红于 E2E helper 仍按
+  `knowledge` 前缀解析候选知识引用，而后端实际为 `kv:{identityId}:{versionNo}`，已在
+  `diagnosticRuntime.ts` 修正。r2 使用旧 jar 时报告解读消费者漏处理病理和心电；定位到
+  `ReportInterpretationService` 的通用医技报告族匹配词只覆盖影像 / 超声 / 内镜附近术语，缺少病理、活检、心电、
+  ECG 等词。已新增后端回归测试
+  `ReportInterpretationServiceTest#matchesFiveDiagnosticReportFamiliesToGenericDiagnosticBoundaryKnowledge`，先复现
+  5 类期望只命中 3 类，再在 `matchesDiagnosticFamily` / `matchesDiagnosticFamilyByTerms` 扩展 `病理`、`活检`、
+  `心电`、`ecg`、`检查` 等匹配边界，保证五类报告族均能绑定同一个通用医技报告边界知识。该修复是消费者匹配根因修复，
+  不是把五类系统族完整能力一并声明为上线完成。
+- 第一百七十批调试与验证证据：重新构建当前源码 jar：
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 通过。使用 18090 dev/H2 本地后端
+  （`SPRING_PROFILES_ACTIVE=dev SERVER_PORT=18090 java -jar medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar`），
+  健康检查 `http://localhost:18090/medkernel/actuator/health` 返回
+  `{"status":"UP","groups":["liveness","readiness"]}`。复跑目标真实 E2E：
+  `E2E_BASE_URL=http://localhost:5173 E2E_API_BASE_URL=http://localhost:18090/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18090 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-diagnostic-family-matrix-20260708-r3 npm --prefix frontend run e2e -- --project=chromium diagnostic-critical-value-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-diagnostic-family-matrix-20260708-r3/report/results.json` 为 `PASSED`
+  （1 expected，0 unexpected，0 flaky，0 skipped，duration=18377ms），`launchCoverage` 仅新增/保留
+  `scenarios:S36`、`productLayers:CLINICAL_EXECUTION/DATA_INTEROPERABILITY`、`versionedAssets:KNOWLEDGE/FIELD_CATALOG/ACTION_CARD`、
+  `deliveryShapes:API_EVENT`、`serviceCombinations:THIRD_PARTY_INTERFACE/CLINICAL_RUNTIME`、
+  `thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG` 与
+  `diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`，没有声明完整 `thirdPartySystemFamilies`。
+  18090 后端已停止，无监听残留。
+- 第一百七十批收尾门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（206 tests）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "diagnostic critical|five diagnostic report family|four-role core actions"`
+  通过（5 selected）；`npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run lint`
+  通过；`npm --prefix frontend run format:check` 通过；`npm --prefix frontend run verify` 通过
+  （lint、stylelint、test:lint-rules、format:check、typecheck、全量 Vitest：116 files / 1261 tests）；
+  `mvn -f medkernel-backend/pom.xml -Dtest=ReportInterpretationServiceTest test` 通过（7 tests）；
+  `mvn -f medkernel-backend/pom.xml test` 通过（3168 tests，0 failures，0 errors，2 skipped，含 PostgreSQL / H2 /
+  Oracle baseline 多方言迁移烟测）；`node scripts/authenticity-guard.mjs --mode=inventory` 通过（扫描 2160 文件，
+  0 阻断）；`node --test scripts/authenticity-guard.test.mjs` 通过（56 tests）；`git diff --check` 退出码 0，
+  仍提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，本批不处理、不暂存。
+- 第一百七十批边界与下一步：当前只证明五类 `DiagnosticReport` 标准资源在 S36 前台链路中被报告解读消费者矩阵化消费；
+  仍未证明五类系统族各自专属说明书 / 字段目录 / 异常缺数 / 高危差异 / 审计导出 / 完整断连降级，
+  也未证明 34 个入口逐页核心动作 + 六态 + 分页筛选 / 导入导出、13 类标准患者资源全量 coverage、未声明 S0-S40 场景、
+  API-only / embedded / hidden 能力、完整第三方系统族逐族真实消费者，或 134 fresh deploy / 清库 / 重启 / 备份恢复。
+  只读子代理本批盘点建议下一批优先级：P0 继续把五类医技报告族从矩阵代表切片推进到逐族完整前台链路；
+  P0 将 34 个入口从可点击 / 可达推进到每页核心动作与六态；P0 补 `standardPatientResources` 13 类全量 coverage 维度；
+  P1 补 S0、S9、S15、S16、S17、S22、S23、S25、S28、S29、S30、S33、S34、S37、S38、S39；
+  P1 补 API-only / embedded / hidden 能力和第三方系统族逐族真实消费者。134 清库 / 重部署仍属于 destructive 外向操作，
+  执行前必须再次取得用户明确确认。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存。
 - 第一百六十九批本地推进：继续按用户“不要片面优化、全角色真实前台操作”的要求，从菜单可达性和专业系统族
   代表消费者继续推进到 **四职责代表主动作真实前台闭环**。本批不是完整上线、不是 134 清库部署复演、
   不是 34 个入口全部业务动作闭环、不是完整 S0-S40，也不是每页核心动作 / 六态 / 导入导出 / 分页筛选全量完成；

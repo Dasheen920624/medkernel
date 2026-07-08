@@ -371,6 +371,25 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain(".filter({ hasText: options.reportType })\\n    .first()");
   });
 
+  it("requires diagnostic critical-value E2E to prove five diagnostic report family matrix through real consumers", () => {
+    const source = readFileSync("e2e/diagnostic-critical-value-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("diagnosticReportFamilyFixtures");
+    expect(source).toContain('"PACS_RIS"');
+    expect(source).toContain('"ULTRASOUND"');
+    expect(source).toContain('"PATHOLOGY"');
+    expect(source).toContain('"ENDOSCOPY"');
+    expect(source).toContain('"ECG"');
+    expect(source).toContain("diagnosticReportFamilyConsumerMatrix");
+    expect(source).toContain("assertDiagnosticReportFamilyConsumerMatrix");
+    expect(source).toContain("completeReportFamilyMatrixTodos");
+    expect(source).toContain("includeReportFamilyMatrixKnowledge: true");
+    expect(source).toContain("五类医技报告族真实消费者矩阵代表切片");
+    expect(source).not.toContain("完整 PACS/RIS/病理/内镜/心电系统族覆盖已完成");
+    expect(source).not.toContain("完整上线验收已完成");
+    expect(source).not.toContain('postApi(page, "/engine/workflow/todos"');
+  });
+
   it("keeps third-party family evidence API readback on the real backend API base", () => {
     const source = readFileSync("e2e/third-party-system-families-rehearsal.spec.ts", "utf8");
 

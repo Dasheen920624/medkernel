@@ -1319,6 +1319,140 @@ const diagnosticCriticalValueEvidence = {
   ],
 };
 
+const diagnosticReportFamilyMatrixRows = [
+  {
+    reportFamilyCode: "PACS_RIS",
+    reportFamilyName: "PACS/RIS 影像报告",
+    fhirId: "dr-pacs-chest-ct",
+    reportType: "胸部 CT 影像报告",
+    fhirCode: "IMG.CT.CHEST",
+    sourceSystem: "FHIR_R4",
+    standardResourceVerified: true,
+    consumerVerified: true,
+    workflowTodoCompleted: true,
+    degradationVerified: true,
+    noReportRewrite: true,
+    noAutoOrder: true,
+    reportInterpretationId: "dr-pacs-chest-ct",
+    workflowTodoId: "todo-critical-report",
+  },
+  {
+    reportFamilyCode: "ULTRASOUND",
+    reportFamilyName: "超声报告",
+    fhirId: "dr-ultrasound-abdomen",
+    reportType: "腹部超声报告",
+    fhirCode: "US.ABDOMEN",
+    sourceSystem: "FHIR_R4",
+    standardResourceVerified: true,
+    consumerVerified: true,
+    workflowTodoCompleted: true,
+    degradationVerified: true,
+    noReportRewrite: true,
+    noAutoOrder: true,
+    reportInterpretationId: "dr-ultrasound-abdomen",
+    workflowTodoId: "todo-critical-report",
+  },
+  {
+    reportFamilyCode: "PATHOLOGY",
+    reportFamilyName: "病理报告",
+    fhirId: "dr-pathology-biopsy",
+    reportType: "胃镜活检病理报告",
+    fhirCode: "PATH.BIOPSY",
+    sourceSystem: "FHIR_R4",
+    standardResourceVerified: true,
+    consumerVerified: true,
+    workflowTodoCompleted: true,
+    degradationVerified: true,
+    noReportRewrite: true,
+    noAutoOrder: true,
+    reportInterpretationId: "dr-pathology-biopsy",
+    workflowTodoId: "todo-critical-report",
+  },
+  {
+    reportFamilyCode: "ENDOSCOPY",
+    reportFamilyName: "内镜报告",
+    fhirId: "dr-endoscopy-gastroscopy",
+    reportType: "胃镜检查报告",
+    fhirCode: "ENDO.GASTROSCOPY",
+    sourceSystem: "FHIR_R4",
+    standardResourceVerified: true,
+    consumerVerified: true,
+    workflowTodoCompleted: true,
+    degradationVerified: true,
+    noReportRewrite: true,
+    noAutoOrder: true,
+    reportInterpretationId: "dr-endoscopy-gastroscopy",
+    workflowTodoId: "todo-critical-report",
+  },
+  {
+    reportFamilyCode: "ECG",
+    reportFamilyName: "心电报告",
+    fhirId: "dr-ecg-resting",
+    reportType: "十二导联心电图报告",
+    fhirCode: "ECG.12LEAD",
+    sourceSystem: "FHIR_R4",
+    standardResourceVerified: true,
+    consumerVerified: true,
+    workflowTodoCompleted: true,
+    degradationVerified: true,
+    noReportRewrite: true,
+    noAutoOrder: true,
+    reportInterpretationId: "dr-ecg-resting",
+    workflowTodoId: "todo-critical-report",
+  },
+];
+
+const diagnosticReportFamilyMatrixEvidence = {
+  ...diagnosticCriticalValueEvidence,
+  diagnosticReportFamilyConsumerMatrix: {
+    systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    matrixName: "PACS/RIS、超声、病理、内镜、心电五类医技报告族真实消费者矩阵",
+    canonicalResources: ["DiagnosticReport"],
+    consumer: "REPORT_INTERPRETATION",
+    runtimeKnowledgeScope: "当前机构生效版本报告解读说明书代表，不代表五类专属说明书全量发布。",
+    consumerVerified: true,
+    standardResourceVerified: true,
+    degradationVerified: true,
+    auditVerified: true,
+    noAutoOrder: true,
+    noReportRewrite: true,
+    scopeStatement:
+      "PACS/RIS、超声、病理、内镜、心电五类医技报告族真实消费者矩阵代表切片：已验证五类 DiagnosticReport 标准资源入站、报告解读消费者、人工复核待办和断连诚实降级；不代表完整 PACS/RIS/病理/内镜/心电系统族覆盖，不代表完整第三方系统族覆盖，不代表完整上线验收。",
+    rows: diagnosticReportFamilyMatrixRows,
+  },
+  clinicalContext: {
+    ...diagnosticCriticalValueEvidence.clinicalContext,
+    resources: {
+      ...diagnosticCriticalValueEvidence.clinicalContext.resources,
+      diagnosticReports: [
+        ...diagnosticCriticalValueEvidence.clinicalContext.resources.diagnosticReports,
+        ...diagnosticReportFamilyMatrixRows.map((row) => ({
+          reportId: row.fhirId,
+          reportType: row.reportType,
+          conclusion: `${row.reportFamilyName} 已签发，需结合当前患者上下文人工复核。`,
+          sourceSystem: "FHIR_R4",
+        })),
+      ],
+    },
+  },
+  interpretation: {
+    ...diagnosticCriticalValueEvidence.interpretation,
+    interpretations: [
+      ...diagnosticCriticalValueEvidence.interpretation.interpretations,
+      ...diagnosticReportFamilyMatrixRows.map((row) => ({
+        reportId: row.fhirId,
+        reportType: row.reportType,
+        itemCode: "plat:diagnostic_item:lab-potassium",
+        sourceVersionId: 21,
+        versionNo: "V1",
+        criticalRisk: false,
+        abnormalHighlights: [`${row.reportFamilyName} 人工复核重点`],
+        recommendations: ["请结合患者上下文人工复核报告，系统不自动开立医嘱。"],
+      })),
+    ],
+  },
+};
+
 function diagnosticCriticalValueEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -1350,6 +1484,13 @@ function expectNoDiagnosticFamilyConsumerSliceCoverage(body: Record<string, unkn
   const evidence = diagnosticCriticalValueEvidenceResult(body);
   expect(
     evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG");
+}
+
+function expectNoDiagnosticReportFamilyMatrixCoverage(body: Record<string, unknown>) {
+  const evidence = diagnosticCriticalValueEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.diagnosticReportFamilyConsumerMatrix?.map((item) => item.code) ?? [],
   ).not.toContain("PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG");
 }
 
@@ -5596,6 +5737,15 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares five diagnostic report family consumer matrix only with all real report families", () => {
+    const evidence = diagnosticCriticalValueEvidenceResult(diagnosticReportFamilyMatrixEvidence);
+
+    expect(
+      evidence.launchCoverage.diagnosticReportFamilyConsumerMatrix?.map((item) => item.code),
+    ).toEqual(["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("declares S36 diagnostic critical-value coverage when FHIR retry compensation reaches NOT_CONNECTED", () => {
     const evidence = diagnosticCriticalValueEvidenceResult({
       ...diagnosticCriticalValueEvidence,
@@ -5769,6 +5919,110 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare PACS/RIS diagnostic family consumer slice when $name", ({ body }) => {
     expectNoDiagnosticFamilyConsumerSliceCoverage(body);
+  });
+
+  it.each([
+    {
+      name: "缺少五类报告族矩阵附件字段",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        diagnosticReportFamilyConsumerMatrix: undefined,
+      },
+    },
+    {
+      name: "五类报告族矩阵缺少心电报告",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        diagnosticReportFamilyConsumerMatrix: {
+          ...diagnosticReportFamilyMatrixEvidence.diagnosticReportFamilyConsumerMatrix,
+          rows: diagnosticReportFamilyMatrixRows.filter((row) => row.reportFamilyCode !== "ECG"),
+        },
+      },
+    },
+    {
+      name: "五类报告族矩阵包含未知报告族",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        diagnosticReportFamilyConsumerMatrix: {
+          ...diagnosticReportFamilyMatrixEvidence.diagnosticReportFamilyConsumerMatrix,
+          rows: [
+            ...diagnosticReportFamilyMatrixRows.slice(0, 4),
+            {
+              ...diagnosticReportFamilyMatrixRows[4],
+              reportFamilyCode: "DENTAL",
+              reportFamilyName: "口腔影像报告",
+            },
+          ],
+        },
+      },
+    },
+    {
+      name: "五类报告族矩阵重复 PACS/RIS 且缺少超声",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        diagnosticReportFamilyConsumerMatrix: {
+          ...diagnosticReportFamilyMatrixEvidence.diagnosticReportFamilyConsumerMatrix,
+          rows: [
+            diagnosticReportFamilyMatrixRows[0],
+            { ...diagnosticReportFamilyMatrixRows[0], fhirId: "dr-pacs-duplicate" },
+            ...diagnosticReportFamilyMatrixRows.slice(2),
+          ],
+        },
+      },
+    },
+    {
+      name: "矩阵行未回读标准 DiagnosticReport",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        clinicalContext: {
+          ...diagnosticReportFamilyMatrixEvidence.clinicalContext,
+          resources: {
+            ...diagnosticReportFamilyMatrixEvidence.clinicalContext.resources,
+            diagnosticReports:
+              diagnosticReportFamilyMatrixEvidence.clinicalContext.resources.diagnosticReports.filter(
+                (row) => row.reportId !== "dr-endoscopy-gastroscopy",
+              ),
+          },
+        },
+      },
+    },
+    {
+      name: "矩阵行未被报告解读消费者处理",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        interpretation: {
+          ...diagnosticReportFamilyMatrixEvidence.interpretation,
+          interpretations:
+            diagnosticReportFamilyMatrixEvidence.interpretation.interpretations.filter(
+              (row) => row.reportId !== "dr-pathology-biopsy",
+            ),
+        },
+      },
+    },
+    {
+      name: "矩阵行待办未完成人工闭环",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        diagnosticReportFamilyConsumerMatrix: {
+          ...diagnosticReportFamilyMatrixEvidence.diagnosticReportFamilyConsumerMatrix,
+          rows: diagnosticReportFamilyMatrixRows.map((row) =>
+            row.reportFamilyCode === "ULTRASOUND" ? { ...row, workflowTodoCompleted: false } : row,
+          ),
+        },
+      },
+    },
+    {
+      name: "矩阵附件过度宣称完整上线验收",
+      body: {
+        ...diagnosticReportFamilyMatrixEvidence,
+        diagnosticReportFamilyConsumerMatrix: {
+          ...diagnosticReportFamilyMatrixEvidence.diagnosticReportFamilyConsumerMatrix,
+          scopeStatement: "五类医技报告族完整上线验收已完成。",
+        },
+      },
+    },
+  ])("does not declare five diagnostic report family matrix when $name", ({ body }) => {
+    expectNoDiagnosticReportFamilyMatrixCoverage(body);
   });
 
   it("declares S40 regional diagnostic mutual-recognition coverage only with trusted source, runtime assets and human closure", () => {

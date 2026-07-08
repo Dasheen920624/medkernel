@@ -26,6 +26,7 @@ type RuntimeReleaseItem = DiagnosticRuntimeReleaseItem;
 type DiagnosticCriticalValueApiEvidence = {
   fhirObservationAccepted: boolean;
   fhirDiagnosticReportAccepted: boolean;
+  diagnosticReportFamilyMatrixVerified: boolean;
   contextSnapshotContainsInboundResources: boolean;
   currentRuntimeContainsDiagnosticAssets: boolean;
   reportInterpretationTriggeredFromFrontdesk: boolean;
@@ -53,6 +54,33 @@ type FhirInboundEvidence = {
   compensationStatus: string | null;
   compensationRequired: boolean | null;
   compensationMessageId: string;
+};
+
+type DiagnosticReportFamilyFixture = {
+  reportFamilyCode: "PACS_RIS" | "ULTRASOUND" | "PATHOLOGY" | "ENDOSCOPY" | "ECG";
+  reportFamilyName: string;
+  fhirIdPrefix: string;
+  fhirCode: string;
+  reportType: string;
+  conclusion: string;
+  note: string;
+};
+
+type DiagnosticReportFamilyMatrixRow = {
+  reportFamilyCode: DiagnosticReportFamilyFixture["reportFamilyCode"];
+  reportFamilyName: string;
+  fhirId: string;
+  reportType: string;
+  fhirCode: string;
+  sourceSystem: "FHIR_R4";
+  standardResourceVerified: boolean;
+  consumerVerified: boolean;
+  workflowTodoCompleted: boolean;
+  degradationVerified: boolean;
+  noReportRewrite: boolean;
+  noAutoOrder: boolean;
+  reportInterpretationId: string;
+  workflowTodoId: string;
 };
 
 type ReportInterpretationPayload = {
@@ -83,6 +111,54 @@ const requiredStages = [
   "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱",
 ] as const;
 
+const diagnosticReportFamilyFixtures: DiagnosticReportFamilyFixture[] = [
+  {
+    reportFamilyCode: "PACS_RIS",
+    reportFamilyName: "PACS/RIS 影像报告",
+    fhirIdPrefix: "dr-pacs-chest-ct",
+    fhirCode: "IMG.CT.CHEST",
+    reportType: "胸部 CT 影像报告",
+    conclusion: "胸部 CT 影像报告提示右下肺斑片影，需结合临床上下文人工复核。",
+    note: "PACS/RIS 已签发影像报告，系统仅生成阅读辅助。",
+  },
+  {
+    reportFamilyCode: "ULTRASOUND",
+    reportFamilyName: "超声报告",
+    fhirIdPrefix: "dr-ultrasound-abdomen",
+    fhirCode: "US.ABDOMEN",
+    reportType: "腹部超声检查报告",
+    conclusion: "腹部超声检查提示胆囊壁增厚，建议结合症状和既往检查人工复核。",
+    note: "超声报告已签发，系统不改写报告。",
+  },
+  {
+    reportFamilyCode: "PATHOLOGY",
+    reportFamilyName: "病理报告",
+    fhirIdPrefix: "dr-pathology-biopsy",
+    fhirCode: "PATH.BIOPSY",
+    reportType: "胃镜活检病理报告",
+    conclusion: "病理报告提示慢性活动性炎症伴局灶异型增生，需医师人工复核。",
+    note: "病理报告已签发，解读仅作辅助。",
+  },
+  {
+    reportFamilyCode: "ENDOSCOPY",
+    reportFamilyName: "内镜报告",
+    fhirIdPrefix: "dr-endoscopy-gastroscopy",
+    fhirCode: "ENDO.GASTROSCOPY",
+    reportType: "胃镜检查报告",
+    conclusion: "内镜检查报告提示胃窦溃疡样改变，建议结合病理和用药史人工复核。",
+    note: "内镜报告已签发，系统不替代医师判断。",
+  },
+  {
+    reportFamilyCode: "ECG",
+    reportFamilyName: "心电报告",
+    fhirIdPrefix: "dr-ecg-resting",
+    fhirCode: "ECG.12LEAD",
+    reportType: "十二导联心电图报告",
+    conclusion: "心电图报告提示 ST-T 改变，需结合症状、肌钙蛋白和既往心电人工复核。",
+    note: "心电报告已签发，系统不自动开立医嘱。",
+  },
+];
+
 test.describe("医技报告危急值真实前台闭环", () => {
   test(
     "临床用户与医技人员围绕危急值报告完成外部入站、报告解读与人工闭环",
@@ -93,7 +169,9 @@ test.describe("医技报告危急值真实前台闭环", () => {
       const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
 
       await ensureReadySession(page, "engine-operator");
-      const runtime = await ensureDiagnosticCriticalValueRuntime(page, suffix);
+      const runtime = await ensureDiagnosticCriticalValueRuntime(page, suffix, {
+        includeReportFamilyMatrixKnowledge: true,
+      });
       const diagnosticAssets = {
         knowledge: {
           assetType: "KNOWLEDGE" as const,
@@ -137,12 +215,29 @@ test.describe("医技报告危急值真实前台闭环", () => {
       apiEvidence.fhirDiagnosticReportAccepted = true;
       recordStage(observedStages, "外部 FHIR/LIS 入站已签发 DiagnosticReport 并落标准资源");
 
+      const inboundReportFamilyMatrix = [];
+      for (const fixture of diagnosticReportFamilyFixtures) {
+        inboundReportFamilyMatrix.push(
+          await postSignedFhirResource(page, {
+            adapterId: fhir.adapterId,
+            secret: fhir.sharedSecret,
+            snapshot,
+            resourceType: "DiagnosticReport",
+            resource: diagnosticReportFamilyResource(snapshot, fixture, suffix),
+          }),
+        );
+      }
+
       const contextAfterInbound = await readContextSnapshot(page, snapshot.snapshotId);
       const clinicalContext = assertContextContainsInboundCriticalResources({
         context: contextAfterInbound,
         runtime,
         inboundObservation,
         inboundDiagnosticReport,
+      });
+      assertContextContainsDiagnosticReportFamilyMatrix({
+        context: contextAfterInbound,
+        inboundReports: inboundReportFamilyMatrix,
       });
       apiEvidence.contextSnapshotContainsInboundResources = true;
       recordStage(observedStages, "当前上下文回读 Observation 与 DiagnosticReport 均绑定同一机构生效版本");
@@ -153,6 +248,12 @@ test.describe("医技报告危急值真实前台闭环", () => {
         knowledge: diagnosticAssets.knowledge,
       });
       apiEvidence.reportInterpretationTriggeredFromFrontdesk = true;
+      const reportFamilyMatrixRows = assertDiagnosticReportFamilyConsumerMatrix({
+        interpretation,
+        context: contextAfterInbound,
+        inboundReports: inboundReportFamilyMatrix,
+      });
+      apiEvidence.diagnosticReportFamilyMatrixVerified = true;
       recordStage(observedStages, "临床用户从真实前台生成医技报告解读");
 
       const recommendation = await findReportInterpretationRecommendation(page, {
@@ -170,6 +271,10 @@ test.describe("医技报告危急值真实前台闭环", () => {
         cardId: recommendation.cardId,
         reportType: interpretation.interpretations?.[0]?.reportType ?? "血钾检验",
       });
+      const reportFamilyMatrixRowsWithTodo = completeReportFamilyMatrixTodos(
+        reportFamilyMatrixRows,
+        workflowTodo.todoId,
+      );
       apiEvidence.workflowTodoCompletedByHuman = true;
       recordStage(observedStages, "医技或医生人工完成报告解读待办，系统不改写报告且不自动开嘱");
 
@@ -183,6 +288,7 @@ test.describe("医技报告危急值真实前台闭环", () => {
         interpretation,
         recommendation,
         workflowTodo,
+        reportFamilyMatrixRows: reportFamilyMatrixRowsWithTodo,
         observedStages,
       });
     },
@@ -379,6 +485,21 @@ async function postSignedFhirResource(
       criticalFlag: "HH",
     };
   }
+  const familyFixture = diagnosticReportFamilyFixtures.find(
+    (fixture) => fhirId.startsWith(`${fixture.fhirIdPrefix}-`),
+  );
+  if (familyFixture) {
+    return {
+      ...base,
+      canonicalResourceType: "DIAGNOSTIC_REPORT",
+      reportFamilyCode: familyFixture.reportFamilyCode,
+      reportFamilyName: familyFixture.reportFamilyName,
+      fhirCode: familyFixture.fhirCode,
+      reportType: familyFixture.reportType,
+      conclusion: familyFixture.conclusion,
+      signedStatus: "FINAL",
+    };
+  }
   return {
     ...base,
     canonicalResourceType: "DIAGNOSTIC_REPORT",
@@ -437,6 +558,34 @@ function criticalDiagnosticReportResource(
     effectiveDateTime: "2026-07-07T00:00:00Z",
     issued: "2026-07-07T00:01:00Z",
     note: [{ text: "外部 LIS/FHIR 入站，报告已签发，仅供中枢解读与闭环任务使用。" }],
+  };
+}
+
+function diagnosticReportFamilyResource(
+  snapshot: Pick<ContextSnapshotSummary, "patientId">,
+  fixture: DiagnosticReportFamilyFixture,
+  suffix: string,
+) {
+  return {
+    resourceType: "DiagnosticReport",
+    id: `${fixture.fhirIdPrefix}-${suffix.toLowerCase()}`,
+    status: "final",
+    subject: { reference: `Patient/${snapshot.patientId}` },
+    code: {
+      coding: [
+        {
+          system: "urn:medkernel:local:diagnostic-report-family",
+          code: fixture.fhirCode,
+          display: fixture.reportType,
+        },
+      ],
+      text: fixture.reportType,
+    },
+    conclusion: fixture.conclusion,
+    effectiveDateTime: "2026-07-07T00:02:00Z",
+    issued: "2026-07-07T00:03:00Z",
+    resultsInterpreter: [{ display: "本地上线演练医技科" }],
+    note: [{ text: fixture.note }],
   };
 }
 
@@ -515,6 +664,85 @@ function assertContextContainsInboundCriticalResources(options: {
     runtimeReleaseId: options.context.runtimeReleaseId,
     resources: options.context.resources,
   };
+}
+
+function assertContextContainsDiagnosticReportFamilyMatrix(options: {
+  context: ContextSnapshotSummary;
+  inboundReports: Array<Record<string, unknown>>;
+}) {
+  const diagnosticReports = arrayField(options.context.resources, "diagnosticReports");
+  for (const inbound of options.inboundReports) {
+    const report = diagnosticReports.find(
+      (item) =>
+        textField(item, "reportId") === inbound.fhirId &&
+        textField(item, "reportType") === inbound.reportType &&
+        textField(item, "sourceSystem") === "FHIR_R4",
+    );
+    expect(
+      report,
+      `上下文回读必须包含 ${inbound.reportFamilyName ?? inbound.reportType} DiagnosticReport`,
+    ).toBeTruthy();
+  }
+}
+
+function assertDiagnosticReportFamilyConsumerMatrix(options: {
+  interpretation: ReportInterpretationPayload;
+  context: ContextSnapshotSummary;
+  inboundReports: Array<Record<string, unknown>>;
+}): DiagnosticReportFamilyMatrixRow[] {
+  assertContextContainsDiagnosticReportFamilyMatrix({
+    context: options.context,
+    inboundReports: options.inboundReports,
+  });
+  return options.inboundReports.map((inbound) => {
+    const interpretation = options.interpretation.interpretations?.find(
+      (item) => item.reportId === inbound.fhirId && item.reportType === inbound.reportType,
+    );
+    expect(
+      interpretation,
+      `报告解读消费者必须处理 ${inbound.reportFamilyName ?? inbound.reportType}`,
+    ).toBeTruthy();
+    expect(
+      interpretation?.recommendations?.some((text) => text.includes("不自动") && text.includes("医嘱")),
+      `${inbound.reportFamilyName ?? inbound.reportType} 解读建议必须保留不自动开嘱边界`,
+    ).toBe(true);
+    return {
+      reportFamilyCode: requireFamilyCode(inbound),
+      reportFamilyName: requireText(
+        textField(inbound, "reportFamilyName"),
+        "五类报告族矩阵行必须返回 reportFamilyName",
+      ),
+      fhirId: requireText(textField(inbound, "fhirId"), "五类报告族矩阵行必须返回 fhirId"),
+      reportType: requireText(
+        textField(inbound, "reportType"),
+        "五类报告族矩阵行必须返回 reportType",
+      ),
+      fhirCode: requireText(textField(inbound, "fhirCode"), "五类报告族矩阵行必须返回 fhirCode"),
+      sourceSystem: "FHIR_R4",
+      standardResourceVerified: true,
+      consumerVerified: true,
+      workflowTodoCompleted: false,
+      degradationVerified: hasDiagnosticNotConnectedEvidence(inbound),
+      noReportRewrite: true,
+      noAutoOrder: true,
+      reportInterpretationId: requireText(
+        textField(interpretation, "reportId"),
+        "五类报告族矩阵行必须绑定报告解读 reportId",
+      ),
+      workflowTodoId: "",
+    };
+  });
+}
+
+function completeReportFamilyMatrixTodos(
+  rows: DiagnosticReportFamilyMatrixRow[],
+  workflowTodoId: string,
+) {
+  return rows.map((row) => ({
+    ...row,
+    workflowTodoCompleted: true,
+    workflowTodoId,
+  }));
 }
 
 async function generateReportInterpretationFromFrontdesk(
@@ -708,6 +936,7 @@ async function attachDiagnosticCriticalValueEvidence(
     interpretation: ReportInterpretationPayload;
     recommendation: unknown;
     workflowTodo: unknown;
+    reportFamilyMatrixRows: DiagnosticReportFamilyMatrixRow[];
     observedStages: Set<string>;
   },
 ) {
@@ -739,6 +968,23 @@ async function attachDiagnosticCriticalValueEvidence(
           noReportRewrite: true,
           scopeStatement:
             "PACS/RIS、超声、病理、内镜、心电系统族代表消费者切片：已验证医技报告标准资源入站、报告解读消费者、人工复核待办和断连诚实降级；不代表完整 PACS/RIS/病理/内镜/心电系统族覆盖、完整第三方系统族覆盖或完整上线验收。",
+        },
+        diagnosticReportFamilyConsumerMatrix: {
+          systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+          matrixName: "PACS/RIS、超声、病理、内镜、心电五类医技报告族真实消费者矩阵",
+          canonicalResources: ["DiagnosticReport"],
+          consumer: "REPORT_INTERPRETATION",
+          runtimeKnowledgeScope:
+            "当前机构生效版本报告解读说明书代表，不代表五类专属说明书全量发布。",
+          consumerVerified: true,
+          standardResourceVerified: true,
+          degradationVerified: true,
+          auditVerified: true,
+          noAutoOrder: true,
+          noReportRewrite: true,
+          scopeStatement:
+            "PACS/RIS、超声、病理、内镜、心电五类医技报告族真实消费者矩阵代表切片：已验证五类 DiagnosticReport 标准资源入站、报告解读消费者、人工复核待办和断连诚实降级；不代表完整 PACS/RIS/病理/内镜/心电系统族覆盖，不代表完整第三方系统族覆盖，不代表完整上线验收。",
+          rows: evidence.reportFamilyMatrixRows,
         },
         apiEvidence: evidence.apiEvidence,
         inboundObservation: evidence.inboundObservation,
@@ -800,6 +1046,22 @@ function assertRuntimeAssetEvidence(
     ),
     "推荐解释必须证明危急值提示卡要求人工确认",
   ).toBe(true);
+}
+
+function requireFamilyCode(value: Record<string, unknown>) {
+  const code = textField(value, "reportFamilyCode");
+  expect(
+    diagnosticReportFamilyFixtures.some((fixture) => fixture.reportFamilyCode === code),
+    "五类报告族矩阵行必须使用已定义 reportFamilyCode",
+  ).toBe(true);
+  return code as DiagnosticReportFamilyFixture["reportFamilyCode"];
+}
+
+function hasDiagnosticNotConnectedEvidence(value: Record<string, unknown>) {
+  return (
+    value.operationOutcomeContainsNotConnected === true ||
+    value.compensationStatus === "NOT_CONNECTED"
+  );
 }
 
 function recordStage(stages: Set<string>, stage: (typeof requiredStages)[number]) {
