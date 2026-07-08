@@ -37,6 +37,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -80,6 +82,8 @@ class FollowupEngineServiceTest {
     private FollowupTemplateService templateService;
     @Mock
     private RuntimeReleaseFollowupTemplateSelector runtimeTemplates;
+    @Mock
+    private AuditRecorder auditRecorder;
 
     @InjectMocks
     private FollowupEngineService service;
@@ -119,6 +123,42 @@ class FollowupEngineServiceTest {
         assertEquals("PLAN01", response.planId());
         assertEquals(1, response.tasks().size());
         assertEquals(FollowupTaskType.QUESTIONNAIRE, response.tasks().get(0).taskType());
+    }
+
+    @Test
+    void generatePlanRecordsFollowupPlanCreationAudit() {
+        stubActiveSnapshot("ctx-audit-1", "PAT-AUDIT", "ENC-AUDIT", "D-AUDIT");
+        when(planRepository.save(any(FollowupPlan.class))).thenAnswer(invocation -> {
+            FollowupPlan p = invocation.getArgument(0);
+            return new FollowupPlan(
+                1L, "PLAN-AUDIT", p.tenantId(), p.patientId(), p.encounterId(), p.pathwayId(),
+                p.diseaseCode(), p.riskLevel(), p.runtimeReleaseId(), p.status(), p.idempotencyKey(),
+                p.sourceFactType(), p.sourceFactId(), p.generationRuleCode(), p.generationExplanation(),
+                p.templateId(), p.templateVersion(), p.createdAt(), p.createdBy(), p.updatedAt(), p.updatedBy(),
+                p.traceId()
+            );
+        });
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FollowupPlanDetailResponse response = service.generatePlan(new FollowupPlanGenerateRequest(
+            "ctx-audit-1",
+            "HIGH",
+            List.of("QUESTIONNAIRE"),
+            "followup-audit-key-1",
+            false
+        ));
+
+        assertThat(response.planId()).isEqualTo("PLAN-AUDIT");
+        ArgumentCaptor<String> summaryCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditRecorder).record(
+            eq(AuditAction.CREATE),
+            eq("followup_plan"),
+            eq("PLAN-AUDIT"),
+            summaryCaptor.capture()
+        );
+        assertThat(summaryCaptor.getValue())
+            .contains("生成随访计划")
+            .contains("PLAN-AUDIT");
     }
 
     @Test
@@ -341,6 +381,12 @@ class FollowupEngineServiceTest {
         assertEquals(1, response.tasks().size());
         verify(planRepository, never()).save(any(FollowupPlan.class));
         verify(taskRepository, never()).save(any(FollowupTask.class));
+        verify(auditRecorder, never()).record(
+            eq(AuditAction.CREATE),
+            eq("followup_plan"),
+            any(String.class),
+            any(String.class)
+        );
     }
 
     @Test
@@ -482,6 +528,12 @@ class FollowupEngineServiceTest {
         assertThat(response.modelStatus()).isEqualTo(FollowupModelStatus.MODEL_DISABLED);
         verify(planRepository, never()).save(any(FollowupPlan.class));
         verify(taskRepository, never()).save(any(FollowupTask.class));
+        verify(auditRecorder, never()).record(
+            eq(AuditAction.CREATE),
+            eq("followup_plan"),
+            any(String.class),
+            any(String.class)
+        );
     }
 
     @Test

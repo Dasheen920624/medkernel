@@ -380,6 +380,9 @@ const platformAdminEntryCoreActionsClaims = [
 const platformAdminP1EntryCoreActionsClaims = [
   "platformAdminP1EntryCoreActions:RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK",
 ];
+const clinicalEntryCoreActionsClaims = [
+  "clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
+];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
@@ -918,6 +921,9 @@ export function buildBrowserE2eLaunchEvidence(input: {
   if (hasRequiredPlatformAdminP1EntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, platformAdminP1EntryCoreActionsClaims, generatedAt);
   }
+  if (hasRequiredClinicalEntryCoreActionsAttachment(input.tests)) {
+    mergeClaims(evidence.launchCoverage, clinicalEntryCoreActionsClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -1403,6 +1409,24 @@ const requiredPlatformAdminP1EntryCoreActionMenuKeys = Object.keys(
   requiredPlatformAdminP1EntryCoreActionPaths,
 );
 
+const requiredClinicalEntryCoreActionPaths: Record<string, string> = {
+  mpi: "/mpi",
+  "patient-pathways": "/pathway/patients",
+  "cdss-fatigue": "/cdss/fatigue",
+  "workflow-todos": "/workflow/todos",
+  "clinical-followup": "/clinical/followup",
+};
+
+const requiredClinicalEntryCoreActionMenuKeys = Object.keys(requiredClinicalEntryCoreActionPaths);
+const clinicalEntryCoreActionSpecFile = "clinical-entry-core-actions-rehearsal.spec.ts";
+const requiredClinicalEntryCoreActionServiceOperations: Record<string, string[]> = {
+  mpi: ["/api/v1/engine/mpi/patients", "/api/v1/engine/context/snapshots"],
+  "patient-pathways": ["/api/v1/engine/pathway/patient-pathways/enter"],
+  "cdss-fatigue": ["/api/v1/engine/recommendations:evaluate"],
+  "workflow-todos": ["/api/v1/engine/workflow/todos/{todoId}/complete"],
+  "clinical-followup": ["/api/v1/engine/followup/plans/generate"],
+};
+
 function hasRequiredPlatformAdminEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   const actionsByMenuKey = new Map<string, Record<string, unknown>>();
   let sawAttachment = false;
@@ -1528,6 +1552,78 @@ function hasPlatformAdminP1EntryCoreActionScopeBoundary(value: unknown) {
   );
 }
 
+function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  let sawAttachment = false;
+  for (const test of tests) {
+    if (
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    if (path.basename(test.file) !== clinicalEntryCoreActionSpecFile) continue;
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "clinical-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body || body.matrixCode !== "CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS") continue;
+      sawAttachment = true;
+      if (!hasClinicalEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+      if (!Array.isArray(body.entryActions)) return false;
+      for (const item of body.entryActions) {
+        const action = recordValue(item);
+        const menuKey = textValue(action?.menuKey);
+        if (
+          !action ||
+          !menuKey ||
+          !hasCompleteClinicalEntryCoreAction(action, menuKey) ||
+          actionsByMenuKey.has(menuKey)
+        ) {
+          return false;
+        }
+        actionsByMenuKey.set(menuKey, action);
+      }
+    }
+  }
+  return (
+    sawAttachment &&
+    requiredClinicalEntryCoreActionMenuKeys.every((menuKey) => actionsByMenuKey.has(menuKey))
+  );
+}
+
+function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("临床协同入口核心动作代表矩阵") &&
+    hasNegatedScopeTerm(statement, "完整临床流程") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveClinicalEntryCompleteScopeClaim(statement)
+  );
+}
+
+function hasPositiveClinicalEntryCompleteScopeClaim(statement: string) {
+  return [
+    "完整临床流程",
+    "34 个入口全部业务动作闭环",
+    "完整S0-S40",
+    "完整 S0-S40",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
 function hasPositivePlatformAdminEntryCompleteScopeClaim(statement: string) {
   return [
     "6 个平台管理员入口全部闭环",
@@ -1559,6 +1655,35 @@ function hasCompletePlatformAdminEntryCoreAction(
     action.readbackVerified === true &&
     action.auditVerified === true
   );
+}
+
+function hasCompleteClinicalEntryCoreAction(value: unknown, expectedMenuKey: string) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  const serviceOperation = textValue(action.serviceOperation);
+  return (
+    action.menuKey === expectedMenuKey &&
+    action.role === "clinical-user" &&
+    action.path === requiredClinicalEntryCoreActionPaths[expectedMenuKey] &&
+    hasText(action.frontdeskAction) &&
+    hasExpectedClinicalEntryCoreActionServiceOperation(expectedMenuKey, serviceOperation) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true
+  );
+}
+
+function hasExpectedClinicalEntryCoreActionServiceOperation(
+  expectedMenuKey: string,
+  serviceOperation: string | null,
+) {
+  if (!serviceOperation) return false;
+  return requiredClinicalEntryCoreActionServiceOperations[expectedMenuKey]?.every((expected) =>
+    serviceOperation.includes(expected),
+  ) === true;
 }
 
 function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
@@ -7522,7 +7647,7 @@ function hasUnnegatedCriticalEmergencyIcuScopeClaim(statement: string) {
 
 function hasScopeCompletionClaimWithoutNegation(statement: string, term: string) {
   const segments = statement
-    .split(/[。；;.!?！？\n]/u)
+    .split(/[。；;.!?！？\n，,]/u)
     .map((segment) => segment.trim())
     .filter(Boolean);
   return segments.some((segment) => {

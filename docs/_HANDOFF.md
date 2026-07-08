@@ -10,6 +10,70 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百七十五批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、
+  不要片面优化”的要求，接上前序未提交的临床协同入口矩阵和 r7 红点。本批已再次读取参考会话
+  `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`：其结论仍只作为参考，不能恢复为主项目旁路资料线；
+  134 必须是唯一正式知识生产 / 审核 / 发布 / 生效链路，外部资料只能作为受控准备。两个只读子代理本批并行完成盘点：
+  质量管理入口族建议下一批覆盖 `/qc/dashboard`、`/qc/alerts`、`/qc/insurance`、`/qc/eval/sets`，
+  其中 `/qc/dashboard` 只能证明来源对象审计链，不应硬造读审计；知识运营资产入口族建议以 `/knowledge/production`、
+  `/knowledge/governance`、`/knowledge/diagnosis`、`/knowledge/institution`、`/terminology/mapping`、
+  `/rule/definitions`、`/pathway/templates`、`/config/releases`、`/advanced/provenance`、`/advanced/graph`、
+  `/advanced/ai-workflows` 做代表矩阵，P0 是 134 唯一正式链路、13 类资产闭包、机构生效版本唯一运行入口、
+  术语 / 字段目录 / 值集 / 公式 / 安全红线不得模型直发。
+- 第一百七十五批实现细节：新增 `frontend/e2e/clinical-entry-core-actions-rehearsal.spec.ts` 和
+  `frontend/e2e/support/clinicalEntryCoreActions.ts`，由 `clinical-user` 真实进入 `/mpi`、`/pathway/patients`、
+  `/cdss/fatigue`、`/workflow/todos`、`/clinical/followup` 五个临床协同入口，完成脱敏患者与上下文快照、
+  患者入径、推荐评估、报告解读待办完成、随访计划生成等前台动作，并逐项回读服务状态和审计事件。
+  `launchCoverageEvidence.ts` 新增收窄声明
+  `clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE`，只消费附件
+  `clinical-entry-core-actions-codes` 且 `matrixCode=CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS`；
+  scope 必须写明“临床协同入口核心动作代表矩阵”，并否定 `完整临床流程`、`34 个入口全部业务动作闭环`、
+  `完整 S0-S40`、`完整上线验收`。`e2eLaunchCoverageEvidence.test.ts` 增加临床五入口正向、平台管理员附件不得冒领、
+  非目标 spec 冒领、缺随访入口、角色错误、非 2xx、服务操作错配、scope 过度声明等负向样例；`e2eAuthCredentialContract.test.ts`
+  锁定 clinical E2E 读取医院当前 runtime 时必须先用 `clinical-user` 取 `/security/me` 的 hospitalId，
+  再切 `engine-operator` 读 `/engine/releases/hospitals/{hospitalId}/runtime-releases/current`，
+  用嵌套 `release.releaseId` 解析，并在随访计划生成后关闭“随访计划办理”抽屉再查询列表，禁止 `activeAssets: []`。
+- 第一百七十五批后端真实红点与根因修复：目标 E2E r7 红于最终断言
+  `生成随访计划应产生真实审计事件`。根因不是 parser 或 E2E 放宽问题，而是
+  `ServiceContractCatalog` 已登记 `followup` 服务应记录
+  `audit(AuditAction.CREATE, "followup_plan", "生成随访计划")`，但
+  `FollowupEngineService` 生成新计划时只保存 `FollowupPlan` 和 `FollowupTask`，未注入 / 调用
+  `AuditRecorder`。本批按 TDD 补 `FollowupEngineServiceTest#generatePlanRecordsFollowupPlanCreationAudit`，
+  先红于 `Wanted but not invoked: auditRecorder.record(CREATE, "followup_plan", "PLAN-AUDIT", ...)`；
+  再在 `FollowupEngineService` 构造注入 `AuditRecorder`，仅新建计划和任务落库后记录
+  `AuditAction.CREATE / followup_plan / planId / 生成随访计划 {planId}`。既有
+  `generatePlanReusesExistingPathwayPlan` 与 `generatePlanReusesIdempotencyKeyAndReportsModelDisabled`
+  均补充 `never()` 断言，保证 pathway 和 idempotency-key 两个幂等复用分支不重复创建审计。
+- 第一百七十五批真实 E2E 与验证证据：重新构建当前源码 jar：
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 通过；停止旧 18092 后端后，以
+  `SPRING_PROFILES_ACTIVE=dev SERVER_PORT=18092 java -jar medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar`
+  重启，日志在 `/tmp/medkernel-backend-18092-20260709-followup-audit.log`；健康检查
+  `http://localhost:18092/medkernel/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`。
+  目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-clinical-entry-core-actions-20260709-r9 npm --prefix frontend run e2e -- --project=chromium clinical-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-clinical-entry-core-actions-20260709-r9/report/results.json` 为 `PASSED`
+  （1 expected，0 unexpected，0 flaky，0 skipped，duration=49828ms），只声明
+  `clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE`。附件证明五个入口均为
+  `role=clinical-user`、2xx 服务状态、`readbackVerified=true`、`auditVerified=true`，其中随访入口回读
+  `POST /api/v1/engine/followup/plans/generate` 和 `followup_plan` 审计。
+- 第一百七十五批审阅修复：只读审阅子代理未发现 Critical；反馈的两个 Important 已处理：
+  1）`auditEventExistsAsAuditor` 改为 `expect.poll` 条件轮询，避免事务后审计异步落库导致真实 E2E 偶发红；
+  2）idempotency-key 复用分支补不重复审计断言。两个 Minor 也已收紧：clinical coverage parser 只接受
+  `clinical-entry-core-actions-rehearsal.spec.ts` 来源附件，并按入口校验预期服务操作（MPI 必须同时包含患者创建与上下文快照）。
+- 第一百七十五批收尾门禁：`mvn -f medkernel-backend/pom.xml -Dtest=FollowupEngineServiceTest test`
+  通过（23 tests）；`npm --prefix frontend run test -- e2eAuthCredentialContract` 通过（50 tests）；
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 通过（248 tests）；
+  `npm --prefix frontend run typecheck -- --pretty false` 通过；`npm --prefix frontend run format:check` 通过；
+  `git diff --check` 退出码 0，仍只提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，
+  本批不处理、不暂存。
+- 第一百七十五批全局边界与下一步：本批不是完整上线、不是 134 清库部署复演、不是完整临床流程、
+  不是 34 个入口全部业务动作闭环、不是完整 S0-S40、不是完整全知识供给链上线验收。临床协同五入口已有代表核心动作证据；
+  下一批优先不要回到单点平台菜单，应按全局推进：1）质量管理入口族新增
+  `quality-management-entry-core-actions-rehearsal.spec.ts`，覆盖评价指标、医保审核、质控告警整改、质量概览来源审计链；
+  2）知识运营资产入口族新增统一供给链矩阵，证明 134 唯一正式链路、13 类资产闭包、机构生效版本运行消费、回滚读回；
+  3）继续把入口矩阵扩到全角色、六态、分页筛选、导入导出、服务回读和审计，不得把代表动作冒领为完整上线。
+  134 清库 / 重部署仍属于 destructive 外向操作，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百七十四批本地推进：继续按用户“允许使用子代理提升效率、前台演练要全角色真实操作、知识只是全局一点、不要片面优化”的要求，
   读取参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 后，将其结论作为参考而非主线替代：
   系统外资料准备不能替代 134，正式知识加工 / 审核 / 发布 / 生效必须回到 134；知识供给链要纳入全局上线门禁，

@@ -4407,6 +4407,64 @@ const platformAdminP1EntryCoreActionsEvidence = {
   ],
 };
 
+const clinicalEntryCoreActionsEvidence = {
+  matrixCode: "CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS",
+  scopeStatement:
+    "临床协同入口核心动作代表矩阵：围绕 MPI、患者路径、CDSS 提醒推荐、协同任务和随访协同五个入口完成真实前台核心动作、服务回读与审计证据；不代表完整临床流程，不代表 34 个入口全部业务动作闭环，不代表完整 S0-S40，不代表完整上线验收。",
+  entryActions: [
+    {
+      menuKey: "mpi",
+      role: "clinical-user",
+      path: "/mpi",
+      frontdeskAction: "临床用户前台创建脱敏患者并生成患者上下文快照",
+      serviceOperation: "POST /api/v1/engine/mpi/patients + POST /api/v1/engine/context/snapshots",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "patient-pathways",
+      role: "clinical-user",
+      path: "/pathway/patients",
+      frontdeskAction: "临床用户前台为患者办理入径并回读患者路径",
+      serviceOperation: "POST /api/v1/engine/pathway/patient-pathways/enter",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "cdss-fatigue",
+      role: "clinical-user",
+      path: "/cdss/fatigue",
+      frontdeskAction: "临床用户前台触发报告解读推荐并查看提醒卡",
+      serviceOperation: "POST /api/v1/engine/recommendations:evaluate",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "workflow-todos",
+      role: "clinical-user",
+      path: "/workflow/todos",
+      frontdeskAction: "临床用户前台完成本轮报告解读协同待办",
+      serviceOperation: "POST /api/v1/engine/workflow/todos/{todoId}/complete",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+    {
+      menuKey: "clinical-followup",
+      role: "clinical-user",
+      path: "/clinical/followup",
+      frontdeskAction: "临床用户前台生成随访计划并回读随访任务",
+      serviceOperation: "POST /api/v1/engine/followup/plans/generate",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+    },
+  ],
+};
+
 function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -4455,6 +4513,31 @@ function platformAdminP1EntryCoreActionsEvidenceResult(body: Record<string, unkn
 function expectNoPlatformAdminP1EntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = platformAdminP1EntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
+}
+
+function clinicalEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/clinical-entry-core-actions-rehearsal.spec.ts",
+        title: "临床协同入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "clinical-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoClinicalEntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = clinicalEntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
 }
 
 function platformAdminEntryCoreActionSpecFile(menuKey: string) {
@@ -8901,6 +8984,129 @@ describe("browser E2E launch coverage evidence", () => {
     );
 
     expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
+  });
+
+  it("declares clinical collaboration entry coverage only from complete real frontdesk matrix evidence", () => {
+    const evidence = clinicalEntryCoreActionsEvidenceResult(clinicalEntryCoreActionsEvidence);
+
+    expect(evidence.launchCoverage.clinicalEntryCoreActions?.map((item) => item.code)).toEqual([
+      "CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
+    ]);
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.platformAdminP1EntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare clinical entry coverage from platform-admin entry matrices", () => {
+    const p0Evidence = platformAdminEntryCoreActionsEvidenceResult(
+      platformAdminEntryCoreActionsEvidence,
+    );
+    const p1Evidence = platformAdminP1EntryCoreActionsEvidenceResult(
+      platformAdminP1EntryCoreActionsEvidence,
+    );
+
+    expect(p0Evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+    expect(p1Evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+  });
+
+  it("does not declare clinical entry coverage from the same attachment in a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-clinical-entry.spec.ts",
+          title: "临床协同入口附件不能由非目标 spec 冒领",
+          status: "passed",
+          attachments: [
+            {
+              name: "clinical-entry-core-actions-codes",
+              contentType: "application/json",
+              body: JSON.stringify(clinicalEntryCoreActionsEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少随访协同入口",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.menuKey !== "clinical-followup",
+        ),
+      },
+    },
+    {
+      name: "患者路径入口路径不匹配",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "patient-pathways" ? { ...item, path: "/pathway/templates" } : item,
+        ),
+      },
+    },
+    {
+      name: "CDSS 提醒推荐不是临床用户角色",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "cdss-fatigue" ? { ...item, role: "engine-operator" } : item,
+        ),
+      },
+    },
+    {
+      name: "协同任务完成服务不是 2xx",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "workflow-todos" ? { ...item, serviceStatus: 409 } : item,
+        ),
+      },
+    },
+    {
+      name: "MPI 服务操作错配为随访计划生成",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "mpi"
+            ? { ...item, serviceOperation: "POST /api/v1/engine/followup/plans/generate" }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "scope 过度宣称完整临床流程",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        scopeStatement:
+          "临床协同入口核心动作代表矩阵，完整临床流程已完成，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整 S0-S40",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        scopeStatement:
+          "临床协同入口核心动作代表矩阵，不代表完整临床流程，不代表 34 个入口全部业务动作闭环，完整 S0-S40 已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "scope 过度宣称完整上线验收完成",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        scopeStatement:
+          "临床协同入口核心动作代表矩阵，不代表完整临床流程，不代表 34 个入口全部业务动作闭环，不代表完整 S0-S40，完整上线验收已完成。",
+      },
+    },
+  ])("does not declare clinical entry core action coverage when $name", ({ body }) => {
+    expectNoClinicalEntryCoreActionsCoverage(body);
   });
 
   it.each([

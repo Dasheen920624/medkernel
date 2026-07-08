@@ -28,6 +28,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
@@ -57,6 +59,7 @@ public class FollowupEngineService {
     private final ClinicalClockRepository clinicalClockRepository;
     private final FollowupTemplateService templateService;
     private final RuntimeReleaseFollowupTemplateSelector runtimeTemplates;
+    private final AuditRecorder auditRecorder;
     private final ObjectMapper json = new ObjectMapper();
 
     public FollowupEngineService(
@@ -68,7 +71,8 @@ public class FollowupEngineService {
         ContextSnapshotRepository contextSnapshots,
         ClinicalClockRepository clinicalClockRepository,
         FollowupTemplateService templateService,
-        RuntimeReleaseFollowupTemplateSelector runtimeTemplates
+        RuntimeReleaseFollowupTemplateSelector runtimeTemplates,
+        AuditRecorder auditRecorder
     ) {
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
@@ -79,6 +83,7 @@ public class FollowupEngineService {
         this.clinicalClockRepository = clinicalClockRepository;
         this.templateService = templateService;
         this.runtimeTemplates = runtimeTemplates;
+        this.auditRecorder = auditRecorder;
     }
 
     /**
@@ -252,6 +257,9 @@ public class FollowupEngineService {
             task = taskRepository.save(task);
             taskResponses.add(toTaskResponse(task));
         }
+
+        auditRecorder.record(AuditAction.CREATE, "followup_plan", plan.planId(),
+            "生成随访计划 " + plan.planId());
 
         return new FollowupPlanDetailResponse(
             plan.planId(),

@@ -1559,6 +1559,35 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("activeAssets: []");
   });
 
+  it("requires clinical entry rehearsal to read hospital runtime with engine operator privileges", () => {
+    const e2eSource = readFileSync("e2e/clinical-entry-core-actions-rehearsal.spec.ts", "utf8");
+    const functionStart = e2eSource.indexOf("async function currentHospitalRuntimeReleaseId");
+    expect(functionStart).toBeGreaterThanOrEqual(0);
+    const clinicalProfileIndex = e2eSource.indexOf(
+      'const profileResponse = await getApi(page, "/security/me");',
+      functionStart,
+    );
+    const engineOperatorIndex = e2eSource.indexOf(
+      'await ensureReadySession(page, "engine-operator");',
+      functionStart,
+    );
+    const runtimeReadIndex = e2eSource.indexOf("/runtime-releases/current", functionStart);
+
+    expect(clinicalProfileIndex).toBeGreaterThan(functionStart);
+    expect(engineOperatorIndex).toBeGreaterThan(clinicalProfileIndex);
+    expect(engineOperatorIndex).toBeLessThan(runtimeReadIndex);
+    expect(e2eSource).toContain(
+      'textField(recordField(await responseData(current), "release"), "releaseId")',
+    );
+    expect(e2eSource).not.toContain('textField(await responseData(current), "release.releaseId")');
+    expect(e2eSource).toContain("closeFollowupPlanDrawerIfOpen");
+    expect(e2eSource.indexOf("await closeFollowupPlanDrawerIfOpen(page);")).toBeLessThan(
+      e2eSource.indexOf('const listResponsePromise = waitForGet(page, "/engine/followup/plans");'),
+    );
+    expect(e2eSource).toContain('await ensureReadySession(page, "clinical-user");');
+    expect(e2eSource).not.toContain("activeAssets: []");
+  });
+
   it("requires entry core action rehearsal to keep representative scope and real service evidence", () => {
     const e2eSource = readFileSync("e2e/entry-core-actions-rehearsal.spec.ts", "utf8");
 
