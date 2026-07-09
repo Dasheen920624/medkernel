@@ -92,6 +92,43 @@
   `ACTION_CARD.requiresPhysicianConfirmation=true`，不得把 AI 自动生成、自动开嘱或普通 S5 正常 / 高风险证据冒领为降级态。
   次选 `S3__ABNORMAL` 需先补真实服务负例，`S37__NORMAL` 证据不足暂不建议。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百二十七批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只收口 CDSS 声明式运行资产在模型禁用时仍可确定性消费的 `S5__DEGRADATION`。`cdss-runtime-declarative-assets.spec.ts`
+  在真实前台完成 VALUE_SET / FORMULA / ACTION_CARD 创建、机构生效版本激活、临床 ACTIVE 快照绑定、临床用户触发
+  `/engine/recommendations:evaluate`、推荐卡详情回读和回滚负证据后，在既有 `S5__NORMAL` 外新增显式
+  `scenarioConditionEvidence`，来源固定为 `CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES`。本批只新增
+  `S5__DEGRADATION`，保留既有 `S5__NORMAL`；不新增或改写既有药事 `S5__HIGH_RISK`，不声明
+  `S5__ABNORMAL/MISSING_DATA`，不冒领完整 CDSS、完整 AI 模型降级体系、公网模型 Provider、自动开嘱能力或完整上线验收。
+- 第二百二十七批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增 `S5__DEGRADATION` 白名单和
+  `hasCompleteCdssDeclarativeModelDisabledRuntimeEvidence()`；必须先通过既有 S5 声明式运行资产完整强附件、
+  严格显式条件行解析、三类资产当前机构生效 runtime 物化、推荐触发 runtime 与临床快照一致、`ACTION_CARD`
+  `requiresPhysicianConfirmation=true`，再额外要求 `recommendation.modelStatus=MODEL_DISABLED` 且
+  `apiEvidence.recommendationModelDisabledFromRealService=true`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式降级条件行、来源错配、状态错配、空证据、模型未禁用、模型禁用状态未来自真实推荐评估服务、
+  缺 VALUE_SET 或 FORMULA 物化证据、ACTION_CARD 不要求医师确认、推荐触发 runtime 与当前机构生效版本不一致，
+  均不声明 `S5__DEGRADATION`。
+- 第二百二十七批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s5-degradation-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium cdss-runtime-declarative-assets.spec.ts`
+  通过；`/tmp/medkernel-e2e-s5-degradation-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S5__NORMAL,S5__DEGRADATION]`，`launchCoverage.scenarios` 为 `[S5]`。原始附件抽查：
+  `recommendation.modelStatus=MODEL_DISABLED`、`apiEvidence.recommendationModelDisabledFromRealService=true`，
+  且两条条件行来源分别为 `CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION` 与
+  `CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES`。
+- 第二百二十七批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增 S5 降级态正例缺
+  `S5__DEGRADATION`；随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （702 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`。
+- 第二百二十七批并行只读审计结论：本批使用 2 个只读 explorer 审计下一批候选，子代理均未编辑、未暂存、
+  未提交、未启动服务、未外调。两个结论均建议下一刀优先考虑 `S3__ABNORMAL`，但必须先在
+  `diagnosis-knowledge-maintenance.spec.ts` 补真实服务负例，例如非法诊断知识维护请求返回 4xx、错误码 / traceId 可读、
+  未生成资产版本或验证病例，并由严格 parser 绑定同一 `standardTerm.termCode` 与拒绝证据；不能把现有
+  `S3__NORMAL`、页面校验或静态字段冒领为异常态。`S15__NORMAL` 因 dev/H2 仍缺真实备份恢复连续性证据暂不建议立即做；
+  `S30__NORMAL`、`S33__DEGRADATION`、`S37__NORMAL` 当前证据不足暂不建议。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百二十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只收口检查检验建议 / 医技报告解读 `S17__NORMAL` 代表切片。`stakeholder-view-rehearsal.spec.ts` 在医技角色真实
   前台动作完成后新增 `report-interpretation-scenario-codes` 附件，绑定当前患者上下文、当前机构生效版本、

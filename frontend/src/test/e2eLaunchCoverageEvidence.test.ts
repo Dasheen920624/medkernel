@@ -1093,6 +1093,7 @@ const cdssRuntimeDeclarativeAssets = {
     cardId: "card-cdss-runtime",
     contextSnapshotId: "ctx-cdss-runtime",
     triggerRuntimeReleaseId: "runtime-cdss-assets",
+    modelStatus: "MODEL_DISABLED",
     explanation: {
       runtimeRelease: {
         runtimeReleaseId: "runtime-cdss-assets",
@@ -1178,6 +1179,30 @@ const cdssRuntimeDeclarativeAssets = {
   ],
 };
 
+function cdssRuntimeDeclarativeDegradationEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    ...cdssRuntimeDeclarativeAssets,
+    apiEvidence: {
+      ...cdssRuntimeDeclarativeAssets.apiEvidence,
+      recommendationModelDisabledFromRealService: true,
+    },
+    scenarioConditionEvidence: [
+      ...cdssRuntimeDeclarativeAssets.scenarioConditionEvidence,
+      {
+        code: "S5__DEGRADATION",
+        scenarioCode: "S5",
+        condition: "DEGRADATION",
+        source: "CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES",
+        evidence: [
+          "模型禁用时临床用户仍从当前机构生效版本消费声明式 VALUE_SET/FORMULA/ACTION_CARD",
+          "ACTION_CARD 仅生成需医师确认的推荐解释，不自动开嘱",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function cdssRuntimeDeclarativeEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -1210,6 +1235,13 @@ function expectNoCdssRuntimeDeclarativeScenarioConditionCoverage(body: Record<st
   expect(
     evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
   ).not.toContain("S5__NORMAL");
+}
+
+function expectNoCdssRuntimeDeclarativeDegradationCoverage(body: Record<string, unknown>) {
+  const evidence = cdssRuntimeDeclarativeEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S5__DEGRADATION");
 }
 
 const medicationSafetyFrontdeskEvidence = {
@@ -9752,6 +9784,17 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
   });
 
+  it("declares S5 degradation condition row only when model-disabled CDSS keeps declarative runtime assets available", () => {
+    const evidence = cdssRuntimeDeclarativeEvidenceResult(
+      cdssRuntimeDeclarativeDegradationEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S5__NORMAL",
+      "S5__DEGRADATION",
+    ]);
+  });
+
   it("does not declare S5 normal condition row from ordinary declarative runtime coverage", () => {
     const { scenarioConditionEvidence: _omitted, ...body } = cdssRuntimeDeclarativeAssets;
     const evidence = cdssRuntimeDeclarativeEvidenceResult(body);
@@ -10008,6 +10051,148 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S5 normal condition row when $name", ({ body }) => {
     expectNoCdssRuntimeDeclarativeScenarioConditionCoverage(body);
+  });
+
+  it("does not declare S5 degradation condition row without explicit degradation condition evidence", () => {
+    const evidence = cdssRuntimeDeclarativeEvidenceResult(cdssRuntimeDeclarativeAssets);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S5__NORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S5__DEGRADATION");
+  });
+
+  it.each([
+    {
+      name: "降级条件行来源错配",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S5__DEGRADATION",
+            scenarioCode: "S5",
+            condition: "DEGRADATION",
+            source: "CDSS_MODEL_DISABLED_PAGE_ONLY",
+            evidence: ["不能只靠页面可见冒领模型禁用降级态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "降级条件行状态错配",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S5__DEGRADATION",
+            scenarioCode: "S5",
+            condition: "NORMAL",
+            source: "CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES",
+            evidence: ["条件状态必须匹配降级态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "降级条件行证据为空",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S5__DEGRADATION",
+            scenarioCode: "S5",
+            condition: "DEGRADATION",
+            source: "CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "模型未禁用",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          modelStatus: "MODEL_READY",
+        },
+      }),
+    },
+    {
+      name: "模型禁用状态未来自真实推荐评估服务",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        apiEvidence: {
+          ...cdssRuntimeDeclarativeAssets.apiEvidence,
+          recommendationModelDisabledFromRealService: false,
+        },
+      }),
+    },
+    {
+      name: "解释里缺少 VALUE_SET 物化证据",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "VALUE_SET",
+                ),
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "解释里缺少 FORMULA 物化证据",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "FORMULA",
+                ),
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "ACTION_CARD 不要求医师确认",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.map(
+                  (item) =>
+                    item.assetType === "ACTION_CARD"
+                      ? { ...item, requiresPhysicianConfirmation: false }
+                      : item,
+                ),
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "推荐触发绑定的 runtime 与当前机构生效版本不一致",
+      body: cdssRuntimeDeclarativeDegradationEvidence({
+        clinicalTrigger: {
+          ...cdssRuntimeDeclarativeAssets.clinicalTrigger,
+          runtimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+  ])("does not declare S5 degradation condition row when $name", ({ body }) => {
+    expectNoCdssRuntimeDeclarativeDegradationCoverage(body);
   });
 
   it("declares SAFETY/CDSS_RISK/RULE coverage only for the medication safety representative slice", () => {

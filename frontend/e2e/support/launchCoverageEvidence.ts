@@ -178,6 +178,12 @@ const cdssDeclarativeRuntimeAssetScenarioConditionRows = [
     condition: "NORMAL",
     source: "CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION",
   },
+  {
+    code: "S5__DEGRADATION",
+    scenarioCode: "S5",
+    condition: "DEGRADATION",
+    source: "CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES",
+  },
 ] as const;
 
 const medicationSafetyFrontdeskClaims = [
@@ -4721,36 +4727,51 @@ function cdssDeclarativeRuntimeAssetScenarioConditionBackedByEvidence(
   parsed: Record<string, unknown>,
 ) {
   switch (code) {
-    case "S5__NORMAL": {
-      const runtime = parseCdssDeclarativeRuntimeEvidence(parsed.runtime);
-      const createdAssets = parseCdssDeclarativeCreatedAssets(parsed.createdAssets);
-      const ruleRuntimeCandidate = parseCdssRuntimeRuleAsset(parsed.ruleRuntimeCandidate);
-      if (!runtime || !createdAssets || !ruleRuntimeCandidate) return false;
-      return (
-        hasCompleteCdssDeclarativeRuntimeApiEvidence(parsed.apiEvidence) &&
-        cdssRuntimeRuleMatchesRuntime(ruleRuntimeCandidate, runtime.ruleAsset) &&
-        cdssDeclarativeCreatedAssetsMatchRuntime(createdAssets, runtime.assets) &&
-        hasCompleteCdssDeclarativeActivationRequest(
-          parsed.activationRequest,
-          runtime.assets,
-          ruleRuntimeCandidate,
-        ) &&
-        hasCompleteCdssDeclarativeTriggerEvidence(parsed.clinicalTrigger, runtime.releaseId) &&
-        hasCompleteCdssDeclarativeRecommendationEvidence(
-          parsed.recommendation,
-          {
-            releaseId: runtime.releaseId,
-            assets: runtime.assets,
-            ruleAsset: runtime.ruleAsset,
-          },
-          parsed.clinicalTrigger,
-          ruleRuntimeCandidate,
-        )
-      );
-    }
+    case "S5__NORMAL":
+      return hasCompleteCdssDeclarativeRuntimeEvidence(parsed);
+    case "S5__DEGRADATION":
+      return hasCompleteCdssDeclarativeModelDisabledRuntimeEvidence(parsed);
     default:
       return false;
   }
+}
+
+function hasCompleteCdssDeclarativeRuntimeEvidence(parsed: Record<string, unknown>) {
+  const runtime = parseCdssDeclarativeRuntimeEvidence(parsed.runtime);
+  const createdAssets = parseCdssDeclarativeCreatedAssets(parsed.createdAssets);
+  const ruleRuntimeCandidate = parseCdssRuntimeRuleAsset(parsed.ruleRuntimeCandidate);
+  if (!runtime || !createdAssets || !ruleRuntimeCandidate) return false;
+  return (
+    hasCompleteCdssDeclarativeRuntimeApiEvidence(parsed.apiEvidence) &&
+    cdssRuntimeRuleMatchesRuntime(ruleRuntimeCandidate, runtime.ruleAsset) &&
+    cdssDeclarativeCreatedAssetsMatchRuntime(createdAssets, runtime.assets) &&
+    hasCompleteCdssDeclarativeActivationRequest(
+      parsed.activationRequest,
+      runtime.assets,
+      ruleRuntimeCandidate,
+    ) &&
+    hasCompleteCdssDeclarativeTriggerEvidence(parsed.clinicalTrigger, runtime.releaseId) &&
+    hasCompleteCdssDeclarativeRecommendationEvidence(
+      parsed.recommendation,
+      {
+        releaseId: runtime.releaseId,
+        assets: runtime.assets,
+        ruleAsset: runtime.ruleAsset,
+      },
+      parsed.clinicalTrigger,
+      ruleRuntimeCandidate,
+    )
+  );
+}
+
+function hasCompleteCdssDeclarativeModelDisabledRuntimeEvidence(parsed: Record<string, unknown>) {
+  const recommendation = recordValue(parsed.recommendation);
+  const apiEvidence = recordValue(parsed.apiEvidence);
+  return (
+    recommendation?.modelStatus === "MODEL_DISABLED" &&
+    apiEvidence?.recommendationModelDisabledFromRealService === true &&
+    hasCompleteCdssDeclarativeRuntimeEvidence(parsed)
+  );
 }
 
 function collectMedicationSafetyScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {

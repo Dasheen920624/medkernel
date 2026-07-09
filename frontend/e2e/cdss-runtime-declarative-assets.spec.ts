@@ -102,6 +102,7 @@ type CdssRuntimeDeclarativeApiEvidence = {
   cdssEvaluationTriggeredFromFrontdesk: boolean;
   recommendationPersisted: boolean;
   ruleExplanationContainsRuntimeMaterialization: boolean;
+  recommendationModelDisabledFromRealService: boolean;
 };
 
 const requiredStages = [
@@ -208,6 +209,7 @@ test.describe("CDSS 声明式运行资产真实消费", () => {
       ruleRuntimeCandidate,
     });
     apiEvidence.cdssEvaluationTriggeredFromFrontdesk = true;
+    apiEvidence.recommendationModelDisabledFromRealService = true;
     apiEvidence.recommendationPersisted = true;
     recordCdssRuntimeDeclarativeAssetStage(observedStages, "临床用户从真实前台触发 CDSS 推荐评估");
 
@@ -271,6 +273,7 @@ function createApiEvidence(): CdssRuntimeDeclarativeApiEvidence {
     cdssEvaluationTriggeredFromFrontdesk: false,
     recommendationPersisted: false,
     ruleExplanationContainsRuntimeMaterialization: false,
+    recommendationModelDisabledFromRealService: false,
   };
 }
 
@@ -997,6 +1000,11 @@ async function triggerRecommendationFromFrontdesk(
   await expectHttpOk(evaluateResponse, "临床用户从真实前台触发 S5 推荐评估");
   const evaluation = await responseData(evaluateResponse);
   expect(textField(evaluation, "status"), "推荐触发状态应为已评估").toBe("EVALUATED");
+  const modelStatus = requireText(
+    textField(evaluation, "modelStatus"),
+    "推荐评估响应必须返回模型状态",
+  );
+  expect(modelStatus, "无模型条件下推荐评估必须诚实降级").toBe("MODEL_DISABLED");
   expect(
     numberField(evaluation, "visibleCardCount") ?? 0,
     "应新增至少一张可见推荐卡",
@@ -1026,6 +1034,7 @@ async function triggerRecommendationFromFrontdesk(
     relatedCardIds,
     cardId: recommendation.cardId,
     triggerRuntimeReleaseId: recommendation.triggerRuntimeReleaseId,
+    modelStatus,
     explanation: recommendation.explanation,
   };
 }
@@ -1134,6 +1143,7 @@ function assertRecommendationMaterializedDeclarativeAssets(options: {
     triggerId: string;
     relatedCardIds: string[];
     triggerRuntimeReleaseId: string | null;
+    modelStatus: string;
     explanation: Record<string, unknown>;
   };
   runtime: {
@@ -1208,6 +1218,7 @@ function assertRecommendationMaterializedDeclarativeAssets(options: {
     relatedCardIds: options.recommendation.relatedCardIds,
     cardId: options.recommendation.cardId,
     triggerRuntimeReleaseId: options.recommendation.triggerRuntimeReleaseId,
+    modelStatus: options.recommendation.modelStatus,
     explanation: options.recommendation.explanation,
   };
 }
@@ -1294,6 +1305,17 @@ async function attachCdssRuntimeDeclarativeAssetEvidence(
             evidence: [
               "前台创建 VALUE_SET/FORMULA/ACTION_CARD 并纳入当前机构生效版本",
               "临床用户从真实前台触发 CDSS 推荐且解释回读三类声明式资产物化证据",
+            ],
+          },
+          {
+            code: "S5__DEGRADATION",
+            scenarioCode: "S5",
+            condition: "DEGRADATION",
+            source: "CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES",
+            evidence: [
+              "模型禁用时推荐评估真实响应返回 MODEL_DISABLED",
+              "临床用户仍从当前机构生效版本消费声明式 VALUE_SET/FORMULA/ACTION_CARD",
+              "ACTION_CARD 仅生成需医师确认的推荐解释，不自动开嘱",
             ],
           },
         ],
