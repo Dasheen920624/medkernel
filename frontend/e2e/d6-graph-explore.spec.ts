@@ -38,6 +38,35 @@ type GraphKnowledgeSeed = GraphKnowledgeSource & {
   versionId: number;
   subject: string;
   citationId: number;
+  candidateRef: string;
+  jobCode: string;
+  classificationId: number;
+  qualityGateRecordId: number;
+  provenanceReadback: SourceLineageProvenanceEvidence;
+};
+
+type SourceLineageProvenanceEvidence = {
+  identityId: number;
+  identityCode: string;
+  currentVersionId: number;
+  activeVersionStatus: string;
+  partial: boolean;
+  unresolvedCitationCount: number;
+  citationId: number;
+  sourceFragmentId: number;
+  sourceDocumentId: number;
+  sourceVersionId: number;
+  sourceCode: string;
+  sourceType: string;
+  authorityLevel: string;
+  authorityLabel: string;
+  sourceVersionNo: string;
+  sourceVersionHash: string;
+  anchorPath: string;
+  anchorLabel: string;
+  fragmentHash: string;
+  relation: string;
+  weight: number;
 };
 
 const sourceLineageTitle = "医疗引擎运营员可重建并探索真实知识投影";
@@ -124,13 +153,51 @@ test.describe("D6 知识关系真实验收", () => {
     });
     expect(browserErrors).toEqual([]);
     await attachSourceLineageScenarioEvidence(testInfo, observedStages, apiEvidence, {
-      identityId: seed.identityId,
-      identityCode: seed.identityCode,
-      versionId: seed.versionId,
-      sourceCode: seed.sourceCode,
-      sourceVersionNo: seed.sourceVersionNo,
-      sourceFragmentId: seed.sourceFragmentId,
-      citationId: seed.citationId,
+      source: {
+        sourceDocumentId: seed.sourceDocumentId,
+        sourceVersionId: seed.sourceVersionId,
+        sourceFragmentId: seed.sourceFragmentId,
+        sourceCode: seed.sourceCode,
+        sourceVersionNo: seed.sourceVersionNo,
+        sourceVersionHash: seed.sourceVersionHash,
+        fragmentHash: seed.fragmentHash,
+        sourceRef: seed.sourceRef,
+        anchorPath: seed.anchorPath,
+        anchorLabel: seed.anchorLabel,
+        textExcerpt: seed.textExcerpt,
+        contentHashVerified: true,
+        fragmentHashVerified: true,
+      },
+      knowledgeCandidate: {
+        operation: "GENERATE_REVIEW_APPROVE",
+        identityId: seed.identityId,
+        identityCode: seed.identityCode,
+        versionId: seed.versionId,
+        candidateRef: seed.candidateRef,
+        jobCode: seed.jobCode,
+        classificationId: seed.classificationId,
+        qualityGateRecordId: seed.qualityGateRecordId,
+        status: "ACTIVE",
+      },
+      citation: {
+        citationId: seed.citationId,
+        relation: "DERIVED_FROM",
+        weight: 100,
+        startOffset: 0,
+        endOffset: seed.textExcerpt.length,
+        sourceFragmentId: seed.sourceFragmentId,
+        assetVersionId: seed.versionId,
+      },
+      provenanceReadback: seed.provenanceReadback,
+      graphProjection: {
+        operation: "REBUILD_AND_EXPLORE",
+        sourceCount: Number(rebuilt.sourceCount),
+        projectionCount: Number(rebuilt.projectionCount),
+        projectionMatchesSourceCount: rebuilt.projectionCount === rebuilt.sourceCount,
+        graphNodeExplored: apiEvidence.graphNodeExplored,
+        traceEvidenceVisible: apiEvidence.traceEvidenceVisible,
+        browserErrors,
+      },
     });
   });
 
@@ -295,15 +362,22 @@ async function createModelKnowledgeSeed(
   apiEvidence.candidateApproved = true;
   recordSourceLineageStage(observedStages, "真实提交并审核激活带来源引用的知识候选");
 
-  const seed = {
+  const seedBase = {
     ...source,
     identityId: identity.id,
     identityCode,
     versionId: version?.id ?? 0,
     subject,
     citationId: citationData.id,
+    candidateRef: candidateRef ?? "",
+    jobCode: jobCode ?? "",
+    classificationId: classification?.id ?? 0,
+    qualityGateRecordId: quality.id,
   };
-  await assertSourceLineageReadback(page, seed);
+  const seed = {
+    ...seedBase,
+    provenanceReadback: await assertSourceLineageReadback(page, seedBase),
+  };
   apiEvidence.provenanceReadback = true;
   recordSourceLineageStage(observedStages, "真实绑定来源引用并回读血缘证据");
 
@@ -379,7 +453,10 @@ async function registerGraphKnowledgeSource(
   };
 }
 
-async function assertSourceLineageReadback(page: Page, seed: GraphKnowledgeSeed) {
+async function assertSourceLineageReadback(
+  page: Page,
+  seed: Omit<GraphKnowledgeSeed, "provenanceReadback">,
+): Promise<SourceLineageProvenanceEvidence> {
   const provenance = await getApiData<{
     identity: { id: number; identityCode: string };
     currentVersionId?: number | null;
@@ -479,6 +556,30 @@ async function assertSourceLineageReadback(page: Page, seed: GraphKnowledgeSeed)
   expect(citation?.weight).toBe(100);
   expect(citation?.startOffset).toBe(0);
   expect(citation?.endOffset).toBe(seed.textExcerpt.length);
+
+  return {
+    identityId: provenance.identity.id,
+    identityCode: provenance.identity.identityCode,
+    currentVersionId: provenance.currentVersionId ?? 0,
+    activeVersionStatus: activeVersion?.status ?? "",
+    partial: provenance.partial,
+    unresolvedCitationCount: provenance.unresolvedCitationCount,
+    citationId: evidence?.citationId ?? 0,
+    sourceFragmentId: evidence?.sourceFragmentId ?? 0,
+    sourceDocumentId: evidence?.sourceDocumentId ?? 0,
+    sourceVersionId: evidence?.sourceVersionId ?? 0,
+    sourceCode: evidence?.sourceCode ?? "",
+    sourceType: evidence?.sourceType ?? "",
+    authorityLevel: evidence?.authorityLevel ?? "",
+    authorityLabel: evidence?.authorityLabel ?? "",
+    sourceVersionNo: evidence?.sourceVersionNo ?? "",
+    sourceVersionHash: evidence?.sourceVersionHash ?? "",
+    anchorPath: evidence?.anchorPath ?? "",
+    anchorLabel: evidence?.anchorLabel ?? "",
+    fragmentHash: evidence?.fragmentHash ?? "",
+    relation: evidence?.relation ?? "",
+    weight: evidence?.weight ?? 0,
+  };
 }
 
 async function assertSeedProjected(page: Page, seed: GraphKnowledgeSeed) {
@@ -514,9 +615,7 @@ async function assertSeedProjected(page: Page, seed: GraphKnowledgeSeed) {
 
   const fragmentFacts = await getProjectionFacts(page, `SOURCE_FRAGMENT:${seed.sourceFragmentId}`);
   expect(
-    fragmentFacts.some(
-      (item) => item.factKind === "NODE" && item.objectType === "SOURCE_FRAGMENT",
-    ),
+    fragmentFacts.some((item) => item.factKind === "NODE" && item.objectType === "SOURCE_FRAGMENT"),
     `来源片段 ${seed.sourceFragmentId} 必须进入知识关系投影`,
   ).toBe(true);
   expect(
@@ -608,7 +707,7 @@ async function attachSourceLineageScenarioEvidence(
   testInfo: TestInfo,
   observedStageSet: Set<string>,
   apiEvidence: SourceLineageApiEvidence,
-  context: Record<string, unknown>,
+  structuredEvidence: Record<string, unknown>,
 ) {
   const scenarioEvidence = requiredSourceLineageScenarioEvidence.map((scenario) => ({
     code: scenario.code,
@@ -629,7 +728,20 @@ async function attachSourceLineageScenarioEvidence(
         scenarioCodes: completedScenarioCodes,
         semanticFamilies: ["SOURCE_VALIDITY"],
         apiEvidence,
-        context,
+        ...structuredEvidence,
+        context: structuredEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S7__NORMAL",
+            scenarioCode: "S7",
+            condition: "NORMAL",
+            source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
+            evidence: [
+              "医疗引擎运营员登记受控来源、版本和锚点并审核激活带来源引用的知识候选",
+              "后端回读完整 provenance，前台重建并探索知识关系图且追踪证据可见",
+            ],
+          },
+        ],
         scenarioEvidence,
       },
       null,

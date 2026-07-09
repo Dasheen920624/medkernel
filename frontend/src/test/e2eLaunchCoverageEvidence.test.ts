@@ -12401,8 +12401,117 @@ describe("browser E2E launch coverage evidence", () => {
     expectNoDiagnosisKnowledgeScenarioConditionCoverage(body);
   });
 
-  it("declares S7 source lineage coverage only from a complete graph provenance attachment", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
+  const sourceLineageEvidence = {
+    scenarioCodes: ["S7"],
+    semanticFamilies: ["SOURCE_VALIDITY"],
+    apiEvidence: {
+      sourceRegistered: true,
+      sourceVersionRegistered: true,
+      sourceFragmentRegistered: true,
+      knowledgeCandidateSubmitted: true,
+      citationBound: true,
+      candidateApproved: true,
+      graphProjectionRebuilt: true,
+      provenanceReadback: true,
+      graphNodeExplored: true,
+      traceEvidenceVisible: true,
+    },
+    source: {
+      sourceDocumentId: 1001,
+      sourceVersionId: 2001,
+      sourceFragmentId: 3001,
+      sourceCode: "E2E-GRAPH-SOURCE-20260709",
+      sourceVersionNo: "2026-e2e-20260709",
+      sourceVersionHash: "b1df565b377d7c3d6b7d82552e925a8af497f731475116da8f93f1f3560f1c8f",
+      fragmentHash: "76f8711a99f1b63f3f4fdb293c27eb0f65c7a261bb56ba29bdf1cd84a2077c10",
+      sourceRef: "E2E-GRAPH-SOURCE-20260709:2026-e2e-20260709:section:source-boundary",
+      anchorPath: "section:source-boundary",
+      anchorLabel: "来源边界",
+      textExcerpt:
+        "图谱投影验收来源边界：本材料只验证 MedKernel 关系库权威知识到知识关系投影的真实链路。",
+      contentHashVerified: true,
+      fragmentHashVerified: true,
+    },
+    knowledgeCandidate: {
+      operation: "GENERATE_REVIEW_APPROVE",
+      identityId: 4001,
+      identityCode: "e2e.graph.source-boundary.20260709",
+      versionId: 5001,
+      candidateRef: "kv:4001:V1",
+      jobCode: "job-graph-source-lineage-20260709",
+      classificationId: 6001,
+      qualityGateRecordId: 7001,
+      status: "ACTIVE",
+    },
+    citation: {
+      citationId: 8001,
+      relation: "DERIVED_FROM",
+      weight: 100,
+      startOffset: 0,
+      endOffset: 51,
+      sourceFragmentId: 3001,
+      assetVersionId: 5001,
+    },
+    provenanceReadback: {
+      identityId: 4001,
+      identityCode: "e2e.graph.source-boundary.20260709",
+      currentVersionId: 5001,
+      activeVersionStatus: "ACTIVE",
+      partial: false,
+      unresolvedCitationCount: 0,
+      citationId: 8001,
+      sourceFragmentId: 3001,
+      sourceDocumentId: 1001,
+      sourceVersionId: 2001,
+      sourceCode: "E2E-GRAPH-SOURCE-20260709",
+      sourceType: "GUIDELINE",
+      authorityLevel: "B_GUIDELINE",
+      authorityLabel: "B 指南",
+      sourceVersionNo: "2026-e2e-20260709",
+      sourceVersionHash: "b1df565b377d7c3d6b7d82552e925a8af497f731475116da8f93f1f3560f1c8f",
+      anchorPath: "section:source-boundary",
+      anchorLabel: "来源边界",
+      fragmentHash: "76f8711a99f1b63f3f4fdb293c27eb0f65c7a261bb56ba29bdf1cd84a2077c10",
+      relation: "DERIVED_FROM",
+      weight: 100,
+    },
+    graphProjection: {
+      operation: "REBUILD_AND_EXPLORE",
+      sourceCount: 1,
+      projectionCount: 1,
+      projectionMatchesSourceCount: true,
+      graphNodeExplored: true,
+      traceEvidenceVisible: true,
+      browserErrors: [],
+    },
+    scenarioConditionEvidence: [
+      {
+        code: "S7__NORMAL",
+        scenarioCode: "S7",
+        condition: "NORMAL",
+        source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
+        evidence: [
+          "医疗引擎运营员登记受控来源、版本和锚点并审核激活带来源引用的知识候选",
+          "后端回读完整 provenance，前台重建并探索知识关系图且追踪证据可见",
+        ],
+      },
+    ],
+    scenarioEvidence: [
+      {
+        code: "S7",
+        observedStages: [
+          "真实登记受控来源、版本和锚点",
+          "真实提交并审核激活带来源引用的知识候选",
+          "真实绑定来源引用并回读血缘证据",
+          "真实重建知识关系投影",
+          "前台探索知识关系图并查看追踪证据",
+        ],
+      },
+    ],
+  };
+
+  function sourceLineageEvidenceResult(body: Record<string, unknown>) {
+    return buildBrowserE2eLaunchEvidence({
       stats: passedStats,
       tests: [
         {
@@ -12413,45 +12522,175 @@ describe("browser E2E launch coverage evidence", () => {
             {
               name: "source-lineage-scenario-codes",
               contentType: "application/json",
-              body: JSON.stringify({
-                scenarioCodes: ["S7"],
-                semanticFamilies: ["SOURCE_VALIDITY"],
-                apiEvidence: {
-                  sourceRegistered: true,
-                  sourceVersionRegistered: true,
-                  sourceFragmentRegistered: true,
-                  knowledgeCandidateSubmitted: true,
-                  citationBound: true,
-                  candidateApproved: true,
-                  graphProjectionRebuilt: true,
-                  provenanceReadback: true,
-                  graphNodeExplored: true,
-                  traceEvidenceVisible: true,
-                },
-                scenarioEvidence: [
-                  {
-                    code: "S7",
-                    observedStages: [
-                      "真实登记受控来源、版本和锚点",
-                      "真实提交并审核激活带来源引用的知识候选",
-                      "真实绑定来源引用并回读血缘证据",
-                      "真实重建知识关系投影",
-                      "前台探索知识关系图并查看追踪证据",
-                    ],
-                  },
-                ],
-              }),
+              body: JSON.stringify(body),
             },
           ],
         },
       ],
     });
+  }
+
+  function expectNoSourceLineageScenarioConditionCoverage(body: Record<string, unknown>) {
+    const evidence = sourceLineageEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S7__NORMAL");
+  }
+
+  it("declares S7 source lineage coverage only from a complete graph provenance attachment", () => {
+    const evidence = sourceLineageEvidenceResult(sourceLineageEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S7"]);
     expect(evidence.launchCoverage.semanticFamilies?.map((item) => item.code)).toEqual([
       "SOURCE_VALIDITY",
     ]);
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
+  });
+
+  it("declares S7 normal condition row only from source lineage provenance and graph evidence", () => {
+    const evidence = sourceLineageEvidenceResult(sourceLineageEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S7__NORMAL",
+    ]);
+  });
+
+  it("does not declare S7 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = sourceLineageEvidence;
+    const evidence = sourceLineageEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S7"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S7__HIGH_RISK",
+            scenarioCode: "S7",
+            condition: "HIGH_RISK",
+            source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
+            evidence: ["来源血缘正常链路不能冒领高危态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S7__NORMAL",
+            scenarioCode: "S7",
+            condition: "NORMAL",
+            source: "GRAPH_UI_ONLY",
+            evidence: ["不能只靠图谱 UI 冒领来源血缘正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S7__NORMAL",
+            scenarioCode: "S7",
+            condition: "NORMAL",
+            source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "受控来源未登记",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        apiEvidence: {
+          ...structuredClone(sourceLineageEvidence.apiEvidence),
+          sourceRegistered: false,
+        },
+      },
+    },
+    {
+      name: "来源版本 hash 非法",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        source: {
+          ...structuredClone(sourceLineageEvidence.source),
+          sourceVersionHash: "not-a-sha256",
+        },
+      },
+    },
+    {
+      name: "知识候选未激活",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        knowledgeCandidate: {
+          ...structuredClone(sourceLineageEvidence.knowledgeCandidate),
+          status: "DRAFT",
+        },
+      },
+    },
+    {
+      name: "引用未绑定同一片段",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        citation: {
+          ...structuredClone(sourceLineageEvidence.citation),
+          sourceFragmentId: 9999,
+        },
+      },
+    },
+    {
+      name: "provenance 存在未解析引用",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        provenanceReadback: {
+          ...structuredClone(sourceLineageEvidence.provenanceReadback),
+          unresolvedCitationCount: 1,
+        },
+      },
+    },
+    {
+      name: "provenance 不是完整血缘",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        provenanceReadback: {
+          ...structuredClone(sourceLineageEvidence.provenanceReadback),
+          partial: true,
+        },
+      },
+    },
+    {
+      name: "图谱投影数量不一致",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        graphProjection: {
+          ...structuredClone(sourceLineageEvidence.graphProjection),
+          projectionMatchesSourceCount: false,
+        },
+      },
+    },
+    {
+      name: "前台追踪证据不可见",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        graphProjection: {
+          ...structuredClone(sourceLineageEvidence.graphProjection),
+          traceEvidenceVisible: false,
+        },
+      },
+    },
+  ])("does not declare S7 normal condition row when $name", ({ body }) => {
+    expectNoSourceLineageScenarioConditionCoverage(body);
   });
 
   it("does not declare S7 source lineage coverage from graph UI without complete source evidence", () => {

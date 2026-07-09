@@ -454,6 +454,42 @@
   不是全医学知识生产完成、不是 134 清库重部署。下一批应继续按 `LAUNCH-06` 从剩余强链路中选择能被真实前台、
   真实服务回读、审计 / 六态 / 权限 / 安全边界完整背书的最小五态行；不得把普通 `scenarioEvidence` 自动升级。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十四批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口来源血缘 / 知识关系图谱 S7 正常态代表切片已有真实前台强链路，新增 1 条显式背书行：`S7__NORMAL`
+  （受控来源文档、来源版本、来源片段、知识候选、`DERIVED_FROM` 引用、provenance 回读和图谱投影均从同一本轮真实服务链路读回；
+  关系图谱前台执行重建和探索，投影数量匹配且 trace 可见）。不声明 `S7__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，
+  不把普通 S7 场景覆盖、图谱页面可见、菜单路由或来源文案冒领为完整来源治理 / 完整知识生产 / 完整图谱上线。
+- 第二百一十四批实现细节：`frontend/e2e/d6-graph-explore.spec.ts` 的 `source-lineage-scenario-codes`
+  附件新增结构化 `scenarioConditionEvidence`，只声明 `S7__NORMAL` 来源
+  `SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK`；附件同时写出 `source`、`knowledgeCandidate`、`citation`、
+  `provenanceReadback`、`graphProjection` 等强字段。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增来源血缘条件行白名单和 collector，必须先通过完整 `source-lineage-scenario-codes` 附件，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并要求所有关键 API 状态为 2xx、`sourceDocumentId/sourceVersionId/sourceFragmentId`
+  为正数、`sourceCode/sourceVersionHash/fragmentHash` 非空、知识候选 ACTIVE、引用关系为 `DERIVED_FROM`、
+  provenance 完整且 `partial=false/unresolvedCitationCount=0`、图谱投影重建与探索成功且来源 / 投影数量匹配。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、
+  空 evidence、非 2xx、缺来源 / 版本 / 片段正数标识、引用类型不一致、provenance 部分回读、图谱投影数量不匹配，
+  均不声明 `S7__NORMAL`。
+- 第二百一十四批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s7-source-lineage-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium d6-graph-explore.spec.ts`
+  通过；`/tmp/medkernel-e2e-s7-source-lineage-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`，
+  `launchCoverage.scenarioConditionRows` 为 `[S7__NORMAL]`，`launchCoverage.scenarios` 为 `[S7]`，
+  `semanticFamilies` 为 `[SOURCE_VALIDITY]`；附件抽查 `source-lineage-scenario-codes` 已写出同一条结构化
+  `scenarioConditionEvidence`，并包含来源文档 / 版本 / 片段、ACTIVE 知识候选、`DERIVED_FROM` 引用、
+  完整 provenance 回读和图谱投影匹配证据。
+- 第二百一十四批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S7__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（539 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十四批边界与下一步：本批只是把来源血缘 / 知识关系图谱 S7 正常态强链路接入 1 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是完整 S7 来源治理 / 知识图谱 / 全知识生产完成、
+  不是 34 入口全部业务深度完成、不是 134 清库重部署。下一批应继续按 `LAUNCH-06` 或 `LAUNCH-13`
+  从剩余强链路中选择能被真实前台、真实服务回读、审计 / 六态 / 权限 / 安全边界完整背书的最小五态行；
+  不得把普通 `scenarioEvidence`、代表切片、菜单、路由或文案自动升级为完整上线。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

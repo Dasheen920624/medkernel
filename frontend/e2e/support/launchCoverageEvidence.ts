@@ -632,6 +632,14 @@ const diagnosisKnowledgeScenarioConditionRows = [
     source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
   },
 ] as const;
+const sourceLineageScenarioConditionRows = [
+  {
+    code: "S7__NORMAL",
+    scenarioCode: "S7",
+    condition: "NORMAL",
+    source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
+  },
+] as const;
 const pathwayLifecycleScenarioConditionRows = [
   {
     code: "S6__NORMAL",
@@ -3150,12 +3158,12 @@ function hasRuntimeReadbackCandidate(
 ) {
   return Boolean(
     value &&
-    hasText(value.releaseId) &&
-    typeof value.revisionNo === "number" &&
-    value.revisionNo > 0 &&
-    isSha256(value.manifestSha256) &&
-    Array.isArray(value.assets) &&
-    runtimeReleasePayloadContainsCandidate(value, "assets", candidate, { requireActive: true }),
+      hasText(value.releaseId) &&
+      typeof value.revisionNo === "number" &&
+      value.revisionNo > 0 &&
+      isSha256(value.manifestSha256) &&
+      Array.isArray(value.assets) &&
+      runtimeReleasePayloadContainsCandidate(value, "assets", candidate, { requireActive: true }),
   );
 }
 
@@ -3454,7 +3462,7 @@ function hasExpectedPlatformAdminEntryCoreActionServiceOperation(
   const requiredOperations = serviceOperationsByMenuKey[expectedMenuKey];
   return Boolean(
     serviceOperation &&
-    requiredOperations?.every((operation) => serviceOperation.includes(operation)),
+      requiredOperations?.every((operation) => serviceOperation.includes(operation)),
   );
 }
 
@@ -3974,6 +3982,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectSourceLineageScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectPathwayLifecycleScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4155,6 +4166,49 @@ function diagnosisKnowledgeScenarioConditionBackedByEvidence(
   switch (code) {
     case "S3__NORMAL":
       return hasCompleteDiagnosisKnowledgeStructuredEvidence(parsed);
+    default:
+      return false;
+  }
+}
+
+function collectSourceLineageScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "d6-graph-explore.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "source-lineage-scenario-codes",
+  );
+  if (!attachment?.body || !hasRequiredSourceLineageAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      sourceLineageScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return sourceLineageScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          sourceLineageScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function sourceLineageScenarioConditionBackedByEvidence(
+  code: (typeof sourceLineageScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S7__NORMAL":
+      return hasCompleteSourceLineageStructuredEvidence(parsed);
     default:
       return false;
   }
@@ -7594,14 +7648,14 @@ function hasCompleteDiagnosticCriticalValueActivationRequest(
   const request = recordValue(value);
   return Boolean(
     request?.platformBaselineReleaseId === runtime.platformBaselineReleaseId &&
-    [runtime.knowledgeAsset, runtime.fieldCatalogAsset].every((asset) =>
-      runtimeReleasePayloadContainsPlatformSelection(value, "activeAssets", asset),
-    ) &&
-    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-      assetType: runtime.actionCardAsset.assetType,
-      assetIdentity: runtime.actionCardAsset.assetIdentity,
-      versionId: runtime.actionCardAsset.versionId,
-    }),
+      [runtime.knowledgeAsset, runtime.fieldCatalogAsset].every((asset) =>
+        runtimeReleasePayloadContainsPlatformSelection(value, "activeAssets", asset),
+      ) &&
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: runtime.actionCardAsset.assetType,
+        assetIdentity: runtime.actionCardAsset.assetIdentity,
+        versionId: runtime.actionCardAsset.versionId,
+      }),
   );
 }
 
@@ -8298,21 +8352,21 @@ function hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(
   const request = recordValue(value);
   return Boolean(
     request?.platformBaselineReleaseId === runtime.platformBaselineReleaseId &&
-    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-      assetType: runtime.knowledgeAsset.assetType,
-      assetIdentity: runtime.knowledgeAsset.assetIdentity,
-      versionId: runtime.knowledgeAsset.versionId,
-    }) &&
-    runtimeReleasePayloadContainsPlatformSelection(
-      value,
-      "activeAssets",
-      runtime.fieldCatalogAsset,
-    ) &&
-    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-      assetType: runtime.actionCardAsset.assetType,
-      assetIdentity: runtime.actionCardAsset.assetIdentity,
-      versionId: runtime.actionCardAsset.versionId,
-    }),
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: runtime.knowledgeAsset.assetType,
+        assetIdentity: runtime.knowledgeAsset.assetIdentity,
+        versionId: runtime.knowledgeAsset.versionId,
+      }) &&
+      runtimeReleasePayloadContainsPlatformSelection(
+        value,
+        "activeAssets",
+        runtime.fieldCatalogAsset,
+      ) &&
+      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+        assetType: runtime.actionCardAsset.assetType,
+        assetIdentity: runtime.actionCardAsset.assetIdentity,
+        versionId: runtime.actionCardAsset.versionId,
+      }),
   );
 }
 
@@ -12483,6 +12537,110 @@ function hasCompleteSourceLineageApiEvidence(value: unknown) {
   ].every((key) => evidence[key] === true);
 }
 
+function hasCompleteSourceLineageStructuredEvidence(parsed: Record<string, unknown>) {
+  if (!hasCompleteSourceLineageApiEvidence(parsed.apiEvidence)) return false;
+  const source = recordValue(parsed.source);
+  const candidate = recordValue(parsed.knowledgeCandidate);
+  const citation = recordValue(parsed.citation);
+  const provenance = recordValue(parsed.provenanceReadback);
+  const graph = recordValue(parsed.graphProjection);
+  if (!source || !candidate || !citation || !provenance || !graph) return false;
+
+  const sourceDocumentId = positiveNumber(source.sourceDocumentId);
+  const sourceVersionId = positiveNumber(source.sourceVersionId);
+  const sourceFragmentId = positiveNumber(source.sourceFragmentId);
+  const identityId = positiveNumber(candidate.identityId);
+  const versionId = positiveNumber(candidate.versionId);
+  const citationId = positiveNumber(citation.citationId);
+  if (
+    !sourceDocumentId ||
+    !sourceVersionId ||
+    !sourceFragmentId ||
+    !identityId ||
+    !versionId ||
+    !citationId
+  ) {
+    return false;
+  }
+
+  const sourceCode = textValue(source.sourceCode);
+  const sourceVersionNo = textValue(source.sourceVersionNo);
+  const sourceVersionHash = textValue(source.sourceVersionHash);
+  const fragmentHash = textValue(source.fragmentHash);
+  const anchorPath = textValue(source.anchorPath);
+  const anchorLabel = textValue(source.anchorLabel);
+  const identityCode = textValue(candidate.identityCode);
+  const candidateRef = textValue(candidate.candidateRef);
+  const jobCode = textValue(candidate.jobCode);
+  if (
+    !sourceCode ||
+    !sourceVersionNo ||
+    !isSha256(sourceVersionHash) ||
+    !isSha256(fragmentHash) ||
+    !anchorPath ||
+    !anchorLabel ||
+    !identityCode ||
+    !candidateRef ||
+    !jobCode ||
+    source.contentHashVerified !== true ||
+    source.fragmentHashVerified !== true ||
+    candidate.operation !== "GENERATE_REVIEW_APPROVE" ||
+    candidate.status !== "ACTIVE" ||
+    !positiveNumber(candidate.classificationId) ||
+    !positiveNumber(candidate.qualityGateRecordId)
+  ) {
+    return false;
+  }
+
+  if (
+    citation.relation !== "DERIVED_FROM" ||
+    citation.weight !== 100 ||
+    citation.startOffset !== 0 ||
+    !positiveNumber(citation.endOffset) ||
+    citation.sourceFragmentId !== sourceFragmentId ||
+    citation.assetVersionId !== versionId
+  ) {
+    return false;
+  }
+
+  if (
+    provenance.identityId !== identityId ||
+    provenance.identityCode !== identityCode ||
+    provenance.currentVersionId !== versionId ||
+    provenance.activeVersionStatus !== "ACTIVE" ||
+    provenance.partial !== false ||
+    provenance.unresolvedCitationCount !== 0 ||
+    provenance.citationId !== citationId ||
+    provenance.sourceFragmentId !== sourceFragmentId ||
+    provenance.sourceDocumentId !== sourceDocumentId ||
+    provenance.sourceVersionId !== sourceVersionId ||
+    provenance.sourceCode !== sourceCode ||
+    provenance.sourceType !== "GUIDELINE" ||
+    provenance.authorityLevel !== "B_GUIDELINE" ||
+    !hasText(provenance.authorityLabel) ||
+    provenance.sourceVersionNo !== sourceVersionNo ||
+    provenance.sourceVersionHash !== sourceVersionHash ||
+    provenance.anchorPath !== anchorPath ||
+    provenance.anchorLabel !== anchorLabel ||
+    provenance.fragmentHash !== fragmentHash ||
+    provenance.relation !== "DERIVED_FROM" ||
+    provenance.weight !== 100
+  ) {
+    return false;
+  }
+
+  return (
+    graph.operation === "REBUILD_AND_EXPLORE" &&
+    positiveNumber(graph.sourceCount) !== null &&
+    positiveNumber(graph.projectionCount) !== null &&
+    graph.projectionMatchesSourceCount === true &&
+    graph.graphNodeExplored === true &&
+    graph.traceEvidenceVisible === true &&
+    Array.isArray(graph.browserErrors) &&
+    graph.browserErrors.length === 0
+  );
+}
+
 function hasCompletePathwayLifecycleApiEvidence(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
@@ -12570,6 +12728,10 @@ function is2xxStatus(value: unknown) {
 
 function isPositiveNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function positiveNumber(value: unknown) {
+  return isPositiveNumber(value) ? value : null;
 }
 
 function textValue(value: unknown) {
