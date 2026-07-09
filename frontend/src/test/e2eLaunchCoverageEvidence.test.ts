@@ -762,6 +762,18 @@ const cdssRuntimeDeclarativeAssets = {
   productLayers: ["CLINICAL_EXECUTION"],
   versionedAssets: ["VALUE_SET", "FORMULA", "ACTION_CARD"],
   serviceCombinations: ["CLINICAL_RUNTIME"],
+  scenarioConditionEvidence: [
+    {
+      code: "S5__NORMAL",
+      scenarioCode: "S5",
+      condition: "NORMAL",
+      source: "CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION",
+      evidence: [
+        "前台创建 VALUE_SET/FORMULA/ACTION_CARD 并纳入当前机构生效版本",
+        "临床用户从真实前台触发 CDSS 推荐且解释回读三类声明式资产物化证据",
+      ],
+    },
+  ],
   apiEvidence: {
     valueSetCreatedFromFrontdesk: true,
     formulaCreatedFromFrontdesk: true,
@@ -1048,6 +1060,13 @@ function expectNoCdssRuntimeDeclarativeCoverage(body: Record<string, unknown>) {
   const assets = evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? [];
   expect(assets).not.toEqual(expect.arrayContaining(["VALUE_SET", "FORMULA", "ACTION_CARD"]));
   expect(evidence.launchCoverage.scenarios?.map((item) => item.code) ?? []).not.toContain("S5");
+}
+
+function expectNoCdssRuntimeDeclarativeScenarioConditionCoverage(body: Record<string, unknown>) {
+  const evidence = cdssRuntimeDeclarativeEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S5__NORMAL");
 }
 
 const medicationSafetyFrontdeskEvidence = {
@@ -8563,6 +8582,22 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
   });
 
+  it("declares S5 normal condition row only from explicit CDSS declarative runtime consumption evidence", () => {
+    const evidence = cdssRuntimeDeclarativeEvidenceResult(cdssRuntimeDeclarativeAssets);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S5__NORMAL",
+    ]);
+  });
+
+  it("does not declare S5 normal condition row from ordinary declarative runtime coverage", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = cdssRuntimeDeclarativeAssets;
+    const evidence = cdssRuntimeDeclarativeEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S5"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
   it.each([
     {
       name: "只证明发布读回没有推荐解释",
@@ -8700,6 +8735,117 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare CDSS declarative runtime asset coverage when $name", ({ body }) => {
     expectNoCdssRuntimeDeclarativeCoverage(body);
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__ABNORMAL",
+            scenarioCode: "S5",
+            condition: "ABNORMAL",
+            source: "CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION",
+            evidence: ["声明式资产正常消费不能冒领异常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__NORMAL",
+            scenarioCode: "S5",
+            condition: "NORMAL",
+            source: "CDSS_PAGE_VISIBLE_ONLY",
+            evidence: ["不能只靠页面可见冒领正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__NORMAL",
+            scenarioCode: "S5",
+            condition: "NORMAL",
+            source: "CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "规则候选没有进入最终机构生效版本",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        runtime: {
+          ...cdssRuntimeDeclarativeAssets.runtime,
+          ruleAsset: undefined,
+        },
+      },
+    },
+    {
+      name: "推荐触发绑定的 runtime 与当前机构生效版本不一致",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        clinicalTrigger: {
+          ...cdssRuntimeDeclarativeAssets.clinicalTrigger,
+          runtimeReleaseId: "runtime-other",
+        },
+      },
+    },
+    {
+      name: "推荐解释缺少 VALUE_SET 物化证据",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.filter(
+                  (item) => item.assetType !== "VALUE_SET",
+                ),
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "ACTION_CARD 不要求医生确认",
+      body: {
+        ...cdssRuntimeDeclarativeAssets,
+        recommendation: {
+          ...cdssRuntimeDeclarativeAssets.recommendation,
+          explanation: {
+            ...cdssRuntimeDeclarativeAssets.recommendation.explanation,
+            ruleExplanation: {
+              ...cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation,
+              runtimeAssetEvidence:
+                cdssRuntimeDeclarativeAssets.recommendation.explanation.ruleExplanation.runtimeAssetEvidence.map(
+                  (item) =>
+                    item.assetType === "ACTION_CARD"
+                      ? { ...item, requiresPhysicianConfirmation: false }
+                      : item,
+                ),
+            },
+          },
+        },
+      },
+    },
+  ])("does not declare S5 normal condition row when $name", ({ body }) => {
+    expectNoCdssRuntimeDeclarativeScenarioConditionCoverage(body);
   });
 
   it("declares SAFETY/CDSS_RISK/RULE coverage only for the medication safety representative slice", () => {

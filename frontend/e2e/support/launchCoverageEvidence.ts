@@ -156,6 +156,14 @@ const cdssDeclarativeRuntimeAssetClaims = [
   "versionedAssets:ACTION_CARD",
   "serviceCombinations:CLINICAL_RUNTIME",
 ];
+const cdssDeclarativeRuntimeAssetScenarioConditionRows = [
+  {
+    code: "S5__NORMAL",
+    scenarioCode: "S5",
+    condition: "NORMAL",
+    source: "CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION",
+  },
+] as const;
 
 const medicationSafetyFrontdeskClaims = [
   "scenarios:S5",
@@ -4007,6 +4015,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectPathwayLifecycleScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectCdssDeclarativeRuntimeAssetScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectMedicationSafetyScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4320,6 +4331,76 @@ function pathwayLifecycleScenarioConditionBackedByEvidence(
         hasCompletePathwayLifecycleApiEvidence(parsed.apiEvidence) &&
         hasCompletePathwayOrderSetRuntimeConsumerEvidence(parsed.orderSetRuntimeConsumer)
       );
+    default:
+      return false;
+  }
+}
+
+function collectCdssDeclarativeRuntimeAssetScenarioConditionClaimsFromTest(
+  test: BrowserE2eTestResult,
+) {
+  if (
+    path.basename(test.file) !== "cdss-runtime-declarative-assets.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "cdss-runtime-declarative-assets-codes",
+  );
+  if (!attachment?.body || !hasRequiredCdssDeclarativeRuntimeAssetAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      cdssDeclarativeRuntimeAssetScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return cdssDeclarativeRuntimeAssetScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          cdssDeclarativeRuntimeAssetScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function cdssDeclarativeRuntimeAssetScenarioConditionBackedByEvidence(
+  code: (typeof cdssDeclarativeRuntimeAssetScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S5__NORMAL": {
+      const runtime = parseCdssDeclarativeRuntimeEvidence(parsed.runtime);
+      const createdAssets = parseCdssDeclarativeCreatedAssets(parsed.createdAssets);
+      const ruleRuntimeCandidate = parseCdssRuntimeRuleAsset(parsed.ruleRuntimeCandidate);
+      if (!runtime || !createdAssets || !ruleRuntimeCandidate) return false;
+      return (
+        hasCompleteCdssDeclarativeRuntimeApiEvidence(parsed.apiEvidence) &&
+        cdssRuntimeRuleMatchesRuntime(ruleRuntimeCandidate, runtime.ruleAsset) &&
+        cdssDeclarativeCreatedAssetsMatchRuntime(createdAssets, runtime.assets) &&
+        hasCompleteCdssDeclarativeActivationRequest(
+          parsed.activationRequest,
+          runtime.assets,
+          ruleRuntimeCandidate,
+        ) &&
+        hasCompleteCdssDeclarativeTriggerEvidence(parsed.clinicalTrigger, runtime.releaseId) &&
+        hasCompleteCdssDeclarativeRecommendationEvidence(
+          parsed.recommendation,
+          {
+            releaseId: runtime.releaseId,
+            assets: runtime.assets,
+            ruleAsset: runtime.ruleAsset,
+          },
+          parsed.clinicalTrigger,
+          ruleRuntimeCandidate,
+        )
+      );
+    }
     default:
       return false;
   }

@@ -1285,6 +1285,18 @@ async function attachCdssRuntimeDeclarativeAssetEvidence(
         clinicalTrigger: evidence.clinicalTrigger,
         recommendation: evidence.recommendation,
         rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__NORMAL",
+            scenarioCode: "S5",
+            condition: "NORMAL",
+            source: "CDSS_DECLARATIVE_RUNTIME_ASSET_CONSUMPTION",
+            evidence: [
+              "前台创建 VALUE_SET/FORMULA/ACTION_CARD 并纳入当前机构生效版本",
+              "临床用户从真实前台触发 CDSS 推荐且解释回读三类声明式资产物化证据",
+            ],
+          },
+        ],
         scenarioEvidence: [
           {
             code: "S5",

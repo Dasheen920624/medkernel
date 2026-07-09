@@ -575,6 +575,40 @@
   优先做 `S13__NORMAL` 或 `S5__NORMAL`，也可转 `LAUNCH-13` 做 `CAMPUS_OR_MEMBER/WARD` 真实组织证据模型；
   仍需显式条件附件、强字段背书和负例，不能把普通 `scenarioEvidence`、代表切片、菜单、路由或文案自动升级为完整上线。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十七批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口。
+  本批使用 1 个只读 explorer 并行审计 `S13__NORMAL` 与 `S5__NORMAL` 候选，子代理未编辑、未暂存、未启动服务、未外调；
+  主线程选择当前写集更小的 CDSS 声明式运行资产正常消费切片，新增 1 条显式背书行：`S5__NORMAL`
+  （前台创建 `VALUE_SET`、`FORMULA`、`ACTION_CARD` 三类声明式资产，纳入当前机构生效版本；运营员发布引用三类资产的
+  `RULE`，临床用户从真实前台触发 CDSS 推荐，推荐解释回读 RULE 与三类资产的版本、hash 和物化消费证据）。不声明
+  `S5__ABNORMAL/MISSING_DATA/DEGRADATION`，不覆盖既有药事红线证明的 `S5__HIGH_RISK`，不冒领医生采纳反馈、
+  药师复核、自动开嘱安全门、完整药事治理或完整 S5。
+- 第二百一十七批实现细节：`frontend/e2e/cdss-runtime-declarative-assets.spec.ts` 的
+  `cdss-runtime-declarative-assets-codes` 附件新增显式 `scenarioConditionEvidence`，仅写出 `S5__NORMAL`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 CDSS 声明式 S5 正常行白名单和 collector，必须先通过完整
+  `hasRequiredCdssDeclarativeRuntimeAssetAttachment()`，再严格校验 `code/scenarioCode/condition/source/evidence`，
+  并复用现有强字段背书：12 项 `apiEvidence` 全真、`createdAssets` 与当前 runtime 三类资产逐一匹配、
+  activation request 同时包含 RULE/VALUE_SET/FORMULA/ACTION_CARD、clinical trigger 与 recommendation 绑定同一最终
+  runtime、推荐解释包含 RULE 版本 hash 和 VALUE_SET 展开 / FORMULA 运行函数 / ACTION_CARD 版本 hash 且
+  `requiresPhysicianConfirmation=true`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  普通声明式 runtime coverage 不自动声明五态行，缺显式条件附件、未知 row、来源错配、空 evidence、RULE 未进入最终 runtime、
+  trigger runtime 不匹配、推荐解释缺 VALUE_SET 物化证据、ACTION_CARD 不要求医生确认，均不声明 `S5__NORMAL`。
+- 第二百一十七批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s5-normal-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium cdss-runtime-declarative-assets.spec.ts`
+  通过；`/tmp/medkernel-e2e-s5-normal-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、`expected=1`、
+  `unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows=[S5__NORMAL]`、
+  `launchCoverage.scenarios=[S5]`，`launchCoverage.versionedAssets=[VALUE_SET,FORMULA,ACTION_CARD]`。
+- 第二百一十七批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S5__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（573 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十七批并行只读审计结论与下一步：子代理建议 `S13__NORMAL` 仍是下一批优先候选，
+  `runtime-release-frontdesk.spec.ts` 已有激活、当前版本回读、第三方运行契约和回滚后排除本轮候选的强证据；
+  下一批可新增显式 `scenarioConditionEvidence`，但必须严格绑定 activation/current/consumer/rollback 字段，不声明
+  S13 其他四态、离线交付完成、13 类资产全生命周期或完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出
