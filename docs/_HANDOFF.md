@@ -241,6 +241,40 @@
   但必须绑定 FHIR 接入 `NOT_CONNECTED`、DiagnosticReport 入站 `NOT_CONNECTED/RETRYING`、补偿 `NOT_CONNECTED`、
   医生确认待办完成、`noAutoOrder=true` 和 `noAutoRecognition=true`；不得声明 S40 其他四态。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百零八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口区域医技报告互认 S40 代表切片已有真实前台强链路，新增 1 条显式背书行：
+  `S40__DEGRADATION`（`REGIONAL_REMOTE` FHIR 接入保持 `NOT_CONNECTED` 诚实状态，跨机构
+  `DiagnosticReport` 入站收敛到 `RETRYING` 与 `NOT_CONNECTED` 补偿，推荐卡为非 AI 生成且要求医生确认，
+  医生人工完成互认协同待办，系统不自动互认、不自动开嘱）。不声明 `S40__NORMAL/ABNORMAL/MISSING_DATA/HIGH_RISK`，
+  不冒领完整区域平台、完整远程医疗、完整 PACS/RIS/病理/内镜/心电系统族、完整 S40、完整 S0-S40 或完整上线。
+- 第二百零八批实现细节：`frontend/e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts` 的
+  `regional-diagnostic-mutual-recognition-frontdesk-codes` 附件新增 `scenarioConditionEvidence` 一行；
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S40 条件行白名单和 collector，必须先通过完整
+  `hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并绑定完整 API 证据、`healthStatus=NOT_CONNECTED` 接入申请、
+  区域来源可信分级、`DiagnosticReport` 断连补偿、临床上下文回读、报告解读、非 AI 医生确认推荐卡和人工待办闭环。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、未知行、
+  来源错配、空证据、FHIR 接入非 `NOT_CONNECTED`、入站报告非 `NOT_CONNECTED/RETRYING`、补偿非 `NOT_CONNECTED`、
+  推荐卡不要求医生确认、推荐卡由 AI 自动生成、待办未完成、允许自动开嘱或允许自动互认，均不声明 S40 降级行。
+- 第二百零八批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s40-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium regional-diagnostic-mutual-recognition-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s40-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S40__DEGRADATION]`，`launchCoverage.scenarios` 为 `[S40]`，
+  `thirdPartySystemFamilyConsumerSlices` 为 `[REGIONAL_REMOTE]`。
+- 第二百零八批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在 S40 正例缺 `S40__DEGRADATION` 条件行，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（470 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑最终门禁和 `git diff --check`。
+- 第二百零八批边界与下一步：本批只是把区域检查互认 S40 已有强链路接入 1 条五态总账降级行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、
+  不是 134 清库重部署。下一批建议继续沿 `LAUNCH-06` 选择护理连续性 `S20__NORMAL` 与 `S35__ABNORMAL`，
+  但必须分别绑定 FOLLOWUP 资产、真实前台随访计划与结果回流，以及护理评估 / 护理计划 / 异常回院闭环；
+  不得把护理“高风险”标题冒领为 `HIGH_RISK`，不得把同一附件中的异常回院污染 S20 正常态。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

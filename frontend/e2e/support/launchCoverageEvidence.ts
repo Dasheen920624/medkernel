@@ -679,6 +679,14 @@ const diagnosticCriticalValueScenarioConditionRows = [
     source: "FHIR_LIS_NOT_CONNECTED_COMPENSATION",
   },
 ] as const;
+const regionalDiagnosticMutualRecognitionScenarioConditionRows = [
+  {
+    code: "S40__DEGRADATION",
+    scenarioCode: "S40",
+    condition: "DEGRADATION",
+    source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NOT_CONNECTED_COMPENSATION",
+  },
+] as const;
 const surgeryAnesthesiaTransfusionScenarioConditionRows = [
   {
     code: "S26__HIGH_RISK",
@@ -3096,12 +3104,12 @@ function hasRuntimeReadbackCandidate(
 ) {
   return Boolean(
     value &&
-      hasText(value.releaseId) &&
-      typeof value.revisionNo === "number" &&
-      value.revisionNo > 0 &&
-      isSha256(value.manifestSha256) &&
-      Array.isArray(value.assets) &&
-      runtimeReleasePayloadContainsCandidate(value, "assets", candidate, { requireActive: true }),
+    hasText(value.releaseId) &&
+    typeof value.revisionNo === "number" &&
+    value.revisionNo > 0 &&
+    isSha256(value.manifestSha256) &&
+    Array.isArray(value.assets) &&
+    runtimeReleasePayloadContainsCandidate(value, "assets", candidate, { requireActive: true }),
   );
 }
 
@@ -3400,7 +3408,7 @@ function hasExpectedPlatformAdminEntryCoreActionServiceOperation(
   const requiredOperations = serviceOperationsByMenuKey[expectedMenuKey];
   return Boolean(
     serviceOperation &&
-      requiredOperations?.every((operation) => serviceOperation.includes(operation)),
+    requiredOperations?.every((operation) => serviceOperation.includes(operation)),
   );
 }
 
@@ -3923,6 +3931,11 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectDiagnosticCriticalValueScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectRegionalDiagnosticMutualRecognitionScenarioConditionClaimsFromTest(
+      test,
+    )) {
+      claims.add(claim);
+    }
     for (const claim of collectSurgeryAnesthesiaTransfusionScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4166,6 +4179,92 @@ function diagnosticCriticalValueScenarioConditionBackedByEvidence(
           parsed.inboundDiagnosticReport,
         ) &&
         hasCompleteDiagnosticCriticalValueWorkflowTodo(parsed.workflowTodo, parsed.recommendation)
+      );
+    default:
+      return false;
+  }
+}
+
+function collectRegionalDiagnosticMutualRecognitionScenarioConditionClaimsFromTest(
+  test: BrowserE2eTestResult,
+) {
+  if (
+    path.basename(test.file) !== "regional-diagnostic-mutual-recognition-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "regional-diagnostic-mutual-recognition-frontdesk-codes",
+  );
+  if (
+    !attachment?.body ||
+    !hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(test)
+  ) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      regionalDiagnosticMutualRecognitionScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return regionalDiagnosticMutualRecognitionScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          regionalDiagnosticMutualRecognitionScenarioConditionBackedByEvidence(
+            expected.code,
+            parsed,
+          ),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function regionalDiagnosticMutualRecognitionScenarioConditionBackedByEvidence(
+  code: (typeof regionalDiagnosticMutualRecognitionScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parseRegionalDiagnosticMutualRecognitionRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S40__DEGRADATION":
+      return (
+        hasCompleteRegionalDiagnosticMutualRecognitionApiEvidence(parsed.apiEvidence) &&
+        hasRegionalDiagnosticMutualRecognitionNotConnectedOnboarding(parsed.fhirOnboarding) &&
+        hasCompleteRegionalDiagnosticMutualRecognitionSource(
+          parsed.regionalSource,
+          parsed.fhirOnboarding,
+        ) &&
+        hasCompleteRegionalDiagnosticMutualRecognitionInboundReport(
+          parsed.inboundDiagnosticReport,
+          runtime.releaseId,
+          parsed.regionalSource,
+        ) &&
+        hasCompleteRegionalDiagnosticMutualRecognitionClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+          parsed.inboundDiagnosticReport,
+        ) &&
+        hasCompleteRegionalDiagnosticMutualRecognitionInterpretation(
+          parsed.interpretation,
+          runtime,
+          parsed.inboundDiagnosticReport,
+        ) &&
+        hasCompleteRegionalDiagnosticMutualRecognitionRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.inboundDiagnosticReport,
+        ) &&
+        hasCompleteRegionalDiagnosticMutualRecognitionWorkflowTodo(
+          parsed.workflowTodo,
+          parsed.recommendation,
+        )
       );
     default:
       return false;
@@ -7008,14 +7107,14 @@ function hasCompleteDiagnosticCriticalValueActivationRequest(
   const request = recordValue(value);
   return Boolean(
     request?.platformBaselineReleaseId === runtime.platformBaselineReleaseId &&
-      [runtime.knowledgeAsset, runtime.fieldCatalogAsset].every((asset) =>
-        runtimeReleasePayloadContainsPlatformSelection(value, "activeAssets", asset),
-      ) &&
-      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-        assetType: runtime.actionCardAsset.assetType,
-        assetIdentity: runtime.actionCardAsset.assetIdentity,
-        versionId: runtime.actionCardAsset.versionId,
-      }),
+    [runtime.knowledgeAsset, runtime.fieldCatalogAsset].every((asset) =>
+      runtimeReleasePayloadContainsPlatformSelection(value, "activeAssets", asset),
+    ) &&
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: runtime.actionCardAsset.assetType,
+      assetIdentity: runtime.actionCardAsset.assetIdentity,
+      versionId: runtime.actionCardAsset.versionId,
+    }),
   );
 }
 
@@ -7517,6 +7616,14 @@ function hasCompleteRegionalDiagnosticMutualRecognitionOnboarding(value: unknown
   );
 }
 
+function hasRegionalDiagnosticMutualRecognitionNotConnectedOnboarding(value: unknown) {
+  const onboarding = recordValue(value);
+  return (
+    hasCompleteRegionalDiagnosticMutualRecognitionOnboarding(value) &&
+    onboarding?.healthStatus === "NOT_CONNECTED"
+  );
+}
+
 function hasCompleteRegionalDiagnosticMutualRecognitionSource(
   value: unknown,
   onboardingValue: unknown,
@@ -7704,21 +7811,21 @@ function hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(
   const request = recordValue(value);
   return Boolean(
     request?.platformBaselineReleaseId === runtime.platformBaselineReleaseId &&
-      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-        assetType: runtime.knowledgeAsset.assetType,
-        assetIdentity: runtime.knowledgeAsset.assetIdentity,
-        versionId: runtime.knowledgeAsset.versionId,
-      }) &&
-      runtimeReleasePayloadContainsPlatformSelection(
-        value,
-        "activeAssets",
-        runtime.fieldCatalogAsset,
-      ) &&
-      runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
-        assetType: runtime.actionCardAsset.assetType,
-        assetIdentity: runtime.actionCardAsset.assetIdentity,
-        versionId: runtime.actionCardAsset.versionId,
-      }),
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: runtime.knowledgeAsset.assetType,
+      assetIdentity: runtime.knowledgeAsset.assetIdentity,
+      versionId: runtime.knowledgeAsset.versionId,
+    }) &&
+    runtimeReleasePayloadContainsPlatformSelection(
+      value,
+      "activeAssets",
+      runtime.fieldCatalogAsset,
+    ) &&
+    runtimeReleasePayloadContainsCandidate(value, "activeAssets", {
+      assetType: runtime.actionCardAsset.assetType,
+      assetIdentity: runtime.actionCardAsset.assetIdentity,
+      versionId: runtime.actionCardAsset.versionId,
+    }),
   );
 }
 

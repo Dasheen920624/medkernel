@@ -1,5 +1,12 @@
 import { createHmac } from "node:crypto";
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   apiBase,
@@ -138,117 +145,114 @@ const requiredStages = [
 ] as const;
 
 test.describe("区域医技报告互认代表切片真实前台闭环", () => {
-  test(
-    "临床用户与平台管理员完成区域医技报告互认代表闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(360_000);
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+  test("临床用户与平台管理员完成区域医技报告互认代表闭环", async ({ page }, testInfo) => {
+    test.setTimeout(360_000);
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
 
-      await ensureReadySession(page, "engine-operator");
-      const hospitalId = await localRehearsalHospitalId(page);
-      const actionCard = await createRegionalMutualRecognitionActionCard(page, suffix);
-      const knowledge = await createRegionalDiagnosticKnowledgeAsset(page, suffix, hospitalId);
-      const diagnosticAssets = await readRegionalDiagnosticRuntimeCandidates(page, {
-        knowledge,
-        actionCard,
-      });
-      const runtime = await activateRuntimeWithRegionalDiagnosticAssets(page, {
-        hospitalId,
-        knowledge: diagnosticAssets.knowledge,
-        fieldCatalog: diagnosticAssets.fieldCatalog,
-        actionCard: diagnosticAssets.actionCard,
-      });
-      apiEvidence.currentRuntimeContainsMutualRecognitionAssets = true;
-      recordStage(
-        observedStages,
-        "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
-      );
+    await ensureReadySession(page, "engine-operator");
+    const hospitalId = await localRehearsalHospitalId(page);
+    const actionCard = await createRegionalMutualRecognitionActionCard(page, suffix);
+    const knowledge = await createRegionalDiagnosticKnowledgeAsset(page, suffix, hospitalId);
+    const diagnosticAssets = await readRegionalDiagnosticRuntimeCandidates(page, {
+      knowledge,
+      actionCard,
+    });
+    const runtime = await activateRuntimeWithRegionalDiagnosticAssets(page, {
+      hospitalId,
+      knowledge: diagnosticAssets.knowledge,
+      fieldCatalog: diagnosticAssets.fieldCatalog,
+      actionCard: diagnosticAssets.actionCard,
+    });
+    apiEvidence.currentRuntimeContainsMutualRecognitionAssets = true;
+    recordStage(
+      observedStages,
+      "当前机构生效版本包含 DIAGNOSTIC_ITEM 知识说明书、FIELD_CATALOG 与 ACTION_CARD",
+    );
 
-      const snapshot = await createRegionalReportContextFromFrontdesk(page, suffix);
-      expect(
-        snapshot.runtimeReleaseId,
-        "区域互认上下文必须绑定包含报告解读运行资产的当前机构生效版本",
-      ).toBe(runtime.releaseId);
+    const snapshot = await createRegionalReportContextFromFrontdesk(page, suffix);
+    expect(
+      snapshot.runtimeReleaseId,
+      "区域互认上下文必须绑定包含报告解读运行资产的当前机构生效版本",
+    ).toBe(runtime.releaseId);
 
-      await ensureReadySession(page, "platform-admin");
-      const fhirOnboarding = await createRegionalFhirOnboardingFromFrontdesk(page, suffix);
-      apiEvidence.regionalRemoteOnboardingCreated = true;
-      recordStage(observedStages, "平台管理员登记 REGIONAL_REMOTE FHIR 接入申请并保持断连诚实状态");
+    await ensureReadySession(page, "platform-admin");
+    const fhirOnboarding = await createRegionalFhirOnboardingFromFrontdesk(page, suffix);
+    apiEvidence.regionalRemoteOnboardingCreated = true;
+    recordStage(observedStages, "平台管理员登记 REGIONAL_REMOTE FHIR 接入申请并保持断连诚实状态");
 
-      const regionalSource = await registerRegionalSourceFromFrontdesk(page, {
-        suffix,
-        onboardingId: requireText(
-          textField(fhirOnboarding, "onboardingId"),
-          "S40 接入申请必须返回 onboardingId",
-        ),
-      });
-      apiEvidence.regionalSourceRegisteredAndReadBack = true;
-      recordStage(observedStages, "平台管理员登记区域来源可信分级并回读跨机构证据");
+    const regionalSource = await registerRegionalSourceFromFrontdesk(page, {
+      suffix,
+      onboardingId: requireText(
+        textField(fhirOnboarding, "onboardingId"),
+        "S40 接入申请必须返回 onboardingId",
+      ),
+    });
+    apiEvidence.regionalSourceRegisteredAndReadBack = true;
+    recordStage(observedStages, "平台管理员登记区域来源可信分级并回读跨机构证据");
 
-      const fhir = await createRegionalFhirSignatureAdapter(page, suffix);
-      const inboundDiagnosticReport = await postSignedRegionalDiagnosticReport(page, {
-        adapterId: fhir.adapterId,
-        secret: fhir.sharedSecret,
-        snapshot,
-        regionalSource,
-        resource: regionalDiagnosticReportResource(snapshot, regionalSource, suffix),
-      });
-      apiEvidence.fhirDiagnosticReportAccepted = true;
-      recordStage(observedStages, "外部区域 FHIR 入站已签发 DiagnosticReport 并落标准资源");
+    const fhir = await createRegionalFhirSignatureAdapter(page, suffix);
+    const inboundDiagnosticReport = await postSignedRegionalDiagnosticReport(page, {
+      adapterId: fhir.adapterId,
+      secret: fhir.sharedSecret,
+      snapshot,
+      regionalSource,
+      resource: regionalDiagnosticReportResource(snapshot, regionalSource, suffix),
+    });
+    apiEvidence.fhirDiagnosticReportAccepted = true;
+    recordStage(observedStages, "外部区域 FHIR 入站已签发 DiagnosticReport 并落标准资源");
 
-      const contextAfterInbound = await readContextSnapshot(page, snapshot.snapshotId);
-      const clinicalContext = assertContextContainsRegionalReport({
-        context: contextAfterInbound,
-        runtime,
-        inboundDiagnosticReport,
-      });
-      apiEvidence.contextSnapshotContainsRegionalReport = true;
-      recordStage(observedStages, "当前上下文回读跨机构 DiagnosticReport 并绑定同一机构生效版本");
+    const contextAfterInbound = await readContextSnapshot(page, snapshot.snapshotId);
+    const clinicalContext = assertContextContainsRegionalReport({
+      context: contextAfterInbound,
+      runtime,
+      inboundDiagnosticReport,
+    });
+    apiEvidence.contextSnapshotContainsRegionalReport = true;
+    recordStage(observedStages, "当前上下文回读跨机构 DiagnosticReport 并绑定同一机构生效版本");
 
-      const interpretation = await generateRegionalReportInterpretationFromFrontdesk(page, {
-        snapshot: contextAfterInbound,
-        runtime,
-        knowledge: diagnosticAssets.knowledge,
-        inboundDiagnosticReport,
-      });
-      apiEvidence.reportInterpretationTriggeredFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台生成区域报告互认解读");
+    const interpretation = await generateRegionalReportInterpretationFromFrontdesk(page, {
+      snapshot: contextAfterInbound,
+      runtime,
+      knowledge: diagnosticAssets.knowledge,
+      inboundDiagnosticReport,
+    });
+    apiEvidence.reportInterpretationTriggeredFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台生成区域报告互认解读");
 
-      const recommendation = await findRegionalReportRecommendation(page, {
-        interpretation,
-        snapshot: contextAfterInbound,
-        runtime,
-        inboundDiagnosticReport,
-      });
-      apiEvidence.mutualRecognitionRecommendationPersisted = true;
-      recordStage(
-        observedStages,
-        "推荐卡证明互认理由、重复检查提示、字段目录和提示卡按当前机构生效版本消费",
-      );
+    const recommendation = await findRegionalReportRecommendation(page, {
+      interpretation,
+      snapshot: contextAfterInbound,
+      runtime,
+      inboundDiagnosticReport,
+    });
+    apiEvidence.mutualRecognitionRecommendationPersisted = true;
+    recordStage(
+      observedStages,
+      "推荐卡证明互认理由、重复检查提示、字段目录和提示卡按当前机构生效版本消费",
+    );
 
-      const workflowTodo = await completeRegionalReportTodo(page, {
-        cardId: recommendation.cardId,
-      });
-      apiEvidence.workflowTodoCompletedByHuman = true;
-      recordStage(observedStages, "医生人工完成互认协同待办，系统不自动互认、不改写报告且不自动开嘱");
+    const workflowTodo = await completeRegionalReportTodo(page, {
+      cardId: recommendation.cardId,
+    });
+    apiEvidence.workflowTodoCompletedByHuman = true;
+    recordStage(observedStages, "医生人工完成互认协同待办，系统不自动互认、不改写报告且不自动开嘱");
 
-      await attachRegionalDiagnosticMutualRecognitionEvidence(testInfo, {
-        apiEvidence,
-        fhirOnboarding,
-        regionalSource,
-        inboundDiagnosticReport,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext,
-        interpretation,
-        recommendation,
-        workflowTodo,
-        observedStages,
-      });
-    },
-  );
+    await attachRegionalDiagnosticMutualRecognitionEvidence(testInfo, {
+      apiEvidence,
+      fhirOnboarding,
+      regionalSource,
+      inboundDiagnosticReport,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext,
+      interpretation,
+      recommendation,
+      workflowTodo,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): RegionalDiagnosticApiEvidence {
@@ -283,7 +287,11 @@ async function createRegionalMutualRecognitionActionCard(
       detail: "报告解读仅作辅助，不改写外部已签发报告，不自动互认，不自动开立医嘱。",
       source: { label: "MedKernel 本地上线演练" },
       suggestions: [
-        { label: "打开区域报告上下文", actionType: "OPEN_FORM", payload: { target: "report-context" } },
+        {
+          label: "打开区域报告上下文",
+          actionType: "OPEN_FORM",
+          payload: { target: "report-context" },
+        },
       ],
       overrideReasons: ["已人工核对区域来源可信分级与互认理由"],
       requiresPhysicianConfirmation: true,
@@ -369,7 +377,10 @@ async function createRegionalDiagnosticKnowledgeAsset(
   const generation = await responseData(generated);
   expect(arrayField(generation, "blocked"), "S40 知识生产安全门不得阻断").toHaveLength(0);
   expect(arrayField(generation, "skipped"), "S40 知识生产不得被分流跳过").toHaveLength(0);
-  const generatedCandidates = arrayField(generation, "candidates") as KnowledgeGenerationCandidate[];
+  const generatedCandidates = arrayField(
+    generation,
+    "candidates",
+  ) as KnowledgeGenerationCandidate[];
   expect(generatedCandidates, "S40 知识生产必须生成一个 KNOWLEDGE 候选").toHaveLength(1);
   const candidateRef = requireText(
     textField(generatedCandidates[0], "candidateRef"),
@@ -407,8 +418,7 @@ async function createRegionalDiagnosticKnowledgeAsset(
   const classification = (recordField(candidateData, "classifications") as unknown[] | undefined)
     ?.map((item) => recordValue(item))
     .find((item) => numberField(item, "candidateVersionId") === versionId) as
-    | KnowledgeCandidateClassification
-    | undefined;
+    KnowledgeCandidateClassification | undefined;
   const classificationId = numericField(classification, "id");
   expect(classificationId, "S40 知识生产候选必须生成审核分类").toBeTruthy();
 
@@ -455,9 +465,18 @@ async function createRegionalDiagnosticKnowledgeAsset(
   return {
     assetType: "KNOWLEDGE",
     assetIdentity: identityCode,
-    versionId: requireText(textField(assetVersion, "versionId"), "S40 知识统一版本必须返回 versionId"),
-    versionNo: requireText(textField(assetVersion, "versionNo"), "S40 知识统一版本必须返回 versionNo"),
-    contentHash: requireText(textField(assetVersion, "contentHash"), "S40 知识统一版本必须返回 contentHash"),
+    versionId: requireText(
+      textField(assetVersion, "versionId"),
+      "S40 知识统一版本必须返回 versionId",
+    ),
+    versionNo: requireText(
+      textField(assetVersion, "versionNo"),
+      "S40 知识统一版本必须返回 versionNo",
+    ),
+    contentHash: requireText(
+      textField(assetVersion, "contentHash"),
+      "S40 知识统一版本必须返回 contentHash",
+    ),
   };
 }
 
@@ -508,7 +527,10 @@ function regionalDiagnosticKnowledgeContent() {
 }
 
 function stableSlugSuffix(value: string) {
-  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
   return normalized.slice(0, 24);
 }
 
@@ -551,8 +573,14 @@ function readPlatformBaselineRuntimeAsset(
   return {
     assetType,
     assetIdentity,
-    versionId: requireText(textField(asset, "versionId"), `${assetType} 平台标准版本必须返回 versionId`),
-    versionNo: requireText(textField(asset, "versionNo"), `${assetType} 平台标准版本必须返回 versionNo`),
+    versionId: requireText(
+      textField(asset, "versionId"),
+      `${assetType} 平台标准版本必须返回 versionId`,
+    ),
+    versionNo: requireText(
+      textField(asset, "versionNo"),
+      `${assetType} 平台标准版本必须返回 versionNo`,
+    ),
     contentHash: requireText(
       textField(asset, "contentHash"),
       `${assetType} 平台标准版本必须返回 contentHash`,
@@ -697,11 +725,11 @@ async function createRegionalReportContextFromFrontdesk(
   await contextDialog.getByLabel("诊断/随访病种").fill(`S40 区域医技报告互认演练 ${suffix}`);
   await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
   await contextDialog.getByLabel("医技报告项目").fill("胸部 CT");
-  await contextDialog
-    .getByLabel("报告结论")
-    .fill("等待区域平台入站外院已签发胸部 CT 报告。");
+  await contextDialog.getByLabel("报告结论").fill("等待区域平台入站外院已签发胸部 CT 报告。");
   await contextDialog.getByLabel("异常重点").fill("等待区域来源报告");
-  await contextDialog.getByLabel("建立原因").fill("S40 区域医技报告互认代表切片：准备跨机构报告入站上下文。");
+  await contextDialog
+    .getByLabel("建立原因")
+    .fill("S40 区域医技报告互认代表切片：准备跨机构报告入站上下文。");
   const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
   await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
   const contextResponse = await contextResponsePromise;
@@ -746,7 +774,9 @@ async function createRegionalFhirOnboardingFromFrontdesk(page: Page, suffix: str
   expect(textField(onboarding, "sourceSystem")).toBe("REGIONAL_FHIR");
   expect(textField(onboarding, "routeType")).toBe("FHIR");
   expect(textField(onboarding, "routeReference")).toContain("/engine/integration/fhir/R4");
-  expect(textField(onboarding, "healthStatus"), "区域 FHIR 接入不得伪造外部连通").toBe("NOT_CONNECTED");
+  expect(textField(onboarding, "healthStatus"), "区域 FHIR 接入不得伪造外部连通").toBe(
+    "NOT_CONNECTED",
+  );
   return {
     ...recordValue(onboarding),
     fhirVersion: "R4",
@@ -771,7 +801,13 @@ async function registerRegionalSourceFromFrontdesk(
   await dialog
     .getByLabel("可信证据")
     .fill("OPT-07 可信分级：CA 签章、报告号、来源机构和互认目录均已核验。");
-  await searchDialogOption(page, dialog, "绑定接入申请", options.onboardingId, options.onboardingId);
+  await searchDialogOption(
+    page,
+    dialog,
+    "绑定接入申请",
+    options.onboardingId,
+    options.onboardingId,
+  );
   await chooseOrganizationScope(page, dialog);
   const responsePromise = waitForPost(page, "/api/v1/engine/integration/regional-sources");
   await dialog.getByRole("button", { name: "保存区域来源" }).click();
@@ -899,8 +935,7 @@ async function postSignedRegionalDiagnosticReport(
     canonicalResourceType: "DIAGNOSTIC_REPORT",
     sourceRecordId: `DiagnosticReport/${fhirId}`,
     reportType: "胸部 CT",
-    conclusion:
-      "外院胸部 CT 已签发：右肺上叶结节，建议结合病史复核，可作为互认报告参考。",
+    conclusion: "外院胸部 CT 已签发：右肺上叶结节，建议结合病史复核，可作为互认报告参考。",
     signedStatus: "FINAL",
     signedAt,
     sourceOrganizationId: requireText(
@@ -934,8 +969,7 @@ function regionalDiagnosticReportResource(
       coding: [{ system: "urn:medkernel:regional:exam", code: "CHEST_CT", display: "胸部 CT" }],
       text: "胸部 CT",
     },
-    conclusion:
-      "外院胸部 CT 已签发：右肺上叶结节，建议结合病史复核，可作为互认报告参考。",
+    conclusion: "外院胸部 CT 已签发：右肺上叶结节，建议结合病史复核，可作为互认报告参考。",
     effectiveDateTime: "2026-07-08T09:20:00Z",
     issued: "2026-07-08T09:30:00Z",
     resultsInterpreter: [{ display: "远程示范医院影像中心" }],
@@ -953,8 +987,14 @@ function regionalDiagnosticReportResource(
   };
 }
 
-async function readContextSnapshot(page: Page, snapshotId: string): Promise<ContextSnapshotSummary> {
-  const response = await getApi(page, `/engine/context/snapshots/${encodeURIComponent(snapshotId)}`);
+async function readContextSnapshot(
+  page: Page,
+  snapshotId: string,
+): Promise<ContextSnapshotSummary> {
+  const response = await getApi(
+    page,
+    `/engine/context/snapshots/${encodeURIComponent(snapshotId)}`,
+  );
   await expectOk(response, "回读 S40 区域报告上下文快照");
   const context = await responseData(response);
   return {
@@ -1019,8 +1059,13 @@ async function generateRegionalReportInterpretationFromFrontdesk(
   if (options.snapshot.encounterId) {
     await dialog.getByLabel("就诊信息").fill(options.snapshot.encounterId);
   }
-  const snapshotButton = dialog.locator(`button[data-snapshot-id="${options.snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `报告解读弹窗必须展示本轮上下文 ${options.snapshot.snapshotId}`).toBeVisible({
+  const snapshotButton = dialog.locator(
+    `button[data-snapshot-id="${options.snapshot.snapshotId}"]`,
+  );
+  await expect(
+    snapshotButton,
+    `报告解读弹窗必须展示本轮上下文 ${options.snapshot.snapshotId}`,
+  ).toBeVisible({
     timeout: 20_000,
   });
   await snapshotButton.click();
@@ -1082,7 +1127,10 @@ async function findRegionalReportRecommendation(
       textField(item, "status") === "PENDING" &&
       textField(item, "patientId") === options.snapshot.patientId,
   );
-  const cardId = requireText(textField(todo, "sourceId"), "区域报告解读待办必须投影推荐卡 sourceId");
+  const cardId = requireText(
+    textField(todo, "sourceId"),
+    "区域报告解读待办必须投影推荐卡 sourceId",
+  );
   const detailResponse = await getApi(
     page,
     `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
@@ -1114,7 +1162,9 @@ async function findRegionalReportRecommendation(
   expect(textField(explanation, "sourceContentHash"), "解释必须返回知识正文 hash").toBe(
     options.runtime.knowledgeAsset.contentHash,
   );
-  expect(booleanField(explanation, "criticalRisk"), "区域互认代表切片不是危急值自动闭环").toBe(false);
+  expect(booleanField(explanation, "criticalRisk"), "区域互认代表切片不是危急值自动闭环").toBe(
+    false,
+  );
   assertRegionalRuntimeAssetEvidence(
     explanation,
     options.runtime.fieldCatalogAsset,
@@ -1146,9 +1196,11 @@ async function completeRegionalReportTodo(page: Page, options: { cardId: string 
     waitUntil: "domcontentloaded",
   });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
   const cardLink = page.locator(`a[href*="cardId=${options.cardId}"]`).first();
   await expect(cardLink, "应能定位本轮区域报告推荐卡对应的待办链接").toBeVisible({
     timeout: 30_000,
@@ -1245,6 +1297,19 @@ async function attachRegionalDiagnosticMutualRecognitionEvidence(
         interpretation: evidence.interpretation,
         recommendation: evidence.recommendation,
         workflowTodo: evidence.workflowTodo,
+        scenarioConditionEvidence: [
+          {
+            code: "S40__DEGRADATION",
+            scenarioCode: "S40",
+            condition: "DEGRADATION",
+            source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NOT_CONNECTED_COMPENSATION",
+            evidence: [
+              "REGIONAL_REMOTE FHIR 接入保持 NOT_CONNECTED 诚实状态",
+              "跨机构 DiagnosticReport 入站收敛到 RETRYING 与 NOT_CONNECTED 补偿",
+              "医生人工完成互认待办且系统不自动互认、不自动开嘱",
+            ],
+          },
+        ],
         scenarioEvidence: [{ code: "S40", observedStages: Array.from(evidence.observedStages) }],
       },
       null,
@@ -1303,7 +1368,9 @@ async function waitForIntegrationCompensation(page: Page, messageId: string) {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`区域 FHIR 入站补偿日志 ${messageId} 未收敛到 NOT_CONNECTED，最后状态：${lastStatus}`);
+  throw new Error(
+    `区域 FHIR 入站补偿日志 ${messageId} 未收敛到 NOT_CONNECTED，最后状态：${lastStatus}`,
+  );
 }
 
 function recordStage(stages: Set<string>, stage: (typeof requiredStages)[number]) {
@@ -1344,7 +1411,9 @@ async function readPlatformUpgradeAnalysisDigest(
   );
 }
 
-function runtimeSelection(candidate: RegionalDiagnosticRuntimeAssetCandidate): RuntimeAssetSelection {
+function runtimeSelection(
+  candidate: RegionalDiagnosticRuntimeAssetCandidate,
+): RuntimeAssetSelection {
   return {
     assetType: candidate.assetType,
     assetIdentity: candidate.assetIdentity,
@@ -1371,7 +1440,10 @@ function assertRuntimeContainsAsset(
       item.versionId === candidate.versionId &&
       item.entryState === "ACTIVE",
   );
-  expect(asset, `机构生效版本必须包含 ${candidate.assetType} ${candidate.assetIdentity}`).toBeTruthy();
+  expect(
+    asset,
+    `机构生效版本必须包含 ${candidate.assetType} ${candidate.assetIdentity}`,
+  ).toBeTruthy();
   expect(asset?.versionNo, `${candidate.assetType} runtime 清单必须返回版本号`).toBe(
     candidate.versionNo,
   );
@@ -1388,13 +1460,13 @@ async function chooseOrganizationScope(page: Page, dialog: Locator) {
   await facilityOption.click();
 }
 
-async function chooseDialogOption(
-  page: Page,
-  dialog: Locator,
-  label: string,
-  optionText: string,
-) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
   const field = dialog.getByLabel(label);
@@ -1427,9 +1499,13 @@ async function searchDialogOption(
   query: string,
   optionText: string,
 ) {
-  const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label), "u") }).first();
+  const combobox = dialog
+    .getByRole("combobox", { name: new RegExp(escapeRegExp(label), "u") })
+    .first();
   const selectRoot = combobox
-    .locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]")
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+    )
     .first();
   await selectRoot.locator(".ant-select-selector").click();
   if (await combobox.isVisible().catch(() => false)) {
@@ -1437,7 +1513,10 @@ async function searchDialogOption(
   }
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown, `${label} 下拉应展开`).toBeVisible({ timeout: 5_000 });
-  const option = dropdown.locator(".ant-select-item-option").filter({ hasText: optionText }).first();
+  const option = dropdown
+    .locator(".ant-select-item-option")
+    .filter({ hasText: optionText })
+    .first();
   await expect(option, `${label} 应存在选项 ${optionText}`).toBeVisible({ timeout: 10_000 });
   await option.click();
 }

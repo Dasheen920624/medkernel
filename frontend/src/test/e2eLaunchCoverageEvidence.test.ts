@@ -1909,6 +1909,19 @@ const regionalDiagnosticMutualRecognitionEvidence = {
     noAutoOrder: true,
     noAutoRecognition: true,
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S40__DEGRADATION",
+      scenarioCode: "S40",
+      condition: "DEGRADATION",
+      source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NOT_CONNECTED_COMPENSATION",
+      evidence: [
+        "REGIONAL_REMOTE FHIR 接入保持 NOT_CONNECTED 诚实状态",
+        "跨机构 DiagnosticReport 入站收敛到 RETRYING 与 NOT_CONNECTED 补偿",
+        "医生人工完成互认待办且系统不自动互认、不自动开嘱",
+      ],
+    },
+  ],
   scenarioEvidence: [
     {
       code: "S40",
@@ -1959,6 +1972,15 @@ function expectNoRegionalRemoteConsumerSliceCoverage(body: Record<string, unknow
   expect(
     evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
   ).not.toContain("REGIONAL_REMOTE");
+}
+
+function expectNoRegionalDiagnosticMutualRecognitionScenarioConditionCoverage(
+  body: Record<string, unknown>,
+) {
+  const evidence = regionalDiagnosticMutualRecognitionEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S40__DEGRADATION");
 }
 
 const nursingContinuityEvidence = {
@@ -9148,7 +9170,149 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["REGIONAL_REMOTE"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S40__DEGRADATION",
+    ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S40 degradation row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } =
+      regionalDiagnosticMutualRecognitionEvidence;
+    const evidence = regionalDiagnosticMutualRecognitionEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S40"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S40__NORMAL",
+            scenarioCode: "S40",
+            condition: "NORMAL",
+            source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NOT_CONNECTED_COMPENSATION",
+            evidence: ["区域互认断连切片不能冒领正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S40__DEGRADATION",
+            scenarioCode: "S40",
+            condition: "DEGRADATION",
+            source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NORMAL",
+            evidence: ["来源错配不能声明降级行"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S40__DEGRADATION",
+            scenarioCode: "S40",
+            condition: "DEGRADATION",
+            source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NOT_CONNECTED_COMPENSATION",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "区域 FHIR 接入不是 NOT_CONNECTED",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        fhirOnboarding: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.fhirOnboarding),
+          healthStatus: "HEALTHY",
+        },
+      },
+    },
+    {
+      name: "入站报告不是 NOT_CONNECTED 或 RETRYING",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        inboundDiagnosticReport: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.inboundDiagnosticReport),
+          integrationStatus: "PROCESSED",
+        },
+      },
+    },
+    {
+      name: "入站报告未进入 NOT_CONNECTED 补偿",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        inboundDiagnosticReport: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.inboundDiagnosticReport),
+          compensationStatus: "NOT_REQUIRED",
+        },
+      },
+    },
+    {
+      name: "推荐卡不要求医生确认",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        recommendation: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.recommendation),
+          requiresPhysicianConfirmation: false,
+        },
+      },
+    },
+    {
+      name: "推荐卡由 AI 自动生成",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        recommendation: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.recommendation),
+          aiGenerated: true,
+        },
+      },
+    },
+    {
+      name: "协同待办未完成",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        workflowTodo: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.workflowTodo),
+          status: "PENDING",
+        },
+      },
+    },
+    {
+      name: "协同待办允许自动开嘱",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        workflowTodo: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.workflowTodo),
+          noAutoOrder: false,
+        },
+      },
+    },
+    {
+      name: "协同待办允许自动互认",
+      body: {
+        ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+        workflowTodo: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.workflowTodo),
+          noAutoRecognition: false,
+        },
+      },
+    },
+  ])("does not declare S40 degradation row when $name", ({ body }) => {
+    expectNoRegionalDiagnosticMutualRecognitionScenarioConditionCoverage(body);
   });
 
   it.each([
