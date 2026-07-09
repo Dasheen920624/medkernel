@@ -67,6 +67,7 @@ type CoverageProof = {
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
+  requiresReportInterpretationScenarioAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
   requiresFourRoleCoreActionsAttachment?: boolean;
   requiresSixEntryCoreActionsAttachment?: boolean;
@@ -192,6 +193,14 @@ const diagnosticCriticalValueFrontdeskClaims = [
   "deliveryShapes:API_EVENT",
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
+];
+
+const reportInterpretationScenarioClaims = [
+  "scenarios:S17",
+  "productLayers:CLINICAL_EXECUTION",
+  "versionedAssets:KNOWLEDGE",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:PROFESSIONAL_COLLABORATION",
 ];
 
 const diagnosticFamilyConsumerSliceClaims = [
@@ -883,6 +892,14 @@ const criticalEmergencyIcuScenarioConditionRows = [
     source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
   },
 ] as const;
+const reportInterpretationScenarioConditionRows = [
+  {
+    code: "S17__NORMAL",
+    scenarioCode: "S17",
+    condition: "NORMAL",
+    source: "REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -1251,6 +1268,12 @@ const coverageProofs: CoverageProof[] = [
     file: "stakeholder-view-rehearsal.spec.ts",
     titleIncludes: "十二类业务视角",
     claims: stakeholderClaims,
+  },
+  {
+    file: "stakeholder-view-rehearsal.spec.ts",
+    titleIncludes: "十二类业务视角",
+    claims: reportInterpretationScenarioClaims,
+    requiresReportInterpretationScenarioAttachment: true,
   },
   {
     file: "runtime-release-frontdesk.spec.ts",
@@ -1624,6 +1647,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test)) &&
       (!proof.requiresCriticalEmergencyIcuFrontdeskAttachment ||
         hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test)) &&
+      (!proof.requiresReportInterpretationScenarioAttachment ||
+        hasRequiredReportInterpretationScenarioAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
         hasRequiredRuntimeReleasePartialSelectionAttachment(test)) &&
       (!proof.requiresFourRoleCoreActionsAttachment ||
@@ -4153,6 +4178,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectCriticalEmergencyIcuScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectReportInterpretationScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
   }
   return [...claims];
 }
@@ -4902,7 +4930,9 @@ function collectRealFrontdeskScenarioConditionClaimsFromTest(test: BrowserE2eTes
   ) {
     return [];
   }
-  const attachment = test.attachments?.find((item) => item.name === "real-frontdesk-scenario-codes");
+  const attachment = test.attachments?.find(
+    (item) => item.name === "real-frontdesk-scenario-codes",
+  );
   if (!attachment?.body || !hasRequiredRealFrontdeskScenarioAttachment(test)) return [];
   try {
     const parsed = recordValue(JSON.parse(attachment.body));
@@ -5537,6 +5567,51 @@ function criticalEmergencyIcuScenarioConditionBackedByEvidence(
   }
 }
 
+function collectReportInterpretationScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "stakeholder-view-rehearsal.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "report-interpretation-scenario-codes",
+  );
+  if (!attachment?.body || !hasRequiredReportInterpretationScenarioAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      reportInterpretationScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return reportInterpretationScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          reportInterpretationScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function reportInterpretationScenarioConditionBackedByEvidence(
+  code: (typeof reportInterpretationScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S17__NORMAL":
+      return hasCompleteReportInterpretationS17NormalEvidence(parsed);
+    default:
+      return false;
+  }
+}
+
 function collectSystemProvidersScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
   const claims = new Set<string>();
   for (const test of tests) {
@@ -5715,6 +5790,159 @@ function hasPlatformAdminP1SystemOperationsScopeBoundary(value: unknown) {
     value.includes("不代表 34 个入口全部业务动作闭环") &&
     value.includes("不代表完整上线验收")
   );
+}
+
+function hasRequiredReportInterpretationScenarioAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "report-interpretation-scenario-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed !== null && hasCompleteReportInterpretationS17NormalEvidence(parsed);
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteReportInterpretationS17NormalEvidence(parsed: Record<string, unknown>) {
+  const context = parseReportInterpretationClinicalContext(parsed.clinicalContext);
+  const interpretation = recordValue(parsed.interpretation);
+  const cardIds = Array.isArray(interpretation?.recommendationCardIds)
+    ? interpretation.recommendationCardIds.filter((item): item is string => hasText(item))
+    : [];
+  const cardId = cardIds[0];
+  return (
+    hasReportInterpretationS17ScopeBoundary(parsed.scopeStatement) &&
+    context !== null &&
+    hasCompleteReportInterpretationResponse(interpretation, context, cardId) &&
+    hasCompleteReportInterpretationWorkflowTodo(parsed.workflowTodo, cardId) &&
+    hasCompleteReportInterpretationCompletedTodoReadback(parsed.completedTodoReadback, cardId)
+  );
+}
+
+function parseReportInterpretationClinicalContext(value: unknown) {
+  const context = recordValue(value);
+  if (
+    !context ||
+    !hasText(context.patientId) ||
+    !hasText(context.encounterId) ||
+    !hasText(context.contextSnapshotId) ||
+    !hasText(context.runtimeReleaseId) ||
+    !hasText(context.diagnosticReportId) ||
+    !hasText(context.diagnosticReportType) ||
+    context.signedStatus !== "FINAL"
+  ) {
+    return null;
+  }
+  return {
+    patientId: String(context.patientId),
+    encounterId: String(context.encounterId),
+    contextSnapshotId: String(context.contextSnapshotId),
+    runtimeReleaseId: String(context.runtimeReleaseId),
+    diagnosticReportId: String(context.diagnosticReportId),
+    diagnosticReportType: String(context.diagnosticReportType),
+  };
+}
+
+function hasCompleteReportInterpretationResponse(
+  value: Record<string, unknown> | null,
+  context: {
+    contextSnapshotId: string;
+    runtimeReleaseId: string;
+    diagnosticReportId: string;
+    diagnosticReportType: string;
+  },
+  cardId: string | undefined,
+) {
+  const items = Array.isArray(value?.interpretations) ? value.interpretations : [];
+  return (
+    value !== null &&
+    value.operation === "POST /engine/recommendations/report-interpretation" &&
+    is2xxStatus(value.status) &&
+    value.runtimeReleaseId === context.runtimeReleaseId &&
+    value.contextSnapshotId === context.contextSnapshotId &&
+    hasText(cardId) &&
+    hasText(value.advisoryNote) &&
+    String(value.advisoryNote).includes("不改写已签发报告") &&
+    String(value.advisoryNote).includes("不自动开嘱") &&
+    items.some((item) => {
+      const row = recordValue(item);
+      return (
+        row?.itemCode === "plat:diagnostic_item:lab-potassium" &&
+        row.reportType === context.diagnosticReportType &&
+        row.reportId === context.diagnosticReportId &&
+        isPositiveNumber(row.sourceVersionId) &&
+        hasText(row.versionNo) &&
+        hasText(row.summary) &&
+        String(row.summary).includes(context.runtimeReleaseId)
+      );
+    })
+  );
+}
+
+function hasCompleteReportInterpretationWorkflowTodo(value: unknown, cardId: string | undefined) {
+  const todo = recordValue(value);
+  return (
+    todo?.operation === "POST /api/v1/engine/workflow/todos/{todoId}/complete" &&
+    is2xxStatus(todo.status) &&
+    hasText(todo.todoId) &&
+    hasText(cardId) &&
+    todo.sourceId === cardId &&
+    todo.category === "REPORT_INTERPRETATION" &&
+    todo.completedStatus === "COMPLETED" &&
+    hasText(todo.completedBy) &&
+    hasText(todo.completionReason) &&
+    String(todo.completionReason).includes("不改写已签发报告") &&
+    todo.noAutoOrder === true
+  );
+}
+
+function hasCompleteReportInterpretationCompletedTodoReadback(
+  value: unknown,
+  cardId: string | undefined,
+) {
+  const readback = recordValue(value);
+  return (
+    readback?.operation ===
+      "GET /api/v1/engine/workflow/todos?status=COMPLETED&sourceType=REPORT_INTERPRETATION" &&
+    is2xxStatus(readback.status) &&
+    hasText(readback.todoId) &&
+    hasText(cardId) &&
+    readback.sourceId === cardId &&
+    readback.statusValue === "COMPLETED" &&
+    readback.readbackVerified === true
+  );
+}
+
+function hasReportInterpretationS17ScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("医技报告解读正常态代表切片") &&
+    !hasUnnegatedReportInterpretationS17ScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 S17") &&
+    hasNegatedScopeTerm(statement, "完整医技系统") &&
+    hasNegatedScopeTerm(statement, "危急值 S36") &&
+    hasNegatedScopeTerm(statement, "区域互认 S40") &&
+    hasNegatedScopeTerm(statement, "全部医技报告族") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedReportInterpretationS17ScopeClaim(statement: string) {
+  return [
+    "完整 S17",
+    "完整S17",
+    "完整医技系统",
+    "危急值 S36",
+    "危急值S36",
+    "区域互认 S40",
+    "区域互认S40",
+    "全部医技报告族",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function collectStrictScenarioConditionRows<

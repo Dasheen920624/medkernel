@@ -48,7 +48,7 @@ public class ReportInterpretationService {
     static final String ADVISORY_EMPTY =
         "当前机构生效版本没有匹配的医技项目说明书，系统未生成报告解读；这不是排除异常或风险的结论。";
     static final String ADVISORY_PRESENT =
-        "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。";
+        "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。";
     private static final String TRIGGER_HOOK = "result-review";
     private static final String SCENARIO_CODE = "S36";
     private static final String CRITICAL_VALUE_ACTION_CARD = "ACTION_CARD.REPORT.CRITICAL_VALUE";

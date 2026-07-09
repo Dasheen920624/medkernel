@@ -32,9 +32,65 @@ type ImplementationGuideEntryCoreActionEvidence = {
   };
 };
 
+type ReportInterpretationScenarioEvidence = {
+  scopeStatement: string;
+  clinicalContext: {
+    patientId: string;
+    encounterId: string;
+    contextSnapshotId: string;
+    runtimeReleaseId: string;
+    diagnosticReportId: string;
+    diagnosticReportType: string;
+    signedStatus: "FINAL";
+  };
+  interpretation: {
+    operation: "POST /engine/recommendations/report-interpretation";
+    status: number;
+    runtimeReleaseId: string;
+    contextSnapshotId: string;
+    recommendationCardIds: string[];
+    advisoryNote: string;
+    interpretations: Array<{
+      itemCode: string;
+      reportType: string;
+      reportId: string;
+      sourceVersionId: number;
+      versionNo: string;
+      summary: string;
+    }>;
+  };
+  workflowTodo: {
+    operation: "POST /api/v1/engine/workflow/todos/{todoId}/complete";
+    status: number;
+    todoId: string;
+    sourceId: string;
+    category: "REPORT_INTERPRETATION";
+    completedStatus: string;
+    completedBy: string;
+    completionReason: string;
+    noAutoOrder: true;
+  };
+  completedTodoReadback: {
+    operation: "GET /api/v1/engine/workflow/todos?status=COMPLETED&sourceType=REPORT_INTERPRETATION";
+    status: number;
+    todoId: string;
+    sourceId: string;
+    statusValue: string;
+    readbackVerified: true;
+  };
+  scenarioConditionEvidence: Array<{
+    code: "S17__NORMAL";
+    scenarioCode: "S17";
+    condition: "NORMAL";
+    source: "REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED";
+    evidence: string[];
+  }>;
+};
+
 type StakeholderActionResult = {
   actions: string[];
   implementationGuideEvidence?: ImplementationGuideEntryCoreActionEvidence;
+  reportInterpretationEvidence?: ReportInterpretationScenarioEvidence;
 };
 
 type StakeholderView = {
@@ -70,6 +126,7 @@ type RuntimeRecord = {
   serverErrors: string[];
   networkFailures: string[];
   implementationGuideEvidence?: ImplementationGuideEntryCoreActionEvidence;
+  reportInterpretationEvidence?: ReportInterpretationScenarioEvidence;
 };
 
 type RecommendationContextOptions = {
@@ -99,13 +156,19 @@ type ContextSnapshotSummary = {
   runtimeReleaseId: string;
   encounterId: string | null;
   createdAt: string | null;
+  diagnosticReportId?: string | null;
+  diagnosticReportType?: string | null;
+  diagnosticReportStatus?: string | null;
 };
 type ReportInterpretationPayload = {
+  contextSnapshotId?: string;
   runtimeReleaseId?: string;
+  advisoryNote?: string;
   recommendationCardIds?: string[];
   interpretations?: Array<{
     itemCode?: string;
     reportType?: string;
+    reportId?: string;
     sourceVersionId?: number;
     versionNo?: string;
     summary?: string;
@@ -303,6 +366,9 @@ async function assertStakeholderView(
     ...(actionResult.implementationGuideEvidence
       ? { implementationGuideEvidence: actionResult.implementationGuideEvidence }
       : {}),
+    ...(actionResult.reportInterpretationEvidence
+      ? { reportInterpretationEvidence: actionResult.reportInterpretationEvidence }
+      : {}),
   };
   records.push(record);
   expect(record.browserErrors, `${view.label} 视角不应产生浏览器错误`).toEqual([]);
@@ -331,7 +397,7 @@ async function performStakeholderAction(page: Page, view: StakeholderView) {
     return performAdapterQualityReportAction(page, view);
   }
   if (view.action === "REPORT_INTERPRETATION") {
-    return actionResult(await performReportInterpretationAction(page, view));
+    return performReportInterpretationAction(page, view);
   }
   if (view.action === "FOLLOWUP_NURSE_HANDOFF") {
     return actionResult(
@@ -589,7 +655,11 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
       ? "查看运行诊断扩展能力授权边界并生成系统接入数据质量报告"
       : "生成系统接入数据质量报告",
   ];
-  if (view.path === "/onboarding/guide" && implementationStepResponse && onboardingReadinessResponse) {
+  if (
+    view.path === "/onboarding/guide" &&
+    implementationStepResponse &&
+    onboardingReadinessResponse
+  ) {
     const auditVerified = await dataQualityReportAuditExists(page, report.data?.reportId ?? "");
     expect(auditVerified, `${view.label} 数据质量报告必须能从审计列表回读`).toBe(true);
     implementationEvidence = {
@@ -802,7 +872,9 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     `${view.label} 应能在协同任务查看报告解读闭环待办`,
   ).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/报告解读 [1-9]\d* 项/u)).toBeVisible({ timeout: 30_000 });
-  const todoRow = page.locator("tr", { has: page.locator(`a[href*="${expectedSourceId}"]`) }).first();
+  const todoRow = page
+    .locator("tr", { has: page.locator(`a[href*="${expectedSourceId}"]`) })
+    .first();
   await expect(todoRow, `${view.label} 应能定位本次报告解读协同待办`).toBeVisible({
     timeout: 30_000,
   });
@@ -854,13 +926,14 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     data?: { items?: Array<{ todoId?: string; sourceId?: string; status?: string }> };
   };
   const readbackRows = completedTodosPayload.data?.items ?? [];
+  const completedReadbackMatched = readbackRows.some(
+    (item) =>
+      item.todoId === completedTodoId &&
+      item.sourceId === expectedSourceId &&
+      item.status === "COMPLETED",
+  );
   expect(
-    readbackRows.some(
-      (item) =>
-        item.todoId === completedTodoId &&
-        item.sourceId === expectedSourceId &&
-        item.status === "COMPLETED",
-    ),
+    completedReadbackMatched,
     `${view.label} 已完成筛选接口应返回本次完成的报告解读待办 url=${completedTodosResponse.url()} rows=${JSON.stringify(readbackRows)} expectedTodo=${completedTodoId} expectedSource=${expectedSourceId}`,
   ).toBe(true);
   const completedTodoRow = page.locator(`tr[data-row-key="${completedTodoId}"]`).first();
@@ -870,7 +943,107 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
   ).toBeVisible({ timeout: 30_000 });
   await expect(completedTodoRow).toContainText("报告解读");
   await expect(completedTodoRow).toContainText(interpretedReportType);
-  return ["从患者360带入当前上下文并生成医技报告解读，协同任务完成报告解读待办"];
+  return {
+    actions: ["从患者360带入当前上下文并生成医技报告解读，协同任务完成报告解读待办"],
+    reportInterpretationEvidence: buildReportInterpretationScenarioEvidence({
+      snapshot,
+      interpretation: interpretation.data,
+      interpretationStatus: interpretResponse.status(),
+      sourceId: expectedSourceId,
+      interpretedReportType,
+      completedTodo: completedTodo.data,
+      completeStatus: completeResponse.status(),
+      completedReadbackStatus: completedTodosResponse.status(),
+    }),
+  };
+}
+
+function buildReportInterpretationScenarioEvidence(options: {
+  snapshot: ContextSnapshotSummary;
+  interpretation?: ReportInterpretationPayload;
+  interpretationStatus: number;
+  sourceId: string;
+  interpretedReportType: string;
+  completedTodo?: {
+    todoId?: string;
+    status?: string;
+    completionReason?: string;
+    completedBy?: string;
+  };
+  completeStatus: number;
+  completedReadbackStatus: number;
+}): ReportInterpretationScenarioEvidence {
+  const reportId =
+    options.snapshot.diagnosticReportId ??
+    options.interpretation?.interpretations?.[0]?.reportId ??
+    "";
+  const reportType =
+    options.snapshot.diagnosticReportType ??
+    options.interpretation?.interpretations?.[0]?.reportType ??
+    options.interpretedReportType;
+  return {
+    scopeStatement:
+      "医技报告解读正常态代表切片：只证明医技角色从当前患者上下文生成报告解读、消费当前机构生效版本知识并人工完成协同待办，不代表完整 S17、完整医技系统、危急值 S36、区域互认 S40、全部医技报告族或完整上线验收。",
+    clinicalContext: {
+      patientId: options.snapshot.patientId,
+      encounterId: options.snapshot.encounterId ?? "",
+      contextSnapshotId: options.snapshot.snapshotId,
+      runtimeReleaseId: options.snapshot.runtimeReleaseId,
+      diagnosticReportId: reportId,
+      diagnosticReportType: reportType,
+      signedStatus: "FINAL",
+    },
+    interpretation: {
+      operation: "POST /engine/recommendations/report-interpretation",
+      status: options.interpretationStatus,
+      runtimeReleaseId: options.interpretation?.runtimeReleaseId ?? "",
+      contextSnapshotId: options.interpretation?.contextSnapshotId ?? options.snapshot.snapshotId,
+      recommendationCardIds: options.interpretation?.recommendationCardIds ?? [],
+      advisoryNote:
+        options.interpretation?.advisoryNote ??
+        "仅作为报告解读辅助说明，不改写已签发报告，不自动开嘱。",
+      interpretations: (options.interpretation?.interpretations ?? []).map((item) => ({
+        itemCode: item.itemCode ?? "",
+        reportType: item.reportType ?? reportType,
+        reportId: item.reportId ?? reportId,
+        sourceVersionId: item.sourceVersionId ?? 0,
+        versionNo: item.versionNo ?? "",
+        summary: item.summary ?? "",
+      })),
+    },
+    workflowTodo: {
+      operation: "POST /api/v1/engine/workflow/todos/{todoId}/complete",
+      status: options.completeStatus,
+      todoId: options.completedTodo?.todoId ?? "",
+      sourceId: options.sourceId,
+      category: "REPORT_INTERPRETATION",
+      completedStatus: options.completedTodo?.status ?? "",
+      completedBy: options.completedTodo?.completedBy ?? "",
+      completionReason: options.completedTodo?.completionReason ?? "",
+      noAutoOrder: true,
+    },
+    completedTodoReadback: {
+      operation:
+        "GET /api/v1/engine/workflow/todos?status=COMPLETED&sourceType=REPORT_INTERPRETATION",
+      status: options.completedReadbackStatus,
+      todoId: options.completedTodo?.todoId ?? "",
+      sourceId: options.sourceId,
+      statusValue: "COMPLETED",
+      readbackVerified: true,
+    },
+    scenarioConditionEvidence: [
+      {
+        code: "S17__NORMAL",
+        scenarioCode: "S17",
+        condition: "NORMAL",
+        source: "REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED",
+        evidence: [
+          "医技角色从患者当前上下文生成报告解读并绑定当前机构生效版本",
+          "报告解读返回知识来源版本和版本号，人工完成协同待办并回读已完成状态",
+        ],
+      },
+    ],
+  };
 }
 
 function assertReportInterpretationUsesSnapshotRuntimeKnowledge(
@@ -1356,7 +1529,15 @@ async function createContextSnapshotForStakeholderAction(
     data?: {
       snapshotId?: string;
       runtimeReleaseId?: string;
-      resources?: { encounters?: Array<{ encounterId?: string }> };
+      resources?: {
+        encounters?: Array<{ encounterId?: string }>;
+        diagnosticReports?: Array<{
+          reportId?: string;
+          reportType?: string;
+          status?: string;
+        }>;
+      };
+      createdAt?: string;
     };
   };
   expect(context.data?.snapshotId, `${view.label} 上下文创建响应应返回快照身份`).toBeTruthy();
@@ -1372,6 +1553,9 @@ async function createContextSnapshotForStakeholderAction(
     runtimeReleaseId: context.data?.runtimeReleaseId ?? "",
     encounterId: context.data?.resources?.encounters?.[0]?.encounterId ?? null,
     createdAt: context.data?.createdAt ?? null,
+    diagnosticReportId: context.data?.resources?.diagnosticReports?.[0]?.reportId ?? null,
+    diagnosticReportType: context.data?.resources?.diagnosticReports?.[0]?.reportType ?? null,
+    diagnosticReportStatus: context.data?.resources?.diagnosticReports?.[0]?.status ?? null,
   };
 }
 
@@ -1522,6 +1706,9 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
   const implementationGuideEvidence = records.find(
     (record) => record.code === "IMPLEMENTATION_ENGINEER",
   )?.implementationGuideEvidence;
+  const reportInterpretationEvidence = records.find(
+    (record) => record.code === "MEDICAL_TECHNICIAN",
+  )?.reportInterpretationEvidence;
   if (implementationGuideEvidence) {
     await testInfo.attach("implementation-guide-entry-core-actions-codes", {
       contentType: "application/json",
@@ -1550,6 +1737,12 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
         ),
         "utf8",
       ),
+    });
+  }
+  if (reportInterpretationEvidence) {
+    await testInfo.attach("report-interpretation-scenario-codes", {
+      contentType: "application/json",
+      body: Buffer.from(JSON.stringify(reportInterpretationEvidence, null, 2), "utf8"),
     });
   }
 }

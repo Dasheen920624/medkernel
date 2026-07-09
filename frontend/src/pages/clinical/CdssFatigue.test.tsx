@@ -335,7 +335,7 @@ describe("CdssFatigue", () => {
           recommendations: ["请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。"],
         },
       ],
-      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。",
       traceId: "trace-report",
     });
     mockUseInterpretDiagnosticReport.mockReturnValue({

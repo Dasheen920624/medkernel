@@ -1730,7 +1730,7 @@ const diagnosticCriticalValueEvidence = {
   interpretation: {
     contextSnapshotId: "ctx-critical-report",
     runtimeReleaseId: "runtime-critical-report",
-    advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+    advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。",
     interpretations: [
       {
         reportId: "dr-critical-k",
@@ -2187,7 +2187,7 @@ const regionalDiagnosticMutualRecognitionEvidence = {
   interpretation: {
     contextSnapshotId: "ctx-regional-report",
     runtimeReleaseId: "runtime-regional-report",
-    advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+    advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。",
     interpretations: [
       {
         reportId: "dr-regional-chest-ct",
@@ -5399,6 +5399,99 @@ function expectNoImplementationGuideS23ConditionCoverage(body: Record<string, un
   ).not.toContain("S23__ABNORMAL");
 }
 
+const reportInterpretationScenarioEvidence = {
+  scopeStatement:
+    "医技报告解读正常态代表切片：只证明医技角色从当前患者上下文生成报告解读、消费当前机构生效版本知识并人工完成协同待办，不代表完整 S17、完整医技系统、危急值 S36、区域互认 S40、全部医技报告族或完整上线验收。",
+  clinicalContext: {
+    patientId: "mpi-report-interpretation",
+    encounterId: "enc-report-interpretation",
+    contextSnapshotId: "ctx-report-interpretation",
+    runtimeReleaseId: "runtime-report-interpretation",
+    diagnosticReportId: "diagnostic-report-potassium",
+    diagnosticReportType: "血钾检验",
+    signedStatus: "FINAL",
+  },
+  interpretation: {
+    operation: "POST /engine/recommendations/report-interpretation",
+    status: 200,
+    runtimeReleaseId: "runtime-report-interpretation",
+    contextSnapshotId: "ctx-report-interpretation",
+    recommendationCardIds: ["card-report-interpretation"],
+    advisoryNote: "仅作为报告解读辅助说明，不改写已签发报告，不自动开嘱。",
+    interpretations: [
+      {
+        itemCode: "plat:diagnostic_item:lab-potassium",
+        reportType: "血钾检验",
+        reportId: "diagnostic-report-potassium",
+        sourceVersionId: 2001,
+        versionNo: "V1",
+        summary: "运行版本=runtime-report-interpretation；血钾危急值已复核",
+      },
+    ],
+  },
+  workflowTodo: {
+    operation: "POST /api/v1/engine/workflow/todos/{todoId}/complete",
+    status: 200,
+    todoId: "todo-report-interpretation",
+    sourceId: "card-report-interpretation",
+    category: "REPORT_INTERPRETATION",
+    completedStatus: "COMPLETED",
+    completedBy: "medical-technician",
+    completionReason: "医技已复核报告解读提示，确认仅作为辅助说明，不改写已签发报告。",
+    noAutoOrder: true,
+  },
+  completedTodoReadback: {
+    operation:
+      "GET /api/v1/engine/workflow/todos?status=COMPLETED&sourceType=REPORT_INTERPRETATION",
+    status: 200,
+    todoId: "todo-report-interpretation",
+    sourceId: "card-report-interpretation",
+    statusValue: "COMPLETED",
+    readbackVerified: true,
+  },
+  scenarioConditionEvidence: [
+    {
+      code: "S17__NORMAL",
+      scenarioCode: "S17",
+      condition: "NORMAL",
+      source: "REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED",
+      evidence: [
+        "医技角色从患者当前上下文生成报告解读并绑定当前机构生效版本",
+        "报告解读返回知识来源版本和版本号，人工完成协同待办并回读已完成状态",
+      ],
+    },
+  ],
+};
+
+function reportInterpretationScenarioEvidenceResult(
+  body: Record<string, unknown> = reportInterpretationScenarioEvidence,
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/stakeholder-view-rehearsal.spec.ts",
+        title: "十二类业务视角均能通过四职责账号进入真实页面并看到对应业务能力",
+        status: "passed",
+        attachments: [
+          {
+            name: "report-interpretation-scenario-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoReportInterpretationS17ConditionCoverage(body: Record<string, unknown>) {
+  const evidence = reportInterpretationScenarioEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S17__NORMAL");
+}
+
 const dashboardWorkbenchCoreActionsEvidence = {
   matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
   scopeStatement:
@@ -7030,6 +7123,21 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
+  it("declares S17 normal condition row only from report interpretation runtime knowledge and closed todo evidence", () => {
+    const evidence = reportInterpretationScenarioEvidenceResult();
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S17__NORMAL",
+    ]);
+  });
+
+  it("does not declare S17 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = reportInterpretationScenarioEvidence;
+    const evidence = reportInterpretationScenarioEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
   it.each([
     {
       name: "没有边界声明",
@@ -7253,6 +7361,197 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S23 abnormal condition row when $name", ({ body }) => {
     expectNoImplementationGuideS23ConditionCoverage(body);
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S17__ABNORMAL",
+            scenarioCode: "S17",
+            condition: "ABNORMAL",
+            source: "REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED",
+            evidence: ["医技报告解读正常态不能冒领异常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S17__NORMAL",
+            scenarioCode: "S17",
+            condition: "NORMAL",
+            source: "STAKEHOLDER_VIEW_VISIBLE_ONLY",
+            evidence: ["不能只靠医技视角页面可见冒领 S17 正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S17__NORMAL",
+            scenarioCode: "S17",
+            condition: "NORMAL",
+            source: "REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "scope 过度宣称完整 S17",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        scopeStatement: "医技报告解读正常态代表切片，完整 S17 已完成。",
+      },
+    },
+    {
+      name: "报告解读服务不是 2xx",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        interpretation: {
+          ...structuredClone(reportInterpretationScenarioEvidence.interpretation),
+          status: 500,
+        },
+      },
+    },
+    {
+      name: "报告解读 runtime 与上下文不一致",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        interpretation: {
+          ...structuredClone(reportInterpretationScenarioEvidence.interpretation),
+          runtimeReleaseId: "runtime-other",
+        },
+      },
+    },
+    {
+      name: "报告解读缺知识来源版本身份",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        interpretation: {
+          ...structuredClone(reportInterpretationScenarioEvidence.interpretation),
+          interpretations: [
+            {
+              ...structuredClone(
+                reportInterpretationScenarioEvidence.interpretation.interpretations[0],
+              ),
+              sourceVersionId: 0,
+            },
+          ],
+        },
+      },
+    },
+    {
+      name: "报告解读缺知识版本号",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        interpretation: {
+          ...structuredClone(reportInterpretationScenarioEvidence.interpretation),
+          interpretations: [
+            {
+              ...structuredClone(
+                reportInterpretationScenarioEvidence.interpretation.interpretations[0],
+              ),
+              versionNo: "",
+            },
+          ],
+        },
+      },
+    },
+    {
+      name: "报告解读没有推荐卡来源",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        interpretation: {
+          ...structuredClone(reportInterpretationScenarioEvidence.interpretation),
+          recommendationCardIds: [],
+        },
+      },
+    },
+    {
+      name: "报告解读允许改写报告",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        interpretation: {
+          ...structuredClone(reportInterpretationScenarioEvidence.interpretation),
+          advisoryNote: "可直接改写已签发报告。",
+        },
+      },
+    },
+    {
+      name: "协同待办未完成",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        workflowTodo: {
+          ...structuredClone(reportInterpretationScenarioEvidence.workflowTodo),
+          completedStatus: "PENDING",
+        },
+      },
+    },
+    {
+      name: "协同待办未绑定推荐卡",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        workflowTodo: {
+          ...structuredClone(reportInterpretationScenarioEvidence.workflowTodo),
+          sourceId: "card-other",
+        },
+      },
+    },
+    {
+      name: "协同待办完成说明缺不改写边界",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        workflowTodo: {
+          ...structuredClone(reportInterpretationScenarioEvidence.workflowTodo),
+          completionReason: "医技已复核报告解读提示。",
+        },
+      },
+    },
+    {
+      name: "协同待办允许自动开嘱",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        workflowTodo: {
+          ...structuredClone(reportInterpretationScenarioEvidence.workflowTodo),
+          noAutoOrder: false,
+        },
+      },
+    },
+    {
+      name: "已完成筛选未回读本轮待办",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        completedTodoReadback: {
+          ...structuredClone(reportInterpretationScenarioEvidence.completedTodoReadback),
+          readbackVerified: false,
+        },
+      },
+    },
+    {
+      name: "已完成筛选 sourceId 不一致",
+      body: {
+        ...structuredClone(reportInterpretationScenarioEvidence),
+        completedTodoReadback: {
+          ...structuredClone(reportInterpretationScenarioEvidence.completedTodoReadback),
+          sourceId: "card-other",
+        },
+      },
+    },
+  ])("does not declare S17 normal condition row when $name", ({ body }) => {
+    expectNoReportInterpretationS17ConditionCoverage(body);
   });
 
   it("does not declare implementation guide entry core actions from a non-target spec", () => {

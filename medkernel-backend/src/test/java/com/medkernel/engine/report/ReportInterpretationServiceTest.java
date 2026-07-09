@@ -112,6 +112,7 @@ class ReportInterpretationServiceTest {
                 assertThat(text).contains("不自动").doesNotContain("已自动"));
         });
         assertThat(response.advisoryNote()).contains("不改写已签发报告");
+        assertThat(response.advisoryNote()).contains("不自动开嘱");
     }
 
     @Test

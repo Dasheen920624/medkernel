@@ -23,6 +23,47 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百二十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只收口检查检验建议 / 医技报告解读 `S17__NORMAL` 代表切片。`stakeholder-view-rehearsal.spec.ts` 在医技角色真实
+  前台动作完成后新增 `report-interpretation-scenario-codes` 附件，绑定当前患者上下文、当前机构生效版本、
+  已签发 `DiagnosticReport`、报告解读推荐卡、人工完成 `REPORT_INTERPRETATION` 协同待办和已完成筛选回读；
+  附件显式写出 `scenarioConditionEvidence`，来源固定为
+  `REPORT_INTERPRETATION_RUNTIME_KNOWLEDGE_TODO_CLOSED`。`ReportInterpretationService.ADVISORY_PRESENT`
+  同步补足医疗安全边界：报告解读不改写已签发报告、不自动开嘱、不替代医师判断。只声明 `S17__NORMAL`，
+  不声明 `S17__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不冒领完整 S17、完整医技系统、危急值 S36、
+  区域互认 S40、全部医技报告族或完整上线验收。
+- 第二百二十四批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增 `S17__NORMAL` 白名单、普通
+  `scenarios:S17` 强附件门禁和条件行 collector；必须通过 `report-interpretation-scenario-codes` 完整结构后才声明，
+  且要求 scope 否定完整范围、服务状态均为 2xx、`runtimeReleaseId/contextSnapshotId/reportId/reportType` 与上下文一致、
+  `sourceVersionId` 为正数、`versionNo` 非空、推荐卡非空、`advisoryNote` 同时包含不改写和不自动开嘱、
+  待办 `sourceId` 绑定推荐卡、待办已完成、`noAutoOrder=true`、已完成筛选回读同一待办。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、空证据、scope 过度宣称完整 S17、报告解读非 2xx、
+  runtime 不一致、缺知识来源版本身份 / 版本号 / 推荐卡、报告解读允许改写、待办未完成 / 未绑定推荐卡 /
+  完成说明缺不改写边界 / 允许自动开嘱、已完成筛选未回读或 `sourceId` 不一致，均不声明 `S17__NORMAL`。
+- 第二百二十四批真实 E2E：首次使用旧 jar 运行时 `stakeholder-view-rehearsal.spec.ts` 通过但 parser 只产出
+  `[S23__ABNORMAL]`，根因是服务端报告解读 `advisoryNote` 缺少“不自动开嘱”，严格 collector 正确拒绝声明 S17。
+  修复后重新构建后端 jar，临时启动后端 18102（dev/H2）和前端 5175（本批启动，已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s17-normal-condition-row-20260709-r2 npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s17-normal-condition-row-20260709-r2/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S23__ABNORMAL,S17__NORMAL]`，`launchCoverage.scenarios` 为 `[S17]`；附件抽查 `advisoryNote` 为
+  “报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。”，待办完成和已完成筛选回读均为 200。
+- 第二百二十四批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 S17 正例缺条件行；随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence hooks CdssFatigue -- --run`（816 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `mvn -f medkernel-backend/pom.xml -Dtest=ReportInterpretationServiceTest test`（7 tests）和
+  `mvn -f medkernel-backend/pom.xml -DskipTests package`。提交前仍需跑 `git diff --check`。
+- 第二百二十四批并行只读审计结论：子代理未编辑、未暂存、未提交。下一批沿 `LAUNCH-06` 最低冲突候选为：
+  1）`real-frontdesk-rehearsal.spec.ts` 的 `S12__ABNORMAL`，来源可固定
+  `FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN`，但必须绑定 `abnormalReturn.operation=REGISTER_ABNORMAL_RETURN`、
+  `riskLevel=HIGH`、`registered=true`、`noAutoOrder=true`，不得冒领 S30 慢病基层双向转诊；2）
+  `runtime-release-frontdesk.spec.ts` 的 `S13__DEGRADATION`，来源可固定
+  `RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY`，但必须绑定 rollback posted/current readback/consumer readback、
+  回滚版本递增和候选资产缺席，不得冒领目标环境灾备、134 清库重部署或 S15 运维恢复正常态；3）S33 暂不建议直接上，
+  需先补 SPD/UDI 器械耗材真实消费者字段。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零二批本地推进：接用户要求继续加速并允许子代理，本批使用 1 个只读子代理审计临床 / 质量入口五态候选、
   1 个只读子代理并行审计 `LAUNCH-13.organizationLevels`，两个子代理均已关闭，未编辑、未暂存、未提交。
   主线程继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：把已有真实前台强链路从
