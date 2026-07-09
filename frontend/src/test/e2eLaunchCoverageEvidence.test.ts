@@ -9018,6 +9018,15 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
   });
 
+  it("declares only a multi-hospital runtime isolation representative row from explicit two-hospital runtime evidence", () => {
+    const evidence = runtimeReleaseEvidenceResult(runtimeReleaseCompleteEvidence());
+
+    expect(
+      evidence.launchCoverage.multiHospitalRuntimeIsolationRows?.map((item) => item.code),
+    ).toEqual(["TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION"]);
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
   it("declares S13 degradation condition row only from explicit rollback recovery evidence", () => {
     const evidence = runtimeReleaseEvidenceResult(runtimeReleaseDegradationEvidence());
 
@@ -9504,6 +9513,7 @@ describe("browser E2E launch coverage evidence", () => {
       "RELEASE_GOVERNANCE",
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.multiHospitalRuntimeIsolationRows).toBeUndefined();
   });
 
   it("does not declare S13 coverage when two-hospital evidence reuses one hospital", () => {
@@ -9523,6 +9533,7 @@ describe("browser E2E launch coverage evidence", () => {
       "RELEASE_GOVERNANCE",
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.multiHospitalRuntimeIsolationRows).toBeUndefined();
   });
 
   it("does not declare S13 coverage when hospital readbacks leak the other hospital candidate", () => {
@@ -9544,6 +9555,80 @@ describe("browser E2E launch coverage evidence", () => {
       "RELEASE_GOVERNANCE",
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.multiHospitalRuntimeIsolationRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "两院选择同一个候选",
+      multiHospitalDifferentiation: {
+        ...runtimeReleaseMultiHospitalDifferentiation,
+        secondaryHospital: {
+          ...runtimeReleaseMultiHospitalDifferentiation.secondaryHospital,
+          selectedCandidate: runtimeReleasePrimaryCandidate,
+          activationReadback: { assets: [runtimeReleasePrimaryAsset] },
+          runtimeConsumerReadback: { assets: [runtimeReleasePrimaryAsset] },
+        },
+        distinctSelectedCandidates: false,
+      },
+    },
+    {
+      name: "后端读回未隔离",
+      multiHospitalDifferentiation: {
+        ...runtimeReleaseMultiHospitalDifferentiation,
+        backendReadbacksIsolated: false,
+      },
+    },
+    {
+      name: "第三方运行契约读回未隔离",
+      multiHospitalDifferentiation: {
+        ...runtimeReleaseMultiHospitalDifferentiation,
+        runtimeConsumerReadbacksIsolated: false,
+      },
+    },
+    {
+      name: "第二家医院缺排除第一家候选证明",
+      multiHospitalDifferentiation: {
+        ...runtimeReleaseMultiHospitalDifferentiation,
+        secondaryHospital: {
+          ...runtimeReleaseMultiHospitalDifferentiation.secondaryHospital,
+          excludesOtherHospitalCandidate: false,
+        },
+      },
+    },
+  ])(
+    "does not declare multi-hospital runtime isolation row when $name",
+    ({ multiHospitalDifferentiation }) => {
+      const evidence = runtimeReleaseEvidenceResult(
+        runtimeReleaseCompleteEvidence({ multiHospitalDifferentiation }),
+      );
+
+      expect(evidence.launchCoverage.multiHospitalRuntimeIsolationRows).toBeUndefined();
+      expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+    },
+  );
+
+  it("does not declare multi-hospital runtime isolation row from a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-runtime-release-frontdesk.spec.ts",
+          title: "非目标 spec 不能冒领多医院隔离",
+          status: "passed",
+          attachments: [
+            {
+              name: "runtime-release-coverage-codes",
+              contentType: "application/json",
+              body: JSON.stringify(runtimeReleaseCompleteEvidence()),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.multiHospitalRuntimeIsolationRows).toBeUndefined();
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
   });
 
   it("does not declare S13 coverage when runtime evidence lacks offline delivery export validation", () => {

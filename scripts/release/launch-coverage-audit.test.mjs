@@ -1046,6 +1046,7 @@ function completeStageEvidence(options = {}) {
     "knowledgeSupplyChainEvidenceRows:RUNTIME_LIFECYCLE",
     "knowledgeSupplyChainEvidenceRows:LINEAGE_CONSUMERS",
     "knowledgeSupplyChainEvidenceRows:SAFETY_BOUNDARY",
+    "multiHospitalRuntimeIsolationRows:TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION",
     "launchReadinessStakeholderMatrix:IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
     "launchReadinessStakeholderRows:IT_MANAGER_RUNTIME_DIAGNOSTICS",
     "launchReadinessStakeholderRows:IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",

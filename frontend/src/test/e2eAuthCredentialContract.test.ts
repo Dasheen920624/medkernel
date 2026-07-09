@@ -929,6 +929,11 @@ describe("E2E credential contract", () => {
     expect(source).toContain("activationRequestCarriesRequiredAssets");
     expect(source).toContain("partialSelection");
     expect(source).toContain("multiHospitalDifferentiation");
+    expect(source).toContain("distinctHospitals");
+    expect(source).toContain("distinctSelectedCandidates");
+    expect(source).toContain("backendReadbacksIsolated");
+    expect(source).toContain("runtimeConsumerReadbacksIsolated");
+    expect(source).toContain("excludesOtherHospitalCandidate");
     expect(source).toContain("offlineDelivery");
     expect(source).toContain("exerciseOfflineDelivery");
     expect(source).toContain("ensureSecondHospitalRuntimeReleaseRehearsalContext");
@@ -966,6 +971,26 @@ describe("E2E credential contract", () => {
     expect(source).toContain("postDataJSON");
     expect(source).not.toContain('runtimeHasActiveAsset(current.data, "FIELD_CATALOG")');
     expect(source).not.toContain('runtimeHasActiveAsset(current.data, "RULE")');
+
+    const parser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    expect(parser).toContain(
+      "multiHospitalRuntimeIsolationRows:TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION",
+    );
+    expect(parser).toContain("collectMultiHospitalRuntimeIsolationClaimsFromTest");
+    expect(parser).toContain("hasCompleteRuntimeReleaseMultiHospitalEvidence");
+    expect(parser).not.toContain("organizationLevels:PLATFORM");
+    expect(parser).not.toContain("organizationLevels:GROUP");
+    expect(parser).not.toContain("organizationLevels:CARE_TEAM");
+    expect(parser).not.toContain("organizationLevels:SPECIALTY_CENTER");
+    expect(parser).not.toContain("organizationLevels:SHARED_CENTER");
+
+    const releaseGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
+    expect(releaseGate).toContain("multiHospitalRuntimeIsolationRows");
+    expect(releaseGate).toContain("TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION");
+    expect(releaseGate).toContain('requiredCoverage: ["organizationLevels"]');
+    expect(releaseGate).not.toContain(
+      'requiredCoverage: ["organizationLevels", "multiHospitalRuntimeIsolationRows"]',
+    );
   });
 
   it("requires quality management entry rehearsal to activate the CLAIM indicator into hospital runtime before snapshot creation", () => {

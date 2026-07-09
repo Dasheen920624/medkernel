@@ -119,6 +119,9 @@ const runtimeReleaseClaims = [
 ];
 
 const runtimeReleasePartialSelectionClaims = ["scenarios:S13"];
+const multiHospitalRuntimeIsolationClaims = [
+  "multiHospitalRuntimeIsolationRows:TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION",
+];
 const runtimeReleaseScenarioConditionRows = [
   {
     code: "S13__NORMAL",
@@ -1758,6 +1761,12 @@ export function buildBrowserE2eLaunchEvidence(input: {
   );
   if (thirdPartyScenarioConditionClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, thirdPartyScenarioConditionClaims, generatedAt);
+  }
+  const multiHospitalRuntimeIsolationClaims = collectMultiHospitalRuntimeIsolationClaims(
+    input.tests,
+  );
+  if (multiHospitalRuntimeIsolationClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, multiHospitalRuntimeIsolationClaims, generatedAt);
   }
   const s2s4ScenarioConditionClaims = collectS2S4ScenarioConditionClaims(input.tests);
   if (s2s4ScenarioConditionClaims.length > 0) {
@@ -5019,6 +5028,39 @@ function collectRuntimeReleaseScenarioConditionClaimsFromTest(test: BrowserE2eTe
           runtimeReleaseScenarioConditionBackedByEvidence(expected.code, parsed),
       )
       .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function collectMultiHospitalRuntimeIsolationClaims(tests: BrowserE2eTestResult[]) {
+  return tests.flatMap((test) => collectMultiHospitalRuntimeIsolationClaimsFromTest(test));
+}
+
+function collectMultiHospitalRuntimeIsolationClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "runtime-release-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "runtime-release-coverage-codes",
+  );
+  if (
+    !attachment?.body ||
+    !hasRequiredRuntimeReleaseAttachment(test) ||
+    !hasRequiredRuntimeReleasePartialSelectionAttachment(test)
+  ) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed &&
+      hasCompleteRuntimeReleaseMultiHospitalEvidence(parsed.multiHospitalDifferentiation)
+      ? multiHospitalRuntimeIsolationClaims
+      : [];
   } catch {
     return [];
   }

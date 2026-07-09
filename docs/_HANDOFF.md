@@ -273,6 +273,38 @@
   的多医院隔离子账，其次 `dashboard-workbench-core-actions-codes-*` / `four-role-core-actions-codes` 的四职责范围子账；
   当前仍缺可安全声明 `PLATFORM/GROUP/CARE_TEAM/SPECIALTY_CENTER/SHARED_CENTER` 的真实前台强附件。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百四十四批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 13 项集团 / 多机构组织与职责范围总账。
+  本批不新增 S0-S40 五态行、不写入 `organizationLevels`；只把既有运行版本发布真实前台链路中的两医院证据升级为
+  `multiHospitalRuntimeIsolationRows:TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION` 代表子账。证据固定来源于
+  `runtime-release-frontdesk.spec.ts` 的 `runtime-release-coverage-codes` 附件：第一医院与第二医院分别选择并发布不同候选，
+  两院 `hospitalId` 与 selected candidate 均不同，后端当前机构生效版本读回互不串用，第三方 runtime consumer 读回互不串用，
+  且第二医院显式排除第一医院候选。明确不声明完整 LAUNCH-13、完整九层组织、平台 / 集团 / 照护团队 / 专科中心 /
+  共享中心组织层级、跨机构任职、完整组织权限模型、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百四十四批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `collectMultiHospitalRuntimeIsolationClaimsFromTest()`，仅接受目标 spec 通过且非 flaky、完整
+  `hasRequiredRuntimeReleaseAttachment()`、完整 `hasRequiredRuntimeReleasePartialSelectionAttachment()`，并复用
+  `hasCompleteRuntimeReleaseMultiHospitalEvidence()` 的强校验后，才声明
+  `multiHospitalRuntimeIsolationRows:TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例与负例：缺多医院证据、两院复用同一医院、两院选择同一候选、后端读回泄漏、第三方运行契约读回未隔离、
+  第二医院缺排除另一医院候选、非目标 spec，均不得声明多医院运行版本隔离子账或 `organizationLevels`。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定 runtime-release 附件字段、parser 锚点和 release gate 边界。
+  `scripts/release/full-system-rehearsal-lib.mjs` 将 `multiHospitalRuntimeIsolationRows` 注册到覆盖字典，避免终态审计遇到未知 key；
+  但 `LAUNCH-13.requiredCoverage` 仍只保持 `["organizationLevels"]`，不得把两医院代表子账冒领为完整 LAUNCH-13 门禁。
+  `scripts/release/launch-coverage-audit.test.mjs` 的完整 stage fixture 补入该子账 claim。
+- 第二百四十四批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run` 红在新增正例缺
+  `multiHospitalRuntimeIsolationRows`，随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1007 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-multi-hospital-isolation-20260710-r1 npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-runtime-multi-hospital-isolation-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.multiHospitalRuntimeIsolationRows=[TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION]`，未产生 `organizationLevels`；
+  只保留既有 `launchCoverage.scenarios=[S13]` 与
+  `scenarioConditionRows=[S13__NORMAL,S13__DEGRADATION]`，未新增任何 S13 其他三态或新 S0-S40 行。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

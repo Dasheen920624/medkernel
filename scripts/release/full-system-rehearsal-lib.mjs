@@ -463,6 +463,10 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "SHARED_CENTER",
     ],
   },
+  multiHospitalRuntimeIsolationRows: {
+    label: "多医院机构生效版本隔离代表行",
+    codes: ["TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION"],
+  },
   specialDiseaseStages: {
     label: "专病十阶段",
     codes: [
