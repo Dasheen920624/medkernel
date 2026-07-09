@@ -2664,6 +2664,9 @@ function expectNoPharmacyReviewAntimicrobialCoverage(body: Record<string, unknow
   expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
     expect.arrayContaining(["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"]),
   );
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("PHARMACY_REVIEW");
 }
 
 const infectionPublicHealthSafetyEvidence = {
@@ -3129,6 +3132,9 @@ function expectNoInfectionPublicHealthSafetyCoverage(body: Record<string, unknow
   expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
     expect.arrayContaining(["TERMINOLOGY", "RULE", "ACTION_CARD"]),
   );
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("PUBLIC_HEALTH_INFECTION_REGULATORY");
 }
 
 const surgeryAnesthesiaTransfusionEvidence = {
@@ -3615,6 +3621,9 @@ function expectNoSurgeryAnesthesiaTransfusionCoverage(body: Record<string, unkno
   expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
     expect.arrayContaining(["TERMINOLOGY", "SAFETY", "RULE", "ACTION_CARD"]),
   );
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("NURSING_ANESTHESIA_TRANSFUSION_ICU");
 }
 
 const criticalEmergencyIcuEvidence = {
@@ -4096,6 +4105,9 @@ function expectNoCriticalEmergencyIcuCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toEqual(
     expect.arrayContaining(["TERMINOLOGY", "CDSS_RISK", "RULE", "PATHWAY", "ACTION_CARD"]),
   );
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("LIS_MONITORING_CRITICAL");
 }
 
 const systemProvidersEvidence = {
@@ -8042,6 +8054,9 @@ describe("browser E2E launch coverage evidence", () => {
       "PROFESSIONAL_COLLABORATION",
       "QUALITY_IMPROVEMENT",
     ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["PHARMACY_REVIEW"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
@@ -8381,6 +8396,9 @@ describe("browser E2E launch coverage evidence", () => {
       "PROFESSIONAL_COLLABORATION",
       "QUALITY_IMPROVEMENT",
     ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["PUBLIC_HEALTH_INFECTION_REGULATORY"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
@@ -8554,6 +8572,9 @@ describe("browser E2E launch coverage evidence", () => {
       "PROFESSIONAL_COLLABORATION",
       "QUALITY_IMPROVEMENT",
     ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["NURSING_ANESTHESIA_TRANSFUSION_ICU"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
@@ -8747,6 +8768,9 @@ describe("browser E2E launch coverage evidence", () => {
       "CLINICAL_RUNTIME",
       "PROFESSIONAL_COLLABORATION",
     ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["LIS_MONITORING_CRITICAL"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 

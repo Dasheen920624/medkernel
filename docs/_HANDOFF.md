@@ -10,6 +10,48 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十七批本地推进：接第一百八十六批和用户“前台演练需按全角色真实操作、知识只是一个点、要全局考虑”的要求，
+  先提交 `6c2f953a5 test: 补合规工作台入口强证据门禁` 固化上一批；随后继续走非破坏、可本地验证且全局提速的一刀：
+  不新增业务流程、不改真实 E2E 行为，只把既有强校验专业 Webhook 代表切片纳入完整覆盖审计的
+  `thirdPartySystemFamilyConsumerSlices` 总门禁，避免药事审方、公卫院感、手麻输血和急危重 ICU 已有真实消费者证据只停留在
+  各自场景覆盖里。参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 仍只作为背景：知识资料和术语资源必须回到
+  134 内正式生产、审核、发布、机构生效、运行消费和回滚，不另起系统外知识生产线。
+- 第一百八十七批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 在四个已具备强附件校验的真实前台 spec 声明
+  代表消费者切片：`pharmacy-review-antimicrobial-frontdesk.spec.ts` 通过
+  `pharmacy-review-antimicrobial-frontdesk-codes` 声明 `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW`；
+  `infection-public-health-safety-frontdesk.spec.ts` 声明
+  `PUBLIC_HEALTH_INFECTION_REGULATORY`；`surgery-anesthesia-transfusion-frontdesk.spec.ts` 声明
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU`；`critical-emergency-icu-frontdesk.spec.ts` 声明
+  `LIS_MONITORING_CRITICAL`。这些声明仍依赖原有强校验：真实适配器 / Webhook / HMAC 预览、NOT_CONNECTED /
+  RETRYING 诚实降级、当前机构生效版本运行资产、签名入站映射、临床触发、人工确认 / 不自动开嘱或不替代法定上报 /
+  不控制设备、整改或待办闭环及 scope 不过度声明；不把 `thirdPartySystemFamilies` 全部系统族覆盖冒领为完成。
+- 第一百八十七批完整覆盖门禁：`scripts/release/full-system-rehearsal-lib.mjs` 将
+  `thirdPartySystemFamilyConsumerSlices` 从只要求 `PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG` 扩为五个代表消费者切片：
+  `PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG / PHARMACY_REVIEW / PUBLIC_HEALTH_INFECTION_REGULATORY /
+  NURSING_ANESTHESIA_TRANSFUSION_ICU / LIS_MONITORING_CRITICAL`。`scripts/release/launch-coverage-audit.test.mjs`
+  增加完整输出断言和缺 `PHARMACY_REVIEW` 拒绝用例；`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  增加四个正向声明断言，并在对应负向 helper 里要求不完整附件不得声明消费者切片；
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 增加静态护栏，锁定四条专业 Webhook spec 的附件、断连证据、
+  总门禁声明和不过度声明完整系统族。
+- 第一百八十七批验证证据：本批没有重跑真实浏览器 E2E；原因是四条专业 spec 的真实 E2E 强证据已由前序批次跑通过，
+  本批只把其已强校验附件纳入总覆盖审计。定向红灯先确认 parser 正向缺四条消费者声明、完整覆盖审计把
+  `PHARMACY_REVIEW` 判为未知覆盖项；实现后复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（329 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（59 tests）、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`。
+  `git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与两个脚本文件 CRLF 将被 LF 替换，
+  无 whitespace error。环境探测：`http://localhost:18092/medkernel/actuator/health` 返回 `UP`，前端 `http://localhost:5174`
+  返回 200；`/medkernel/api/v1/actuator/health` 返回 401 是鉴权路径口径，不作为健康失败证据。
+- 第一百八十七批边界与下一步：本批仍不是完整上线、不是 13 类第三方系统族真实消费者全部完成、不是 34 入口全部业务动作闭环、
+  不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成，也不是 134 清库 / 重部署复演或全部医学知识资源收集 / 生产完成。
+  只读子代理盘点 34 入口后指出两个仍偏薄的高价值缺口：`/onboarding/guide` 实施与验收目前主要来自
+  `stakeholder-view-rehearsal.spec.ts` 的视角摘要和过程断言，尚未结构化成 `serviceOperation/serviceStatus/readback/audit`
+  强证据矩阵；`/dashboard` 工作台仍更像菜单 / 路由 / 视图可达底座。下一批建议优先把 `/onboarding/guide` 做成
+  `implementationGuideEntryCoreActions` 一行强证据门禁，再继续补工作台真实业务动作、更多第三方系统族消费者、知识主链的标准包导入 /
+  院内字典同步 / 原文原包留存 / 结构校验 / 覆盖矩阵 / 持续更新 / 回滚审计。134 清库 / 重部署、公网模型 Provider、
+  真实第三方外部回调和目标库迁移 smoke 仍按 destructive / external 规则，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十六批本地推进：接第一百八十五批和用户“全角色真实前台验证、知识只是一个点、要全局考虑”的要求，本批选择非破坏、
   可本地验证且能继续收紧上线门禁的一刀：把合规安全、审计、消息通知、个人通知偏好和来源血缘五个真实入口从四职责 /
   六入口代表矩阵中拆出为强证据矩阵；同时修复真实前台 E2E 暴露的知识审核对照 404 根因。参考会话

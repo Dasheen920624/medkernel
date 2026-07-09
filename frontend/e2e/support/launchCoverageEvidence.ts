@@ -296,6 +296,7 @@ const pharmacyReviewAntimicrobialFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "serviceCombinations:QUALITY_IMPROVEMENT",
+  "thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW",
 ];
 
 const infectionPublicHealthSafetyFrontdeskClaims = [
@@ -312,6 +313,7 @@ const infectionPublicHealthSafetyFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "serviceCombinations:QUALITY_IMPROVEMENT",
+  "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
 ];
 
 const surgeryAnesthesiaTransfusionFrontdeskClaims = [
@@ -329,6 +331,7 @@ const surgeryAnesthesiaTransfusionFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "serviceCombinations:QUALITY_IMPROVEMENT",
+  "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
 ];
 
 const criticalEmergencyIcuFrontdeskClaims = [
@@ -346,6 +349,7 @@ const criticalEmergencyIcuFrontdeskClaims = [
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
+  "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
 ];
 
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];

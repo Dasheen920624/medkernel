@@ -427,6 +427,69 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain('postApi(page, "/engine/workflow/todos"');
   });
 
+  it("requires professional webhook rehearsals to feed the third-party real consumer slice gate without scope inflation", () => {
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    const fullSystemGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
+    const auditGate = readFileSync("../scripts/release/launch-coverage-audit.test.mjs", "utf8");
+    const pharmacySource = readFileSync(
+      "e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts",
+      "utf8",
+    );
+    const infectionSource = readFileSync(
+      "e2e/infection-public-health-safety-frontdesk.spec.ts",
+      "utf8",
+    );
+    const surgerySource = readFileSync(
+      "e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts",
+      "utf8",
+    );
+    const criticalSource = readFileSync("e2e/critical-emergency-icu-frontdesk.spec.ts", "utf8");
+
+    expect(coverageParser).toContain("thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW");
+    expect(coverageParser).toContain(
+      "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
+    );
+    expect(coverageParser).toContain(
+      "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    );
+    expect(coverageParser).toContain(
+      "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
+    );
+    expect(fullSystemGate).toContain('"PHARMACY_REVIEW"');
+    expect(fullSystemGate).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
+    expect(fullSystemGate).toContain('"NURSING_ANESTHESIA_TRANSFUSION_ICU"');
+    expect(fullSystemGate).toContain('"LIS_MONITORING_CRITICAL"');
+    expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW");
+    expect(auditGate).toContain(
+      "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
+    );
+    expect(auditGate).toContain(
+      "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    );
+    expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL");
+    expect(pharmacySource).toContain("pharmacy-review-antimicrobial-frontdesk-codes");
+    expect(pharmacySource).toContain('"PHARMACY_REVIEW"');
+    expect(pharmacySource).toContain("waitForPharmacyReviewCompensation");
+    expect(pharmacySource).toContain('lastStatus === "NOT_CONNECTED"');
+    expect(pharmacySource).not.toContain("完整第三方药房审方系统族已上线");
+    expect(infectionSource).toContain("infection-public-health-safety-frontdesk-codes");
+    expect(infectionSource).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
+    expect(infectionSource).toContain('expect(["NOT_CONNECTED", "RETRYING"].includes(status)');
+    expect(infectionSource).toContain('textField(compensation, "status") === "NOT_CONNECTED"');
+    expect(infectionSource).not.toContain("完整公卫法定上报已上线");
+    expect(surgerySource).toContain("surgery-anesthesia-transfusion-frontdesk-codes");
+    expect(surgerySource).toContain('"NURSING_ANESTHESIA_TRANSFUSION_ICU"');
+    expect(surgerySource).toContain('expect(["NOT_CONNECTED", "RETRYING"].includes(status)');
+    expect(surgerySource).toContain('textField(compensation, "status") === "NOT_CONNECTED"');
+    expect(surgerySource).not.toContain("完整手麻手术室输血系统已上线");
+    expect(criticalSource).toContain("critical-emergency-icu-frontdesk-codes");
+    expect(criticalSource).toContain('"LIS_MONITORING_CRITICAL"');
+    expect(criticalSource).toContain(
+      'healthStatus: textField(data, "healthStatus") ?? "NOT_CONNECTED"',
+    );
+    expect(criticalSource).not.toContain("完整 ICU 系统已上线");
+  });
+
   it("keeps third-party family evidence API readback on the real backend API base", () => {
     const source = readFileSync("e2e/third-party-system-families-rehearsal.spec.ts", "utf8");
 

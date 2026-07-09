@@ -202,7 +202,13 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   },
   thirdPartySystemFamilyConsumerSlices: {
     label: "第三方系统族真实消费者代表切片",
-    codes: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"],
+    codes: [
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "LIS_MONITORING_CRITICAL",
+    ],
   },
   diagnosticReportFamilyConsumerMatrix: {
     label: "五类医技报告族真实消费者矩阵",
