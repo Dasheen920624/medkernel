@@ -152,6 +152,12 @@ const thirdPartySystemFamilyDegradationClaims = thirdPartySystemFamilyClaims
   );
 const thirdPartySystemFamilyScenarioConditionRows = [
   {
+    code: "S33__MISSING_DATA",
+    scenarioCode: "S33",
+    condition: "MISSING_DATA",
+    source: "SPD_UDI_DEVICE_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+  },
+  {
     code: "S34__MISSING_DATA",
     scenarioCode: "S34",
     condition: "MISSING_DATA",
@@ -4027,11 +4033,84 @@ function thirdPartySystemFamilyScenarioConditionBackedByEvidence(
   parsed: Record<string, unknown>,
 ) {
   switch (code) {
+    case "S33__MISSING_DATA":
+      return hasCompleteSpdUdiDeviceMissingEvidence(parsed);
     case "S34__MISSING_DATA":
       return hasCompleteResearchEthicsDataMissingEvidence(parsed);
     default:
       return false;
   }
+}
+
+function hasCompleteSpdUdiDeviceMissingEvidence(parsed: Record<string, unknown>) {
+  if (
+    !Array.isArray(parsed.systemFamilyCodes) ||
+    !parsed.systemFamilyCodes.includes("SPD_UDI_DEVICE")
+  ) {
+    return false;
+  }
+  const scopeStatement = textValue(parsed.scopeStatement) ?? "";
+  if (
+    !hasNegatedScopeTerm(scopeStatement, "真实消费者") ||
+    !hasNegatedScopeTerm(scopeStatement, "标准资源") ||
+    !hasNegatedScopeTerm(scopeStatement, "闭环回传") ||
+    !hasNegatedScopeTerm(scopeStatement, "完整器械耗材") ||
+    !hasNegatedScopeTerm(scopeStatement, "完整 S33")
+  ) {
+    return false;
+  }
+  const registration = recordValue(parsed.registrationEvidence);
+  const missing = recordValue(parsed.spdUdiDeviceMissingEvidence);
+  if (
+    !hasCompleteThirdPartySystemFamilyRegistrationEvidence(registration) ||
+    !hasCompleteSpdUdiDeviceMissingRow(missing)
+  ) {
+    return false;
+  }
+  const consumerRows = Array.isArray(parsed.consumerEvidence) ? parsed.consumerEvidence : [];
+  const consumer = consumerRows
+    .map((item) => recordValue(item))
+    .find(
+      (item): item is Record<string, unknown> =>
+        item !== null && item.systemFamilyCode === "SPD_UDI_DEVICE",
+    );
+  return (
+    consumer !== undefined &&
+    consumer.onboardingId === missing?.onboardingId &&
+    consumer.adapterId === missing?.adapterId &&
+    consumer.consumerVerified === false &&
+    consumer.standardResourceVerified === false &&
+    consumer.degradationVerified === true &&
+    consumer.auditVerified === true &&
+    consumer.healthStatus === missing?.healthStatus
+  );
+}
+
+function hasCompleteSpdUdiDeviceMissingRow(value: Record<string, unknown> | null) {
+  if (!value) return false;
+  const status = textValue(value.healthStatus);
+  const missingCapabilities = Array.isArray(value.missingCapabilities)
+    ? value.missingCapabilities
+    : [];
+  return (
+    value.systemFamilyCode === "SPD_UDI_DEVICE" &&
+    hasText(value.onboardingId) &&
+    hasText(value.adapterId) &&
+    value.consumerVerified === false &&
+    value.standardResourceVerified === false &&
+    value.degradationVerified === true &&
+    value.auditVerified === true &&
+    status !== "HEALTHY" &&
+    ["NOT_CONNECTED", "MISCONFIGURED", "RETRYING", "DEAD_LETTER", "UNHEALTHY"].includes(
+      status ?? "",
+    ) &&
+    [
+      "UDI_TRACEABILITY",
+      "DEVICE_RECALL_STOP_USE",
+      "TECHNOLOGY_ACCESS_APPROVAL",
+      "CONSUMABLE_USAGE_AUDIT",
+    ].every((capability) => missingCapabilities.includes(capability))
+  );
 }
 
 function hasCompleteResearchEthicsDataMissingEvidence(parsed: Record<string, unknown>) {

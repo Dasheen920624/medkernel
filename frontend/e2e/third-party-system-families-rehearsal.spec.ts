@@ -214,6 +214,9 @@ test.describe("第三方系统族真实前台上线演练", () => {
     const researchEthicsDataEvidence = consumerEvidence.find(
       (item) => item.systemFamilyCode === "RESEARCH_ETHICS_DATA",
     );
+    const spdUdiDeviceEvidence = consumerEvidence.find(
+      (item) => item.systemFamilyCode === "SPD_UDI_DEVICE",
+    );
 
     await testInfo.attach("third-party-system-family-codes", {
       contentType: "application/json",
@@ -222,7 +225,7 @@ test.describe("第三方系统族真实前台上线演练", () => {
           {
             systemFamilyCodes: observedFamilyCodes,
             scopeStatement:
-              "本演练只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传、完整断连降级、完整科研数据服务或完整 S34。",
+              "本演练只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传、完整断连降级、完整器械耗材、完整 S33、完整科研数据服务或完整 S34。",
             registrationEvidence: {
               observedFamilyCodes,
               adapterTotal: quality.data?.adapterTotal ?? 0,
@@ -231,6 +234,22 @@ test.describe("第三方系统族真实前台上线演练", () => {
               sampledHealthStatus: healthPayload.data?.healthStatus ?? "UNKNOWN",
             },
             consumerEvidence,
+            spdUdiDeviceMissingEvidence: {
+              systemFamilyCode: "SPD_UDI_DEVICE",
+              onboardingId: spdUdiDeviceEvidence?.onboardingId ?? "",
+              adapterId: spdUdiDeviceEvidence?.adapterId ?? "",
+              healthStatus: spdUdiDeviceEvidence?.healthStatus ?? "NOT_CONNECTED",
+              consumerVerified: false,
+              standardResourceVerified: false,
+              degradationVerified: true,
+              auditVerified: true,
+              missingCapabilities: [
+                "UDI_TRACEABILITY",
+                "DEVICE_RECALL_STOP_USE",
+                "TECHNOLOGY_ACCESS_APPROVAL",
+                "CONSUMABLE_USAGE_AUDIT",
+              ],
+            },
             researchEthicsDataMissingEvidence: {
               systemFamilyCode: "RESEARCH_ETHICS_DATA",
               onboardingId: researchEthicsDataEvidence?.onboardingId ?? "",
@@ -248,6 +267,17 @@ test.describe("第三方系统族真实前台上线演练", () => {
               ],
             },
             scenarioConditionEvidence: [
+              {
+                code: "S33__MISSING_DATA",
+                scenarioCode: "S33",
+                condition: "MISSING_DATA",
+                source: "SPD_UDI_DEVICE_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+                evidence: [
+                  "SPD/UDI/器械耗材系统族已登记并参与质量报告",
+                  "当前缺少 UDI 追溯、器械召回停用、技术准入和耗材使用审计消费者证据",
+                  "消费者和标准资源均未完成，不能声明 S33 正常态",
+                ],
+              },
               {
                 code: "S34__MISSING_DATA",
                 scenarioCode: "S34",

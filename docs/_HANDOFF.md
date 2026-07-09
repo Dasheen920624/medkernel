@@ -249,6 +249,47 @@
   `S22` 缺 MDT / 专科中心讨论材料、责任任务和结论证据；`S15__NORMAL` 仍需真实 `SUCCESS` 恢复证据，不得在 dev/H2
   缺证状态下声明。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百三十一批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只把器械耗材与医疗技术在第三方系统族接入中的“SPD/UDI/器械耗材系统族已登记，但真实消费者和标准资源缺失”
+  升级为显式 `S33__MISSING_DATA`。`third-party-system-families-rehearsal.spec.ts` 仍由平台管理员真实前台逐类登记
+  13 类第三方系统族、创建接入申请、执行健康诊断并生成数据质量报告；本批仅为 `SPD_UDI_DEVICE` 追加
+  `spdUdiDeviceMissingEvidence` 和显式 `scenarioConditionEvidence`，来源固定为
+  `SPD_UDI_DEVICE_CONSUMER_AND_STANDARD_RESOURCE_MISSING`。只声明 `S33__MISSING_DATA`；不声明
+  `S33__NORMAL/ABNORMAL/HIGH_RISK/DEGRADATION`，不冒领完整器械耗材、UDI 追溯、器械召回停用、技术准入、
+  耗材使用审计闭环、完整第三方系统族覆盖或完整上线验收第 12 项。
+- 第二百三十一批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 在既有第三方系统族条件行解析中新增
+  `S33__MISSING_DATA` 和 `hasCompleteSpdUdiDeviceMissingEvidence()`；只接受
+  `third-party-system-families-rehearsal.spec.ts` 的 `third-party-system-family-codes` 附件，且测试标题必须是
+  “逐类登记第三方系统族接入并验证断连诚实降级”。parser 要求 `systemFamilyCodes` 含 `SPD_UDI_DEVICE`；
+  `scopeStatement` 必须否定真实消费者、标准资源、闭环回传、完整器械耗材和完整 S33；`registrationEvidence`
+  必须证明 13 类适配器、断连 / 缺口摘要和非空质量报告；`spdUdiDeviceMissingEvidence` 必须绑定同一
+  `onboardingId/adapterId/healthStatus`，`consumerVerified=false`、`standardResourceVerified=false`、
+  `degradationVerified=true`、`auditVerified=true`，健康状态不能是 `HEALTHY`，且 `missingCapabilities` 必须包含
+  `UDI_TRACEABILITY/DEVICE_RECALL_STOP_USE/TECHNOLOGY_ACCESS_APPROVAL/CONSUMABLE_USAGE_AUDIT`。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件行、source/condition/evidence
+  错配、系统族缺 SPD/UDI/器械耗材、消费者或标准资源已完成、健康状态为 `HEALTHY`、缺 UDI 追溯能力、
+  scope 冒领完整器械耗材，均不声明 `S33__MISSING_DATA`。
+- 第二百三十一批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s33-missing-data-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium third-party-system-families-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s33-missing-data-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S33__MISSING_DATA,S34__MISSING_DATA]`，同时保留 13 类 `thirdPartySystemFamilyDegradationRows`。原始附件抽查：
+  `spdUdiDeviceMissingEvidence.systemFamilyCode=SPD_UDI_DEVICE`、`healthStatus=NOT_CONNECTED`、
+  `consumerVerified=false`、`standardResourceVerified=false`、`auditVerified=true`，缺失能力包含 UDI 追溯、器械召回停用、
+  技术准入和耗材使用审计。
+- 第二百三十一批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增 S33 缺数态正例缺
+  `S33__MISSING_DATA`；随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （759 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需跑 `git diff --check`。
+- 第二百三十一批并行只读审计结论：本批使用 2 个只读 explorer 审计剩余本地可推进候选，子代理均未编辑、未暂存、
+  未提交、未启动服务、未外调。两个结论均支持 `S33__MISSING_DATA` 是当前最稳窄候选；`S15__NORMAL` 仍需真实
+  `backup.drillEvidence.status=SUCCESS` 和隔离恢复连续性证据，不得在 dev/H2 缺证状态下声明；`S15__MISSING_DATA`
+  与 `S15__DEGRADATION` 已有模型但不是本批新增目标；`S30` 缺基层能力目录、双向转诊申请 / 接收 / 回传和区域资源匹配；
+  `S22/S25/S28/S29/S37/S38/S39` 当前没有足够贴合强附件。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与
+  `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百二十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只收口检查检验建议 / 医技报告解读 `S17__NORMAL` 代表切片。`stakeholder-view-rehearsal.spec.ts` 在医技角色真实
   前台动作完成后新增 `report-interpretation-scenario-codes` 附件，绑定当前患者上下文、当前机构生效版本、

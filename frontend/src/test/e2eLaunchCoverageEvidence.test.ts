@@ -9907,6 +9907,199 @@ describe("browser E2E launch coverage evidence", () => {
     expectNoS34MissingDataCoverage(body);
   });
 
+  function spdUdiDeviceMissingEvidence(overrides: Record<string, unknown> = {}) {
+    const consumerEvidence = [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ].map((systemFamilyCode) => ({
+      systemFamilyCode,
+      onboardingId: `onb-${systemFamilyCode.toLowerCase()}`,
+      adapterId: `adapter-${systemFamilyCode.toLowerCase()}`,
+      healthStatus: "NOT_CONNECTED",
+      consumerVerified: false,
+      standardResourceVerified: false,
+      degradationVerified: true,
+      auditVerified: true,
+    }));
+    const spdRow = consumerEvidence.find((item) => item.systemFamilyCode === "SPD_UDI_DEVICE");
+    return {
+      systemFamilyCodes: consumerEvidence.map((item) => item.systemFamilyCode),
+      scopeStatement:
+        "只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传、完整器械耗材或完整 S33。",
+      registrationEvidence: {
+        adapterTotal: 13,
+        notConnectedCount: 13,
+        gapSummary: "NOT_CONNECTED 适配器：13，SPD/UDI/器械耗材缺少消费者和标准资源证据",
+        sampledHealthStatus: "NOT_CONNECTED",
+      },
+      consumerEvidence,
+      spdUdiDeviceMissingEvidence: {
+        systemFamilyCode: "SPD_UDI_DEVICE",
+        onboardingId: spdRow?.onboardingId,
+        adapterId: spdRow?.adapterId,
+        healthStatus: "NOT_CONNECTED",
+        consumerVerified: false,
+        standardResourceVerified: false,
+        degradationVerified: true,
+        auditVerified: true,
+        missingCapabilities: [
+          "UDI_TRACEABILITY",
+          "DEVICE_RECALL_STOP_USE",
+          "TECHNOLOGY_ACCESS_APPROVAL",
+          "CONSUMABLE_USAGE_AUDIT",
+        ],
+      },
+      scenarioConditionEvidence: [
+        {
+          code: "S33__MISSING_DATA",
+          scenarioCode: "S33",
+          condition: "MISSING_DATA",
+          source: "SPD_UDI_DEVICE_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+          evidence: [
+            "SPD/UDI/器械耗材系统族已登记并参与质量报告",
+            "当前缺少 UDI 追溯、器械召回停用、技术准入和耗材使用审计消费者证据",
+            "消费者和标准资源均未完成，不能声明 S33 正常态",
+          ],
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  function expectNoS33MissingDataCoverage(body: Record<string, unknown>) {
+    const evidence = thirdPartySystemFamilyEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S33__MISSING_DATA");
+  }
+
+  it("declares S33 missing data only from SPD/UDI device consumer and standard resource gaps", () => {
+    const evidence = thirdPartySystemFamilyEvidenceResult(spdUdiDeviceMissingEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S33__MISSING_DATA",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺显式缺数条件行",
+      body: spdUdiDeviceMissingEvidence({ scenarioConditionEvidence: undefined }),
+    },
+    {
+      name: "条件行来源错配",
+      body: spdUdiDeviceMissingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S33__MISSING_DATA",
+            scenarioCode: "S33",
+            condition: "MISSING_DATA",
+            source: "THIRD_PARTY_SYSTEM_FAMILY_REGISTRATION",
+            evidence: ["不能把普通系统族登记冒领为 S33 缺数态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行状态错配",
+      body: spdUdiDeviceMissingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S33__MISSING_DATA",
+            scenarioCode: "S33",
+            condition: "NORMAL",
+            source: "SPD_UDI_DEVICE_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+            evidence: ["S33 缺数态必须严格匹配 MISSING_DATA"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行证据为空",
+      body: spdUdiDeviceMissingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S33__MISSING_DATA",
+            scenarioCode: "S33",
+            condition: "MISSING_DATA",
+            source: "SPD_UDI_DEVICE_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "系统族缺少 SPD/UDI/器械耗材",
+      body: spdUdiDeviceMissingEvidence({
+        systemFamilyCodes: [
+          "HIS_EMR_CDR",
+          "LIS_MONITORING_CRITICAL",
+          "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+        ],
+      }),
+    },
+    {
+      name: "器械耗材消费者已完成",
+      body: spdUdiDeviceMissingEvidence({
+        spdUdiDeviceMissingEvidence: {
+          ...(spdUdiDeviceMissingEvidence().spdUdiDeviceMissingEvidence as Record<string, unknown>),
+          consumerVerified: true,
+        },
+      }),
+    },
+    {
+      name: "器械耗材标准资源已完成",
+      body: spdUdiDeviceMissingEvidence({
+        spdUdiDeviceMissingEvidence: {
+          ...(spdUdiDeviceMissingEvidence().spdUdiDeviceMissingEvidence as Record<string, unknown>),
+          standardResourceVerified: true,
+        },
+      }),
+    },
+    {
+      name: "器械耗材健康状态为健康",
+      body: spdUdiDeviceMissingEvidence({
+        spdUdiDeviceMissingEvidence: {
+          ...(spdUdiDeviceMissingEvidence().spdUdiDeviceMissingEvidence as Record<string, unknown>),
+          healthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "缺少 UDI 追溯缺失能力",
+      body: spdUdiDeviceMissingEvidence({
+        spdUdiDeviceMissingEvidence: {
+          ...(spdUdiDeviceMissingEvidence().spdUdiDeviceMissingEvidence as Record<string, unknown>),
+          missingCapabilities: [
+            "DEVICE_RECALL_STOP_USE",
+            "TECHNOLOGY_ACCESS_APPROVAL",
+            "CONSUMABLE_USAGE_AUDIT",
+          ],
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整器械耗材",
+      body: spdUdiDeviceMissingEvidence({
+        scopeStatement: "本演练已完成完整器械耗材、真实消费者、标准资源和完整 S33。",
+      }),
+    },
+  ])("does not declare S33 missing data when $name", ({ body }) => {
+    expectNoS33MissingDataCoverage(body);
+  });
+
   it("declares third-party system family coverage only when registration, honest degradation and real consumer evidence are attached", () => {
     const consumerEvidence = [
       "HIS_EMR_CDR",
