@@ -136,6 +136,27 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       "SAFETY_BOUNDARY",
     ],
   );
+  assert.deepEqual(evidence.coverage.launchReadinessStakeholderMatrix, [
+    {
+      code: "IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.launchReadinessStakeholderMatrix.IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
+      observedCode: "IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    evidence.coverage.launchReadinessStakeholderRows.map((item) => item.code),
+    [
+      "IT_MANAGER_RUNTIME_DIAGNOSTICS",
+      "IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
+      "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    ],
+  );
 });
 
 test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", () => {
@@ -451,6 +472,10 @@ function completeStageEvidence(options = {}) {
     "knowledgeSupplyChainEvidenceRows:RUNTIME_LIFECYCLE",
     "knowledgeSupplyChainEvidenceRows:LINEAGE_CONSUMERS",
     "knowledgeSupplyChainEvidenceRows:SAFETY_BOUNDARY",
+    "launchReadinessStakeholderMatrix:IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
+    "launchReadinessStakeholderRows:IT_MANAGER_RUNTIME_DIAGNOSTICS",
+    "launchReadinessStakeholderRows:IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
+    "launchReadinessStakeholderRows:HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
     "semanticFamilies:DISEASE_DIAGNOSIS",
     "semanticFamilies:SYMPTOM_RISK",
     "semanticFamilies:DIAGNOSTIC_REPORT",

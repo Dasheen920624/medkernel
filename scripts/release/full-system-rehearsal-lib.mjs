@@ -82,6 +82,18 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "SAFETY_BOUNDARY",
     ],
   },
+  launchReadinessStakeholderMatrix: {
+    label: "上线保障三视角代表矩阵",
+    codes: ["IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE"],
+  },
+  launchReadinessStakeholderRows: {
+    label: "上线保障三视角代表行",
+    codes: [
+      "IT_MANAGER_RUNTIME_DIAGNOSTICS",
+      "IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
+      "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    ],
+  },
   knowledgeDomains: {
     label: "11 个知识内容分类",
     codes: [...FULL_KNOWLEDGE_DOMAINS],

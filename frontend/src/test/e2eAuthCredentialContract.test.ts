@@ -347,6 +347,43 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain("/engine/integration/knowledge-runtime/runtime-release/current");
   });
 
+  it("requires stakeholder-view rehearsal to attach launch readiness runtime records", () => {
+    const source = readFileSync("e2e/stakeholder-view-rehearsal.spec.ts", "utf8");
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+
+    expect(source).toContain("stakeholder-view-runtime-records");
+    expect(source).toContain("attachRuntimeRecords");
+    expect(source).toContain("IT_MANAGER");
+    expect(source).toContain('role: "platform-admin"');
+    expect(source).toContain('path: "/system/runtime-diagnostics"');
+    expect(source).toContain("IMPLEMENTATION_ENGINEER");
+    expect(source).toContain('path: "/onboarding/guide"');
+    expect(source).toContain("HOSPITAL_EXECUTIVE");
+    expect(source).toContain('role: "engine-operator"');
+    expect(source).toContain('path: "/qc/dashboard"');
+    expect(source).toContain("ADAPTER_QUALITY_REPORT");
+    expect(source).toContain("QUALITY_DRILLDOWN");
+    expect(source).toContain("record.browserErrors");
+    expect(source).toContain("record.serverErrors");
+    expect(source).toContain("record.networkFailures");
+    expect(source).toContain("/engine/integration/data-quality/reports");
+    expect(source).toContain("/engine/quality/dashboard/drilldown");
+    expect(source).toContain("selectSnapshotByBackendVerifiedFilter");
+    expect(source).toContain("snapshot.snapshotId");
+    expect(source).toContain("pageItems(await responseData(snapshots))");
+    expect(source).toContain("formatClinicalDateTimeForE2e");
+    expect(source).toContain("建立的${noun}");
+    expect(source).not.toContain("选择第 1 个临床快照");
+    expect(source).not.toContain("选择第 1 个随访上下文快照");
+    expect(coverageParser).toContain(
+      "launchReadinessStakeholderMatrix:IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
+    );
+    expect(coverageParser).toContain("stakeholder-view-runtime-records");
+    expect(coverageParser).toContain("IT_MANAGER_RUNTIME_DIAGNOSTICS");
+    expect(coverageParser).toContain("IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE");
+    expect(coverageParser).toContain("HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW");
+  });
+
   it("requires diagnostic critical-value E2E to use backend FHIR R4 compensation message ids", () => {
     const source = readFileSync("e2e/diagnostic-critical-value-frontdesk.spec.ts", "utf8");
 

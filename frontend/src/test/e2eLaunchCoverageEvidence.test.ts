@@ -4496,6 +4496,82 @@ const platformAdminEntryCoreActionsEvidence = {
   ],
 };
 
+type StakeholderRuntimeRecordFixture = {
+  code: string;
+  label: string;
+  role: string;
+  path: string;
+  url: string;
+  entryUrl: string;
+  finalUrl: string;
+  actions: string[];
+  browserErrors: string[];
+  serverErrors: string[];
+  networkFailures: string[];
+};
+
+const launchReadinessStakeholderRecords: StakeholderRuntimeRecordFixture[] = [
+  {
+    code: "IT_MANAGER",
+    label: "信息科长",
+    role: "platform-admin",
+    path: "/system/runtime-diagnostics",
+    url: "http://localhost:5174/system/runtime-diagnostics",
+    entryUrl: "http://localhost:5174/system/runtime-diagnostics",
+    finalUrl: "http://localhost:5174/adapter/hub",
+    actions: ["查看运行诊断扩展能力授权边界并生成系统接入数据质量报告"],
+    browserErrors: [],
+    serverErrors: [],
+    networkFailures: [],
+  },
+  {
+    code: "IMPLEMENTATION_ENGINEER",
+    label: "实施工程师",
+    role: "platform-admin",
+    path: "/onboarding/guide",
+    url: "http://localhost:5174/onboarding/guide",
+    entryUrl: "http://localhost:5174/onboarding/guide",
+    finalUrl: "http://localhost:5174/adapter/hub",
+    actions: ["生成系统接入数据质量报告"],
+    browserErrors: [],
+    serverErrors: [],
+    networkFailures: [],
+  },
+  {
+    code: "HOSPITAL_EXECUTIVE",
+    label: "院长",
+    role: "engine-operator",
+    path: "/qc/dashboard",
+    url: "http://localhost:5174/qc/dashboard",
+    entryUrl: "http://localhost:5174/qc/dashboard",
+    finalUrl: "http://localhost:5174/qc/dashboard",
+    actions: ["切换质量下钻类型并读取整改证据"],
+    browserErrors: [],
+    serverErrors: [],
+    networkFailures: [],
+  },
+];
+
+function stakeholderReadinessEvidence(records = launchReadinessStakeholderRecords) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/stakeholder-view-rehearsal.spec.ts",
+        title: "十二类业务视角均能通过四职责账号进入真实页面并看到对应业务能力",
+        status: "passed",
+        attachments: [
+          {
+            name: "stakeholder-view-runtime-records",
+            contentType: "application/json",
+            body: JSON.stringify(records),
+          },
+        ],
+      },
+    ],
+  });
+}
+
 const platformAdminP1EntryCoreActionsEvidence = {
   matrixCode: "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS",
   scopeStatement:
@@ -5543,6 +5619,90 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares launch readiness stakeholder matrix only from clean runtime records for IT, implementation, and executive views", () => {
+    const evidence = stakeholderReadinessEvidence();
+
+    expect(
+      evidence.launchCoverage.launchReadinessStakeholderMatrix?.map((item) => item.code),
+    ).toEqual(["IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.launchReadinessStakeholderRows?.map((item) => item.code),
+    ).toEqual([
+      "IT_MANAGER_RUNTIME_DIAGNOSTICS",
+      "IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
+      "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺少实施工程师视角",
+      records: launchReadinessStakeholderRecords.filter(
+        (item) => item.code !== "IMPLEMENTATION_ENGINEER",
+      ),
+    },
+    {
+      name: "信息科长没有真实动作",
+      records: launchReadinessStakeholderRecords.map((item) =>
+        item.code === "IT_MANAGER" ? { ...item, actions: [] } : item,
+      ),
+    },
+    {
+      name: "院长视角出现服务端错误",
+      records: launchReadinessStakeholderRecords.map((item) =>
+        item.code === "HOSPITAL_EXECUTIVE"
+          ? { ...item, serverErrors: ["GET /api/v1/engine/quality/dashboard 500"] }
+          : item,
+      ),
+    },
+    {
+      name: "实施工程师路径不匹配",
+      records: launchReadinessStakeholderRecords.map((item) =>
+        item.code === "IMPLEMENTATION_ENGINEER" ? { ...item, path: "/adapter/hub" } : item,
+      ),
+    },
+    {
+      name: "信息科长不是平台管理员",
+      records: launchReadinessStakeholderRecords.map((item) =>
+        item.code === "IT_MANAGER" ? { ...item, role: "engine-operator" } : item,
+      ),
+    },
+    {
+      name: "信息科长动作没有覆盖运行诊断",
+      records: launchReadinessStakeholderRecords.map((item) =>
+        item.code === "IT_MANAGER" ? { ...item, actions: ["生成系统接入数据质量报告"] } : item,
+      ),
+    },
+  ])("does not declare launch readiness stakeholder matrix when $name", ({ records }) => {
+    const evidence = stakeholderReadinessEvidence(records);
+
+    expect(evidence.launchCoverage.launchReadinessStakeholderMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.launchReadinessStakeholderRows).toBeUndefined();
+  });
+
+  it("does not declare launch readiness stakeholder matrix from the same attachment in a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-stakeholder-view.spec.ts",
+          title: "三视角附件不能由非目标 spec 冒领",
+          status: "passed",
+          attachments: [
+            {
+              name: "stakeholder-view-runtime-records",
+              contentType: "application/json",
+              body: JSON.stringify(launchReadinessStakeholderRecords),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.launchReadinessStakeholderMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.launchReadinessStakeholderRows).toBeUndefined();
   });
 
   it("declares release governance and runtime asset coverage only when the real runtime release spec passes", () => {

@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十四批本地推进：接第一百八十三批和用户“前台演练需要按全角色真实操作、知识只是一个点、要全局考虑”的要求，
+  选择非破坏、可本地验证的上线保障三视角强证据门禁：信息科长、实施工程师、院长。参考会话
+  `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 只作为背景输入，结论仍是资料可做受控准备，正式医学知识 / 术语 /
+  值集 / 规则 / 路径 / 公式等必须回到 134 生产、审核、发布、机构生效和运行消费，不另起旁路知识系统。
+- 第一百八十四批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `launchReadinessStakeholderMatrix:IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE` 与
+  `launchReadinessStakeholderRows:IT_MANAGER_RUNTIME_DIAGNOSTICS/IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE/HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW`。
+  新矩阵只接受 `stakeholder-view-rehearsal.spec.ts` 的 `stakeholder-view-runtime-records` 附件，并逐条校验三视角
+  `code/role/path/actions/browserErrors/serverErrors/networkFailures`：信息科长必须是 `platform-admin + /system/runtime-diagnostics`
+  且动作同时覆盖“运行诊断”和“数据质量报告”；实施工程师必须是 `platform-admin + /onboarding/guide` 且动作覆盖“数据质量报告”；
+  院长必须是 `engine-operator + /qc/dashboard` 且动作覆盖“质量下钻”和“整改证据”；任一错误数组非空、动作空、路径 /
+  角色错配、非目标 spec 冒领都不声明。
+- 第一百八十四批真实 E2E 修复：目标 E2E 初次红点不是 parser，而是 `stakeholder-view-rehearsal.spec.ts`
+  在推荐评估和随访计划弹窗中写死寻找“选择第 1 个临床快照 / 随访上下文快照”，真实前台现在展示的是“选择
+  2026年07月09日 ... 建立的临床快照”。本批将选择逻辑改为 `selectSnapshotByBackendVerifiedFilter`：先用真实后端
+  `GET /api/v1/engine/context/snapshots?...status=ACTIVE` 回读并证明本轮 `snapshotId` 存在，再按 `snapshotId`、
+  创建时间按钮、唯一可选按钮依次选择，避免按“第 1 个”冒领旧快照。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  锁定该契约，并要求三视角 runtime records、API 动作端点和错误数组继续保留。
+- 第一百八十四批真实 E2E 与验证证据：本地后端 18092 health 为
+  `{"status":"UP","groups":["liveness","readiness"]}`，前端 5174 返回 200。目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-launch-readiness-stakeholders-20260709-r3 npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-launch-readiness-stakeholders-20260709-r3/report/results.json` 为 `PASSED`
+  （expected=1，unexpected=0，flaky=0，skipped=0，duration≈86.8s），顶层 `launchCoverage` 同时声明 12 个
+  `stakeholderViews`、`launchReadinessStakeholderMatrix.IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE`
+  和三条 row。附件确认 12 个角色 actions 均非空，三视角 role/path 符合预期且 `browserErrors/serverErrors/networkFailures`
+  全为空。注意：三视角附件中的 `actions` 仍是中文动作摘要，API 成功证据来自 E2E 过程中的真实响应断言，不是结构化
+  `serviceOperation/serviceStatus/readback/audit` 字段；本批不冒领完整服务操作矩阵。
+- 第一百八十四批收尾门禁：最终复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（317 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（57 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）。
+  `git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 以及两个脚本文件工作树 CRLF 将被 LF
+  替换，没有 whitespace error。
+- 第一百八十四批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是 34 个入口全部业务动作闭环、
+  不是第三方系统族完整真实消费者闭环、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成，也不是所有医学知识和术语体系已收集 /
+  生产完成。两个只读子代理结论已纳入：1）优先消除 `docs/audit/product-function-catalog.md` 与
+  `docs/audit/质量基线.md` 的路由 / 组件计数口径冲突；2）继续补 34 入口业务动作闭环，不能停在菜单点击、路由 2xx
+  或代表矩阵；3）继续补第三方系统族本地真实消费者与 `NOT_CONNECTED` 断连降级矩阵；4）推进 S0-S40 正常、异常、
+  缺数、高风险、降级演练；5）补两机构差异化、部分选择上线、升级、回滚和服务端锁定当前机构生效版本。目标库迁移 smoke、
+  公网模型 Provider 真实证据、真实第三方回调、134 清库 / 重部署仍按 deferred / destructive 规则推进，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十三批本地推进：接第一百八十二批，按“不要继续片面只围绕知识、转向全角色 / 上线保障 / 第三方真实消费者”的下一步，
   选择非破坏、可本地验证的 P0 平台管理员四入口强证据收窄：服务机构、身份来源、系统接入、服务运行保障。134 清库 /
   重部署、公网 Provider、真实第三方回调仍未执行，继续需要再次确认或外部资源。

@@ -1,7 +1,16 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { appPath, ensureReadySession, type RoleAccount } from "./support/auth";
+import {
+  appPath,
+  ensureReadySession,
+  expectOk,
+  getApi,
+  pageItems,
+  responseData,
+  textField,
+  type RoleAccount,
+} from "./support/auth";
 
 type StakeholderView = {
   code: string;
@@ -63,6 +72,7 @@ type ContextSnapshotSummary = {
   snapshotId: string;
   runtimeReleaseId: string;
   encounterId: string | null;
+  createdAt: string | null;
 };
 type ReportInterpretationPayload = {
   runtimeReleaseId?: string;
@@ -809,10 +819,7 @@ async function performFollowupPlanAction(
   const dialog = page.getByRole("dialog", { name: "生成随访计划" });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await dialog.getByLabel("随访快照患者信息").fill(snapshot.patientId);
-  await expect(dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" })).toBeVisible({
-    timeout: 30_000,
-  });
-  await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
+  await selectSnapshotByBackendVerifiedFilter(page, dialog, snapshot, "随访上下文快照");
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
   await searchDialogOption(page, dialog, "随访方案", template.defaultName, template.defaultName);
 
@@ -1084,10 +1091,7 @@ async function createRecommendationCardForStakeholderAction(
   if (snapshot.encounterId) {
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
-  await expect(dialog.getByRole("button", { name: "选择第 1 个临床快照" })).toBeVisible({
-    timeout: 30_000,
-  });
-  await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
+  await selectSnapshotByBackendVerifiedFilter(page, dialog, snapshot);
   await chooseDialogOption(page, dialog, "触发时点", "开立用药");
 
   const evaluateResponsePromise = waitForPost(page, "/engine/recommendations:evaluate");
@@ -1257,7 +1261,66 @@ async function createContextSnapshotForStakeholderAction(
     snapshotId: context.data?.snapshotId ?? "",
     runtimeReleaseId: context.data?.runtimeReleaseId ?? "",
     encounterId: context.data?.resources?.encounters?.[0]?.encounterId ?? null,
+    createdAt: context.data?.createdAt ?? null,
   };
+}
+
+async function selectSnapshotByBackendVerifiedFilter(
+  page: Page,
+  scope: Locator,
+  snapshot: ContextSnapshotSummary,
+  noun = "临床快照",
+) {
+  const snapshots = await getApi(
+    page,
+    `/engine/context/snapshots?patientId=${encodeURIComponent(
+      snapshot.patientId,
+    )}&encounterId=${encodeURIComponent(snapshot.encounterId ?? "")}&status=ACTIVE&page=1&size=20`,
+  );
+  await expectOk(snapshots, "回读本轮 ACTIVE 快照候选");
+  const matched = pageItems(await responseData(snapshots)).find(
+    (item) => textField(item, "snapshotId") === snapshot.snapshotId,
+  );
+  expect(matched, `页面过滤前必须能回读本轮 ACTIVE 快照 ${snapshot.snapshotId}`).toBeTruthy();
+
+  const evidenceButton = scope.getByRole("button", { name: `选择 ${snapshot.snapshotId}` });
+  if (await evidenceButton.isVisible().catch(() => false)) {
+    await evidenceButton.click();
+    return;
+  }
+
+  const createdAtText = formatClinicalDateTimeForE2e(
+    textField(matched, "createdAt") ?? snapshot.createdAt,
+  );
+  if (createdAtText) {
+    const createdAtButton = scope.getByRole("button", {
+      name: `选择 ${createdAtText} 建立的${noun}`,
+    });
+    if (await createdAtButton.isVisible().catch(() => false)) {
+      await createdAtButton.click();
+      return;
+    }
+  }
+
+  const snapshotText = scope.getByText(snapshot.snapshotId);
+  if (await snapshotText.isVisible().catch(() => false)) {
+    await snapshotText.click();
+    return;
+  }
+
+  const selectableButtons = scope.getByRole("button", { name: /^选择$/ });
+  if ((await selectableButtons.count()) === 1) {
+    await selectableButtons.first().click();
+    return;
+  }
+
+  const snapshotButtons = scope.locator("button").filter({ hasText: noun });
+  const snapshotButtonCount = await snapshotButtons.count();
+  expect(
+    snapshotButtonCount,
+    `本轮患者/就诊过滤后必须只展示一个可选 ACTIVE 快照 ${snapshot.snapshotId}`,
+  ).toBe(1);
+  await snapshotButtons.first().click();
 }
 
 function collectRuntime(page: Page) {
@@ -1367,6 +1430,30 @@ function waitForPut(page: Page, path: string) {
     (response) => response.request().method() === "PUT" && response.url().includes(path),
     { timeout: 60_000 },
   );
+}
+
+function formatClinicalDateTimeForE2e(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") {
+        acc[part.type] = part.value;
+      }
+      return acc;
+    }, {});
+  return `${parts.year}年${parts.month}月${parts.day}日 ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {

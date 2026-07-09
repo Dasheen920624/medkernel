@@ -408,6 +408,32 @@ const platformAdminEntryCoreActionsClaims = [
 const platformAdminP1EntryCoreActionsClaims = [
   "platformAdminP1EntryCoreActions:RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK",
 ];
+const launchReadinessStakeholderMatrixClaims = [
+  "launchReadinessStakeholderMatrix:IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
+];
+const requiredLaunchReadinessStakeholders = [
+  {
+    row: "IT_MANAGER_RUNTIME_DIAGNOSTICS",
+    code: "IT_MANAGER",
+    role: "platform-admin",
+    path: "/system/runtime-diagnostics",
+    actionTerms: ["运行诊断", "数据质量报告"],
+  },
+  {
+    row: "IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
+    code: "IMPLEMENTATION_ENGINEER",
+    role: "platform-admin",
+    path: "/onboarding/guide",
+    actionTerms: ["数据质量报告"],
+  },
+  {
+    row: "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    code: "HOSPITAL_EXECUTIVE",
+    role: "engine-operator",
+    path: "/qc/dashboard",
+    actionTerms: ["质量下钻", "整改证据"],
+  },
+];
 const clinicalEntryCoreActionsClaims = [
   "clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
 ];
@@ -967,6 +993,18 @@ export function buildBrowserE2eLaunchEvidence(input: {
   }
   if (hasRequiredPlatformAdminP1EntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, platformAdminP1EntryCoreActionsClaims, generatedAt);
+  }
+  if (hasRequiredLaunchReadinessStakeholderAttachment(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...launchReadinessStakeholderMatrixClaims,
+        ...requiredLaunchReadinessStakeholders.map(
+          (stakeholder) => `launchReadinessStakeholderRows:${stakeholder.row}`,
+        ),
+      ],
+      generatedAt,
+    );
   }
   if (hasRequiredClinicalEntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, clinicalEntryCoreActionsClaims, generatedAt);
@@ -2409,6 +2447,68 @@ function hasRequiredKnowledgeSupplyChainEvidenceAttachment(tests: BrowserE2eTest
     }
   }
   return false;
+}
+
+function hasRequiredLaunchReadinessStakeholderAttachment(tests: BrowserE2eTestResult[]) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "stakeholder-view-rehearsal.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "stakeholder-view-runtime-records") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      try {
+        const parsed = JSON.parse(attachment.body);
+        if (hasCompleteLaunchReadinessStakeholderRecords(parsed)) return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+function hasCompleteLaunchReadinessStakeholderRecords(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const recordsByCode = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const record = recordValue(item);
+    const code = textValue(record?.code);
+    if (!record || !code) return false;
+    if (recordsByCode.has(code)) return false;
+    recordsByCode.set(code, record);
+  }
+  return requiredLaunchReadinessStakeholders.every((expected) => {
+    const record = recordsByCode.get(expected.code);
+    return !!record && hasCompleteLaunchReadinessStakeholderRecord(record, expected);
+  });
+}
+
+function hasCompleteLaunchReadinessStakeholderRecord(
+  record: Record<string, unknown>,
+  expected: (typeof requiredLaunchReadinessStakeholders)[number],
+) {
+  const actions = Array.isArray(record.actions)
+    ? record.actions.filter((item): item is string => hasText(item))
+    : [];
+  return (
+    textValue(record.role) === expected.role &&
+    textValue(record.path) === expected.path &&
+    actions.length > 0 &&
+    expected.actionTerms.every((term) => actions.some((action) => action.includes(term))) &&
+    hasEmptyRuntimeIssueList(record.browserErrors) &&
+    hasEmptyRuntimeIssueList(record.serverErrors) &&
+    hasEmptyRuntimeIssueList(record.networkFailures)
+  );
+}
+
+function hasEmptyRuntimeIssueList(value: unknown) {
+  return Array.isArray(value) && value.length === 0;
 }
 
 function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
