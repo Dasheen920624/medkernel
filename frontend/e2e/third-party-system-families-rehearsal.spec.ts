@@ -197,6 +197,23 @@ test.describe("第三方系统族真实前台上线演练", () => {
       quality.data?.gapSummary ?? "",
       "数据质量报告必须保留断连或字段缺口证据，不得伪装全绿",
     ).toMatch(/适配器|NOT_CONNECTED|MISCONFIGURED|缺口|患者/u);
+    const consumerEvidence = thirdPartyFamilies.map((family) => ({
+      systemFamilyCode: family.code,
+      onboardingId: `onb-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
+      adapterId: `family-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
+      healthStatus:
+        family.code === thirdPartyFamilies[0].code
+          ? (healthPayload.data?.healthStatus ?? "UNKNOWN")
+          : "NOT_CONNECTED",
+      consumerVerified: false,
+      standardResourceVerified: false,
+      degradationVerified: true,
+      auditVerified: true,
+      evidenceBoundary: "仅登记接入与健康/质量报告，真实消费者需由对应专业链路 E2E 单独证明。",
+    }));
+    const researchEthicsDataEvidence = consumerEvidence.find(
+      (item) => item.systemFamilyCode === "RESEARCH_ETHICS_DATA",
+    );
 
     await testInfo.attach("third-party-system-family-codes", {
       contentType: "application/json",
@@ -205,7 +222,7 @@ test.describe("第三方系统族真实前台上线演练", () => {
           {
             systemFamilyCodes: observedFamilyCodes,
             scopeStatement:
-              "本演练只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传或完整断连降级。",
+              "本演练只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传、完整断连降级、完整科研数据服务或完整 S34。",
             registrationEvidence: {
               observedFamilyCodes,
               adapterTotal: quality.data?.adapterTotal ?? 0,
@@ -213,21 +230,36 @@ test.describe("第三方系统族真实前台上线演练", () => {
               gapSummary: quality.data?.gapSummary ?? "",
               sampledHealthStatus: healthPayload.data?.healthStatus ?? "UNKNOWN",
             },
-            consumerEvidence: thirdPartyFamilies.map((family) => ({
-              systemFamilyCode: family.code,
-              onboardingId: `onb-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
-              adapterId: `family-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
-              healthStatus:
-                family.code === thirdPartyFamilies[0].code
-                  ? (healthPayload.data?.healthStatus ?? "UNKNOWN")
-                  : "NOT_CONNECTED",
+            consumerEvidence,
+            researchEthicsDataMissingEvidence: {
+              systemFamilyCode: "RESEARCH_ETHICS_DATA",
+              onboardingId: researchEthicsDataEvidence?.onboardingId ?? "",
+              adapterId: researchEthicsDataEvidence?.adapterId ?? "",
+              healthStatus: researchEthicsDataEvidence?.healthStatus ?? "NOT_CONNECTED",
               consumerVerified: false,
               standardResourceVerified: false,
               degradationVerified: true,
               auditVerified: true,
-              evidenceBoundary:
-                "仅登记接入与健康/质量报告，真实消费者需由对应专业链路 E2E 单独证明。",
-            })),
+              missingCapabilities: [
+                "DE_IDENTIFIED_COHORT",
+                "ETHICS_AUTHORIZATION",
+                "DATASET_EXPORT",
+                "USAGE_AUDIT",
+              ],
+            },
+            scenarioConditionEvidence: [
+              {
+                code: "S34__MISSING_DATA",
+                scenarioCode: "S34",
+                condition: "MISSING_DATA",
+                source: "RESEARCH_ETHICS_DATA_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+                evidence: [
+                  "科研伦理数据系统族已登记并参与质量报告",
+                  "当前缺少脱敏队列、伦理授权、数据集导出和使用审计消费者证据",
+                  "消费者和标准资源均未完成，不能声明 S34 正常态",
+                ],
+              },
+            ],
           },
           null,
           2,

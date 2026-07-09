@@ -9684,6 +9684,229 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilyDegradationRows).toBeUndefined();
   });
 
+  function researchEthicsDataMissingEvidence(overrides: Record<string, unknown> = {}) {
+    const consumerEvidence = [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ].map((systemFamilyCode) => ({
+      systemFamilyCode,
+      onboardingId: `onb-${systemFamilyCode.toLowerCase()}`,
+      adapterId: `adapter-${systemFamilyCode.toLowerCase()}`,
+      healthStatus: "NOT_CONNECTED",
+      consumerVerified: false,
+      standardResourceVerified: false,
+      degradationVerified: true,
+      auditVerified: true,
+    }));
+    const researchRow = consumerEvidence.find(
+      (item) => item.systemFamilyCode === "RESEARCH_ETHICS_DATA",
+    );
+    return {
+      systemFamilyCodes: consumerEvidence.map((item) => item.systemFamilyCode),
+      scopeStatement:
+        "只证明 13 类第三方系统族接入申请、适配器登记、健康诊断和数据质量缺口诚实回读，不代表每个系统族均已完成真实消费者、标准资源、闭环回传、完整科研数据服务或完整 S34。",
+      registrationEvidence: {
+        adapterTotal: 13,
+        notConnectedCount: 13,
+        gapSummary: "NOT_CONNECTED 适配器：13，科研伦理数据平台缺少消费者和标准资源证据",
+        sampledHealthStatus: "NOT_CONNECTED",
+      },
+      consumerEvidence,
+      researchEthicsDataMissingEvidence: {
+        systemFamilyCode: "RESEARCH_ETHICS_DATA",
+        onboardingId: researchRow?.onboardingId,
+        adapterId: researchRow?.adapterId,
+        healthStatus: "NOT_CONNECTED",
+        consumerVerified: false,
+        standardResourceVerified: false,
+        degradationVerified: true,
+        auditVerified: true,
+        missingCapabilities: [
+          "DE_IDENTIFIED_COHORT",
+          "ETHICS_AUTHORIZATION",
+          "DATASET_EXPORT",
+          "USAGE_AUDIT",
+        ],
+      },
+      scenarioConditionEvidence: [
+        {
+          code: "S34__MISSING_DATA",
+          scenarioCode: "S34",
+          condition: "MISSING_DATA",
+          source: "RESEARCH_ETHICS_DATA_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+          evidence: [
+            "科研伦理数据系统族已登记并参与质量报告",
+            "当前缺少脱敏队列、伦理授权、数据集导出和使用审计消费者证据",
+            "消费者和标准资源均未完成，不能声明 S34 正常态",
+          ],
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  function thirdPartySystemFamilyEvidenceResult(body: Record<string, unknown>) {
+    return buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/third-party-system-families-rehearsal.spec.ts",
+          title: "平台管理员逐类登记第三方系统族接入并验证断连诚实降级",
+          status: "passed",
+          attachments: [
+            {
+              name: "third-party-system-family-codes",
+              contentType: "application/json",
+              body: JSON.stringify(body),
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  function expectNoS34MissingDataCoverage(body: Record<string, unknown>) {
+    const evidence = thirdPartySystemFamilyEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S34__MISSING_DATA");
+  }
+
+  it("declares S34 missing data only from research ethics data consumer and standard resource gaps", () => {
+    const evidence = thirdPartySystemFamilyEvidenceResult(researchEthicsDataMissingEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S34__MISSING_DATA",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺显式缺数条件行",
+      body: researchEthicsDataMissingEvidence({ scenarioConditionEvidence: undefined }),
+    },
+    {
+      name: "条件行来源错配",
+      body: researchEthicsDataMissingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S34__MISSING_DATA",
+            scenarioCode: "S34",
+            condition: "MISSING_DATA",
+            source: "THIRD_PARTY_SYSTEM_FAMILY_REGISTRATION",
+            evidence: ["不能把普通系统族登记冒领为 S34 缺数态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行状态错配",
+      body: researchEthicsDataMissingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S34__MISSING_DATA",
+            scenarioCode: "S34",
+            condition: "NORMAL",
+            source: "RESEARCH_ETHICS_DATA_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+            evidence: ["S34 缺数态必须严格匹配 MISSING_DATA"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行证据为空",
+      body: researchEthicsDataMissingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S34__MISSING_DATA",
+            scenarioCode: "S34",
+            condition: "MISSING_DATA",
+            source: "RESEARCH_ETHICS_DATA_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "系统族缺少科研伦理数据",
+      body: researchEthicsDataMissingEvidence({
+        systemFamilyCodes: [
+          "HIS_EMR_CDR",
+          "LIS_MONITORING_CRITICAL",
+          "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+        ],
+      }),
+    },
+    {
+      name: "科研伦理消费者已完成",
+      body: researchEthicsDataMissingEvidence({
+        researchEthicsDataMissingEvidence: {
+          ...(researchEthicsDataMissingEvidence().researchEthicsDataMissingEvidence as Record<
+            string,
+            unknown
+          >),
+          consumerVerified: true,
+        },
+      }),
+    },
+    {
+      name: "科研伦理标准资源已完成",
+      body: researchEthicsDataMissingEvidence({
+        researchEthicsDataMissingEvidence: {
+          ...(researchEthicsDataMissingEvidence().researchEthicsDataMissingEvidence as Record<
+            string,
+            unknown
+          >),
+          standardResourceVerified: true,
+        },
+      }),
+    },
+    {
+      name: "科研伦理健康状态为健康",
+      body: researchEthicsDataMissingEvidence({
+        researchEthicsDataMissingEvidence: {
+          ...(researchEthicsDataMissingEvidence().researchEthicsDataMissingEvidence as Record<
+            string,
+            unknown
+          >),
+          healthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "缺少脱敏队列缺失能力",
+      body: researchEthicsDataMissingEvidence({
+        researchEthicsDataMissingEvidence: {
+          ...(researchEthicsDataMissingEvidence().researchEthicsDataMissingEvidence as Record<
+            string,
+            unknown
+          >),
+          missingCapabilities: ["ETHICS_AUTHORIZATION", "DATASET_EXPORT", "USAGE_AUDIT"],
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整科研数据服务",
+      body: researchEthicsDataMissingEvidence({
+        scopeStatement: "本演练已完成完整科研数据服务、真实消费者、标准资源和完整 S34。",
+      }),
+    },
+  ])("does not declare S34 missing data when $name", ({ body }) => {
+    expectNoS34MissingDataCoverage(body);
+  });
+
   it("declares third-party system family coverage only when registration, honest degradation and real consumer evidence are attached", () => {
     const consumerEvidence = [
       "HIS_EMR_CDR",

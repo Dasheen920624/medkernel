@@ -150,6 +150,14 @@ const thirdPartySystemFamilyDegradationClaims = thirdPartySystemFamilyClaims
   .map((claim) =>
     claim.replace("thirdPartySystemFamilies:", "thirdPartySystemFamilyDegradationRows:"),
   );
+const thirdPartySystemFamilyScenarioConditionRows = [
+  {
+    code: "S34__MISSING_DATA",
+    scenarioCode: "S34",
+    condition: "MISSING_DATA",
+    source: "RESEARCH_ETHICS_DATA_CONSUMER_AND_STANDARD_RESOURCE_MISSING",
+  },
+] as const;
 
 const s2s4RuntimeMappingClaims = [
   "scenarios:S2",
@@ -1608,6 +1616,12 @@ export function buildBrowserE2eLaunchEvidence(input: {
   const thirdPartyDegradationClaims = collectThirdPartySystemFamilyDegradationClaims(input.tests);
   if (thirdPartyDegradationClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, thirdPartyDegradationClaims, generatedAt);
+  }
+  const thirdPartyScenarioConditionClaims = collectThirdPartySystemFamilyScenarioConditionClaims(
+    input.tests,
+  );
+  if (thirdPartyScenarioConditionClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, thirdPartyScenarioConditionClaims, generatedAt);
   }
   const s2s4ScenarioConditionClaims = collectS2S4ScenarioConditionClaims(input.tests);
   if (s2s4ScenarioConditionClaims.length > 0) {
@@ -3969,6 +3983,123 @@ function hasCompleteThirdPartySystemFamilyDegradationRows(value: unknown) {
       )
     );
   });
+}
+
+function collectThirdPartySystemFamilyScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
+  const claims = new Set<string>();
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "third-party-system-families-rehearsal.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !test.title.includes("逐类登记第三方系统族接入并验证断连诚实降级")
+    ) {
+      continue;
+    }
+    const attachment = test.attachments?.find(
+      (item) => item.name === "third-party-system-family-codes",
+    );
+    if (!attachment?.body) continue;
+    try {
+      const parsed = recordValue(JSON.parse(attachment.body));
+      const rows = collectStrictScenarioConditionRows(
+        parsed?.scenarioConditionEvidence,
+        thirdPartySystemFamilyScenarioConditionRows,
+      );
+      if (!parsed || rows === null) continue;
+      for (const expected of thirdPartySystemFamilyScenarioConditionRows) {
+        if (
+          rows.has(expected.code) &&
+          thirdPartySystemFamilyScenarioConditionBackedByEvidence(expected.code, parsed)
+        ) {
+          claims.add(`scenarioConditionRows:${expected.code}`);
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [...claims];
+}
+
+function thirdPartySystemFamilyScenarioConditionBackedByEvidence(
+  code: (typeof thirdPartySystemFamilyScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S34__MISSING_DATA":
+      return hasCompleteResearchEthicsDataMissingEvidence(parsed);
+    default:
+      return false;
+  }
+}
+
+function hasCompleteResearchEthicsDataMissingEvidence(parsed: Record<string, unknown>) {
+  if (
+    !Array.isArray(parsed.systemFamilyCodes) ||
+    !parsed.systemFamilyCodes.includes("RESEARCH_ETHICS_DATA")
+  ) {
+    return false;
+  }
+  const scopeStatement = textValue(parsed.scopeStatement) ?? "";
+  if (
+    !hasNegatedScopeTerm(scopeStatement, "真实消费者") ||
+    !hasNegatedScopeTerm(scopeStatement, "标准资源") ||
+    !hasNegatedScopeTerm(scopeStatement, "闭环回传") ||
+    !hasNegatedScopeTerm(scopeStatement, "完整科研数据服务") ||
+    !hasNegatedScopeTerm(scopeStatement, "完整 S34")
+  ) {
+    return false;
+  }
+  const registration = recordValue(parsed.registrationEvidence);
+  const missing = recordValue(parsed.researchEthicsDataMissingEvidence);
+  if (
+    !hasCompleteThirdPartySystemFamilyRegistrationEvidence(registration) ||
+    !hasCompleteResearchEthicsMissingRow(missing)
+  ) {
+    return false;
+  }
+  const consumerRows = Array.isArray(parsed.consumerEvidence) ? parsed.consumerEvidence : [];
+  const consumer = consumerRows
+    .map((item) => recordValue(item))
+    .find(
+      (item): item is Record<string, unknown> =>
+        item !== null && item.systemFamilyCode === "RESEARCH_ETHICS_DATA",
+    );
+  return (
+    consumer !== undefined &&
+    consumer.onboardingId === missing?.onboardingId &&
+    consumer.adapterId === missing?.adapterId &&
+    consumer.consumerVerified === false &&
+    consumer.standardResourceVerified === false &&
+    consumer.degradationVerified === true &&
+    consumer.auditVerified === true &&
+    consumer.healthStatus === missing?.healthStatus
+  );
+}
+
+function hasCompleteResearchEthicsMissingRow(value: Record<string, unknown> | null) {
+  if (!value) return false;
+  const status = textValue(value.healthStatus);
+  const missingCapabilities = Array.isArray(value.missingCapabilities)
+    ? value.missingCapabilities
+    : [];
+  return (
+    value.systemFamilyCode === "RESEARCH_ETHICS_DATA" &&
+    hasText(value.onboardingId) &&
+    hasText(value.adapterId) &&
+    value.consumerVerified === false &&
+    value.standardResourceVerified === false &&
+    value.degradationVerified === true &&
+    value.auditVerified === true &&
+    status !== "HEALTHY" &&
+    ["NOT_CONNECTED", "MISCONFIGURED", "RETRYING", "DEAD_LETTER", "UNHEALTHY"].includes(
+      status ?? "",
+    ) &&
+    ["DE_IDENTIFIED_COHORT", "ETHICS_AUTHORIZATION", "DATASET_EXPORT", "USAGE_AUDIT"].every(
+      (capability) => missingCapabilities.includes(capability),
+    )
+  );
 }
 
 function hasCompleteThirdPartySystemFamilyConsumerEvidence(value: unknown) {
