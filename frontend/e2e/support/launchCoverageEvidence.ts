@@ -640,6 +640,14 @@ const identityBindingScenarioConditionRows = [
     source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
   },
 ] as const;
+const mfaLoginScenarioConditionRows = [
+  {
+    code: "S14__HIGH_RISK",
+    scenarioCode: "S14",
+    condition: "HIGH_RISK",
+    source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+  },
+] as const;
 const diagnosisKnowledgeScenarioConditionRows = [
   {
     code: "S3__NORMAL",
@@ -4014,6 +4022,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectIdentityBindingScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectMfaLoginScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4232,6 +4243,55 @@ function identityBindingScenarioConditionBackedByEvidence(
         hasCompleteIdentityPlaintextSafetyEvidence(parsed.plaintextSafety) &&
         hasCompleteIdentityUnbindingEvidence(parsed.unbinding, binding) &&
         hasCompleteIdentityCleanupEvidence(parsed.cleanup)
+      );
+    default:
+      return false;
+  }
+}
+
+function collectMfaLoginScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "mfa-login-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find((item) => item.name === "mfa-login-scenario-codes");
+  if (!attachment?.body || !hasRequiredMfaLoginScenarioAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      mfaLoginScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return mfaLoginScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          mfaLoginScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function mfaLoginScenarioConditionBackedByEvidence(
+  code: (typeof mfaLoginScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S14__HIGH_RISK":
+      return (
+        hasCompleteMfaLoginApiEvidence(parsed.apiEvidence) &&
+        hasCompleteMfaLoginConfigEvidence(parsed.configEvidence) &&
+        hasCompleteMfaTemporaryAdminEvidence(parsed.temporaryAdmin) &&
+        hasCompleteMfaBindingEvidence(parsed.mfaBinding) &&
+        hasCompleteMfaLoginChallengeEvidence(parsed.loginChallenge) &&
+        hasCompleteMfaVerificationEvidence(parsed.verification) &&
+        hasCompleteMfaProfileEvidence(parsed.profile, parsed.temporaryAdmin)
       );
     default:
       return false;
@@ -6628,6 +6688,94 @@ function hasRequiredMfaLoginScenarioAttachment(test: BrowserE2eTestResult) {
   } catch {
     return false;
   }
+}
+
+function hasCompleteMfaLoginApiEvidence(value: unknown) {
+  const apiEvidence = recordValue(value);
+  return (
+    hasApiCallEvidence(apiEvidence?.configRead, "GET /system/configs") &&
+    hasApiCallEvidence(apiEvidence?.accountCreated, "POST /compliance/users") &&
+    hasApiCallEvidence(apiEvidence?.firstPasswordChanged, "POST /auth/change-password") &&
+    hasApiCallEvidence(apiEvidence?.mfaSecretGenerated, "POST /auth/mfa/bind") &&
+    hasApiCallEvidence(apiEvidence?.mfaTotpBound, "POST /auth/mfa/bind") &&
+    hasApiCallEvidence(apiEvidence?.configEnabled, "PATCH /system/configs/{key}") &&
+    hasApiCallEvidence(apiEvidence?.mfaVerify, "POST /auth/mfa/verify") &&
+    hasApiCallEvidence(apiEvidence?.profileRead, "GET /security/me") &&
+    hasApiCallEvidence(apiEvidence?.configRestored, "PATCH /system/configs/{key}") &&
+    hasApiCallEvidence(apiEvidence?.accountDisabled, "PATCH /compliance/users/{userId}/status")
+  );
+}
+
+function hasApiCallEvidence(value: unknown, operation: string) {
+  const evidence = recordValue(value);
+  return evidence?.operation === operation && is2xxStatus(evidence.status);
+}
+
+function hasCompleteMfaLoginConfigEvidence(value: unknown) {
+  const config = recordValue(value);
+  const enabledVersion = positiveNumber(config?.enabledVersion);
+  const restoredVersion = positiveNumber(config?.restoredVersion);
+  if (typeof enabledVersion !== "number" || typeof restoredVersion !== "number") return false;
+  return (
+    config?.key === "medkernel.auth.mfa.enabled" &&
+    config.beforeValue === "false" &&
+    config.enabledValue === "true" &&
+    config.restoredValue === "false" &&
+    config.confirmedHighRisk === true &&
+    restoredVersion >= enabledVersion
+  );
+}
+
+function hasCompleteMfaTemporaryAdminEvidence(value: unknown) {
+  const admin = recordValue(value);
+  return (
+    hasText(admin?.userId) &&
+    hasText(admin?.username) &&
+    admin?.roleCode === "platform-admin" &&
+    admin.created === true &&
+    admin.firstPasswordChanged === true &&
+    admin.disabledAfterDrill === true &&
+    admin.secretPersistedInEvidence === false
+  );
+}
+
+function hasCompleteMfaBindingEvidence(value: unknown) {
+  const binding = recordValue(value);
+  return (
+    binding?.totpSecretGenerated === true &&
+    binding.totpBound === true &&
+    binding.secretPersistedInEvidence === false &&
+    hasText(binding.deviceLabel)
+  );
+}
+
+function hasCompleteMfaLoginChallengeEvidence(value: unknown) {
+  const challenge = recordValue(value);
+  return (
+    challenge?.challengeShown === true &&
+    challenge.bootstrapUrlReached === true &&
+    challenge.dashboardReachedAfterVerify === true
+  );
+}
+
+function hasCompleteMfaVerificationEvidence(value: unknown) {
+  const verification = recordValue(value);
+  return verification?.verified === true && is2xxStatus(verification.status);
+}
+
+function hasCompleteMfaProfileEvidence(profileValue: unknown, temporaryAdminValue: unknown) {
+  const profile = recordValue(profileValue);
+  const temporaryAdmin = recordValue(temporaryAdminValue);
+  return (
+    profile !== null &&
+    temporaryAdmin !== null &&
+    profile.username === temporaryAdmin.username &&
+    Array.isArray(profile.roles) &&
+    profile.roles.includes("platform-admin") &&
+    profile.mfaRequired === true &&
+    profile.mfaBound === true &&
+    profile.mfaVerified === true
+  );
 }
 
 function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestResult) {

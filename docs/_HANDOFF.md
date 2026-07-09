@@ -647,6 +647,45 @@
   但必须先新增结构化证据和显式 `scenarioConditionEvidence`，不得混用既有 `S14__NORMAL` 身份来源绑定或
   `S14__ABNORMAL` 越权拒绝，也不得冒领完整身份治理 / 权限体系 / MFA 运营策略。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十九批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口，
+  本批只收口 MFA 登录高风险 S14 代表切片已有真实前台强链路，新增 1 条显式背书行：`S14__HIGH_RISK`
+  （配置中心上线默认 MFA 为关闭，演练临时开启后恢复关闭；临时平台管理员完成首次改密、生成并绑定 TOTP，
+  登录页真实出现 MFA 挑战并提交 2xx 验证；`/security/me` 回读本轮账号为 `platform-admin` 且
+  `mfaRequired/mfaBound/mfaVerified` 全真；finally 停用临时账号，附件不持久化 TOTP secret）。不声明
+  `S14__NORMAL`（仍归身份来源绑定证据）、`S14__ABNORMAL`（仍归越权拒绝证据）、S14 其他状态、完整身份治理、
+  完整权限体系、完整 MFA 运营策略、完整 S0-S40 或完整上线。
+- 第二百一十九批实现细节：`frontend/e2e/mfa-login-frontdesk.spec.ts` 的 `mfa-login-scenario-codes` 附件新增
+  结构化 `apiEvidence/configEvidence/temporaryAdmin/mfaBinding/loginChallenge/verification/profile` 和显式
+  `scenarioConditionEvidence`，来源固定为 `MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED`；附件只写
+  `secretPersistedInEvidence=false`、设备标签和绑定布尔，不写原始 TOTP secret。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 MFA 登录条件行白名单和 collector：必须先通过完整
+  `hasRequiredMfaLoginScenarioAttachment()`，再严格校验 `code/scenarioCode/condition/source/evidence`，
+  并逐项绑定 10 个 API 2xx、配置默认关闭 / 临时开启 / 恢复关闭、临时平台管理员创建 / 首次改密 / 停用、
+  TOTP 生成绑定且不持久化 secret、挑战页到工作台、验证 2xx 且 `verified=true`、权限画像 MFA 三状态全真。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：普通 MFA 覆盖不会自动声明高危行；
+  未知行、场景 / 状态 / 来源错配、空证据、默认 MFA 未关闭、缺高危确认、未恢复关闭、配置键或版本错误、
+  非平台管理员、未首次改密、未停用、TOTP 泄露标记、未绑定或设备标签为空、无挑战页、未进工作台、
+  验证非 2xx 或 `verified=false`、画像账号 / 角色 / MFA 状态不符、关键 API operation/status 错误，均不声明
+  `S14__HIGH_RISK`。
+- 第二百一十九批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s14-mfa-high-risk-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium mfa-login-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s14-mfa-high-risk-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarios=[S14]`、
+  `launchCoverage.scenarioConditionRows=[S14__HIGH_RISK]`。附件抽查只出现 `secretPersistedInEvidence=false`，
+  未出现原始 TOTP secret；后端日志显示 MFA 配置恢复关闭和临时账号停用审计。
+- 第二百一十九批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S14__HIGH_RISK`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（619 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十九批边界与下一步：本批只是把 MFA 登录高风险 S14 已有强链路接入 1 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、
+  不是完整身份治理 / MFA 运营策略完成，也不是 134 清库重部署。下一批继续沿 `LAUNCH-06` 时，必须先只读预审
+  已有强链路能否逐字段背书，不得把菜单、路由、普通 `scenarioEvidence` 或代表切片冒领为五态行；若评估
+  `S15__NORMAL`，dev/H2 备份恢复仍为 `NOT_AVAILABLE` 时不可声明正常态。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

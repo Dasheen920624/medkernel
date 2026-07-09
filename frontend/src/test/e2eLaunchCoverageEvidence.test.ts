@@ -111,6 +111,116 @@ function expectNoServiceOrganizationScenarioConditionCoverage(body: Record<strin
   ).not.toContain("S1__NORMAL");
 }
 
+function mfaLoginEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    scenarioCodes: ["S14"],
+    productLayers: ["FOUNDATION_GOVERNANCE"],
+    serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+    apiEvidence: {
+      configRead: { operation: "GET /system/configs", status: 200 },
+      accountCreated: { operation: "POST /compliance/users", status: 201 },
+      firstPasswordChanged: { operation: "POST /auth/change-password", status: 204 },
+      mfaSecretGenerated: { operation: "POST /auth/mfa/bind", status: 200 },
+      mfaTotpBound: { operation: "POST /auth/mfa/bind", status: 200 },
+      configEnabled: { operation: "PATCH /system/configs/{key}", status: 200 },
+      mfaVerify: { operation: "POST /auth/mfa/verify", status: 200 },
+      profileRead: { operation: "GET /security/me", status: 200 },
+      configRestored: { operation: "PATCH /system/configs/{key}", status: 200 },
+      accountDisabled: { operation: "PATCH /compliance/users/{userId}/status", status: 200 },
+    },
+    configEvidence: {
+      key: "medkernel.auth.mfa.enabled",
+      beforeValue: "false",
+      enabledValue: "true",
+      restoredValue: "false",
+      enabledVersion: 2,
+      restoredVersion: 3,
+      confirmedHighRisk: true,
+    },
+    temporaryAdmin: {
+      userId: "e2e-mfa-admin-s14",
+      username: "e2e-mfa-admin-s14",
+      roleCode: "platform-admin",
+      created: true,
+      firstPasswordChanged: true,
+      disabledAfterDrill: true,
+      secretPersistedInEvidence: false,
+    },
+    mfaBinding: {
+      totpSecretGenerated: true,
+      totpBound: true,
+      secretPersistedInEvidence: false,
+      deviceLabel: "MFA 前台登录演练安全设备",
+    },
+    loginChallenge: {
+      challengeShown: true,
+      bootstrapUrlReached: true,
+      dashboardReachedAfterVerify: true,
+    },
+    verification: {
+      verified: true,
+      status: 200,
+    },
+    profile: {
+      username: "e2e-mfa-admin-s14",
+      roles: ["platform-admin"],
+      mfaRequired: true,
+      mfaBound: true,
+      mfaVerified: true,
+    },
+    scenarioConditionEvidence: [
+      {
+        code: "S14__HIGH_RISK",
+        scenarioCode: "S14",
+        condition: "HIGH_RISK",
+        source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+        evidence: [
+          "配置中心临时开启 MFA 且 finally 恢复上线默认关闭",
+          "临时平台管理员完成 TOTP 绑定并在登录页真实验证后进入工作台",
+          "权限画像回读 MFA 三状态为真且演练账号已停用",
+        ],
+      },
+    ],
+    scenarioEvidence: [
+      {
+        code: "S14",
+        observedStages: [
+          "配置中心读取上线默认 MFA 关闭",
+          "创建 MFA 临时平台管理员账号",
+          "临时账号完成首次改密并绑定 TOTP",
+          "配置中心临时开启 MFA",
+          "登录页要求已绑定账号完成 MFA 验证",
+          "前台提交真实 TOTP 验证并进入工作台",
+          "验证后回读权限画像与 MFA 状态",
+          "恢复 MFA 上线默认关闭状态",
+          "停用 MFA 演练临时管理员账号",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function mfaLoginEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/mfa-login-frontdesk.spec.ts",
+        title: "开启 MFA 后已绑定账号必须在登录页完成真实 TOTP 验证",
+        status: "passed",
+        attachments: [
+          {
+            name: "mfa-login-scenario-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
 const diagnosisKnowledgeEvidence = {
   scenarioCodes: ["S3"],
   productLayers: ["MEDICAL_ASSET"],
@@ -12564,6 +12674,319 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
     expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
+  it("declares S14 high-risk condition row only from explicit MFA TOTP enforcement and recovery evidence", () => {
+    const evidence = mfaLoginEvidenceResult(mfaLoginEvidence());
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S14"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S14__HIGH_RISK",
+    ]);
+  });
+
+  it("does not auto-generate S14 high-risk condition row from ordinary MFA login coverage", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = mfaLoginEvidence();
+    const evidence = mfaLoginEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S14"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S14__DEGRADATION",
+            scenarioCode: "S14",
+            condition: "DEGRADATION",
+            source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+            evidence: ["MFA 高危登录切片不能冒领降级态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S14__HIGH_RISK",
+            scenarioCode: "S14",
+            condition: "HIGH_RISK",
+            source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
+            evidence: ["身份来源绑定不能冒领 MFA 高危态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行场景错配",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S14__HIGH_RISK",
+            scenarioCode: "S15",
+            condition: "HIGH_RISK",
+            source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+            evidence: ["MFA 高危登录切片不能冒领其他场景"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行状态错配",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S14__HIGH_RISK",
+            scenarioCode: "S14",
+            condition: "NORMAL",
+            source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+            evidence: ["MFA 高危登录切片不能冒领正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S14__HIGH_RISK",
+            scenarioCode: "S14",
+            condition: "HIGH_RISK",
+            source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "默认 MFA 未关闭",
+      overrides: {
+        configEvidence: {
+          ...(mfaLoginEvidence().configEvidence as Record<string, unknown>),
+          beforeValue: "true",
+        },
+      },
+    },
+    {
+      name: "临时开启缺少高风险确认",
+      overrides: {
+        configEvidence: {
+          ...(mfaLoginEvidence().configEvidence as Record<string, unknown>),
+          confirmedHighRisk: false,
+        },
+      },
+    },
+    {
+      name: "结束后未恢复默认关闭",
+      overrides: {
+        configEvidence: {
+          ...(mfaLoginEvidence().configEvidence as Record<string, unknown>),
+          restoredValue: "true",
+        },
+      },
+    },
+    {
+      name: "配置键错误",
+      overrides: {
+        configEvidence: {
+          ...(mfaLoginEvidence().configEvidence as Record<string, unknown>),
+          key: "medkernel.auth.password.policy",
+        },
+      },
+    },
+    {
+      name: "开启版本缺失",
+      overrides: {
+        configEvidence: {
+          ...(mfaLoginEvidence().configEvidence as Record<string, unknown>),
+          enabledVersion: undefined,
+        },
+      },
+    },
+    {
+      name: "恢复版本早于开启版本",
+      overrides: {
+        configEvidence: {
+          ...(mfaLoginEvidence().configEvidence as Record<string, unknown>),
+          restoredVersion: 1,
+        },
+      },
+    },
+    {
+      name: "临时管理员不是平台管理员",
+      overrides: {
+        temporaryAdmin: {
+          ...(mfaLoginEvidence().temporaryAdmin as Record<string, unknown>),
+          roleCode: "clinical-user",
+        },
+      },
+    },
+    {
+      name: "临时账号未停用",
+      overrides: {
+        temporaryAdmin: {
+          ...(mfaLoginEvidence().temporaryAdmin as Record<string, unknown>),
+          disabledAfterDrill: false,
+        },
+      },
+    },
+    {
+      name: "临时账号未完成首次改密",
+      overrides: {
+        temporaryAdmin: {
+          ...(mfaLoginEvidence().temporaryAdmin as Record<string, unknown>),
+          firstPasswordChanged: false,
+        },
+      },
+    },
+    {
+      name: "TOTP 密钥泄露进证据",
+      overrides: {
+        mfaBinding: {
+          ...(mfaLoginEvidence().mfaBinding as Record<string, unknown>),
+          secretPersistedInEvidence: true,
+        },
+      },
+    },
+    {
+      name: "TOTP 未绑定",
+      overrides: {
+        mfaBinding: {
+          ...(mfaLoginEvidence().mfaBinding as Record<string, unknown>),
+          totpBound: false,
+        },
+      },
+    },
+    {
+      name: "MFA 设备标签为空",
+      overrides: {
+        mfaBinding: {
+          ...(mfaLoginEvidence().mfaBinding as Record<string, unknown>),
+          deviceLabel: "",
+        },
+      },
+    },
+    {
+      name: "未出现 MFA 挑战页",
+      overrides: {
+        loginChallenge: {
+          ...(mfaLoginEvidence().loginChallenge as Record<string, unknown>),
+          challengeShown: false,
+        },
+      },
+    },
+    {
+      name: "验证后未进入工作台",
+      overrides: {
+        loginChallenge: {
+          ...(mfaLoginEvidence().loginChallenge as Record<string, unknown>),
+          dashboardReachedAfterVerify: false,
+        },
+      },
+    },
+    {
+      name: "验证接口非 2xx",
+      overrides: {
+        verification: {
+          ...(mfaLoginEvidence().verification as Record<string, unknown>),
+          status: 401,
+        },
+      },
+    },
+    {
+      name: "验证响应未通过",
+      overrides: {
+        verification: {
+          ...(mfaLoginEvidence().verification as Record<string, unknown>),
+          verified: false,
+        },
+      },
+    },
+    {
+      name: "权限画像不是本轮临时账号",
+      overrides: {
+        profile: {
+          ...(mfaLoginEvidence().profile as Record<string, unknown>),
+          username: "other-admin",
+        },
+      },
+    },
+    {
+      name: "权限画像缺少平台管理员角色",
+      overrides: {
+        profile: {
+          ...(mfaLoginEvidence().profile as Record<string, unknown>),
+          roles: ["auditor"],
+        },
+      },
+    },
+    {
+      name: "权限画像 MFA 未要求",
+      overrides: {
+        profile: {
+          ...(mfaLoginEvidence().profile as Record<string, unknown>),
+          mfaRequired: false,
+        },
+      },
+    },
+    {
+      name: "权限画像 MFA 未绑定",
+      overrides: {
+        profile: {
+          ...(mfaLoginEvidence().profile as Record<string, unknown>),
+          mfaBound: false,
+        },
+      },
+    },
+    {
+      name: "权限画像 MFA 未验证",
+      overrides: {
+        profile: {
+          ...(mfaLoginEvidence().profile as Record<string, unknown>),
+          mfaVerified: false,
+        },
+      },
+    },
+    {
+      name: "恢复配置接口失败",
+      overrides: {
+        apiEvidence: {
+          ...(mfaLoginEvidence().apiEvidence as Record<string, unknown>),
+          configRestored: { operation: "PATCH /system/configs/{key}", status: 500 },
+        },
+      },
+    },
+    {
+      name: "停用账号接口失败",
+      overrides: {
+        apiEvidence: {
+          ...(mfaLoginEvidence().apiEvidence as Record<string, unknown>),
+          accountDisabled: {
+            operation: "PATCH /compliance/users/{userId}/status",
+            status: 500,
+          },
+        },
+      },
+    },
+    {
+      name: "验证接口 operation 错误",
+      overrides: {
+        apiEvidence: {
+          ...(mfaLoginEvidence().apiEvidence as Record<string, unknown>),
+          mfaVerify: { operation: "POST /auth/mfa/bind", status: 200 },
+        },
+      },
+    },
+  ])("does not declare S14 high-risk condition row when $name", ({ overrides }) => {
+    const evidence = mfaLoginEvidenceResult(mfaLoginEvidence(overrides));
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it("declares identity binding coverage only when the passed spec attaches complete plaintext-safety evidence", () => {

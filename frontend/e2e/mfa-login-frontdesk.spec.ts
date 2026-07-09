@@ -17,6 +17,66 @@ type SystemConfigItem = {
   value: string;
   version: number;
 };
+type MfaApiEvidence = {
+  configRead?: ApiCallEvidence;
+  accountCreated?: ApiCallEvidence;
+  firstPasswordChanged?: ApiCallEvidence;
+  mfaSecretGenerated?: ApiCallEvidence;
+  mfaTotpBound?: ApiCallEvidence;
+  configEnabled?: ApiCallEvidence;
+  mfaVerify?: ApiCallEvidence;
+  profileRead?: ApiCallEvidence;
+  configRestored?: ApiCallEvidence;
+  accountDisabled?: ApiCallEvidence;
+};
+type ApiCallEvidence = {
+  operation: string;
+  status: number;
+};
+type MfaLoginStructuredEvidence = {
+  apiEvidence: MfaApiEvidence;
+  configEvidence?: {
+    key: string;
+    beforeValue: string;
+    enabledValue?: string;
+    restoredValue?: string;
+    beforeVersion: number;
+    enabledVersion?: number;
+    restoredVersion?: number;
+    confirmedHighRisk: boolean;
+  };
+  temporaryAdmin?: {
+    userId: string;
+    username: string;
+    roleCode: string;
+    created: boolean;
+    firstPasswordChanged: boolean;
+    disabledAfterDrill: boolean;
+    secretPersistedInEvidence: false;
+  };
+  mfaBinding?: {
+    totpSecretGenerated: boolean;
+    totpBound: boolean;
+    secretPersistedInEvidence: false;
+    deviceLabel: string;
+  };
+  loginChallenge?: {
+    challengeShown: boolean;
+    bootstrapUrlReached: boolean;
+    dashboardReachedAfterVerify: boolean;
+  };
+  verification?: {
+    verified: boolean;
+    status: number;
+  };
+  profile?: {
+    username: string;
+    roles: string[];
+    mfaRequired: boolean;
+    mfaBound: boolean;
+    mfaVerified: boolean;
+  };
+};
 
 const mfaConfigKey = "medkernel.auth.mfa.enabled";
 const platformTenantId = resolvedTenantIdFor("platform-admin", "platform");
@@ -61,10 +121,21 @@ test.describe("D0 MFA 真实前台登录验收", () => {
     let enabledByTest = false;
     let accountCreated = false;
     const observedStages = new Set<string>();
+    const structuredEvidence: MfaLoginStructuredEvidence = { apiEvidence: {} };
 
     try {
       await loginAsPlatformAdmin(adminPage);
       originalConfig = await readMfaConfig(adminPage);
+      structuredEvidence.apiEvidence.configRead = {
+        operation: "GET /system/configs",
+        status: 200,
+      };
+      structuredEvidence.configEvidence = {
+        key: mfaConfigKey,
+        beforeValue: originalConfig.value,
+        beforeVersion: originalConfig.version,
+        confirmedHighRisk: false,
+      };
       expect(originalConfig.value, "上线默认 MFA 必须关闭，演练用例负责临时开启并恢复").toBe(
         "false",
       );
@@ -72,8 +143,21 @@ test.describe("D0 MFA 真实前台登录验收", () => {
 
       await createMfaAdminAccount(adminPage, mfaAccount);
       accountCreated = true;
+      structuredEvidence.apiEvidence.accountCreated = {
+        operation: "POST /compliance/users",
+        status: 201,
+      };
+      structuredEvidence.temporaryAdmin = {
+        userId: mfaAccount.userId,
+        username: mfaAccount.username,
+        roleCode: "platform-admin",
+        created: true,
+        firstPasswordChanged: false,
+        disabledAfterDrill: false,
+        secretPersistedInEvidence: false,
+      };
       recordMfaLoginStage(observedStages, "创建 MFA 临时平台管理员账号");
-      const secret = await prepareBoundMfaAccount(mfaAdminPage, mfaAccount);
+      const secret = await prepareBoundMfaAccount(mfaAdminPage, mfaAccount, structuredEvidence);
       recordMfaLoginStage(observedStages, "临时账号完成首次改密并绑定 TOTP");
 
       const enabledConfig = await updateMfaConfig(
@@ -83,6 +167,18 @@ test.describe("D0 MFA 真实前台登录验收", () => {
         "临时开启 MFA 真实前台登录演练",
       );
       enabledByTest = enabledConfig.value === "true";
+      structuredEvidence.apiEvidence.configEnabled = {
+        operation: "PATCH /system/configs/{key}",
+        status: 200,
+      };
+      structuredEvidence.configEvidence = {
+        key: mfaConfigKey,
+        beforeValue: originalConfig.value,
+        enabledValue: enabledConfig.value,
+        beforeVersion: originalConfig.version,
+        enabledVersion: enabledConfig.version,
+        confirmedHighRisk: true,
+      };
       recordMfaLoginStage(observedStages, "配置中心临时开启 MFA");
 
       await page.context().clearCookies();
@@ -104,6 +200,11 @@ test.describe("D0 MFA 真实前台登录验收", () => {
       await expect(page).toHaveURL(/\/bootstrap$/);
       await expect(page.getByRole("heading", { name: "验证多因素认证" })).toBeVisible();
       await expect(page.getByText("请输入认证器中的动态验证码", { exact: false })).toBeVisible();
+      structuredEvidence.loginChallenge = {
+        challengeShown: true,
+        bootstrapUrlReached: true,
+        dashboardReachedAfterVerify: false,
+      };
       recordMfaLoginStage(observedStages, "登录页要求已绑定账号完成 MFA 验证");
 
       const verifyResponsePromise = waitForPost(page, "/api/v1/auth/mfa/verify");
@@ -113,6 +214,14 @@ test.describe("D0 MFA 真实前台登录验收", () => {
       expect(verifyResponse.ok(), "前台提交 TOTP 验证应成功").toBe(true);
       const verifyPayload = (await verifyResponse.json()) as { data?: { verified?: boolean } };
       expect(verifyPayload.data?.verified).toBe(true);
+      structuredEvidence.apiEvidence.mfaVerify = {
+        operation: "POST /auth/mfa/verify",
+        status: verifyResponse.status(),
+      };
+      structuredEvidence.verification = {
+        verified: verifyPayload.data?.verified === true,
+        status: verifyResponse.status(),
+      };
 
       await expect(page.getByText("账号安全设置完成")).toBeVisible();
       await page.getByRole("button", { name: "进入工作台" }).click();
@@ -120,12 +229,23 @@ test.describe("D0 MFA 真实前台登录验收", () => {
       await expect(page.getByRole("button", { name: "当前用户菜单" })).toBeVisible({
         timeout: 20_000,
       });
+      structuredEvidence.loginChallenge = {
+        ...(structuredEvidence.loginChallenge ?? {
+          challengeShown: false,
+          bootstrapUrlReached: false,
+        }),
+        dashboardReachedAfterVerify: true,
+      };
       recordMfaLoginStage(observedStages, "前台提交真实 TOTP 验证并进入工作台");
 
       const profileResponse = await page.request.get(`${apiBase}/security/me`, {
         headers: { "X-Trace-Id": `e2e-mfa-profile-${suffix}` },
       });
       await expectOk(profileResponse, "读取 MFA 验证后权限画像");
+      structuredEvidence.apiEvidence.profileRead = {
+        operation: "GET /security/me",
+        status: profileResponse.status(),
+      };
       const profile = (await profileResponse.json()).data as {
         username?: string;
         mfaRequired?: boolean;
@@ -138,6 +258,13 @@ test.describe("D0 MFA 真实前台登录验收", () => {
       expect(profile.mfaRequired).toBe(true);
       expect(profile.mfaBound).toBe(true);
       expect(profile.mfaVerified).toBe(true);
+      structuredEvidence.profile = {
+        username: profile.username ?? "",
+        roles: profile.roles?.map((role) => role.code).filter((code): code is string => !!code) ?? [],
+        mfaRequired: profile.mfaRequired === true,
+        mfaBound: profile.mfaBound === true,
+        mfaVerified: profile.mfaVerified === true,
+      };
       recordMfaLoginStage(observedStages, "验证后回读权限画像与 MFA 状态");
 
       const screenshotPath = testInfo.outputPath("mfa-login-dashboard.png");
@@ -149,16 +276,59 @@ test.describe("D0 MFA 真实前台登录验收", () => {
     } finally {
       try {
         if (originalConfig) {
-          await restoreMfaConfig(mfaAdminPage, originalConfig.value);
+          const restoredConfig = await restoreMfaConfig(mfaAdminPage, originalConfig.value);
+          structuredEvidence.apiEvidence.configRestored = {
+            operation: "PATCH /system/configs/{key}",
+            status: 200,
+          };
+          structuredEvidence.configEvidence = {
+            ...(structuredEvidence.configEvidence ?? {
+              key: mfaConfigKey,
+              beforeValue: originalConfig.value,
+              beforeVersion: originalConfig.version,
+              confirmedHighRisk: false,
+            }),
+            restoredValue: restoredConfig.value,
+            restoredVersion: restoredConfig.version,
+          };
           recordMfaLoginStage(observedStages, "恢复 MFA 上线默认关闭状态");
         } else if (enabledByTest) {
-          await restoreMfaConfig(mfaAdminPage, "false");
+          const restoredConfig = await restoreMfaConfig(mfaAdminPage, "false");
+          structuredEvidence.apiEvidence.configRestored = {
+            operation: "PATCH /system/configs/{key}",
+            status: 200,
+          };
+          structuredEvidence.configEvidence = {
+            ...(structuredEvidence.configEvidence ?? {
+              key: mfaConfigKey,
+              beforeValue: "false",
+              beforeVersion: 1,
+              confirmedHighRisk: false,
+            }),
+            restoredValue: restoredConfig.value,
+            restoredVersion: restoredConfig.version,
+          };
           recordMfaLoginStage(observedStages, "恢复 MFA 上线默认关闭状态");
         }
       } finally {
         try {
           if (accountCreated) {
             await disableMfaAdminAccount(adminPage, mfaAccount.userId);
+            structuredEvidence.apiEvidence.accountDisabled = {
+              operation: "PATCH /compliance/users/{userId}/status",
+              status: 200,
+            };
+            structuredEvidence.temporaryAdmin = {
+              ...(structuredEvidence.temporaryAdmin ?? {
+                userId: mfaAccount.userId,
+                username: mfaAccount.username,
+                roleCode: "platform-admin",
+                created: true,
+                firstPasswordChanged: false,
+                secretPersistedInEvidence: false,
+              }),
+              disabledAfterDrill: true,
+            };
             recordMfaLoginStage(observedStages, "停用 MFA 演练临时管理员账号");
           }
         } finally {
@@ -166,7 +336,7 @@ test.describe("D0 MFA 真实前台登录验收", () => {
         }
       }
     }
-    await attachMfaLoginScenarioEvidence(testInfo, observedStages);
+    await attachMfaLoginScenarioEvidence(testInfo, observedStages, structuredEvidence);
   });
 });
 
@@ -192,6 +362,7 @@ async function createMfaAdminAccount(
 async function prepareBoundMfaAccount(
   page: Page,
   account: { username: string; initialPassword: string; password: string },
+  evidence: MfaLoginStructuredEvidence,
 ) {
   const login = await page.request.post(`${apiBase}/auth/login`, {
     data: {
@@ -211,6 +382,13 @@ async function prepareBoundMfaAccount(
     newPassword: account.password,
   });
   await expectOk(change, "MFA 演练账号首次改密");
+  evidence.apiEvidence.firstPasswordChanged = {
+    operation: "POST /auth/change-password",
+    status: change.status(),
+  };
+  evidence.temporaryAdmin = evidence.temporaryAdmin
+    ? { ...evidence.temporaryAdmin, firstPasswordChanged: true }
+    : undefined;
 
   const relogin = await page.request.post(`${apiBase}/auth/login`, {
     data: {
@@ -231,6 +409,10 @@ async function prepareBoundMfaAccount(
   await expectOk(setupResponse, "生成 MFA 演练账号密钥");
   const setup = (await setupResponse.json()).data as { secret?: string };
   expect(setup.secret, "MFA 绑定必须返回 TOTP 密钥").toBeTruthy();
+  evidence.apiEvidence.mfaSecretGenerated = {
+    operation: "POST /auth/mfa/bind",
+    status: setupResponse.status(),
+  };
 
   const verifyResponse = await postApi(page, "/auth/mfa/bind", {
     label: "MFA 前台登录演练安全设备",
@@ -238,6 +420,16 @@ async function prepareBoundMfaAccount(
     code: totp(setup.secret ?? ""),
   });
   await expectOk(verifyResponse, "绑定 MFA 演练账号密钥");
+  evidence.apiEvidence.mfaTotpBound = {
+    operation: "POST /auth/mfa/bind",
+    status: verifyResponse.status(),
+  };
+  evidence.mfaBinding = {
+    totpSecretGenerated: true,
+    totpBound: true,
+    secretPersistedInEvidence: false,
+    deviceLabel: "MFA 前台登录演练安全设备",
+  };
   return setup.secret ?? "";
 }
 
@@ -266,8 +458,8 @@ async function updateMfaConfig(page: Page, value: string, expectedVersion: numbe
 
 async function restoreMfaConfig(page: Page, value: string) {
   const current = await readMfaConfig(page);
-  if (current.value === value) return;
-  await updateMfaConfig(page, value, current.version, "恢复 MFA 上线默认关闭状态");
+  if (current.value === value) return current;
+  return updateMfaConfig(page, value, current.version, "恢复 MFA 上线默认关闭状态");
 }
 
 async function disableMfaAdminAccount(page: Page, userId: string) {
@@ -288,7 +480,11 @@ function recordMfaLoginStage(observedStages: Set<string>, stage: string) {
   observedStages.add(stage);
 }
 
-async function attachMfaLoginScenarioEvidence(testInfo: TestInfo, observedStageSet: Set<string>) {
+async function attachMfaLoginScenarioEvidence(
+  testInfo: TestInfo,
+  observedStageSet: Set<string>,
+  structuredEvidence: MfaLoginStructuredEvidence,
+) {
   const scenarioEvidence = requiredMfaLoginScenarioEvidence.map((scenario) => ({
     code: scenario.code,
     observedStages: scenario.observedStages.filter((stage) => observedStageSet.has(stage)),
@@ -307,6 +503,20 @@ async function attachMfaLoginScenarioEvidence(testInfo: TestInfo, observedStageS
         scenarioCodes: completedScenarioCodes,
         productLayers: ["FOUNDATION_GOVERNANCE"],
         serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+        ...structuredEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S14__HIGH_RISK",
+            scenarioCode: "S14",
+            condition: "HIGH_RISK",
+            source: "MFA_TOTP_REQUIRED_VERIFIED_AND_RECOVERED",
+            evidence: [
+              "配置中心临时开启 MFA 且 finally 恢复上线默认关闭",
+              "临时平台管理员完成 TOTP 绑定并在登录页真实验证后进入工作台",
+              "权限画像回读 MFA 三状态为真且演练账号已停用",
+            ],
+          },
+        ],
         scenarioEvidence,
       },
       null,
