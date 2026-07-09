@@ -103,9 +103,29 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
     requiredCoverage.deliveryShapes.some(
       (item) => item.code === "MANAGEMENT_CONSOLE",
     ),
-      false,
+    false,
   );
   assert.equal(requiredCoverage.menuEntryCoreActionRows.length, 34);
+  assert.deepEqual(
+    requiredCoverage.thirdPartySystemFamilyDegradationRows.map(
+      (item) => item.code,
+    ),
+    [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ],
+  );
   assert.deepEqual(
     requiredCoverage.menuEntryCoreActionRows.map((item) => item.code),
     [
@@ -148,12 +168,20 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
   const requiredAcceptance = buildRequiredLaunchAcceptance();
   assert.equal(requiredAcceptance.length, 15);
   assert.deepEqual(
-    requiredAcceptance.find((item) => item.code === "LAUNCH-11").requiredCoverage,
+    requiredAcceptance.find((item) => item.code === "LAUNCH-11")
+      .requiredCoverage,
     ["databaseMigrationSource", "databaseDialects"],
   );
   assert.deepEqual(
-    requiredAcceptance.find((item) => item.code === "LAUNCH-15").requiredCoverage,
+    requiredAcceptance.find((item) => item.code === "LAUNCH-15")
+      .requiredCoverage,
     ["targetEnvironmentRehearsal"],
+  );
+  assert.equal(
+    requiredAcceptance
+      .find((item) => item.code === "LAUNCH-12")
+      .requiredCoverage.includes("thirdPartySystemFamilyDegradationRows"),
+    true,
   );
   assert.equal(
     requiredAcceptance
@@ -344,8 +372,23 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
 
   const missingDialect = structuredClone(complete);
   missingDialect.coverage.databaseDialects =
-    missingDialect.coverage.databaseDialects.filter((item) => item.code !== "DM");
-  assert.throws(() => assertCompleteLaunchCoverage(missingDialect), /五数据库方言/u);
+    missingDialect.coverage.databaseDialects.filter(
+      (item) => item.code !== "DM",
+    );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingDialect),
+    /五数据库方言/u,
+  );
+
+  const missingThirdPartyDegradation = structuredClone(complete);
+  missingThirdPartyDegradation.coverage.thirdPartySystemFamilyDegradationRows =
+    missingThirdPartyDegradation.coverage.thirdPartySystemFamilyDegradationRows.filter(
+      (item) => item.code !== "MODEL_DIFY_AGENT",
+    );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingThirdPartyDegradation),
+    /第三方系统族断连降级行/u,
+  );
 
   const missingTargetRehearsal = structuredClone(complete);
   delete missingTargetRehearsal.coverage.targetEnvironmentRehearsal;
@@ -412,7 +455,13 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
         knowledge: completeStageEvidence()["full-knowledge"].knowledge.map(
           (item, index) =>
             index === 0
-              ? { ...item, runtimeEvidence: { ...item.runtimeEvidence, citationCount: 0 } }
+              ? {
+                  ...item,
+                  runtimeEvidence: {
+                    ...item.runtimeEvidence,
+                    citationCount: 0,
+                  },
+                }
               : item,
         ),
       }),
@@ -428,12 +477,15 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
 });
 
 test("目标环境复演标准化必须保留五类破坏性上线证据", () => {
-  const evidence = buildTargetEnvironmentRehearsalEvidence(targetEnvironmentEvidence(), {
-    now: () => "2026-06-22T09:30:00.000Z",
-    webBaseUrl: "https://193.112.107.134/medkernel",
-    apiBaseUrl: "https://193.112.107.134/medkernel/api/v1",
-    source: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
-  });
+  const evidence = buildTargetEnvironmentRehearsalEvidence(
+    targetEnvironmentEvidence(),
+    {
+      now: () => "2026-06-22T09:30:00.000Z",
+      webBaseUrl: "https://193.112.107.134/medkernel",
+      apiBaseUrl: "https://193.112.107.134/medkernel/api/v1",
+      source: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    },
+  );
 
   assert.equal(evidence.status, "PASSED");
   assert.deepEqual(
@@ -461,7 +513,11 @@ test("目标环境复演 CLI 从外部源证据生成标准阶段证据", () => 
   try {
     const sourcePath = path.join(tempRoot, "source.json");
     const outputPath = path.join(tempRoot, "target-environment.json");
-    writeFileSync(sourcePath, JSON.stringify(targetEnvironmentEvidence()), "utf8");
+    writeFileSync(
+      sourcePath,
+      JSON.stringify(targetEnvironmentEvidence()),
+      "utf8",
+    );
 
     const result = spawnSync(
       process.execPath,
@@ -484,7 +540,9 @@ test("目标环境复演 CLI 从外部源证据生成标准阶段证据", () => 
     const evidence = JSON.parse(readFileSync(outputPath, "utf8"));
     assert.equal(evidence.stage, "TARGET_ENVIRONMENT_REHEARSAL");
     assert.deepEqual(
-      evidence.launchCoverage.targetEnvironmentRehearsal.map((item) => item.code),
+      evidence.launchCoverage.targetEnvironmentRehearsal.map(
+        (item) => item.code,
+      ),
       [
         "BACKUP_RESTORE_BEFORE_CLEAN",
         "CLEAN_DATABASE_V1_ONLY",
@@ -596,7 +654,8 @@ function databaseMigrationEvidence() {
   return {
     status: "PASSED",
     stage: "DATABASE_MIGRATION_BASELINE",
-    schemaSource: "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+    schemaSource:
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
     generator: "scripts/db/generate-migrations.mjs",
     generatorCheck: { exitCode: 0, checkOnly: true },
     conventionGuard: { exitCode: 0, scannedFiles: 5 },
@@ -628,7 +687,8 @@ function targetEnvironmentEvidence() {
       {
         code: "BACKUP_RESTORE_BEFORE_CLEAN",
         status: "PASSED",
-        evidenceRef: "/zoesoft/medkernel-data/evidence/backup-before-clean.json",
+        evidenceRef:
+          "/zoesoft/medkernel-data/evidence/backup-before-clean.json",
         checksumSha256: "d".repeat(64),
       },
       {

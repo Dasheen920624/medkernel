@@ -396,6 +396,24 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "REGIONAL_REMOTE",
     ],
   },
+  thirdPartySystemFamilyDegradationRows: {
+    label: "第三方系统族断连降级行",
+    codes: [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ],
+  },
   diagnosticReportFamilyConsumerMatrix: {
     label: "五类医技报告族真实消费者矩阵",
     codes: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"],
@@ -547,7 +565,10 @@ const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
   {
     code: "LAUNCH-10",
     label: "模型候选生成可用，关闭模型后 B0 主链完整",
-    requiredCoverage: ["modelEnablementSurfaces", "knowledgeSupplyChainEvidenceMatrix"],
+    requiredCoverage: [
+      "modelEnablementSurfaces",
+      "knowledgeSupplyChainEvidenceMatrix",
+    ],
   },
   {
     code: "LAUNCH-11",
@@ -562,6 +583,7 @@ const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
       "serviceCombinations",
       "thirdPartySystemFamilies",
       "thirdPartySystemFamilyConsumerSlices",
+      "thirdPartySystemFamilyDegradationRows",
       "diagnosticReportFamilyConsumerMatrix",
     ],
   },
@@ -573,7 +595,11 @@ const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
   {
     code: "LAUNCH-14",
     label: "完整医疗语义、专病十阶段和全中枢模型赋能矩阵具备代表用例",
-    requiredCoverage: ["semanticFamilies", "specialDiseaseStages", "modelEnablementSurfaces"],
+    requiredCoverage: [
+      "semanticFamilies",
+      "specialDiseaseStages",
+      "modelEnablementSurfaces",
+    ],
   },
   {
     code: "LAUNCH-15",
@@ -812,7 +838,8 @@ export function buildFullSystemStagePlan(config) {
       evidencePath: targetEnvironmentEvidence,
       env: {
         ...common,
-        LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH: config.targetEnvironmentSourcePath,
+        LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH:
+          config.targetEnvironmentSourcePath,
         LAUNCH_TARGET_ENVIRONMENT_EVIDENCE_PATH: targetEnvironmentEvidence,
         LAUNCH_WEB_BASE_URL: config.webBaseUrl,
         LAUNCH_API_BASE_URL: config.apiBaseUrl,
@@ -916,7 +943,8 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     const summary = validateStageEvidence(stage.id, evidence);
     if (stage.id === "launch-coverage") {
       launchCoverage = evidence.coverage;
-      launchAcceptance = evidence.acceptance ?? buildLaunchAcceptance(launchCoverage);
+      launchAcceptance =
+        evidence.acceptance ?? buildLaunchAcceptance(launchCoverage);
     }
     const stageFinishedAt = now(clock);
     const durationMs = elapsedMs(stageStartedAt, stageFinishedAt);
@@ -1207,7 +1235,10 @@ export function buildRequiredLaunchCoverage() {
   );
 }
 
-export function buildTargetEnvironmentRehearsalEvidence(sourceEvidence, options = {}) {
+export function buildTargetEnvironmentRehearsalEvidence(
+  sourceEvidence,
+  options = {},
+) {
   const generatedAt = now(options.now);
   const evidence = {
     ...sourceEvidence,
@@ -1429,7 +1460,10 @@ export function assertCompleteLaunchCoverage(evidence) {
   }
   const acceptance = evidence.acceptance ?? buildLaunchAcceptance(coverage);
   const failed = acceptance.filter((item) => item.status !== "PASSED");
-  if (failed.length > 0 || acceptance.length !== REQUIRED_LAUNCH_ACCEPTANCE.length) {
+  if (
+    failed.length > 0 ||
+    acceptance.length !== REQUIRED_LAUNCH_ACCEPTANCE.length
+  ) {
     throw new Error(
       `完整上线验收总账未全部通过：${failed
         .map((item) => `${item.code} ${item.missingCoverage?.join(",")}`)

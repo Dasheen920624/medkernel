@@ -10,7 +10,7 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第一百九十四批已本地提交：`5cec761bc test: 修复全角色前台报告待办回读`。
+- 第一百九十五批已本地提交：`d7cf4b605 test: 强化134目标环境上线复演门禁`。
   提交后工作树仍只保留无关脏文件 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`，
   不要回滚、不要暂存、不要把 `/tmp` 或 Playwright 原始产物提交进仓库。
 - 用户已暂停“持续推进”并要求校准是否走偏。当前判断：方向仍是全角色真实前台、真实服务链路和上线门禁，
@@ -23,6 +23,38 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第一百九十六批本地推进：接用户再次强调“不是只有知识的功能，是整套系统的功能”，本批不继续知识单点、
+  不执行 134 破坏性动作，而是收口已开始的 `PRODUCT_SCOPE.md` §15 第 12 项缺口：把 13 类第三方系统族
+  `NOT_CONNECTED`/误配/重试/死信/不健康等诚实断连降级行从“全部系统族登记”与“真实消费者代表切片”中独立拆出为
+  `thirdPartySystemFamilyDegradationRows` release 覆盖矩阵，并加入 `LAUNCH-12.requiredCoverage`。
+  这样 release 总账必须看到 13 个系统族均有断连降级行证据，同时继续严格保留
+  `thirdPartySystemFamilies` 的真实消费者、标准资源、降级和审计完整要求，避免用注册/健康诊断证据冒领真实消费者全覆盖。
+- 第一百九十六批实现细节：`scripts/release/full-system-rehearsal-lib.mjs` 新增
+  `thirdPartySystemFamilyDegradationRows` 13 行必需覆盖；`full-system-rehearsal.test.mjs` 与
+  `launch-coverage-audit.test.mjs` 断言完整输出必须含 13 行，并在缺 `MODEL_DIFY_AGENT` 等任一系统族时拒绝放行。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 只在真实
+  `third-party-system-families-rehearsal.spec.ts` 通过、附件列齐 13 类系统族、明确不冒领“完整断连降级”、逐行具备
+  `onboardingId`、`adapterId`、`degradationVerified=true`、`auditVerified=true` 且状态为
+  `NOT_CONNECTED/MISCONFIGURED/RETRYING/DEAD_LETTER/UNHEALTHY` 之一时，才声明
+  `thirdPartySystemFamilyDegradationRows:*`。该逻辑与 `hasRequiredSystemFamilyAttachment()` 分离，
+  不降低真实消费者要求。真实 E2E 附件中登记/健康/质量报告行的 `degradationVerified` 改为 `true`，
+  但仍保持 `consumerVerified=false`、`standardResourceVerified=false`，边界写明真实消费者需由专业链路 E2E 单独证明。
+- 第一百九十六批验证证据：已复跑通过
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  （15 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（353 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/release/platform-baseline-bootstrap.test.mjs`
+  （24 tests）、
+  `node --test scripts/db/generate-migrations.test.mjs scripts/migration-convention-guard.test.mjs`（22 tests）、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与本批触碰的 release 脚本 CRLF 将被 LF 替换，无 whitespace error。
+- 第一百九十六批边界与下一步：本批只是补强第三方系统族断连降级行门禁，仍不是完整上线完成、不是 13 类第三方系统族真实消费者全部完成、
+  不是 34 入口全部业务深度完成、不是 S0-S40 全异常/缺数/高风险/降级矩阵完成、不是全医学资源实际生产完成，
+  也不是 134 清库重部署复演。下一批应从“上线总账驱动”转入真实功能深度：先读取最新 `launchCoverage` 与真实 E2E 附件，
+  按 34 个菜单入口补服务动作、回读、审计、权限和六态；同步推进第三方真实消费者、S0-S40 异常矩阵、采集接入和受控知识生产主链。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存。
 - 第一百九十五批本地推进：接用户再次校准“不是只有知识功能，是整套系统功能”和是否走偏的担忧，本批不继续扩知识单点，
   也不执行 134 破坏性动作，而是收紧 `PRODUCT_SCOPE.md` §15 第 15 项的上线总账门禁：新增独立
   `targetEnvironmentRehearsal` 覆盖矩阵和 `target-environment` 整套演练阶段，明确 134 目标环境最终上线不能再由

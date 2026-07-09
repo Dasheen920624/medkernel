@@ -130,6 +130,12 @@ const thirdPartySystemFamilyClaims = [
   "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
 ];
 
+const thirdPartySystemFamilyDegradationClaims = thirdPartySystemFamilyClaims
+  .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
+  .map((claim) =>
+    claim.replace("thirdPartySystemFamilies:", "thirdPartySystemFamilyDegradationRows:"),
+  );
+
 const s2s4RuntimeMappingClaims = [
   "scenarios:S2",
   "scenarios:S4",
@@ -1230,6 +1236,10 @@ export function buildBrowserE2eLaunchEvidence(input: {
     collectVersionedAssetDedicatedReleaseContractClaims(input.tests);
   if (versionedAssetDedicatedReleaseContractClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, versionedAssetDedicatedReleaseContractClaims, generatedAt);
+  }
+  const thirdPartyDegradationClaims = collectThirdPartySystemFamilyDegradationClaims(input.tests);
+  if (thirdPartyDegradationClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, thirdPartyDegradationClaims, generatedAt);
   }
   return evidence;
 }
@@ -3408,6 +3418,88 @@ function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
   } catch {
     return false;
   }
+}
+
+function collectThirdPartySystemFamilyDegradationClaims(tests: BrowserE2eTestResult[]) {
+  return tests.some(
+    (test) =>
+      path.basename(test.file) === "third-party-system-families-rehearsal.spec.ts" &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      test.title.includes("逐类登记第三方系统族接入并验证断连诚实降级") &&
+      hasCompleteThirdPartySystemFamilyDegradationEvidence(test),
+  )
+    ? thirdPartySystemFamilyDegradationClaims
+    : [];
+}
+
+function hasCompleteThirdPartySystemFamilyDegradationEvidence(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "third-party-system-family-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      systemFamilyCodes?: unknown;
+      consumerEvidence?: unknown;
+      registrationEvidence?: unknown;
+      scopeStatement?: unknown;
+    };
+    if (!Array.isArray(parsed.systemFamilyCodes)) return false;
+    const observed = parsed.systemFamilyCodes
+      .filter((code): code is string => typeof code === "string")
+      .sort();
+    return (
+      JSON.stringify(observed) ===
+        JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort()) &&
+      hasNegatedScopeTerm(textValue(parsed.scopeStatement) ?? "", "完整断连降级") &&
+      hasCompleteThirdPartySystemFamilyDegradationRows(parsed.consumerEvidence) &&
+      hasCompleteThirdPartySystemFamilyRegistrationEvidence(parsed.registrationEvidence)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteThirdPartySystemFamilyRegistrationEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  if (!evidence) return false;
+  return (
+    Number(evidence.adapterTotal) >= requiredThirdPartySystemFamilyCodes.length &&
+    Number(evidence.notConnectedCount) >= 1 &&
+    hasText(evidence.gapSummary) &&
+    /适配器|NOT_CONNECTED|MISCONFIGURED|缺口|未接通/u.test(String(evidence.gapSummary)) &&
+    ["NOT_CONNECTED", "MISCONFIGURED", "UNHEALTHY", "HEALTHY"].includes(
+      textValue(evidence.sampledHealthStatus) ?? "",
+    )
+  );
+}
+
+function hasCompleteThirdPartySystemFamilyDegradationRows(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const evidenceByFamily = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const evidence = recordValue(item);
+    const code = textValue(evidence?.systemFamilyCode);
+    if (evidence && code) {
+      evidenceByFamily.set(code, evidence);
+    }
+  }
+  return requiredThirdPartySystemFamilyCodes.every((code) => {
+    const evidence = evidenceByFamily.get(code);
+    const status = textValue(evidence?.healthStatus);
+    return (
+      evidence !== undefined &&
+      hasText(evidence.onboardingId) &&
+      hasText(evidence.adapterId) &&
+      evidence.degradationVerified === true &&
+      evidence.auditVerified === true &&
+      status !== "HEALTHY" &&
+      ["NOT_CONNECTED", "MISCONFIGURED", "RETRYING", "DEAD_LETTER", "UNHEALTHY"].includes(
+        status ?? "",
+      )
+    );
+  });
 }
 
 function hasCompleteThirdPartySystemFamilyConsumerEvidence(value: unknown) {

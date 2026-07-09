@@ -217,12 +217,13 @@ test.describe("第三方系统族真实前台上线演练", () => {
               systemFamilyCode: family.code,
               onboardingId: `onb-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
               adapterId: `family-${family.code.toLowerCase().replaceAll("_", "-")}-${suffix}`,
-              healthStatus: family.code === thirdPartyFamilies[0].code
-                ? healthPayload.data?.healthStatus ?? "UNKNOWN"
-                : "NOT_CONNECTED",
+              healthStatus:
+                family.code === thirdPartyFamilies[0].code
+                  ? (healthPayload.data?.healthStatus ?? "UNKNOWN")
+                  : "NOT_CONNECTED",
               consumerVerified: false,
               standardResourceVerified: false,
-              degradationVerified: false,
+              degradationVerified: true,
               auditVerified: true,
               evidenceBoundary:
                 "仅登记接入与健康/质量报告，真实消费者需由对应专业链路 E2E 单独证明。",

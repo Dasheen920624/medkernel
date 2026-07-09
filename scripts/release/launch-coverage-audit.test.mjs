@@ -115,21 +115,28 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       "HOSPITAL_EXECUTIVE",
     ],
   );
-  assert.deepEqual(evidence.coverage.versionedAssetDedicatedReleaseContractMatrix, [
-    {
-      code: "TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
-      status: "PASSED",
-      evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
-      evidenceKey:
-        "launchCoverage.versionedAssetDedicatedReleaseContractMatrix.TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
-      observedCode: "TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
-      observedStatus: "PASSED",
-      observedAt: "2026-06-22T09:00:00.000Z",
-    },
-  ]);
   assert.deepEqual(
-    evidence.coverage.versionedAssetDedicatedReleaseContractRows.map((item) => item.code),
+    evidence.coverage.versionedAssetDedicatedReleaseContractMatrix,
+    [
+      {
+        code: "TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+        status: "PASSED",
+        evidenceStage: "browser-e2e",
+        evidencePath:
+          "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+        evidenceKey:
+          "launchCoverage.versionedAssetDedicatedReleaseContractMatrix.TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+        observedCode:
+          "TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+        observedStatus: "PASSED",
+        observedAt: "2026-06-22T09:00:00.000Z",
+      },
+    ],
+  );
+  assert.deepEqual(
+    evidence.coverage.versionedAssetDedicatedReleaseContractRows.map(
+      (item) => item.code,
+    ),
     ["TERMINOLOGY", "FIELD_CATALOG", "PATHWAY"],
   );
   assert.deepEqual(evidence.coverage.knowledgeSupplyChainEvidenceMatrix, [
@@ -137,7 +144,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.knowledgeSupplyChainEvidenceMatrix.CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
       observedCode: "CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
@@ -161,7 +169,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.launchReadinessStakeholderMatrix.IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
       observedCode: "IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
@@ -182,7 +191,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.implementationGuideEntryCoreActions.IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
       observedCode: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
@@ -191,7 +201,9 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
     },
   ]);
   assert.deepEqual(
-    evidence.coverage.implementationGuideEntryCoreActionRows.map((item) => item.code),
+    evidence.coverage.implementationGuideEntryCoreActionRows.map(
+      (item) => item.code,
+    ),
     ["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"],
   );
   assert.deepEqual(evidence.coverage.dashboardWorkbenchCoreActions, [
@@ -199,7 +211,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.dashboardWorkbenchCoreActions.FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
       observedCode: "FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
@@ -216,7 +229,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "ALL_34_MENU_ENTRY_CORE_ACTIONS",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.menuEntryCoreActions.ALL_34_MENU_ENTRY_CORE_ACTIONS",
       observedCode: "ALL_34_MENU_ENTRY_CORE_ACTIONS",
@@ -268,7 +282,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.complianceWorkbenchPersonalEntryMatrix.COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
       observedCode: "COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
@@ -277,7 +292,9 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
     },
   ]);
   assert.deepEqual(
-    evidence.coverage.complianceWorkbenchPersonalEntryRows.map((item) => item.code),
+    evidence.coverage.complianceWorkbenchPersonalEntryRows.map(
+      (item) => item.code,
+    ),
     [
       "SECURITY_BASELINE_CONFIG_CHANGE",
       "AUDIT_EVIDENCE_EXPORT_VERIFY",
@@ -291,7 +308,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.thirdPartySystemFamilyConsumerSlices.PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
       observedCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
@@ -302,8 +320,10 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "PHARMACY_REVIEW",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
-      evidenceKey: "launchCoverage.thirdPartySystemFamilyConsumerSlices.PHARMACY_REVIEW",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.thirdPartySystemFamilyConsumerSlices.PHARMACY_REVIEW",
       observedCode: "PHARMACY_REVIEW",
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
@@ -312,7 +332,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "PUBLIC_HEALTH_INFECTION_REGULATORY",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.thirdPartySystemFamilyConsumerSlices.PUBLIC_HEALTH_INFECTION_REGULATORY",
       observedCode: "PUBLIC_HEALTH_INFECTION_REGULATORY",
@@ -323,7 +344,8 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.thirdPartySystemFamilyConsumerSlices.NURSING_ANESTHESIA_TRANSFUSION_ICU",
       observedCode: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
@@ -334,8 +356,10 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "LIS_MONITORING_CRITICAL",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
-      evidenceKey: "launchCoverage.thirdPartySystemFamilyConsumerSlices.LIS_MONITORING_CRITICAL",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.thirdPartySystemFamilyConsumerSlices.LIS_MONITORING_CRITICAL",
       observedCode: "LIS_MONITORING_CRITICAL",
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
@@ -344,19 +368,42 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       code: "REGIONAL_REMOTE",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
-      evidenceKey: "launchCoverage.thirdPartySystemFamilyConsumerSlices.REGIONAL_REMOTE",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.thirdPartySystemFamilyConsumerSlices.REGIONAL_REMOTE",
       observedCode: "REGIONAL_REMOTE",
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
     },
   ]);
+  assert.deepEqual(
+    evidence.coverage.thirdPartySystemFamilyDegradationRows.map(
+      (item) => item.code,
+    ),
+    [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ],
+  );
   assert.deepEqual(evidence.coverage.diagnosticReportFamilyConsumerMatrix, [
     {
       code: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
       status: "PASSED",
       evidenceStage: "browser-e2e",
-      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
         "launchCoverage.diagnosticReportFamilyConsumerMatrix.PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
       observedCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
@@ -479,14 +526,32 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
     /全部第三方系统族.*MODEL_DIFY_AGENT.*缺少前置阶段证据/u,
   );
 
+  const missingThirdPartyDegradation = completeStageEvidence();
+  missingThirdPartyDegradation[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyDegradationRows =
+    missingThirdPartyDegradation[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyDegradationRows.filter(
+      (item) => item.code !== "MODEL_DIFY_AGENT",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingThirdPartyDegradation),
+      }),
+    /第三方系统族断连降级行.*MODEL_DIFY_AGENT.*缺少前置阶段证据/u,
+  );
+
   const missingDiagnosticConsumer = completeStageEvidence();
   missingDiagnosticConsumer[
     "browser-e2e"
-  ].launchCoverage.thirdPartySystemFamilyConsumerSlices = missingDiagnosticConsumer[
-    "browser-e2e"
-  ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
-    (item) => item.code !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
-  );
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices =
+    missingDiagnosticConsumer[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+      (item) => item.code !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -498,11 +563,12 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   const missingPharmacyConsumer = completeStageEvidence();
   missingPharmacyConsumer[
     "browser-e2e"
-  ].launchCoverage.thirdPartySystemFamilyConsumerSlices = missingPharmacyConsumer[
-    "browser-e2e"
-  ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
-    (item) => item.code !== "PHARMACY_REVIEW",
-  );
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices =
+    missingPharmacyConsumer[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+      (item) => item.code !== "PHARMACY_REVIEW",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -514,11 +580,12 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   const missingRegionalConsumer = completeStageEvidence();
   missingRegionalConsumer[
     "browser-e2e"
-  ].launchCoverage.thirdPartySystemFamilyConsumerSlices = missingRegionalConsumer[
-    "browser-e2e"
-  ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
-    (item) => item.code !== "REGIONAL_REMOTE",
-  );
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices =
+    missingRegionalConsumer[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+      (item) => item.code !== "REGIONAL_REMOTE",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -530,11 +597,12 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   const missingDiagnosticMatrix = completeStageEvidence();
   missingDiagnosticMatrix[
     "browser-e2e"
-  ].launchCoverage.diagnosticReportFamilyConsumerMatrix = missingDiagnosticMatrix[
-    "browser-e2e"
-  ].launchCoverage.diagnosticReportFamilyConsumerMatrix.filter(
-    (item) => item.code !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
-  );
+  ].launchCoverage.diagnosticReportFamilyConsumerMatrix =
+    missingDiagnosticMatrix[
+      "browser-e2e"
+    ].launchCoverage.diagnosticReportFamilyConsumerMatrix.filter(
+      (item) => item.code !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -546,11 +614,12 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   const missingCompliancePersonal = completeStageEvidence();
   missingCompliancePersonal[
     "browser-e2e"
-  ].launchCoverage.complianceWorkbenchPersonalEntryRows = missingCompliancePersonal[
-    "browser-e2e"
-  ].launchCoverage.complianceWorkbenchPersonalEntryRows.filter(
-    (item) => item.code !== "NOTIFICATION_SETTINGS_SAVE",
-  );
+  ].launchCoverage.complianceWorkbenchPersonalEntryRows =
+    missingCompliancePersonal[
+      "browser-e2e"
+    ].launchCoverage.complianceWorkbenchPersonalEntryRows.filter(
+      (item) => item.code !== "NOTIFICATION_SETTINGS_SAVE",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -562,11 +631,13 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   const missingImplementationGuide = completeStageEvidence();
   missingImplementationGuide[
     "browser-e2e"
-  ].launchCoverage.implementationGuideEntryCoreActionRows = missingImplementationGuide[
-    "browser-e2e"
-  ].launchCoverage.implementationGuideEntryCoreActionRows.filter(
-    (item) => item.code !== "IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
-  );
+  ].launchCoverage.implementationGuideEntryCoreActionRows =
+    missingImplementationGuide[
+      "browser-e2e"
+    ].launchCoverage.implementationGuideEntryCoreActionRows.filter(
+      (item) =>
+        item.code !== "IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -592,9 +663,12 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   );
 
   const missingMenuEntry = completeStageEvidence();
-  missingMenuEntry["browser-e2e"].launchCoverage.menuEntryCoreActionRows = missingMenuEntry[
-    "browser-e2e"
-  ].launchCoverage.menuEntryCoreActionRows.filter((item) => item.code !== "insurance-audit");
+  missingMenuEntry["browser-e2e"].launchCoverage.menuEntryCoreActionRows =
+    missingMenuEntry[
+      "browser-e2e"
+    ].launchCoverage.menuEntryCoreActionRows.filter(
+      (item) => item.code !== "insurance-audit",
+    );
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
@@ -983,6 +1057,19 @@ function completeStageEvidence(options = {}) {
     "thirdPartySystemFamilies:SPD_UDI_DEVICE",
     "thirdPartySystemFamilies:RESEARCH_ETHICS_DATA",
     "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
+    "thirdPartySystemFamilyDegradationRows:HIS_EMR_CDR",
+    "thirdPartySystemFamilyDegradationRows:LIS_MONITORING_CRITICAL",
+    "thirdPartySystemFamilyDegradationRows:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    "thirdPartySystemFamilyDegradationRows:PHARMACY_REVIEW",
+    "thirdPartySystemFamilyDegradationRows:NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    "thirdPartySystemFamilyDegradationRows:MEDICAL_RECORD_INSURANCE_PAYMENT",
+    "thirdPartySystemFamilyDegradationRows:PUBLIC_HEALTH_INFECTION_REGULATORY",
+    "thirdPartySystemFamilyDegradationRows:FOLLOWUP_PATIENT_SERVICE",
+    "thirdPartySystemFamilyDegradationRows:CA_OIDC_SSO_HR",
+    "thirdPartySystemFamilyDegradationRows:REGIONAL_REMOTE",
+    "thirdPartySystemFamilyDegradationRows:SPD_UDI_DEVICE",
+    "thirdPartySystemFamilyDegradationRows:RESEARCH_ETHICS_DATA",
+    "thirdPartySystemFamilyDegradationRows:MODEL_DIFY_AGENT",
     "specialDiseaseStages:SCREENING_TRIAGE",
     "specialDiseaseStages:DIAGNOSIS_DIFFERENTIAL",
     "specialDiseaseStages:RISK_STRATIFICATION",
@@ -1002,7 +1089,8 @@ function databaseMigrationEvidence() {
   return {
     status: "PASSED",
     stage: "DATABASE_MIGRATION_BASELINE",
-    schemaSource: "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+    schemaSource:
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
     generator: "scripts/db/generate-migrations.mjs",
     generatorCheck: { exitCode: 0, checkOnly: true },
     conventionGuard: { exitCode: 0, scannedFiles: 5 },
@@ -1030,7 +1118,8 @@ function targetEnvironmentEvidence() {
       {
         code: "BACKUP_RESTORE_BEFORE_CLEAN",
         status: "PASSED",
-        evidenceRef: "/zoesoft/medkernel-data/evidence/backup-before-clean.json",
+        evidenceRef:
+          "/zoesoft/medkernel-data/evidence/backup-before-clean.json",
         checksumSha256: "d".repeat(64),
       },
       {
