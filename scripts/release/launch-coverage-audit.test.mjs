@@ -60,7 +60,13 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   assert.equal(evidence.status, "PASSED");
   assert.deepEqual(
     Object.values(evidence.stageStatus),
-    Array(7).fill("PASSED"),
+    Array(8).fill("PASSED"),
+  );
+  assert.equal(evidence.coverage.databaseDialects.length, 5);
+  assert.equal(evidence.acceptance.length, 15);
+  assert.equal(
+    evidence.acceptance.find((item) => item.code === "LAUNCH-11")?.status,
+    "PASSED",
   );
   assert.equal(evidence.coverage.standardPatientResources.length, 13);
   assert.equal(evidence.coverage.versionedAssets.length, 13);
@@ -567,6 +573,7 @@ function readKnownEvidence(stageEvidence) {
 function completeStageEvidence(options = {}) {
   const includeLaunchCoverage = options.includeLaunchCoverage !== false;
   const evidence = {
+    "database-migrations": databaseMigrationEvidence(),
     "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
     "model-provider": {
       status: "PASSED",
@@ -633,6 +640,14 @@ function completeStageEvidence(options = {}) {
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
   };
   if (!includeLaunchCoverage) return evidence;
+  evidence["database-migrations"].launchCoverage = launchCoverageClaims([
+    "databaseMigrationSource:SINGLE_SCHEMA_GENERATOR_CHECK",
+    "databaseDialects:POSTGRES",
+    "databaseDialects:KINGBASE",
+    "databaseDialects:ORACLE",
+    "databaseDialects:DM",
+    "databaseDialects:H2",
+  ]);
   evidence["account-bootstrap"].launchCoverage = launchCoverageClaims([
     "productLayers:FOUNDATION_GOVERNANCE",
     "organizationLevels:PLATFORM",
@@ -705,6 +720,42 @@ function completeStageEvidence(options = {}) {
     "productLayers:RELEASE_GOVERNANCE",
     "productLayers:CLINICAL_EXECUTION",
     "productLayers:DELIVERY_FEEDBACK",
+    "standardPatientResourceConsumerMatrix:THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE",
+    "standardPatientResourceRepresentativeRows:Patient",
+    "standardPatientResourceRepresentativeRows:AllergyIntolerance",
+    "standardPatientResourceRepresentativeRows:Encounter",
+    "standardPatientResourceRepresentativeRows:Condition",
+    "standardPatientResourceRepresentativeRows:NursingAssessment",
+    "standardPatientResourceRepresentativeRows:Observation",
+    "standardPatientResourceRepresentativeRows:DiagnosticReport",
+    "standardPatientResourceRepresentativeRows:Medication",
+    "standardPatientResourceRepresentativeRows:Procedure",
+    "standardPatientResourceRepresentativeRows:Document",
+    "standardPatientResourceRepresentativeRows:CarePlan",
+    "standardPatientResourceRepresentativeRows:FollowUp",
+    "standardPatientResourceRepresentativeRows:Claim",
+    "versionedAssetSupplyChainMatrix:THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE",
+    "versionedAssetRepresentativeRows:KNOWLEDGE",
+    "versionedAssetRepresentativeRows:TERMINOLOGY",
+    "versionedAssetRepresentativeRows:RULE",
+    "versionedAssetRepresentativeRows:PATHWAY",
+    "versionedAssetRepresentativeRows:EVALUATION",
+    "versionedAssetRepresentativeRows:FOLLOWUP",
+    "versionedAssetRepresentativeRows:FIELD_CATALOG",
+    "versionedAssetRepresentativeRows:SAFETY",
+    "versionedAssetRepresentativeRows:CDSS_RISK",
+    "versionedAssetRepresentativeRows:VALUE_SET",
+    "versionedAssetRepresentativeRows:FORMULA",
+    "versionedAssetRepresentativeRows:ORDER_SET",
+    "versionedAssetRepresentativeRows:ACTION_CARD",
+    "versionedAssetRollbackRepresentativeMatrix:GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE",
+    "versionedAssetRollbackRepresentativeRows:SAFETY",
+    "versionedAssetRollbackRepresentativeRows:CDSS_RISK",
+    "versionedAssetRollbackRepresentativeRows:VALUE_SET",
+    "versionedAssetRollbackRepresentativeRows:FORMULA",
+    "versionedAssetRollbackRepresentativeRows:PATHWAY",
+    "versionedAssetRollbackRepresentativeRows:ORDER_SET",
+    "versionedAssetRollbackRepresentativeRows:EVALUATION",
     "versionedAssetDedicatedReleaseContractMatrix:TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
     "versionedAssetDedicatedReleaseContractRows:TERMINOLOGY",
     "versionedAssetDedicatedReleaseContractRows:FIELD_CATALOG",
@@ -727,6 +778,13 @@ function completeStageEvidence(options = {}) {
     "dashboardWorkbenchCoreActionRows:ENGINE_OPERATOR",
     "dashboardWorkbenchCoreActionRows:CLINICAL_USER",
     "dashboardWorkbenchCoreActionRows:AUDITOR",
+    "roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS",
+    "entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
+    "platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS",
+    "platformAdminP1EntryCoreActions:RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK",
+    "clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
+    "qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE",
+    "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
     "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
     "complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE",
     "complianceWorkbenchPersonalEntryRows:AUDIT_EVIDENCE_EXPORT_VERIFY",
@@ -816,6 +874,24 @@ function completeStageEvidence(options = {}) {
     "specialDiseaseStages:QUALITY_ITERATION",
   ]);
   return evidence;
+}
+
+function databaseMigrationEvidence() {
+  const dialects = ["POSTGRES", "KINGBASE", "ORACLE", "DM", "H2"];
+  return {
+    status: "PASSED",
+    stage: "DATABASE_MIGRATION_BASELINE",
+    schemaSource: "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+    generator: "scripts/db/generate-migrations.mjs",
+    generatorCheck: { exitCode: 0, checkOnly: true },
+    conventionGuard: { exitCode: 0, scannedFiles: 5 },
+    dialects: dialects.map((code) => ({
+      code,
+      baselineFile: `medkernel-backend/src/main/resources/db/migration/${code.toLowerCase()}/V1__baseline.sql`,
+      artifactCount: 1,
+      contentSha256: "c".repeat(64),
+    })),
+  };
 }
 
 function launchCoverageClaims(entries) {

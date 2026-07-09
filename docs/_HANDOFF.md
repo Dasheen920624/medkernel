@@ -23,6 +23,42 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第一百九十二批本地推进：接用户纠偏“不是只有知识功能，而是整套系统功能”和长目标续跑要求，本批从局部知识/代表切片
+  回到上线总账驱动，只做非破坏、可本地验证且能防止总账冒领的一刀：把 `PRODUCT_SCOPE.md` §15 的 15 项完整上线验收
+  显式落成 release 总账门禁，并把五数据库方言迁移从文档口径提升为整套演练第一阶段真实证据。范围仍是上线门禁和契约纠偏，
+  不是 34 入口全部真实业务动作闭环、不是完整全医学知识生产、不是 S0-S40 全异常/缺数/高风险/降级矩阵完成，也不是
+  134 清库、重部署、备份恢复或全功能全知识复演完成。
+- 第一百九十二批实现细节：`scripts/release/full-system-rehearsal-lib.mjs` 新增 `database-migrations` 阶段，
+  整套演练由 8 阶段扩为 9 阶段；新增 `databaseMigrationSource:SINGLE_SCHEMA_GENERATOR_CHECK` 与
+  `databaseDialects:POSTGRES/KINGBASE/ORACLE/DM/H2` 覆盖矩阵；新增 `buildRequiredLaunchAcceptance()` /
+  `buildLaunchAcceptance()`，总索引和 `launch-coverage.json` 都输出 15 项 `acceptance`，且
+  `assertCompleteLaunchCoverage()` 会拒绝任何未通过的总账项。新增
+  `scripts/release/database-migration-baseline.mjs`，真实运行
+  `node scripts/db/generate-migrations.mjs --check` 与
+  `node scripts/migration-convention-guard.mjs --mode=all`，并对五份 `V1__baseline.sql` 计算 SHA-256 后写出
+  `DATABASE_MIGRATION_BASELINE` 证据。`launch-coverage-audit.mjs` 现读取
+  `database-migrations.json`，并修复中文路径下 `import.meta.url === file://...` 导致 CLI 主入口不执行的问题。
+- 第一百九十二批前台覆盖契约纠偏：release 总审计补认前台真实 E2E 已能产出的标准资源消费者矩阵、13 类版本化资产供给链、
+  回滚负向消费者、四职责/入口核心动作、平台管理员 P0/P1、临床协同、质量管理和知识运营资产入口族矩阵；其中
+  `versionedAssetKnownGaps` 作为可选白名单矩阵处理，出现时必须有真实前置证据，但不会被当成必须全量通过的正向覆盖。
+  同时修正 `frontend/e2e/support/launchCoverageEvidence.ts` 与三个真实前台附件：
+  `QUALITY_IMPROVEMENT` 保留在 `serviceCombinations`，不再声明为 `productLayers`，避免把质量改进误当成第七层产品能力并导致
+  真实全量 E2E 输出被 release 总审计拒绝。
+- 第一百九十二批验证证据：已复跑通过
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（13 tests）、
+  `node --test scripts/db/generate-migrations.test.mjs scripts/migration-convention-guard.test.mjs`（22 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（350 tests）、
+  `LAUNCH_DATABASE_MIGRATION_EVIDENCE_PATH=<tmp>/database-migrations.json node scripts/release/database-migration-baseline.mjs`
+  （输出 `PASSED DATABASE_MIGRATION_BASELINE dialects=POSTGRES,KINGBASE,ORACLE,DM,H2 scanned=5`）、
+  `node scripts/db/generate-migrations.mjs --check`、
+  `node scripts/migration-convention-guard.mjs --mode=all`、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与几个脚本文件 CRLF 将被 LF 替换，无 whitespace error。
+- 第一百九十二批边界与下一步：本批让“上线总账”和“五方言迁移”可被机器门禁消费，但仍没有完成最终上线目标。
+  下一批应继续按 15 项总账推进真实功能，而不是继续单点扩矩阵：优先沿 34 个菜单入口补真实业务动作、服务回读、六态、权限和审计；
+  同步推进 13 类版本化资产/11 类知识内容分类的实际生产链和运行消费者证据；继续补第三方系统族断连降级、S0-S40 异常/缺数/高风险/降级矩阵。
+  134 清库 V1、重部署、备份恢复、公网模型 Provider 和真实第三方回调仍属 destructive/external，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 用户最新补充：知识生产不能只覆盖少量代表样例，必须面向整个系统运行所需的全部医疗知识与术语资源，
   包括但不限于字典、标准术语、指南、共识、法规、药品说明书、检验检查说明书、护理 / 药事 / 医技 / 质控 /
   医保 / 公卫 / 中医药等领域知识、值集、公式、安全红线、规则 / 路径依赖、医嘱套餐和动作卡。后续设计要支持

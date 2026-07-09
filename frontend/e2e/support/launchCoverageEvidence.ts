@@ -286,7 +286,6 @@ const pharmacyReviewAntimicrobialFrontdeskClaims = [
   "scenarios:S31",
   "productLayers:CLINICAL_EXECUTION",
   "productLayers:DATA_INTEROPERABILITY",
-  "productLayers:QUALITY_IMPROVEMENT",
   "versionedAssets:TERMINOLOGY",
   "versionedAssets:SAFETY",
   "versionedAssets:CDSS_RISK",
@@ -305,7 +304,6 @@ const infectionPublicHealthSafetyFrontdeskClaims = [
   "scenarios:S32",
   "productLayers:CLINICAL_EXECUTION",
   "productLayers:DATA_INTEROPERABILITY",
-  "productLayers:QUALITY_IMPROVEMENT",
   "versionedAssets:TERMINOLOGY",
   "versionedAssets:RULE",
   "versionedAssets:ACTION_CARD",
@@ -321,7 +319,6 @@ const surgeryAnesthesiaTransfusionFrontdeskClaims = [
   "scenarios:S26",
   "productLayers:CLINICAL_EXECUTION",
   "productLayers:DATA_INTEROPERABILITY",
-  "productLayers:QUALITY_IMPROVEMENT",
   "versionedAssets:TERMINOLOGY",
   "versionedAssets:SAFETY",
   "versionedAssets:CDSS_RISK",
@@ -3872,7 +3869,6 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
       !arrayEquals(parsed.productLayers, [
         "CLINICAL_EXECUTION",
         "DATA_INTEROPERABILITY",
-        "QUALITY_IMPROVEMENT",
       ]) ||
       !arrayEquals(parsed.versionedAssets, [
         "TERMINOLOGY",
@@ -4003,7 +3999,6 @@ function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: Browser
       !arrayEquals(parsed.productLayers, [
         "CLINICAL_EXECUTION",
         "DATA_INTEROPERABILITY",
-        "QUALITY_IMPROVEMENT",
       ]) ||
       !arrayEquals(parsed.versionedAssets, ["TERMINOLOGY", "RULE", "ACTION_CARD"]) ||
       !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
@@ -4118,7 +4113,6 @@ function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: Browse
       !arrayEquals(parsed.productLayers, [
         "CLINICAL_EXECUTION",
         "DATA_INTEROPERABILITY",
-        "QUALITY_IMPROVEMENT",
       ]) ||
       !arrayEquals(parsed.versionedAssets, [
         "TERMINOLOGY",

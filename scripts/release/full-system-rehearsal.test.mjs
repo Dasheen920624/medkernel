@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   assertCompleteLaunchCoverage,
   buildFullSystemStagePlan,
+  buildRequiredLaunchAcceptance,
   buildRequiredLaunchCoverage,
   readFullSystemRehearsalConfig,
   runFullSystemRehearsal,
@@ -18,13 +19,14 @@ const MANIFEST_PATH = fileURLToPath(
   ),
 );
 
-test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
+test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
   const config = rehearsalConfig();
   const plan = buildFullSystemStagePlan(config);
 
   assert.deepEqual(
     plan.map((stage) => stage.id),
     [
+      "database-migrations",
       "account-bootstrap",
       "model-provider",
       "full-knowledge",
@@ -35,35 +37,45 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
       "launch-coverage",
     ],
   );
-  assert.equal(plan[0].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[1].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
-  assert.equal(plan[2].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
-  assert.equal(plan[3].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[3].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
   assert.equal(
-    plan[3].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith(
+    plan[0].env.LAUNCH_DATABASE_MIGRATION_EVIDENCE_PATH.endsWith(
+      "/database-migrations.json",
+    ),
+    true,
+  );
+  assert.equal(plan[1].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[2].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
+  assert.equal(plan[3].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
+  assert.equal(plan[4].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[4].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
+  assert.equal(
+    plan[4].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith(
       "/platform-baseline.json",
     ),
     true,
   );
-  assert.equal(plan[3].label, "平台字段目录与全知识权威基线");
-  assert.equal(plan[4].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[4].label, "演练机构十规则四十用例与机构生效版本");
-  assert.equal(plan[5].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
+  assert.equal(plan[4].label, "平台字段目录与全知识权威基线");
   assert.equal(plan[5].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[6].cwd.endsWith("/frontend"), true);
-  assert.equal(plan[6].env.E2E_EXTERNAL_DEPLOYMENT, "1");
-  assert.equal(plan[6].env.E2E_EXPECT_MFA_DISABLED, "1");
-  assert.equal(plan[6].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
+  assert.equal(plan[5].label, "演练机构十规则四十用例与机构生效版本");
+  assert.equal(plan[6].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
+  assert.equal(plan[6].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[7].cwd.endsWith("/frontend"), true);
+  assert.equal(plan[7].env.E2E_EXTERNAL_DEPLOYMENT, "1");
+  assert.equal(plan[7].env.E2E_EXPECT_MFA_DISABLED, "1");
+  assert.equal(plan[7].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
   assert.equal(
-    plan[7].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"),
+    plan[8].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"),
     true,
   );
-  assert.equal(plan[7].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
+  assert.equal(plan[8].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
 
   const requiredCoverage = buildRequiredLaunchCoverage();
   assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
   assert.equal(requiredCoverage.scenarios[0].evidenceStage, null);
+  assert.deepEqual(
+    requiredCoverage.databaseDialects.map((item) => item.code),
+    ["POSTGRES", "KINGBASE", "ORACLE", "DM", "H2"],
+  );
   assert.equal(
     requiredCoverage.deliveryShapes.some(
       (item) => item.code === "MANAGEMENT_WORKSPACE",
@@ -74,7 +86,13 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
     requiredCoverage.deliveryShapes.some(
       (item) => item.code === "MANAGEMENT_CONSOLE",
     ),
-    false,
+      false,
+  );
+  const requiredAcceptance = buildRequiredLaunchAcceptance();
+  assert.equal(requiredAcceptance.length, 15);
+  assert.deepEqual(
+    requiredAcceptance.find((item) => item.code === "LAUNCH-11").requiredCoverage,
+    ["databaseMigrationSource", "databaseDialects"],
   );
 });
 
@@ -129,6 +147,7 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
     /sandbox 阶段失败/u,
   );
   assert.deepEqual(executed, [
+    "database-migrations",
     "account-bootstrap",
     "model-provider",
     "full-knowledge",
@@ -137,9 +156,10 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
   ]);
 });
 
-test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
+test("九阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
   const coverageEvidence = completeLaunchCoverageEvidence();
   const evidenceByStage = {
+    "database-migrations": databaseMigrationEvidence(),
     "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
     "model-provider": {
       status: "PASSED",
@@ -190,7 +210,7 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
 
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
-  assert.equal(result.stages.length, 8);
+  assert.equal(result.stages.length, 9);
   assert.deepEqual(
     result.coverage.scenarios,
     coverageEvidence.coverage.scenarios,
@@ -198,6 +218,12 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.deepEqual(
     result.coverage.versionedAssets,
     coverageEvidence.coverage.versionedAssets,
+  );
+  assert.equal(result.coverage.databaseDialects.length, 5);
+  assert.equal(result.acceptance.length, 15);
+  assert.equal(
+    result.acceptance.find((item) => item.code === "LAUNCH-11")?.status,
+    "PASSED",
   );
   assert.equal(result.coverage.standardPatientResources.length, 13);
   assert.equal(result.coverage.deliveryShapes.length, 5);
@@ -207,7 +233,7 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(written[0].value.status, "PASSED");
 });
 
-test("整套演练持续输出八阶段进度并在总索引记录阶段耗时", async () => {
+test("整套演练持续输出九阶段进度并在总索引记录阶段耗时", async () => {
   const progress = [];
   const result = await runFullSystemRehearsal(rehearsalConfig(), {
     runCommand: async () => ({ exitCode: 0 }),
@@ -218,19 +244,19 @@ test("整套演练持续输出八阶段进度并在总索引记录阶段耗时",
   });
 
   assert.equal(progress[0].type, "stage-start");
-  assert.equal(progress[0].stageId, "account-bootstrap");
+  assert.equal(progress[0].stageId, "database-migrations");
   assert.ok(
     progress.some(
       (event) =>
         event.type === "stage-complete" &&
         event.stageId === "full-knowledge" &&
-        event.completed === 3 &&
+        event.completed === 4 &&
         event.remaining === 5 &&
         event.durationMs > 0,
     ),
   );
   assert.equal(progress.at(-1).type, "rehearsal-complete");
-  assert.equal(progress.at(-1).stageCount, 8);
+  assert.equal(progress.at(-1).stageCount, 9);
   assert.ok(result.stages.every((stage) => stage.durationMs > 0));
 });
 
@@ -242,6 +268,11 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   missingScenario.coverage.scenarios =
     missingScenario.coverage.scenarios.filter((item) => item.code !== "S40");
   assert.throws(() => assertCompleteLaunchCoverage(missingScenario), /S0–S40/u);
+
+  const missingDialect = structuredClone(complete);
+  missingDialect.coverage.databaseDialects =
+    missingDialect.coverage.databaseDialects.filter((item) => item.code !== "DM");
+  assert.throws(() => assertCompleteLaunchCoverage(missingDialect), /五数据库方言/u);
 
   const skippedAsset = structuredClone(complete);
   skippedAsset.coverage.versionedAssets[0].status = "SKIPPED";
@@ -330,12 +361,8 @@ function completeLaunchCoverageRows() {
       rows.map((row) => ({
         ...row,
         status: "PASSED",
-        evidenceStage:
-          key === "knowledgeDomains" ? "full-knowledge" : "browser-e2e",
-        evidencePath:
-          key === "knowledgeDomains"
-            ? "/var/lib/medkernel/evidence/current-launch/full-knowledge.json"
-            : "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+        evidenceStage: evidenceStageForCoverageKey(key),
+        evidencePath: evidencePathForCoverageKey(key),
         evidenceKey: `launchCoverage.${key}.${row.code}`,
         observedCode: row.code,
         observedStatus: "PASSED",
@@ -345,8 +372,27 @@ function completeLaunchCoverageRows() {
   );
 }
 
+function evidenceStageForCoverageKey(key) {
+  if (key === "knowledgeDomains") return "full-knowledge";
+  if (key === "databaseDialects" || key === "databaseMigrationSource") {
+    return "database-migrations";
+  }
+  return "browser-e2e";
+}
+
+function evidencePathForCoverageKey(key) {
+  if (key === "knowledgeDomains") {
+    return "/var/lib/medkernel/evidence/current-launch/full-knowledge.json";
+  }
+  if (key === "databaseDialects" || key === "databaseMigrationSource") {
+    return "/var/lib/medkernel/evidence/current-launch/database-migrations.json";
+  }
+  return "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json";
+}
+
 function completeStageEvidence() {
   return {
+    "database-migrations": databaseMigrationEvidence(),
     "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
     "model-provider": {
       status: "PASSED",
@@ -387,6 +433,42 @@ function completeStageEvidence() {
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
     "launch-coverage": completeLaunchCoverageEvidence(),
   };
+}
+
+function databaseMigrationEvidence() {
+  const dialects = ["POSTGRES", "KINGBASE", "ORACLE", "DM", "H2"];
+  return {
+    status: "PASSED",
+    stage: "DATABASE_MIGRATION_BASELINE",
+    schemaSource: "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+    generator: "scripts/db/generate-migrations.mjs",
+    generatorCheck: { exitCode: 0, checkOnly: true },
+    conventionGuard: { exitCode: 0, scannedFiles: 5 },
+    dialects: dialects.map((code) => ({
+      code,
+      baselineFile: `medkernel-backend/src/main/resources/db/migration/${code.toLowerCase()}/V1__baseline.sql`,
+      artifactCount: 1,
+      contentSha256: "c".repeat(64),
+    })),
+    launchCoverage: testLaunchCoverageClaims([
+      ["databaseMigrationSource", "SINGLE_SCHEMA_GENERATOR_CHECK"],
+      ...dialects.map((code) => ["databaseDialects", code]),
+    ]),
+  };
+}
+
+function testLaunchCoverageClaims(entries) {
+  const claims = {};
+  for (const [key, code] of entries) {
+    claims[key] ??= [];
+    claims[key].push({
+      code,
+      status: "PASSED",
+      evidenceKey: `launchCoverage.${key}.${code}`,
+      observedAt: "2026-06-22T09:00:00.000Z",
+    });
+  }
+  return claims;
 }
 
 const fullKnowledgeDomains = [

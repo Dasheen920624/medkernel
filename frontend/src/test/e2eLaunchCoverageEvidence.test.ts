@@ -2112,7 +2112,7 @@ function expectNoNursingContinuityCoverage(body: Record<string, unknown>) {
 
 const pharmacyReviewAntimicrobialEvidence = {
   scenarioCodes: ["S18", "S31"],
-  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
   versionedAssets: ["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"],
   deliveryShapes: ["API_EVENT"],
   serviceCombinations: [
@@ -2678,7 +2678,7 @@ function expectNoPharmacyReviewAntimicrobialCoverage(body: Record<string, unknow
 
 const infectionPublicHealthSafetyEvidence = {
   scenarioCodes: ["S21", "S32"],
-  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
   versionedAssets: ["TERMINOLOGY", "RULE", "ACTION_CARD"],
   deliveryShapes: ["API_EVENT"],
   serviceCombinations: [
@@ -3146,7 +3146,7 @@ function expectNoInfectionPublicHealthSafetyCoverage(body: Record<string, unknow
 
 const surgeryAnesthesiaTransfusionEvidence = {
   scenarioCodes: ["S26"],
-  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+  productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
   versionedAssets: ["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"],
   deliveryShapes: ["API_EVENT"],
   serviceCombinations: [
@@ -8452,7 +8452,6 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
       "CLINICAL_EXECUTION",
       "DATA_INTEROPERABILITY",
-      "QUALITY_IMPROVEMENT",
     ]);
     expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
       "TERMINOLOGY",
@@ -8796,7 +8795,6 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
       "CLINICAL_EXECUTION",
       "DATA_INTEROPERABILITY",
-      "QUALITY_IMPROVEMENT",
     ]);
     expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
       "TERMINOLOGY",
@@ -8970,7 +8968,6 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
       "CLINICAL_EXECUTION",
       "DATA_INTEROPERABILITY",
-      "QUALITY_IMPROVEMENT",
     ]);
     expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
       "TERMINOLOGY",

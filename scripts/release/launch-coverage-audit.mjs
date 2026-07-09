@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   assertCompleteLaunchCoverage,
+  buildLaunchAcceptance,
   buildLaunchCoverageFromStageEvidence,
   validateStageEvidence,
 } from "./full-system-rehearsal-lib.mjs";
@@ -44,6 +45,10 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
   const readJson = options.readJson ?? readJsonFile;
   const now = options.now ?? (() => new Date().toISOString());
   const stageFiles = {
+    "database-migrations": path.join(
+      config.evidenceRoot,
+      "database-migrations.json",
+    ),
     "account-bootstrap": path.join(
       config.evidenceRoot,
       "account-bootstrap.json",
@@ -98,6 +103,7 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
     stageStatus,
     coverage,
   };
+  evidence.acceptance = buildLaunchAcceptance(coverage);
   assertCompleteLaunchCoverage(evidence);
   return evidence;
 }
@@ -136,7 +142,7 @@ function requireText(value, label) {
   return value.trim();
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
   try {
     const config = readLaunchCoverageAuditConfig(process.env);
     const evidence = buildLaunchCoverageEvidence(config);

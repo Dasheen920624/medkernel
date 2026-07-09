@@ -1464,7 +1464,7 @@ async function attachInfectionPublicHealthSafetyEvidence(
     body: JSON.stringify(
       {
         scenarioCodes: ["S21", "S32"],
-        productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+        productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
         versionedAssets: ["TERMINOLOGY", "RULE", "ACTION_CARD"],
         deliveryShapes: ["API_EVENT"],
         serviceCombinations: [

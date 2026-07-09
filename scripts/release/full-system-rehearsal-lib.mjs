@@ -41,6 +41,28 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "Claim",
     ],
   },
+  standardPatientResourceConsumerMatrix: {
+    label: "13 类标准患者资源真实消费者矩阵",
+    codes: ["THIRTEEN_STANDARD_RESOURCES_REPRESENTATIVE"],
+  },
+  standardPatientResourceRepresentativeRows: {
+    label: "13 类标准患者资源真实消费者行",
+    codes: [
+      "Patient",
+      "AllergyIntolerance",
+      "Encounter",
+      "Condition",
+      "NursingAssessment",
+      "Observation",
+      "DiagnosticReport",
+      "Medication",
+      "Procedure",
+      "Document",
+      "CarePlan",
+      "FollowUp",
+      "Claim",
+    ],
+  },
   versionedAssets: {
     label: "13 类版本化资产",
     codes: [
@@ -57,6 +79,63 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "FORMULA",
       "ORDER_SET",
       "ACTION_CARD",
+    ],
+  },
+  versionedAssetSupplyChainMatrix: {
+    label: "13 类版本化资产供给链矩阵",
+    codes: ["THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE"],
+  },
+  versionedAssetRepresentativeRows: {
+    label: "13 类版本化资产供给链代表行",
+    codes: [
+      "KNOWLEDGE",
+      "TERMINOLOGY",
+      "RULE",
+      "PATHWAY",
+      "EVALUATION",
+      "FOLLOWUP",
+      "FIELD_CATALOG",
+      "SAFETY",
+      "CDSS_RISK",
+      "VALUE_SET",
+      "FORMULA",
+      "ORDER_SET",
+      "ACTION_CARD",
+    ],
+  },
+  versionedAssetKnownGaps: {
+    label: "13 类版本化资产供给链已知缺口",
+    optional: true,
+    codes: [
+      "KNOWLEDGE",
+      "TERMINOLOGY",
+      "RULE",
+      "PATHWAY",
+      "EVALUATION",
+      "FOLLOWUP",
+      "FIELD_CATALOG",
+      "SAFETY",
+      "CDSS_RISK",
+      "VALUE_SET",
+      "FORMULA",
+      "ORDER_SET",
+      "ACTION_CARD",
+    ],
+  },
+  versionedAssetRollbackRepresentativeMatrix: {
+    label: "版本化资产回滚负向消费者矩阵",
+    codes: ["GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE"],
+  },
+  versionedAssetRollbackRepresentativeRows: {
+    label: "版本化资产回滚负向消费者行",
+    codes: [
+      "SAFETY",
+      "CDSS_RISK",
+      "VALUE_SET",
+      "FORMULA",
+      "PATHWAY",
+      "ORDER_SET",
+      "EVALUATION",
     ],
   },
   versionedAssetDedicatedReleaseContractMatrix: {
@@ -110,9 +189,45 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     label: "四职责工作台核心动作行",
     codes: ["PLATFORM_ADMIN", "ENGINE_OPERATOR", "CLINICAL_USER", "AUDITOR"],
   },
+  roleRepresentativeCoreActions: {
+    label: "四职责代表主动作矩阵",
+    codes: ["FOUR_ROLE_PRIMARY_ACTIONS"],
+  },
+  entryRepresentativeCoreActions: {
+    label: "六入口代表核心动作矩阵",
+    codes: ["SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE"],
+  },
+  platformAdminEntryCoreActions: {
+    label: "平台管理员 P0 入口核心动作矩阵",
+    codes: ["FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS"],
+  },
+  platformAdminP1EntryCoreActions: {
+    label: "平台管理员 P1 运维入口核心动作矩阵",
+    codes: ["RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK"],
+  },
+  clinicalEntryCoreActions: {
+    label: "临床协同入口核心动作矩阵",
+    codes: ["CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE"],
+  },
+  qualityManagementEntryCoreActions: {
+    label: "质量管理入口核心动作矩阵",
+    codes: ["QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE"],
+  },
+  knowledgeOperationsAssetEntryCoreActions: {
+    label: "知识运营资产入口族核心动作矩阵",
+    codes: ["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"],
+  },
   knowledgeDomains: {
     label: "11 个知识内容分类",
     codes: [...FULL_KNOWLEDGE_DOMAINS],
+  },
+  databaseMigrationSource: {
+    label: "单一数据库模式源",
+    codes: ["SINGLE_SCHEMA_GENERATOR_CHECK"],
+  },
+  databaseDialects: {
+    label: "五数据库方言",
+    codes: ["POSTGRES", "KINGBASE", "ORACLE", "DM", "H2"],
   },
   semanticFamilies: {
     label: "完整医疗语义族",
@@ -293,6 +408,132 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   },
 });
 
+const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
+  {
+    code: "LAUNCH-01",
+    label: "六层能力均有真实存储、服务、权限、消费者和审计",
+    requiredCoverage: ["productLayers"],
+  },
+  {
+    code: "LAUNCH-02",
+    label: "13 类标准患者资源可由真实接入落地并驱动运行",
+    requiredCoverage: [
+      "standardPatientResources",
+      "standardPatientResourceConsumerMatrix",
+      "standardPatientResourceRepresentativeRows",
+    ],
+  },
+  {
+    code: "LAUNCH-03",
+    label: "13 类版本化资产均有正文、校验、依赖、发布和运行消费者",
+    requiredCoverage: [
+      "versionedAssets",
+      "versionedAssetSupplyChainMatrix",
+      "versionedAssetRepresentativeRows",
+      "versionedAssetRollbackRepresentativeMatrix",
+      "versionedAssetRollbackRepresentativeRows",
+    ],
+  },
+  {
+    code: "LAUNCH-04",
+    label: "11 个知识内容分类可生产、审核、发布、替换和回滚",
+    requiredCoverage: [
+      "knowledgeDomains",
+      "knowledgeSupplyChainEvidenceMatrix",
+      "knowledgeSupplyChainEvidenceRows",
+    ],
+  },
+  {
+    code: "LAUNCH-05",
+    label: "全医疗专业领域具备权威代表资产和运行证据闭环",
+    requiredCoverage: ["specialtyDomains"],
+  },
+  {
+    code: "LAUNCH-06",
+    label: "S0-S40 完成正常、异常、缺数、高风险和降级演练",
+    requiredCoverage: ["scenarios"],
+  },
+  {
+    code: "LAUNCH-07",
+    label: "平台标准、两机构差异、部分选择、升级和回滚可重放",
+    requiredCoverage: [
+      "versionedAssetDedicatedReleaseContractMatrix",
+      "versionedAssetDedicatedReleaseContractRows",
+      "versionedAssetRollbackRepresentativeMatrix",
+      "versionedAssetRollbackRepresentativeRows",
+    ],
+  },
+  {
+    code: "LAUNCH-08",
+    label: "运行端服务端解析当前机构生效版本",
+    requiredCoverage: [
+      "versionedAssets",
+      "versionedAssetDedicatedReleaseContractMatrix",
+      "versionedAssetDedicatedReleaseContractRows",
+    ],
+  },
+  {
+    code: "LAUNCH-09",
+    label: "四职责覆盖全部菜单和运行端点，MFA 默认关闭且可真实开启",
+    requiredCoverage: [
+      "stakeholderViews",
+      "roleRepresentativeCoreActions",
+      "entryRepresentativeCoreActions",
+      "dashboardWorkbenchCoreActions",
+      "dashboardWorkbenchCoreActionRows",
+      "platformAdminEntryCoreActions",
+      "platformAdminP1EntryCoreActions",
+      "clinicalEntryCoreActions",
+      "qualityManagementEntryCoreActions",
+      "knowledgeOperationsAssetEntryCoreActions",
+    ],
+  },
+  {
+    code: "LAUNCH-10",
+    label: "模型候选生成可用，关闭模型后 B0 主链完整",
+    requiredCoverage: ["modelEnablementSurfaces", "knowledgeSupplyChainEvidenceMatrix"],
+  },
+  {
+    code: "LAUNCH-11",
+    label: "五数据库方言由一个模式源生成同版本迁移",
+    requiredCoverage: ["databaseMigrationSource", "databaseDialects"],
+  },
+  {
+    code: "LAUNCH-12",
+    label: "五种交付形态、七类业务组合和第三方系统族有消费者与降级验证",
+    requiredCoverage: [
+      "deliveryShapes",
+      "serviceCombinations",
+      "thirdPartySystemFamilies",
+      "thirdPartySystemFamilyConsumerSlices",
+      "diagnosticReportFamilyConsumerMatrix",
+    ],
+  },
+  {
+    code: "LAUNCH-13",
+    label: "集团、医院、院区、科室、病区、团队和跨机构任职得到验证",
+    requiredCoverage: ["organizationLevels"],
+  },
+  {
+    code: "LAUNCH-14",
+    label: "完整医疗语义、专病十阶段和全中枢模型赋能矩阵具备代表用例",
+    requiredCoverage: ["semanticFamilies", "specialDiseaseStages", "modelEnablementSurfaces"],
+  },
+  {
+    code: "LAUNCH-15",
+    label: "目标环境完成备份恢复、清库 V1、部署、全功能全知识演练和重启恢复",
+    requiredCoverage: [
+      "launchReadinessStakeholderMatrix",
+      "launchReadinessStakeholderRows",
+      "implementationGuideEntryCoreActions",
+      "implementationGuideEntryCoreActionRows",
+      "deliveryShapes",
+      "databaseMigrationSource",
+      "databaseDialects",
+    ],
+  },
+]);
+
 export function readFullSystemRehearsalConfig(env, options = {}) {
   const repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
   const required = [
@@ -366,6 +607,10 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
 }
 
 export function buildFullSystemStagePlan(config) {
+  const databaseMigrationEvidence = path.join(
+    config.evidenceRoot,
+    "database-migrations.json",
+  );
   const accountEvidence = path.join(
     config.evidenceRoot,
     "account-bootstrap.json",
@@ -393,6 +638,18 @@ export function buildFullSystemStagePlan(config) {
     MEDKERNEL_RUNTIME_ROOT: config.runtimeRoot,
   };
   return [
+    {
+      id: "database-migrations",
+      label: "单一模式源五方言迁移基线",
+      command: process.execPath,
+      args: ["scripts/release/database-migration-baseline.mjs"],
+      cwd: config.repoRoot,
+      evidencePath: databaseMigrationEvidence,
+      env: {
+        ...common,
+        LAUNCH_DATABASE_MIGRATION_EVIDENCE_PATH: databaseMigrationEvidence,
+      },
+    },
     {
       id: "account-bootstrap",
       label: "全新接管与四职责账号",
@@ -547,6 +804,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
   const startedAt = now(clock);
   const completed = [];
   let launchCoverage = null;
+  let launchAcceptance = null;
   const stages = buildFullSystemStagePlan(config);
   const totalStages = stages.length;
 
@@ -583,6 +841,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     const summary = validateStageEvidence(stage.id, evidence);
     if (stage.id === "launch-coverage") {
       launchCoverage = evidence.coverage;
+      launchAcceptance = evidence.acceptance ?? buildLaunchAcceptance(launchCoverage);
     }
     const stageFinishedAt = now(clock);
     const durationMs = elapsedMs(stageStartedAt, stageFinishedAt);
@@ -622,6 +881,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     webBaseUrl: config.webBaseUrl,
     apiBaseUrl: config.apiBaseUrl,
     coverage: launchCoverage,
+    acceptance: launchAcceptance,
     observability: {
       stageCount: completed.length,
       completedStages: completed.length,
@@ -645,6 +905,8 @@ export function validateStageEvidence(stageId, evidence) {
     throw new Error(`${stageId} 阶段证据不是 JSON 对象`);
   }
   switch (stageId) {
+    case "database-migrations":
+      return validateDatabaseMigrationEvidence(evidence);
     case "account-bootstrap":
       if (evidence.status !== "PASSED" || evidence.verifiedAccountCount !== 9) {
         throw new Error("四职责账号与系统接管身份未完整验证");
@@ -839,10 +1101,9 @@ export function validateStageEvidence(stageId, evidence) {
     case "launch-coverage":
       assertCompleteLaunchCoverage(evidence);
       return Object.fromEntries(
-        Object.entries(REQUIRED_LAUNCH_COVERAGE).map(([key, requirement]) => [
-          key,
-          requirement.codes.length,
-        ]),
+        Object.entries(REQUIRED_LAUNCH_COVERAGE)
+          .filter(([, requirement]) => !requirement.optional)
+          .map(([key, requirement]) => [key, requirement.codes.length]),
       );
     default:
       throw new Error(`未知整套演练阶段 ${stageId}`);
@@ -851,20 +1112,32 @@ export function validateStageEvidence(stageId, evidence) {
 
 export function buildRequiredLaunchCoverage() {
   return Object.fromEntries(
-    Object.entries(REQUIRED_LAUNCH_COVERAGE).map(([key, requirement]) => [
-      key,
-      requirement.codes.map((code) => ({
-        code,
-        status: "UNKNOWN",
-        evidenceStage: null,
-        evidencePath: null,
-        evidenceKey: null,
-        observedCode: null,
-        observedStatus: null,
-        observedAt: null,
-      })),
-    ]),
+    Object.entries(REQUIRED_LAUNCH_COVERAGE)
+      .filter(([, requirement]) => !requirement.optional)
+      .map(([key, requirement]) => [
+        key,
+        requirement.codes.map((code) => ({
+          code,
+          status: "UNKNOWN",
+          evidenceStage: null,
+          evidencePath: null,
+          evidenceKey: null,
+          observedCode: null,
+          observedStatus: null,
+          observedAt: null,
+        })),
+      ]),
   );
+}
+
+export function buildRequiredLaunchAcceptance() {
+  return REQUIRED_LAUNCH_ACCEPTANCE.map((item) => ({
+    code: item.code,
+    label: item.label,
+    requiredCoverage: [...item.requiredCoverage],
+    status: "UNKNOWN",
+    missingCoverage: [...item.requiredCoverage],
+  }));
 }
 
 export { launchCoverageClaims };
@@ -909,24 +1182,41 @@ export function buildLaunchCoverageFromStageEvidence(stageEvidence) {
     }
   }
   return Object.fromEntries(
-    Object.entries(REQUIRED_LAUNCH_COVERAGE).map(([key, requirement]) => [
-      key,
-      requirement.codes.map((code) => {
-        const row = claims.get(`${key}:${code}`);
-        if (row) return row;
-        return {
-          code,
-          status: "UNKNOWN",
-          evidenceStage: null,
-          evidencePath: null,
-          evidenceKey: null,
-          observedCode: null,
-          observedStatus: null,
-          observedAt: null,
-        };
-      }),
-    ]),
+    Object.entries(REQUIRED_LAUNCH_COVERAGE)
+      .filter(([, requirement]) => !requirement.optional)
+      .map(([key, requirement]) => [
+        key,
+        requirement.codes.map((code) => {
+          const row = claims.get(`${key}:${code}`);
+          if (row) return row;
+          return {
+            code,
+            status: "UNKNOWN",
+            evidenceStage: null,
+            evidencePath: null,
+            evidenceKey: null,
+            observedCode: null,
+            observedStatus: null,
+            observedAt: null,
+          };
+        }),
+      ]),
   );
+}
+
+export function buildLaunchAcceptance(coverage) {
+  return REQUIRED_LAUNCH_ACCEPTANCE.map((item) => {
+    const missingCoverage = item.requiredCoverage.filter(
+      (key) => !coverageKeyComplete(coverage, key),
+    );
+    return {
+      code: item.code,
+      label: item.label,
+      requiredCoverage: [...item.requiredCoverage],
+      status: missingCoverage.length === 0 ? "PASSED" : "FAILED",
+      missingCoverage,
+    };
+  });
 }
 
 export function assertCompleteLaunchCoverage(evidence) {
@@ -943,6 +1233,7 @@ export function assertCompleteLaunchCoverage(evidence) {
   for (const [key, requirement] of Object.entries(REQUIRED_LAUNCH_COVERAGE)) {
     const rows = coverage[key];
     if (!Array.isArray(rows)) {
+      if (requirement.optional) continue;
       throw new Error(`${requirement.label} 覆盖矩阵缺失`);
     }
     const actual = new Set();
@@ -987,13 +1278,84 @@ export function assertCompleteLaunchCoverage(evidence) {
       actual.add(row.code);
     }
     if (
-      actual.size !== requirement.codes.length ||
-      requirement.codes.some((code) => !actual.has(code))
+      !requirement.optional &&
+      (actual.size !== requirement.codes.length ||
+        requirement.codes.some((code) => !actual.has(code)))
     ) {
       throw new Error(`${requirement.label} 覆盖不完整`);
     }
   }
+  const acceptance = evidence.acceptance ?? buildLaunchAcceptance(coverage);
+  const failed = acceptance.filter((item) => item.status !== "PASSED");
+  if (failed.length > 0 || acceptance.length !== REQUIRED_LAUNCH_ACCEPTANCE.length) {
+    throw new Error(
+      `完整上线验收总账未全部通过：${failed
+        .map((item) => `${item.code} ${item.missingCoverage?.join(",")}`)
+        .join("；")}`,
+    );
+  }
   return true;
+}
+
+function coverageKeyComplete(coverage, key) {
+  const requirement = REQUIRED_LAUNCH_COVERAGE[key];
+  if (!requirement) return false;
+  const rows = coverage?.[key];
+  if (!Array.isArray(rows)) return false;
+  const passed = new Set(
+    rows
+      .filter(
+        (row) =>
+          row?.status === "PASSED" &&
+          row.observedCode === row.code &&
+          row.observedStatus === "PASSED" &&
+          hasText(row.evidenceStage) &&
+          row.evidenceStage !== "launch-coverage" &&
+          hasText(row.evidencePath) &&
+          hasText(row.evidenceKey) &&
+          hasText(row.observedAt),
+      )
+      .map((row) => row.code),
+  );
+  return requirement.codes.every((code) => passed.has(code));
+}
+
+function validateDatabaseMigrationEvidence(evidence) {
+  const expectedDialectCodes = REQUIRED_LAUNCH_COVERAGE.databaseDialects.codes;
+  const dialects = Array.isArray(evidence.dialects) ? evidence.dialects : [];
+  const actual = new Set(dialects.map((item) => item?.code));
+  if (
+    evidence.status !== "PASSED" ||
+    evidence.stage !== "DATABASE_MIGRATION_BASELINE" ||
+    evidence.schemaSource !==
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json" ||
+    evidence.generator !== "scripts/db/generate-migrations.mjs" ||
+    evidence.generatorCheck?.exitCode !== 0 ||
+    evidence.generatorCheck?.checkOnly !== true ||
+    evidence.conventionGuard?.exitCode !== 0 ||
+    !Number.isInteger(evidence.conventionGuard?.scannedFiles) ||
+    evidence.conventionGuard.scannedFiles < expectedDialectCodes.length ||
+    dialects.length !== expectedDialectCodes.length ||
+    expectedDialectCodes.some((code) => !actual.has(code))
+  ) {
+    throw new Error("单一模式源五方言迁移基线证据不完整");
+  }
+  for (const dialect of dialects) {
+    if (
+      !hasText(dialect.baselineFile) ||
+      !dialect.baselineFile.endsWith("/V1__baseline.sql") ||
+      !Number.isInteger(dialect.artifactCount) ||
+      dialect.artifactCount < 1 ||
+      !/^[a-f0-9]{64}$/iu.test(dialect.contentSha256 ?? "")
+    ) {
+      throw new Error(`五数据库方言 ${dialect.code ?? ""} 迁移产物证据不完整`);
+    }
+  }
+  return {
+    schemaSource: evidence.schemaSource,
+    dialectCount: expectedDialectCodes.length,
+    scannedFiles: evidence.conventionGuard.scannedFiles,
+  };
 }
 
 function normalizeCoverageClaim(row, context) {

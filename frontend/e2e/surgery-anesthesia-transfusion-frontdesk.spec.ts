@@ -2016,7 +2016,7 @@ async function attachPeriopEvidence(
     body: JSON.stringify(
       {
         scenarioCodes: ["S26"],
-        productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY", "QUALITY_IMPROVEMENT"],
+        productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
         versionedAssets: ["TERMINOLOGY", "SAFETY", "CDSS_RISK", "RULE", "ACTION_CARD"],
         deliveryShapes: ["API_EVENT"],
         serviceCombinations: [
