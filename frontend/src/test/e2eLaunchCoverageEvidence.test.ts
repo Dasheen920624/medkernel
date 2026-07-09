@@ -5378,6 +5378,19 @@ const dashboardWorkbenchCoreActionsEvidence = {
   matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
   scopeStatement:
     "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 34 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。",
+  permissionBoundaryEvidence: {
+    menuSnapshotVerified: true,
+    forbiddenStateAbsent: true,
+    roleScopeReadbackVerified: true,
+  },
+  sixStateEvidence: {
+    normalStateVerified: true,
+    emptyStateNotUsedAsSuccess: true,
+    loadingStateSettled: true,
+    errorStateAbsent: true,
+    forbiddenStateAbsent: true,
+    sourceStatusVisible: true,
+  },
   roleActions: [
     {
       role: "platform-admin",
@@ -5453,6 +5466,19 @@ const dashboardWorkbenchCoreActionsEvidence = {
       noBrowserErrors: true,
       noServerErrors: true,
       noNetworkFailures: true,
+    },
+  ],
+  scenarioConditionEvidence: [
+    {
+      code: "S0__NORMAL",
+      scenarioCode: "S0",
+      condition: "NORMAL",
+      source: "DASHBOARD_WORKBENCH_FOUR_ROLE_SERVICE_READBACK",
+      evidence: [
+        "四个固定职责均从 /dashboard 读取当前角色工作台和真实来源服务",
+        "四个职责主动作、高频任务入口、权限边界和六态正常链路均完成前台验证",
+        "工作台未出现权限不足、浏览器错误、服务端错误或网络失败",
+      ],
     },
   ],
 };
@@ -7072,6 +7098,9 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.dashboardWorkbenchCoreActionRows?.map((item) => item.code),
     ).toEqual(["PLATFORM_ADMIN", "ENGINE_OPERATOR", "CLINICAL_USER", "AUDITOR"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S0__NORMAL",
+    ]);
   });
 
   it.each([
@@ -7081,6 +7110,7 @@ describe("browser E2E launch coverage evidence", () => {
         ...dashboardWorkbenchCoreActionsEvidence,
         scopeStatement: "四职责工作台完整上线验收已完成",
       },
+      expectAllMissing: true,
     },
     {
       name: "缺少审计员职责行",
@@ -7090,6 +7120,7 @@ describe("browser E2E launch coverage evidence", () => {
           (action) => action.role !== "auditor",
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "不是工作台路径",
@@ -7099,6 +7130,7 @@ describe("browser E2E launch coverage evidence", () => {
           action.role === "clinical-user" ? { ...action, path: "/workflow/todos" } : action,
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "职责行码错配",
@@ -7108,6 +7140,7 @@ describe("browser E2E launch coverage evidence", () => {
           action.role === "auditor" ? { ...action, row: "AUDIT_VIEW_ONLY" } : action,
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "缺少真实服务来源",
@@ -7119,6 +7152,7 @@ describe("browser E2E launch coverage evidence", () => {
             : action,
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "缺少工作台审计来源",
@@ -7134,6 +7168,7 @@ describe("browser E2E launch coverage evidence", () => {
             : action,
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "没有验证主动作",
@@ -7143,6 +7178,7 @@ describe("browser E2E launch coverage evidence", () => {
           action.role === "engine-operator" ? { ...action, primaryActionVerified: false } : action,
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "没有高频任务入口",
@@ -7154,6 +7190,7 @@ describe("browser E2E launch coverage evidence", () => {
             : action,
         ),
       },
+      expectAllMissing: true,
     },
     {
       name: "有服务端错误",
@@ -7163,10 +7200,108 @@ describe("browser E2E launch coverage evidence", () => {
           action.role === "clinical-user" ? { ...action, noServerErrors: false } : action,
         ),
       },
+      expectAllMissing: true,
     },
-  ])("does not declare dashboard workbench core actions when $name", ({ body }) => {
-    expectNoDashboardWorkbenchCoreActionsCoverage(body);
-  });
+    {
+      name: "缺少显式 S0 条件附件",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        scenarioConditionEvidence: undefined,
+      },
+      expectedMissing: "S0__NORMAL",
+    },
+    {
+      name: "夹带未知工作台条件行",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        scenarioConditionEvidence: [
+          ...dashboardWorkbenchCoreActionsEvidence.scenarioConditionEvidence,
+          {
+            code: "S0__HIGH_RISK",
+            scenarioCode: "S0",
+            condition: "HIGH_RISK",
+            source: "DASHBOARD_WORKBENCH_FOUR_ROLE_SERVICE_READBACK",
+            evidence: ["未知条件行不得被声明"],
+          },
+        ],
+      },
+      expectedMissing: "S0__NORMAL",
+    },
+    {
+      name: "工作台条件行来源错配",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        scenarioConditionEvidence:
+          dashboardWorkbenchCoreActionsEvidence.scenarioConditionEvidence.map((item) => ({
+            ...item,
+            source: "ROLE_MENU_REACHABILITY",
+          })),
+      },
+      expectedMissing: "S0__NORMAL",
+    },
+    {
+      name: "工作台条件行证据为空",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        scenarioConditionEvidence:
+          dashboardWorkbenchCoreActionsEvidence.scenarioConditionEvidence.map((item) => ({
+            ...item,
+            evidence: [],
+          })),
+      },
+      expectedMissing: "S0__NORMAL",
+    },
+    {
+      name: "缺少权限边界回读",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        permissionBoundaryEvidence: {
+          ...dashboardWorkbenchCoreActionsEvidence.permissionBoundaryEvidence,
+          roleScopeReadbackVerified: false,
+        },
+      },
+      expectedMissing: "S0__NORMAL",
+    },
+    {
+      name: "缺少六态错误态边界",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        sixStateEvidence: {
+          ...dashboardWorkbenchCoreActionsEvidence.sixStateEvidence,
+          errorStateAbsent: false,
+        },
+      },
+      expectedMissing: "S0__NORMAL",
+    },
+    {
+      name: "工作台普通矩阵完整但服务非 2xx",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "platform-admin" ? { ...action, serviceStatus: 503 } : action,
+        ),
+      },
+      expectAllMissing: true,
+    },
+  ])(
+    "does not declare dashboard workbench core actions when $name",
+    ({ body, expectedMissing, expectAllMissing }) => {
+      if (expectAllMissing) {
+        expectNoDashboardWorkbenchCoreActionsCoverage(body);
+        expect(
+          dashboardWorkbenchCoreActionsEvidenceResult(body).launchCoverage.scenarioConditionRows,
+        ).toBeUndefined();
+        return;
+      }
+      const evidence = dashboardWorkbenchCoreActionsEvidenceResult(body);
+      expect(
+        evidence.launchCoverage.dashboardWorkbenchCoreActions?.map((item) => item.code),
+      ).toEqual(["FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS"]);
+      expect(
+        evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+      ).not.toContain(expectedMissing);
+    },
+  );
 
   it("does not declare dashboard workbench core actions from a non-target spec", () => {
     const evidence = buildBrowserE2eLaunchEvidence({

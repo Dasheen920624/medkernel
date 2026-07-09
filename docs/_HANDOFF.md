@@ -772,6 +772,49 @@
   DRG/DIP 完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是 134 清库重部署。下一批继续沿
   `LAUNCH-06` 时优先复核 `S0__NORMAL` 强字段和六态边界；当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
   与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百二十二批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口，
+  本批只收口四职责工作台 S0 正常态代表切片，新增 1 条显式背书行：`S0__NORMAL`
+  （平台管理员、医疗引擎运营员、临床使用者、审计员均从 `/dashboard` 读取当前角色工作台、真实来源服务、
+  主动作与高频任务入口，完成主动作跳转，且无权限不足、浏览器错误、服务端错误或网络失败）。不声明
+  `S0__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不把工作台代表矩阵、菜单、路由、截图或普通
+  `dashboardWorkbenchCoreActions` 冒领为完整 S0、完整四职责全流程、完整 34 入口业务闭环、完整 S0-S40 或完整上线。
+- 第二百二十二批实现细节：`frontend/e2e/product-role-journeys.spec.ts` 的
+  `dashboard-workbench-core-actions-codes-${viewport.name}` 附件新增 `permissionBoundaryEvidence`、
+  `sixStateEvidence` 和显式 `scenarioConditionEvidence`，来源固定为
+  `DASHBOARD_WORKBENCH_FOUR_ROLE_SERVICE_READBACK`。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增 S0 正常行白名单和 dashboard workbench 条件行 collector：必须先通过完整
+  `hasRequiredDashboardWorkbenchCoreActionsAttachment()`，再严格校验显式 `code/scenarioCode/condition/source/evidence`，
+  并要求四职责 roleActions 完整、服务 2xx、真实服务回读、主动作、高频任务、来源状态、权限边界和六态边界字段全真，
+  才声明 `S0__NORMAL`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  缺显式 S0 条件附件、夹带未知条件行、来源错配、证据为空、缺权限边界回读、缺六态错误态边界、服务非 2xx、
+  缺角色、路径错配、职责行码错配、缺真实服务来源、缺工作台审计来源、未验证主动作、高频任务不全或有服务端错误，
+  均不声明 `S0__NORMAL`。
+- 第二百二十二批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；
+  复核 18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s0-normal-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts --grep "desktop-1440 下全部角色工作台可完成主任务起步"`
+  通过；`/tmp/medkernel-e2e-s0-normal-condition-row-20260709-r1/report/playwright-results.json`
+  读回 `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`；
+  `/tmp/medkernel-e2e-s0-normal-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`，
+  `launchCoverage.dashboardWorkbenchCoreActions=[FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS]`、
+  `dashboardWorkbenchCoreActionRows=[PLATFORM_ADMIN,ENGINE_OPERATOR,CLINICAL_USER,AUDITOR]`，
+  `scenarioConditionRows=[S0__NORMAL]`。
+- 第二百二十二批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S0__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（638 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑最终门禁和 `git diff --check`。
+- 第二百二十二批并行只读审计结论：本批使用 1 个只读 explorer 审计 S0 之后的候选，子代理未编辑、未暂存、
+  未启动服务、未外调。结论是在剩余 `S16/S17/S22/S23/S25/S28/S29/S30/S33/S34/S37/S38/S39` 中，下一批可优先评估
+  `S30__NORMAL`（`real-frontdesk-scenario-codes` 的慢病随访连续主链路：上下文、FOLLOWUP 当前机构生效版本、随访计划、
+  问卷、任务数和 `noAutoOrder=true`），其次是需要先补前台附件的 `S23__ABNORMAL` 与 `S16__NORMAL/MISSING_DATA`。
+  `S33` 仍不建议直接做，因为 `SPD_UDI_DEVICE` 现有证据仍缺真实业务消费者和标准资源消费。不得把后端能力、页面单测、
+  配置枚举或其他场景代表切片冒领为五态行。
+- 第二百二十二批边界与下一步：本批只是把四职责工作台 S0 正常态强链路接入 1 条五态总账行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是完整 S0 五态完成、不是完整 34 入口业务深度完成、不是全医学知识生产完成、
+  不是 134 清库重部署。下一批继续沿 `LAUNCH-06` 时优先复核 `S30__NORMAL` 是否能由真实前台慢病随访连续主链路
+  强字段背书；当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

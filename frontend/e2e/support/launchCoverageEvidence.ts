@@ -681,6 +681,14 @@ const pathwayLifecycleScenarioConditionRows = [
   },
 ] as const;
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
+const dashboardWorkbenchScenarioConditionRows = [
+  {
+    code: "S0__NORMAL",
+    scenarioCode: "S0",
+    condition: "NORMAL",
+    source: "DASHBOARD_WORKBENCH_FOUR_ROLE_SERVICE_READBACK",
+  },
+] as const;
 const s2s4ScenarioConditionRows = [
   {
     code: "S2__NORMAL",
@@ -3061,6 +3069,29 @@ function hasCompleteDashboardWorkbenchCoreAction(value: unknown, role: string) {
   );
 }
 
+function hasCompleteDashboardWorkbenchPermissionBoundaryEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return (
+    evidence !== null &&
+    evidence.menuSnapshotVerified === true &&
+    evidence.forbiddenStateAbsent === true &&
+    evidence.roleScopeReadbackVerified === true
+  );
+}
+
+function hasCompleteDashboardWorkbenchSixStateEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return (
+    evidence !== null &&
+    evidence.normalStateVerified === true &&
+    evidence.emptyStateNotUsedAsSuccess === true &&
+    evidence.loadingStateSettled === true &&
+    evidence.errorStateAbsent === true &&
+    evidence.forbiddenStateAbsent === true &&
+    evidence.sourceStatusVisible === true
+  );
+}
+
 function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   let sawAttachment = false;
   for (const test of tests) {
@@ -4025,6 +4056,9 @@ function s2s4ScenarioConditionBackedByApiEvidence(
 function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
   const claims = new Set<string>();
   for (const test of tests) {
+    for (const claim of collectDashboardWorkbenchScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectRuntimeReleaseScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4089,6 +4123,53 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     }
   }
   return [...claims];
+}
+
+function collectDashboardWorkbenchScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "product-role-journeys.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find((item) =>
+    item.name.startsWith("dashboard-workbench-core-actions-codes-"),
+  );
+  if (!attachment?.body || !hasRequiredDashboardWorkbenchCoreActionsAttachment([test])) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      dashboardWorkbenchScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return dashboardWorkbenchScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          dashboardWorkbenchScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function dashboardWorkbenchScenarioConditionBackedByEvidence(
+  code: (typeof dashboardWorkbenchScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S0__NORMAL":
+      return (
+        hasCompleteDashboardWorkbenchPermissionBoundaryEvidence(
+          parsed.permissionBoundaryEvidence,
+        ) && hasCompleteDashboardWorkbenchSixStateEvidence(parsed.sixStateEvidence)
+      );
+    default:
+      return false;
+  }
 }
 
 function collectRuntimeReleaseScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {

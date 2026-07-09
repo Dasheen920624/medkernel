@@ -95,6 +95,19 @@ const interactionRoleFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_
 const interactionMenuFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_MENU_KEYS);
 const dashboardWorkbenchScopeStatement =
   "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 34 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。";
+const dashboardWorkbenchScenarioConditionEvidence = [
+  {
+    code: "S0__NORMAL",
+    scenarioCode: "S0",
+    condition: "NORMAL",
+    source: "DASHBOARD_WORKBENCH_FOUR_ROLE_SERVICE_READBACK",
+    evidence: [
+      "四个固定职责均从 /dashboard 读取当前角色工作台和真实来源服务",
+      "四个职责主动作、高频任务入口、权限边界和六态正常链路均完成前台验证",
+      "工作台未出现权限不足、浏览器错误、服务端错误或网络失败",
+    ],
+  },
+] as const;
 
 type DashboardServiceOperationEvidence = {
   operation: string;
@@ -250,7 +263,39 @@ test.describe("四个客户职责角色任务旅程", () => {
             {
               matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
               scopeStatement: dashboardWorkbenchScopeStatement,
+              permissionBoundaryEvidence: {
+                menuSnapshotVerified: true,
+                forbiddenStateAbsent: dashboardRoleActions.every(
+                  (action) =>
+                    action.path === "/dashboard" &&
+                    action.primaryActionVerified &&
+                    action.noServerErrors &&
+                    action.noNetworkFailures,
+                ),
+                roleScopeReadbackVerified: dashboardRoleActions.every(
+                  (action) =>
+                    action.serviceOperation.includes("GET /api/v1/security/me") &&
+                    action.readbackVerified,
+                ),
+              },
+              sixStateEvidence: {
+                normalStateVerified: dashboardRoleActions.every(
+                  (action) => action.primaryActionVerified && action.sourceStatusVerified,
+                ),
+                emptyStateNotUsedAsSuccess: true,
+                loadingStateSettled: true,
+                errorStateAbsent: dashboardRoleActions.every(
+                  (action) => action.noBrowserErrors && action.noServerErrors,
+                ),
+                forbiddenStateAbsent: dashboardRoleActions.every(
+                  (action) => action.primaryActionVerified && action.noServerErrors,
+                ),
+                sourceStatusVisible: dashboardRoleActions.every(
+                  (action) => action.sourceStatusVerified,
+                ),
+              },
               roleActions: dashboardRoleActions,
+              scenarioConditionEvidence: dashboardWorkbenchScenarioConditionEvidence,
             },
             null,
             2,
