@@ -160,6 +160,51 @@
   `S21__HIGH_RISK/S21__DEGRADATION/S32__ABNORMAL`，仍需显式条件附件和强字段背书，不能把普通
   `scenarioEvidence` 自动升级。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、
   不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百零六批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口院感公卫 / 医疗安全事件 S21 与 S32 代表切片已有真实前台强链路，新增 3 条显式背书行：
+  `S21__HIGH_RISK`（阳性入站包含 `U07.100`、`POSITIVE` 和 `SUSPECTED_COVID_19`，上报预填必须人工提交且
+  中枢不替代法定上报，推荐卡要求医生确认并由临床用户人工采纳）、`S21__DEGRADATION`
+  （`PUBLIC_HEALTH_INFECTION_REGULATORY` 出站上报预填收敛到 `NOT_CONNECTED`，断连补偿不阻断本地推荐和人工确认主链路）、
+  `S32__ABNORMAL`（入站安全事件为 `HIGH` 风险职业暴露且根因为 `ISOLATION_PROTOCOL_GAP`，固定职责账号提交并复核关闭
+  本轮安全事件整改任务）。不声明 `S21__NORMAL/MISSING_DATA/ABNORMAL`，不声明
+  `S32__NORMAL/HIGH_RISK/DEGRADATION/MISSING_DATA`，不冒领完整院感系统、完整公卫法定上报、完整不良事件系统、
+  完整第三方公卫院感监管系统族覆盖、完整 S0-S40 或完整上线。
+- 第二百零六批实现细节：`frontend/e2e/infection-public-health-safety-frontdesk.spec.ts` 的
+  `infection-public-health-safety-frontdesk-codes` 附件新增 `scenarioConditionEvidence` 三行；
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S21/S32 条件行白名单和 collector，必须先通过完整
+  `hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并分别绑定完整 API 证据、院感公卫高风险临床上下文、阳性签名入站、
+  `NOT_CONNECTED` 出站补偿、当前 runtime 推荐卡、人工确认和安全事件整改闭环。本批没有收紧普通 S21/S32 场景覆盖 helper，
+  而是在五态行 backing 函数中单独要求 `reportableCondition=SUSPECTED_COVID_19`、`riskLevel=HIGH`、
+  `rootCause=ISOLATION_PROTOCOL_GAP`、`signedPayload.infectionCode=PH-COVID-19` 和 `signedPayload.labResult=POSITIVE`。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、
+  空证据、诊断非 `U07.100`、缺可报告病种、推荐卡不要求医生确认、人工确认替代法定上报、出站未 `NOT_CONNECTED`、
+  出站阻断主链路、安全事件非 `HIGH`、根因非隔离流程缺口、整改未复核通过或未绑定本轮推荐卡，均不声明 S21/S32 条件行。
+- 第二百零六批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s21-s32-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium infection-public-health-safety-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s21-s32-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S21__HIGH_RISK,S21__DEGRADATION,S32__ABNORMAL]`，`launchCoverage.scenarios` 为 `[S21,S32]`，
+  `thirdPartySystemFamilyConsumerSlices` 为 `[PUBLIC_HEALTH_INFECTION_REGULATORY]`。
+- 第二百零六批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在 S21/S32 正例缺条件行，随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （446 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`（仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，无 whitespace error）。
+  提交前仍需在更新本文件后复跑最终门禁。
+- 第二百零六批并行只读审计结论：下一批最小冲突候选可优先二选一：1）急危重 / ICU / 转运
+  `critical-emergency-icu-frontdesk.spec.ts`，可安全候选 `S19__HIGH_RISK/S24__HIGH_RISK/S27__HIGH_RISK`，
+  但必须绑定 `riskMatrix.riskLevel=CRITICAL`、医师确认、`autoExecutionAllowed=false`、`noAutoOrder/noAutoTransfer/noDeviceControl/noAutoVentilatorChange=true`、
+  人工升级采纳和协同待办完成；不得声明这些场景的 NORMAL/MISSING_DATA/ABNORMAL/DEGRADATION。2）区域检查互认
+  `regional-diagnostic-mutual-recognition-frontdesk.spec.ts`，可安全候选 `S40__DEGRADATION`，但必须绑定
+  FHIR 接入 `NOT_CONNECTED`、DiagnosticReport 入站 `NOT_CONNECTED/RETRYING`、补偿 `NOT_CONNECTED`、医生确认待办完成、
+  `noAutoOrder=true` 和 `noAutoRecognition=true`；不得声明 S40 其他四态。
+- 第二百零六批边界与下一步：本批只是把院感公卫 / 医疗安全事件 S21/S32 已有强链路接入 3 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、
+  不是 134 清库重部署。下一批建议继续沿 `LAUNCH-06` 选急危重 / ICU 三行高危或区域互认 S40 降级；
+  仍需显式条件附件和强字段背书，不能把普通 `scenarioEvidence` 自动升级。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

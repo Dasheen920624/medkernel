@@ -3193,6 +3193,39 @@ const infectionPublicHealthSafetyEvidence = {
     submittedEvidenceRef: "public-health-safety-evidence",
     reviewDecision: "APPROVED",
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S21__HIGH_RISK",
+      scenarioCode: "S21",
+      condition: "HIGH_RISK",
+      source: "INFECTION_PUBLIC_HEALTH_MANUAL_REPORT_CONFIRMATION",
+      evidence: [
+        "阳性入站包含 U07.100、POSITIVE 和 SUSPECTED_COVID_19",
+        "上报预填必须人工提交且中枢不替代法定上报",
+        "推荐卡要求医生确认并由临床用户人工采纳",
+      ],
+    },
+    {
+      code: "S21__DEGRADATION",
+      scenarioCode: "S21",
+      condition: "DEGRADATION",
+      source: "PUBLIC_HEALTH_OUTBOUND_NOT_CONNECTED",
+      evidence: [
+        "PUBLIC_HEALTH_INFECTION_REGULATORY 出站上报预填收敛到 NOT_CONNECTED",
+        "断连补偿不阻断本地推荐和人工确认主链路",
+      ],
+    },
+    {
+      code: "S32__ABNORMAL",
+      scenarioCode: "S32",
+      condition: "ABNORMAL",
+      source: "PUBLIC_HEALTH_SAFETY_EVENT_RECTIFICATION_REVIEW",
+      evidence: [
+        "入站安全事件为 HIGH 风险职业暴露且要求整改复核",
+        "固定职责账号提交并复核关闭本轮安全事件整改任务",
+      ],
+    },
+  ],
   scenarioEvidence: [
     {
       code: "S21",
@@ -9911,7 +9944,217 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["PUBLIC_HEALTH_INFECTION_REGULATORY"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S21__HIGH_RISK",
+      "S21__DEGRADATION",
+      "S32__ABNORMAL",
+    ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S21/S32 condition rows without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = infectionPublicHealthSafetyEvidence;
+    const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S21__NORMAL",
+            scenarioCode: "S21",
+            condition: "NORMAL",
+            source: "INFECTION_PUBLIC_HEALTH_MANUAL_REPORT_CONFIRMATION",
+            evidence: ["院感公卫阳性入站和断连补偿不能冒领普通正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S32__ABNORMAL",
+            scenarioCode: "S32",
+            condition: "ABNORMAL",
+            source: "PUBLIC_HEALTH_OUTBOUND_NOT_CONNECTED",
+            evidence: ["来源错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S21__DEGRADATION",
+            scenarioCode: "S21",
+            condition: "DEGRADATION",
+            source: "PUBLIC_HEALTH_OUTBOUND_NOT_CONNECTED",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "阳性诊断不是 U07.100",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        clinicalContext: {
+          ...infectionPublicHealthSafetyEvidence.clinicalContext,
+          resources: {
+            ...infectionPublicHealthSafetyEvidence.clinicalContext.resources,
+            conditions: [
+              {
+                ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.conditions[0],
+                code: "J18.900",
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      name: "上报预填缺少疑似新冠可报告病种",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        clinicalContext: {
+          ...infectionPublicHealthSafetyEvidence.clinicalContext,
+          resources: {
+            ...infectionPublicHealthSafetyEvidence.clinicalContext.resources,
+            extensions: {
+              local: {
+                ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local,
+                publicHealthReport: {
+                  ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local
+                    .publicHealthReport,
+                  reportableCondition: "NOT_REPORTABLE",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "推荐卡不要求医生确认",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        recommendation: {
+          ...infectionPublicHealthSafetyEvidence.recommendation,
+          requiresPhysicianConfirmation: false,
+        },
+      },
+    },
+    {
+      name: "人工确认声称替代法定上报",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        manualReview: {
+          ...infectionPublicHealthSafetyEvidence.manualReview,
+          noLegalAutoSubmit: false,
+        },
+      },
+    },
+    {
+      name: "出站未收敛到 NOT_CONNECTED",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        outboundPrefill: {
+          ...infectionPublicHealthSafetyEvidence.outboundPrefill,
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+      },
+    },
+    {
+      name: "出站断连阻断主链路",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        outboundPrefill: {
+          ...infectionPublicHealthSafetyEvidence.outboundPrefill,
+          blocksMainFlow: true,
+        },
+      },
+    },
+    {
+      name: "安全事件风险不是 HIGH",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        clinicalContext: {
+          ...infectionPublicHealthSafetyEvidence.clinicalContext,
+          resources: {
+            ...infectionPublicHealthSafetyEvidence.clinicalContext.resources,
+            extensions: {
+              local: {
+                ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local,
+                safetyEvent: {
+                  ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local
+                    .safetyEvent,
+                  riskLevel: "LOW",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "安全事件根因不是隔离流程缺口",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        clinicalContext: {
+          ...infectionPublicHealthSafetyEvidence.clinicalContext,
+          resources: {
+            ...infectionPublicHealthSafetyEvidence.clinicalContext.resources,
+            extensions: {
+              local: {
+                ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local,
+                safetyEvent: {
+                  ...infectionPublicHealthSafetyEvidence.clinicalContext.resources.extensions.local
+                    .safetyEvent,
+                  rootCause: "UNKNOWN",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      name: "整改未复核通过",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          reviewDecision: "REJECTED",
+        },
+      },
+    },
+    {
+      name: "整改未绑定本轮推荐卡",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          sourceId: "other-card",
+        },
+      },
+    },
+  ])("does not declare S21/S32 scenario condition rows when $name", ({ body }) => {
+    const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it("declares S21/S32 coverage when legal auto-submit evidence is carried by action card and manual review", () => {

@@ -719,6 +719,26 @@ const pharmacyReviewAntimicrobialScenarioConditionRows = [
     source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
   },
 ] as const;
+const infectionPublicHealthSafetyScenarioConditionRows = [
+  {
+    code: "S21__HIGH_RISK",
+    scenarioCode: "S21",
+    condition: "HIGH_RISK",
+    source: "INFECTION_PUBLIC_HEALTH_MANUAL_REPORT_CONFIRMATION",
+  },
+  {
+    code: "S21__DEGRADATION",
+    scenarioCode: "S21",
+    condition: "DEGRADATION",
+    source: "PUBLIC_HEALTH_OUTBOUND_NOT_CONNECTED",
+  },
+  {
+    code: "S32__ABNORMAL",
+    scenarioCode: "S32",
+    condition: "ABNORMAL",
+    source: "PUBLIC_HEALTH_SAFETY_EVENT_RECTIFICATION_REVIEW",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -3889,6 +3909,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectPharmacyReviewAntimicrobialScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectInfectionPublicHealthSafetyScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
   }
   return [...claims];
 }
@@ -4297,6 +4320,112 @@ function pharmacyReviewAntimicrobialScenarioConditionBackedByEvidence(
       return hasCompletePharmacyReviewRectification(
         parsed.qualityRectification,
         parsed.recommendation,
+      );
+    default:
+      return false;
+  }
+}
+
+function collectInfectionPublicHealthSafetyScenarioConditionClaimsFromTest(
+  test: BrowserE2eTestResult,
+) {
+  if (
+    path.basename(test.file) !== "infection-public-health-safety-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "infection-public-health-safety-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      infectionPublicHealthSafetyScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return infectionPublicHealthSafetyScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          infectionPublicHealthSafetyScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function infectionPublicHealthSafetyScenarioConditionBackedByEvidence(
+  code: (typeof infectionPublicHealthSafetyScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parseInfectionPublicHealthRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S21__HIGH_RISK":
+      return (
+        hasCompleteInfectionPublicHealthApiEvidence(parsed.apiEvidence) &&
+        hasHighRiskInfectionPublicHealthClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasHighRiskInfectionPublicHealthInbound(
+          parsed.inboundReport,
+          parsed.adapter,
+          parsed.webhookSignature,
+          parsed.outboundPrefill,
+          runtime.releaseId,
+        ) &&
+        hasCompleteInfectionPublicHealthRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.ruleAsset,
+        ) &&
+        hasCompleteInfectionPublicHealthManualReview(parsed.manualReview, runtime.actionCardAsset)
+      );
+    case "S21__DEGRADATION":
+      return (
+        hasCompleteInfectionPublicHealthOutbound(
+          parsed.outboundPrefill,
+          parsed.adapter,
+          parsed.clinicalContext,
+        ) &&
+        hasHighRiskInfectionPublicHealthClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasCompleteInfectionPublicHealthRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.ruleAsset,
+        ) &&
+        hasCompleteInfectionPublicHealthManualReview(parsed.manualReview, runtime.actionCardAsset)
+      );
+    case "S32__ABNORMAL":
+      return (
+        hasHighRiskInfectionPublicHealthClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasHighRiskInfectionPublicHealthInbound(
+          parsed.inboundReport,
+          parsed.adapter,
+          parsed.webhookSignature,
+          parsed.outboundPrefill,
+          runtime.releaseId,
+        ) &&
+        hasCompleteInfectionPublicHealthRectification(
+          parsed.qualityRectification,
+          parsed.recommendation,
+        )
       );
     default:
       return false;
@@ -8823,6 +8952,21 @@ function hasCompleteInfectionPublicHealthClinicalContext(value: unknown, runtime
   );
 }
 
+function hasHighRiskInfectionPublicHealthClinicalContext(value: unknown, runtimeReleaseId: string) {
+  if (!hasCompleteInfectionPublicHealthClinicalContext(value, runtimeReleaseId)) return false;
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const publicHealthReport = recordValue(local?.publicHealthReport);
+  const safetyEvent = recordValue(local?.safetyEvent);
+  return (
+    publicHealthReport?.reportableCondition === "SUSPECTED_COVID_19" &&
+    safetyEvent?.riskLevel === "HIGH" &&
+    safetyEvent.rootCause === "ISOLATION_PROTOCOL_GAP"
+  );
+}
+
 function hasCompleteInfectionPublicHealthOutbound(
   value: unknown,
   adapterValue: unknown,
@@ -8916,6 +9060,36 @@ function hasCompleteInfectionPublicHealthInbound(
         document?.documentType === "PUBLIC_HEALTH_REPORT_PREFILL" && hasText(document.contentDigest)
       );
     })
+  );
+}
+
+function hasHighRiskInfectionPublicHealthInbound(
+  value: unknown,
+  adapterValue: unknown,
+  webhookValue: unknown,
+  outboundValue: unknown,
+  runtimeReleaseId: string,
+) {
+  if (
+    !hasCompleteInfectionPublicHealthInbound(
+      value,
+      adapterValue,
+      webhookValue,
+      outboundValue,
+      runtimeReleaseId,
+    )
+  ) {
+    return false;
+  }
+  const inbound = recordValue(value);
+  const mappedPayload = recordValue(inbound?.mappedPayload);
+  const signedPayload = recordValue(inbound?.signedPayload);
+  const safetyEvent = recordValue(mappedPayload?.safetyEvent);
+  return (
+    safetyEvent?.riskLevel === "HIGH" &&
+    safetyEvent.rootCause === "ISOLATION_PROTOCOL_GAP" &&
+    signedPayload?.infectionCode === "PH-COVID-19" &&
+    signedPayload.labResult === "POSITIVE"
   );
 }
 

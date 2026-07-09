@@ -1,5 +1,12 @@
 import { createHmac } from "node:crypto";
-import { expect, test, type APIResponse, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   appPath,
@@ -126,206 +133,203 @@ const requiredStages = {
 } as const;
 
 test.describe("院感公卫与医疗安全事件代表切片真实前台闭环", () => {
-  test(
-    "临床用户与运营员、平台管理员完成院感公卫上报预填和医疗安全事件整改代表闭环",
-    async ({ page }, testInfo) => {
-      test.setTimeout(360_000);
-      const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
-      const observedStages = new Set<string>();
-      const apiEvidence = createApiEvidence();
+  test("临床用户与运营员、平台管理员完成院感公卫上报预填和医疗安全事件整改代表闭环", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(360_000);
+    const suffix = `${Date.now().toString(36).toUpperCase()}-${testInfo.retry}`;
+    const observedStages = new Set<string>();
+    const apiEvidence = createApiEvidence();
 
-      await ensureReadySession(page, "platform-admin");
-      const adapter = await createPublicHealthAdapter(page, suffix);
-      apiEvidence.publicHealthAdapterCreatedThroughRealService = true;
-      const webhook = await createPublicHealthWebhook(page, suffix);
-      apiEvidence.publicHealthWebhookCreatedThroughRealService = true;
-      await generatePublicHealthSignaturePreview(page, webhook.webhookId);
-      apiEvidence.webhookSignaturePreviewGenerated = true;
-      recordStage(
-        observedStages,
-        "平台管理员访问真实前台并经真实服务创建 PUBLIC_HEALTH_INFECTION_REGULATORY 适配器、回调通道和签名预览",
-      );
+    await ensureReadySession(page, "platform-admin");
+    const adapter = await createPublicHealthAdapter(page, suffix);
+    apiEvidence.publicHealthAdapterCreatedThroughRealService = true;
+    const webhook = await createPublicHealthWebhook(page, suffix);
+    apiEvidence.publicHealthWebhookCreatedThroughRealService = true;
+    await generatePublicHealthSignaturePreview(page, webhook.webhookId);
+    apiEvidence.webhookSignaturePreviewGenerated = true;
+    recordStage(
+      observedStages,
+      "平台管理员访问真实前台并经真实服务创建 PUBLIC_HEALTH_INFECTION_REGULATORY 适配器、回调通道和签名预览",
+    );
 
-      await ensureReadySession(page, "engine-operator");
-      const hospitalId = await localRehearsalHospitalId(page);
-      const terminologyGate = await createPublicHealthTerminologyGate(page, suffix);
-      apiEvidence.infectionTerminologyActivated = true;
-      const actionCard = await createPublicHealthActionCard(page, suffix);
-      apiEvidence.publicHealthActionCardPublished = true;
-      const preRuleRuntime = await activateRuntimeWithPublicHealthAssets(page, {
-        hospitalId,
-        terminology: terminologyGate,
-        actionCard,
-      });
+    await ensureReadySession(page, "engine-operator");
+    const hospitalId = await localRehearsalHospitalId(page);
+    const terminologyGate = await createPublicHealthTerminologyGate(page, suffix);
+    apiEvidence.infectionTerminologyActivated = true;
+    const actionCard = await createPublicHealthActionCard(page, suffix);
+    apiEvidence.publicHealthActionCardPublished = true;
+    const preRuleRuntime = await activateRuntimeWithPublicHealthAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      actionCard,
+    });
 
-      const positivePatient = await createPublicHealthPatientFromFrontdesk(page, `${suffix}-POS`);
-      const positiveInbound = await postSignedPublicHealthInbound(page, {
-        suffix: `${suffix}-POS`,
-        adapterId: adapter.adapterId,
+    const positivePatient = await createPublicHealthPatientFromFrontdesk(page, `${suffix}-POS`);
+    const positiveInbound = await postSignedPublicHealthInbound(page, {
+      suffix: `${suffix}-POS`,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patientId: positivePatient.patientId,
+      encounterId: positivePatient.encounterId,
+      traceId: `trace-public-health-rule-pos-${suffix}`,
+      runtimeReleaseId: preRuleRuntime.releaseId,
+      positive: true,
+    });
+    const positiveSnapshot = await readLatestContextForPatient(page, positivePatient.patientId);
+    expect(positiveSnapshot.runtimeReleaseId, "规则阳性用例快照必须绑定预备 runtime").toBe(
+      preRuleRuntime.releaseId,
+    );
+    const negativePatient = await createPublicHealthPatientFromFrontdesk(page, `${suffix}-NEG`);
+    await postSignedPublicHealthInbound(page, {
+      suffix: `${suffix}-NEG`,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patientId: negativePatient.patientId,
+      encounterId: negativePatient.encounterId,
+      traceId: `trace-public-health-rule-neg-${suffix}`,
+      runtimeReleaseId: preRuleRuntime.releaseId,
+      positive: false,
+    });
+    const negativeSnapshot = await readLatestContextForPatient(page, negativePatient.patientId);
+    await ensureReadySession(page, "engine-operator");
+    const rule = await createAndPublishPublicHealthRule(page, suffix, {
+      positiveContextSnapshotId: positiveSnapshot.snapshotId,
+      negativeContextSnapshotId: negativeSnapshot.snapshotId,
+      actionCard,
+    });
+    apiEvidence.publicHealthRuleCreated = true;
+    recordStage(observedStages, "运营员发布院感公卫术语、上报预填规则和动作卡资产");
+
+    const ruleCandidate = await readHospitalRuntimeCandidate(
+      page,
+      hospitalId,
+      "RULE",
+      rule.assetIdentity,
+    );
+    const ruleEvidence = {
+      ...rule,
+      versionId: ruleCandidate.versionId,
+      versionNo: ruleCandidate.versionNo,
+      contentHash: ruleCandidate.contentHash,
+    };
+    const runtime = await activateRuntimeWithPublicHealthAssets(page, {
+      hospitalId,
+      terminology: terminologyGate,
+      rule: ruleCandidate,
+      actionCard,
+    });
+    apiEvidence.runtimeActivatedWithPublicHealthAssets = true;
+    recordStage(observedStages, "当前机构生效版本包含院感公卫三类运行资产");
+
+    const patient = await createPublicHealthPatientFromFrontdesk(page, suffix);
+    apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
+    const inboundReport = await postSignedPublicHealthInbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      webhookId: webhook.webhookId,
+      webhookSecret: webhook.sharedSecret,
+      patientId: patient.patientId,
+      encounterId: patient.encounterId,
+      traceId: `trace-public-health-${suffix}`,
+      runtimeReleaseId: runtime.releaseId,
+      positive: true,
+    });
+    apiEvidence.inboundPublicHealthReportAccepted = true;
+    const snapshot = await readLatestContextForPatient(page, patient.patientId);
+    expect(snapshot.runtimeReleaseId, "正式入站上下文必须绑定本轮 runtime").toBe(runtime.releaseId);
+    assertSnapshotContainsPublicHealthFacts(snapshot.resources);
+    const outboundPrefill = await sendPublicHealthOutbound(page, {
+      suffix,
+      adapterId: adapter.adapterId,
+      patientId: patient.patientId,
+      contextSnapshotId: snapshot.snapshotId,
+      traceId: inboundReport.traceId,
+    });
+    apiEvidence.prefillOutboundRequested = true;
+    recordStage(
+      observedStages,
+      "系统向 PUBLIC_HEALTH_INFECTION_REGULATORY 发出上报预填回传并诚实断连降级",
+    );
+    recordStage(
+      observedStages,
+      "临床用户从患者 360 建立脱敏患者，签名入站事件生成感染诊断、检验结果和上报预填上下文",
+    );
+    recordStage(
+      observedStages,
+      "PUBLIC_HEALTH_INFECTION_REGULATORY 签名回传感染监测结果并生成标准临床事件",
+    );
+    recordStage(observedStages, "入站安全事件保留风险、原因和整改要求扩展证据");
+
+    const recommendation = await triggerPublicHealthRecommendationFromFrontdesk(page, {
+      snapshot,
+      runtime,
+      rule: ruleEvidence,
+    });
+    apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
+    recordStage(observedStages, "临床用户从真实前台触发 result-review 推荐评估");
+    recordStage(observedStages, "推荐卡证明上报预填规则和动作卡按当前机构生效版本消费");
+
+    const manualReview = await completePublicHealthManualReview(page, {
+      cardId: recommendation.cardId,
+      actionCard,
+      actionCardAsset: runtime.actionCardAsset,
+    });
+    apiEvidence.humanReportReviewRecorded = true;
+    recordStage(observedStages, "临床用户人工确认上报预填，系统不替代法定上报");
+
+    const qualityRectification = await createAndCloseSafetyEventRectification(page, {
+      suffix,
+      recommendation,
+      snapshot,
+      runtimeReleaseId: runtime.releaseId,
+    });
+    apiEvidence.safetyRectificationSubmittedAndReviewed = true;
+    recordStage(observedStages, "医疗安全事件形成整改任务");
+    recordStage(observedStages, "固定四职责账号提交并复核关闭本轮安全事件整改任务");
+
+    await attachInfectionPublicHealthSafetyEvidence(testInfo, {
+      apiEvidence,
+      adapter,
+      webhookSignature: {
         webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patientId: positivePatient.patientId,
-        encounterId: positivePatient.encounterId,
-        traceId: `trace-public-health-rule-pos-${suffix}`,
-        runtimeReleaseId: preRuleRuntime.releaseId,
-        positive: true,
-      });
-      const positiveSnapshot = await readLatestContextForPatient(page, positivePatient.patientId);
-      expect(positiveSnapshot.runtimeReleaseId, "规则阳性用例快照必须绑定预备 runtime").toBe(
-        preRuleRuntime.releaseId,
-      );
-      const negativePatient = await createPublicHealthPatientFromFrontdesk(page, `${suffix}-NEG`);
-      await postSignedPublicHealthInbound(page, {
-        suffix: `${suffix}-NEG`,
         adapterId: adapter.adapterId,
-        webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patientId: negativePatient.patientId,
-        encounterId: negativePatient.encounterId,
-        traceId: `trace-public-health-rule-neg-${suffix}`,
-        runtimeReleaseId: preRuleRuntime.releaseId,
-        positive: false,
-      });
-      const negativeSnapshot = await readLatestContextForPatient(page, negativePatient.patientId);
-      await ensureReadySession(page, "engine-operator");
-      const rule = await createAndPublishPublicHealthRule(page, suffix, {
-        positiveContextSnapshotId: positiveSnapshot.snapshotId,
-        negativeContextSnapshotId: negativeSnapshot.snapshotId,
-        actionCard,
-      });
-      apiEvidence.publicHealthRuleCreated = true;
-      recordStage(observedStages, "运营员发布院感公卫术语、上报预填规则和动作卡资产");
-
-      const ruleCandidate = await readHospitalRuntimeCandidate(
-        page,
-        hospitalId,
-        "RULE",
-        rule.assetIdentity,
-      );
-      const ruleEvidence = {
-        ...rule,
-        versionId: ruleCandidate.versionId,
-        versionNo: ruleCandidate.versionNo,
-        contentHash: ruleCandidate.contentHash,
-      };
-      const runtime = await activateRuntimeWithPublicHealthAssets(page, {
-        hospitalId,
-        terminology: terminologyGate,
-        rule: ruleCandidate,
-        actionCard,
-      });
-      apiEvidence.runtimeActivatedWithPublicHealthAssets = true;
-      recordStage(observedStages, "当前机构生效版本包含院感公卫三类运行资产");
-
-      const patient = await createPublicHealthPatientFromFrontdesk(page, suffix);
-      apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
-      const inboundReport = await postSignedPublicHealthInbound(page, {
-        suffix,
-        adapterId: adapter.adapterId,
-        webhookId: webhook.webhookId,
-        webhookSecret: webhook.sharedSecret,
-        patientId: patient.patientId,
-        encounterId: patient.encounterId,
-        traceId: `trace-public-health-${suffix}`,
-        runtimeReleaseId: runtime.releaseId,
-        positive: true,
-      });
-      apiEvidence.inboundPublicHealthReportAccepted = true;
-      const snapshot = await readLatestContextForPatient(page, patient.patientId);
-      expect(snapshot.runtimeReleaseId, "正式入站上下文必须绑定本轮 runtime").toBe(
-        runtime.releaseId,
-      );
-      assertSnapshotContainsPublicHealthFacts(snapshot.resources);
-      const outboundPrefill = await sendPublicHealthOutbound(page, {
-        suffix,
-        adapterId: adapter.adapterId,
-        patientId: patient.patientId,
+        signatureAlgorithm: "HMAC-SHA256",
+        canonicalPayloadIncludesTraceId: true,
+        previewGenerated: true,
+      },
+      terminologyGate,
+      actionCard,
+      rule: ruleEvidence,
+      runtime,
+      activationRequest: runtime.activationRequest,
+      clinicalContext: {
+        patientId: snapshot.patientId,
+        encounterId: snapshot.encounterId,
         contextSnapshotId: snapshot.snapshotId,
-        traceId: inboundReport.traceId,
-      });
-      apiEvidence.prefillOutboundRequested = true;
-      recordStage(
-        observedStages,
-        "系统向 PUBLIC_HEALTH_INFECTION_REGULATORY 发出上报预填回传并诚实断连降级",
-      );
-      recordStage(
-        observedStages,
-        "临床用户从患者 360 建立脱敏患者，签名入站事件生成感染诊断、检验结果和上报预填上下文",
-      );
-      recordStage(
-        observedStages,
-        "PUBLIC_HEALTH_INFECTION_REGULATORY 签名回传感染监测结果并生成标准临床事件",
-      );
-      recordStage(observedStages, "入站安全事件保留风险、原因和整改要求扩展证据");
-
-      const recommendation = await triggerPublicHealthRecommendationFromFrontdesk(page, {
-        snapshot,
-        runtime,
-        rule: ruleEvidence,
-      });
-      apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
-      recordStage(observedStages, "临床用户从真实前台触发 result-review 推荐评估");
-      recordStage(observedStages, "推荐卡证明上报预填规则和动作卡按当前机构生效版本消费");
-
-      const manualReview = await completePublicHealthManualReview(page, {
-        cardId: recommendation.cardId,
-        actionCard,
-        actionCardAsset: runtime.actionCardAsset,
-      });
-      apiEvidence.humanReportReviewRecorded = true;
-      recordStage(observedStages, "临床用户人工确认上报预填，系统不替代法定上报");
-
-      const qualityRectification = await createAndCloseSafetyEventRectification(page, {
-        suffix,
-        recommendation,
-        snapshot,
+        runtimeReleaseId: snapshot.runtimeReleaseId,
+        resources: snapshot.resources,
+      },
+      outboundPrefill,
+      inboundReport: {
+        ...inboundReport,
+        contextSnapshotId: snapshot.snapshotId,
+      },
+      clinicalTrigger: {
+        triggerId: recommendation.triggerId,
+        contextSnapshotId: snapshot.snapshotId,
         runtimeReleaseId: runtime.releaseId,
-      });
-      apiEvidence.safetyRectificationSubmittedAndReviewed = true;
-      recordStage(observedStages, "医疗安全事件形成整改任务");
-      recordStage(observedStages, "固定四职责账号提交并复核关闭本轮安全事件整改任务");
-
-      await attachInfectionPublicHealthSafetyEvidence(testInfo, {
-        apiEvidence,
-        adapter,
-        webhookSignature: {
-          webhookId: webhook.webhookId,
-          adapterId: adapter.adapterId,
-          signatureAlgorithm: "HMAC-SHA256",
-          canonicalPayloadIncludesTraceId: true,
-          previewGenerated: true,
-        },
-        terminologyGate,
-        actionCard,
-        rule: ruleEvidence,
-        runtime,
-        activationRequest: runtime.activationRequest,
-        clinicalContext: {
-          patientId: snapshot.patientId,
-          encounterId: snapshot.encounterId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: snapshot.runtimeReleaseId,
-          resources: snapshot.resources,
-        },
-        outboundPrefill,
-        inboundReport: {
-          ...inboundReport,
-          contextSnapshotId: snapshot.snapshotId,
-        },
-        clinicalTrigger: {
-          triggerId: recommendation.triggerId,
-          contextSnapshotId: snapshot.snapshotId,
-          runtimeReleaseId: runtime.releaseId,
-          cardId: recommendation.cardId,
-          relatedCardIds: recommendation.relatedCardIds,
-        },
-        recommendation,
-        manualReview,
-        qualityRectification,
-        observedStages,
-      });
-    },
-  );
+        cardId: recommendation.cardId,
+        relatedCardIds: recommendation.relatedCardIds,
+      },
+      recommendation,
+      manualReview,
+      qualityRectification,
+      observedStages,
+    });
+  });
 });
 
 function createApiEvidence(): PublicHealthApiEvidence {
@@ -428,7 +432,10 @@ async function createPublicHealthWebhook(page: Page, suffix: string) {
 async function generatePublicHealthSignaturePreview(page: Page, webhookId: string) {
   const response = await postApi(page, "/engine/integration/webhooks/test", {
     webhookId,
-    payload: JSON.stringify({ traceId: `preview-${webhookId}`, eventType: "PUBLIC_HEALTH_INFECTION_REPORT" }),
+    payload: JSON.stringify({
+      traceId: `preview-${webhookId}`,
+      eventType: "PUBLIC_HEALTH_INFECTION_REPORT",
+    }),
   });
   await expectOk(response, "生成院感公卫回调签名预览");
   const data = await responseData(response);
@@ -455,7 +462,8 @@ async function createPublicHealthTerminologyGate(page: Page, suffix: string) {
     localCode: diagnosisLocalCode,
     category: "DIAGNOSIS",
     localName: "院感公卫新型冠状病毒感染疑似病例",
-    normalizedName: "院感公卫新型冠状病毒感染疑似病例|PH-COVID-19|COVID-19|U07.100|新型冠状病毒感染",
+    normalizedName:
+      "院感公卫新型冠状病毒感染疑似病例|PH-COVID-19|COVID-19|U07.100|新型冠状病毒感染",
     local_department_id: null,
   });
   await expectOk(local, "登记院感公卫院内诊断术语");
@@ -528,7 +536,10 @@ async function readOrConfirmTerminologyMapping(
     semanticAssistEnabled: true,
   });
   await expectOk(generation, "生成院感公卫术语映射候选");
-  const jobCode = requireText(textField(await responseData(generation), "jobCode"), "术语候选任务必须返回 jobCode");
+  const jobCode = requireText(
+    textField(await responseData(generation), "jobCode"),
+    "术语候选任务必须返回 jobCode",
+  );
   const candidate = await waitForTerminologyCandidate(page, jobCode, {
     localCode: options.localCode,
     localTermId: options.localTermId,
@@ -614,7 +625,13 @@ async function createPublicHealthActionCard(
       summary: "疑似传染病上报预填需人工复核。",
       detail: "系统只生成上报预填和任务证据，不自动提交法定上报。",
       source: { label: "MedKernel S21/S32 本地上线演练" },
-      suggestions: [{ label: "打开上报预填", actionType: "OPEN_FORM", payload: { target: "PUBLIC_HEALTH_REPORT" } }],
+      suggestions: [
+        {
+          label: "打开上报预填",
+          actionType: "OPEN_FORM",
+          payload: { target: "PUBLIC_HEALTH_REPORT" },
+        },
+      ],
       overrideReasons: ["临床用户已人工复核上报预填，后续依法在法定系统提交"],
       requiresHumanReportReview: true,
       noLegalAutoSubmit: true,
@@ -665,7 +682,8 @@ async function createAndPublishPublicHealthRule(
     dedupeWindowSeconds: 0,
     applicableOrgUnitId: null,
     sourceRef: "local-e2e:infection-public-health-safety",
-    changeSummary: "S21/S32 代表切片：规则引用 Condition、Observation、extensions.local 与 ACTION_CARD。",
+    changeSummary:
+      "S21/S32 代表切片：规则引用 Condition、Observation、extensions.local 与 ACTION_CARD。",
     dsl: {
       applicability: {
         population: {},
@@ -714,15 +732,43 @@ async function createAndPublishPublicHealthRule(
   const created = await responseData(create);
   const ruleId = requireText(textField(created, "ruleId"), "规则创建响应必须返回 ruleId");
   for (const testCase of [
-    { caseType: "POSITIVE", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "NEGATIVE", expectedHit: false, expectedSeverity: null, expectedActionCode: null, contextSnapshotId: options.negativeContextSnapshotId },
-    { caseType: "BOUNDARY", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
-    { caseType: "CONFLICT", expectedHit: true, expectedSeverity: "HIGH", expectedActionCode: "STRONG_REMINDER", contextSnapshotId: options.positiveContextSnapshotId },
+    {
+      caseType: "POSITIVE",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "NEGATIVE",
+      expectedHit: false,
+      expectedSeverity: null,
+      expectedActionCode: null,
+      contextSnapshotId: options.negativeContextSnapshotId,
+    },
+    {
+      caseType: "BOUNDARY",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
+    {
+      caseType: "CONFLICT",
+      expectedHit: true,
+      expectedSeverity: "HIGH",
+      expectedActionCode: "STRONG_REMINDER",
+      contextSnapshotId: options.positiveContextSnapshotId,
+    },
   ]) {
-    const response = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`, {
-      ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
-      ...testCase,
-    });
+    const response = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/test-cases`,
+      {
+        ...apiContext(ruleId, `rule-test-${testCase.caseType}`),
+        ...testCase,
+      },
+    );
     await expectOk(response, `新增院感公卫规则发布验证用例 ${testCase.caseType}`);
   }
   const testRun = await postApi(
@@ -731,26 +777,36 @@ async function createAndPublishPublicHealthRule(
     apiContext(ruleId, "rule-test-run"),
   );
   await expectOk(testRun, "执行院感公卫规则发布验证用例");
-  expect(booleanField(await responseData(testRun), "allPassed"), "规则发布验证用例必须全部通过").toBe(true);
+  expect(
+    booleanField(await responseData(testRun), "allPassed"),
+    "规则发布验证用例必须全部通过",
+  ).toBe(true);
   for (const targetState of ["REVIEWED", "SHADOW", "CANARY", "FULL"]) {
     const impact = await getApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/impact`);
     await expectOk(impact, `读取院感公卫规则 ${targetState} 影响摘要`);
-    const transition = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`, {
-      ...apiContext(ruleId, `rule-governance-${targetState}`),
-      targetState,
-      impactDigest: requireText(textField(await responseData(impact), "impactDigest"), "规则影响摘要必须返回 digest"),
-      reason: `S21/S32 院感公卫上报预填规则推进至 ${targetState}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: `院感公卫规则 ${targetState} 推进质量门已通过`,
+    const transition = await postApi(
+      page,
+      `/engine/rule/rules/${encodeURIComponent(ruleId)}/governance/transitions`,
+      {
+        ...apiContext(ruleId, `rule-governance-${targetState}`),
+        targetState,
+        impactDigest: requireText(
+          textField(await responseData(impact), "impactDigest"),
+          "规则影响摘要必须返回 digest",
+        ),
+        reason: `S21/S32 院感公卫上报预填规则推进至 ${targetState}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: `院感公卫规则 ${targetState} 推进质量门已通过`,
+          },
         },
       },
-    });
+    );
     await expectOk(transition, `院感公卫规则治理推进至 ${targetState}`);
   }
   return {
@@ -777,7 +833,8 @@ async function activateRuntimeWithPublicHealthAssets(
   for (const required of requiredRuntimeAssetsForRehearsal) {
     expect(
       baselineAssets.activeAssets.some(
-        (asset) => asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
+        (asset) =>
+          asset.assetType === required.assetType && asset.assetIdentity === required.assetIdentity,
       ),
       `平台标准版本缺少 ${required.assetType}:${required.assetIdentity}`,
     ).toBe(true);
@@ -807,18 +864,26 @@ async function activateRuntimeWithPublicHealthAssets(
     activationRequest,
   );
   await expectOk(activated, "激活包含院感公卫资产的医院生效版本");
-  const releaseId = requireText(textField(await responseData(activated), "releaseId"), "激活必须返回 releaseId");
+  const releaseId = requireText(
+    textField(await responseData(activated), "releaseId"),
+    "激活必须返回 releaseId",
+  );
   const currentAfter = await getApi(
     page,
     `/engine/releases/hospitals/${encodeURIComponent(options.hospitalId)}/runtime-releases/current`,
   );
   await expectOk(currentAfter, "回读院感公卫医院生效版本");
   const detail = (await responseData(currentAfter)) as RuntimeReleaseDetail;
-  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(releaseId);
+  expect(textFieldAtPath(detail, "release.releaseId"), "当前医院生效版本必须指向本次激活").toBe(
+    releaseId,
+  );
   return {
     releaseId,
     revisionNo: numberFieldAtPath(detail, "release.revisionNo") ?? 0,
-    manifestSha256: requireText(textFieldAtPath(detail, "release.manifestSha256"), "机构生效版本必须返回 manifestSha256"),
+    manifestSha256: requireText(
+      textFieldAtPath(detail, "release.manifestSha256"),
+      "机构生效版本必须返回 manifestSha256",
+    ),
     assets: detail.items ?? [],
     terminologyAsset: assertRuntimeContainsAsset(detail, options.terminology),
     ruleAsset: options.rule ? assertRuntimeContainsAsset(detail, options.rule) : undefined,
@@ -847,9 +912,18 @@ async function readHospitalRuntimeCandidate(
   return {
     assetType,
     assetIdentity,
-    versionId: requireText(textField(candidate, "versionId"), `${assetType} 候选必须返回 versionId`),
-    versionNo: requireText(textField(candidate, "versionNo"), `${assetType} 候选必须返回 versionNo`),
-    contentHash: requireText(textField(candidate, "contentHash"), `${assetType} 候选必须返回 contentHash`),
+    versionId: requireText(
+      textField(candidate, "versionId"),
+      `${assetType} 候选必须返回 versionId`,
+    ),
+    versionNo: requireText(
+      textField(candidate, "versionNo"),
+      `${assetType} 候选必须返回 versionNo`,
+    ),
+    contentHash: requireText(
+      textField(candidate, "contentHash"),
+      `${assetType} 候选必须返回 contentHash`,
+    ),
   };
 }
 
@@ -873,7 +947,10 @@ async function createPublicHealthPatientFromFrontdesk(page: Page, suffix: string
   await dialog.getByRole("button", { name: "保存患者" }).click();
   const patientResponse = await patientResponsePromise;
   await expectHttpOk(patientResponse, "创建院感公卫演练脱敏患者");
-  const patientId = requireText(textField(await responseData(patientResponse), "mpiId"), "患者创建响应必须返回 MPI");
+  const patientId = requireText(
+    textField(await responseData(patientResponse), "mpiId"),
+    "患者创建响应必须返回 MPI",
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   return {
     patientId,
@@ -925,7 +1002,10 @@ async function sendPublicHealthOutbound(
     protocolType: "Webhook",
     status,
     compensationStatus: requireText(textField(compensation, "status"), "补偿日志必须返回状态"),
-    compensationMessageId: requireText(textField(compensation, "messageId"), "补偿日志必须返回 messageId"),
+    compensationMessageId: requireText(
+      textField(compensation, "messageId"),
+      "补偿日志必须返回 messageId",
+    ),
     blocksMainFlow: booleanField(data, "blocksMainFlow"),
     compensationRequired: textField(compensation, "status") === "NOT_CONNECTED",
     payload: {
@@ -1021,8 +1101,15 @@ async function postSignedPublicHealthInbound(
   );
   await expectOk(response, "院感公卫监管签名入站");
   const data = await responseData(response);
-  const clinicalEventId = requireText(textField(data, "clinicalEventId"), "入站必须返回 clinicalEventId");
-  const clinicalEvent = await waitForClinicalEventProcessed(page, clinicalEventId, options.runtimeReleaseId);
+  const clinicalEventId = requireText(
+    textField(data, "clinicalEventId"),
+    "入站必须返回 clinicalEventId",
+  );
+  const clinicalEvent = await waitForClinicalEventProcessed(
+    page,
+    clinicalEventId,
+    options.runtimeReleaseId,
+  );
   return {
     messageId: requireText(textField(data, "messageId"), "入站必须返回 messageId"),
     traceId: requireText(textField(data, "traceId"), "入站必须返回 traceId"),
@@ -1070,10 +1157,15 @@ async function waitForClinicalEventProcessed(
     }
     await waitForPollingInterval(250);
   }
-  throw new Error(`院感公卫入站事件 ${eventId} 未处理到 PROCESSED，最后状态：${last?.status ?? "UNKNOWN"}`);
+  throw new Error(
+    `院感公卫入站事件 ${eventId} 未处理到 PROCESSED，最后状态：${last?.status ?? "UNKNOWN"}`,
+  );
 }
 
-async function readLatestContextForPatient(page: Page, patientId: string): Promise<ContextSnapshotSummary> {
+async function readLatestContextForPatient(
+  page: Page,
+  patientId: string,
+): Promise<ContextSnapshotSummary> {
   const list = await getApi(
     page,
     `/engine/context/snapshots?patientId=${encodeURIComponent(patientId)}&status=ACTIVE&page=1&size=5&sort=createdAt,desc`,
@@ -1092,7 +1184,10 @@ async function readLatestContextForPatient(page: Page, patientId: string): Promi
       "上下文详情必须返回 patient.mpi",
     ),
     snapshotId: requireText(textField(context, "snapshotId"), "上下文详情必须返回 snapshotId"),
-    runtimeReleaseId: requireText(textField(context, "runtimeReleaseId"), "上下文详情必须返回 runtimeReleaseId"),
+    runtimeReleaseId: requireText(
+      textField(context, "runtimeReleaseId"),
+      "上下文详情必须返回 runtimeReleaseId",
+    ),
     encounterId: textFieldAtPath(context, "resources.encounters.0.encounterId"),
     resources: recordValue(recordField(context, "resources")) ?? {},
   };
@@ -1101,13 +1196,17 @@ async function readLatestContextForPatient(page: Page, patientId: string): Promi
 function assertSnapshotContainsPublicHealthFacts(resources: Record<string, unknown>) {
   expect(
     arrayField(resources, "conditions").some(
-      (item) => textField(item, "code") === diagnosisStandardCode && textField(item, "sourceSystem") === publicHealthSourceSystem,
+      (item) =>
+        textField(item, "code") === diagnosisStandardCode &&
+        textField(item, "sourceSystem") === publicHealthSourceSystem,
     ),
     "上下文必须包含院感公卫入站感染诊断",
   ).toBe(true);
   expect(
     arrayField(resources, "observations").some(
-      (item) => textField(item, "code") === observationCode && textField(item, "valueString") === "POSITIVE",
+      (item) =>
+        textField(item, "code") === observationCode &&
+        textField(item, "valueString") === "POSITIVE",
     ),
     "上下文必须包含院感公卫入站检验结果",
   ).toBe(true);
@@ -1117,9 +1216,18 @@ function assertSnapshotContainsPublicHealthFacts(resources: Record<string, unkno
     ),
     "上下文必须包含上报预填文档证据",
   ).toBe(true);
-  expect(booleanFieldAtPath(resources, "extensions.local.publicHealthReport.manualSubmitRequired"), "上报预填必须要求人工提交").toBe(true);
-  expect(booleanFieldAtPath(resources, "extensions.local.publicHealthReport.legalSubmissionDelegated"), "中枢不得替代法定上报").toBe(false);
-  expect(booleanFieldAtPath(resources, "extensions.local.safetyEvent.rectificationRequired"), "安全事件必须要求整改").toBe(true);
+  expect(
+    booleanFieldAtPath(resources, "extensions.local.publicHealthReport.manualSubmitRequired"),
+    "上报预填必须要求人工提交",
+  ).toBe(true);
+  expect(
+    booleanFieldAtPath(resources, "extensions.local.publicHealthReport.legalSubmissionDelegated"),
+    "中枢不得替代法定上报",
+  ).toBe(false);
+  expect(
+    booleanFieldAtPath(resources, "extensions.local.safetyEvent.rectificationRequired"),
+    "安全事件必须要求整改",
+  ).toBe(true);
 }
 
 async function triggerPublicHealthRecommendationFromFrontdesk(
@@ -1146,7 +1254,10 @@ async function triggerPublicHealthRecommendationFromFrontdesk(
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
   const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
-  await expect(snapshotButton, `提醒推荐页必须展示本轮院感公卫快照 ${snapshot.snapshotId}`).toBeVisible({ timeout: 20_000 });
+  await expect(
+    snapshotButton,
+    `提醒推荐页必须展示本轮院感公卫快照 ${snapshot.snapshotId}`,
+  ).toBeVisible({ timeout: 20_000 });
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "审核结果");
   const evaluateResponsePromise = waitForEvaluateResponse(page, snapshot);
@@ -1154,7 +1265,10 @@ async function triggerPublicHealthRecommendationFromFrontdesk(
   const evaluateResponse = await evaluateResponsePromise;
   await expectHttpOk(evaluateResponse, "临床用户从真实前台触发院感公卫推荐评估");
   const evaluation = await responseData(evaluateResponse);
-  const triggerId = requireText(textField(evaluation, "triggerId"), "推荐评估响应必须返回 triggerId");
+  const triggerId = requireText(
+    textField(evaluation, "triggerId"),
+    "推荐评估响应必须返回 triggerId",
+  );
   const relatedCardIds = await readRecommendationTriggerDiagnose(page, triggerId);
   const recommendation = await findPublicHealthRuleCard(page, relatedCardIds, {
     triggerId,
@@ -1176,7 +1290,11 @@ async function findPublicHealthRuleCard(
   options: {
     triggerId: string;
     snapshot: ContextSnapshotSummary;
-    runtime: { releaseId: string; ruleAsset: RuntimeReleaseItem | undefined; actionCardAsset: RuntimeReleaseItem };
+    runtime: {
+      releaseId: string;
+      ruleAsset: RuntimeReleaseItem | undefined;
+      actionCardAsset: RuntimeReleaseItem;
+    };
     rule: PublicHealthAssetCandidate & { ruleId: string; ruleVersionId: string };
   },
 ) {
@@ -1190,7 +1308,10 @@ async function findPublicHealthRuleCard(
     explanation: Record<string, unknown>;
   }> = [];
   for (const cardId of Array.from(new Set(relatedCardIds))) {
-    const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(cardId)}`);
+    const detailResponse = await getApi(
+      page,
+      `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    );
     await expectOk(detailResponse, `推荐卡 ${cardId} 详情应可读取`);
     const detail = await responseData(detailResponse);
     const explanation = parseJsonRecord(
@@ -1209,8 +1330,15 @@ async function findPublicHealthRuleCard(
       textField(explanation, "ruleId") === options.rule.ruleId &&
       textField(explanation, "ruleCode") === options.rule.assetIdentity &&
       textField(runtimeRelease, "assetVersionId") === options.runtime.ruleAsset?.versionId &&
-      conditionEvidence.some((item) => textField(item, "fact") === "conditions[].code" && booleanField(item, "matched") === true) &&
-      conditionEvidence.some((item) => textField(item, "fact") === "observations[].valueString" && booleanField(item, "matched") === true) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "conditions[].code" && booleanField(item, "matched") === true,
+      ) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "observations[].valueString" &&
+          booleanField(item, "matched") === true,
+      ) &&
       conditionEvidence.some(
         (item) =>
           textField(item, "fact") === "extensions.local.publicHealthReport.manualSubmitRequired" &&
@@ -1229,12 +1357,18 @@ async function findPublicHealthRuleCard(
       cardStatus: textFieldAtPath(detail, "card.status"),
       triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
       cardType: textFieldAtPath(detail, "card.cardType") ?? "REPORT",
-      requiresPhysicianConfirmation: booleanFieldAtPath(detail, "card.requiresPhysicianConfirmation"),
+      requiresPhysicianConfirmation: booleanFieldAtPath(
+        detail,
+        "card.requiresPhysicianConfirmation",
+      ),
       aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
       explanation,
     });
   }
-  expect(matched.map((card) => card.cardId), "必须唯一定位本轮院感公卫 RULE 推荐卡").toHaveLength(1);
+  expect(
+    matched.map((card) => card.cardId),
+    "必须唯一定位本轮院感公卫 RULE 推荐卡",
+  ).toHaveLength(1);
   return matched[0];
 }
 
@@ -1249,7 +1383,9 @@ async function completePublicHealthManualReview(
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/cdss/fatigue"), { waitUntil: "networkidle" });
   await page.getByLabel("患者或证据线索").fill(options.cardId);
-  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
   const drawer = page.getByRole("dialog", { name: "推荐详情与反馈闭环" });
   await expect(drawer).toBeVisible({ timeout: 20_000 });
@@ -1262,7 +1398,10 @@ async function completePublicHealthManualReview(
   const response = await responsePromise;
   await expectHttpOk(response, "登记院感公卫上报预填人工确认");
   const feedback = await responseData(response);
-  const detailResponse = await getApi(page, `/engine/recommendations/cards/${encodeURIComponent(options.cardId)}`);
+  const detailResponse = await getApi(
+    page,
+    `/engine/recommendations/cards/${encodeURIComponent(options.cardId)}`,
+  );
   await expectOk(detailResponse, "回读院感公卫推荐卡反馈详情");
   const detail = await responseData(detailResponse);
   const persisted = arrayField(detail, "feedback").find(
@@ -1342,7 +1481,10 @@ async function createAndCloseSafetyEventRectification(
     ],
   });
   await expectOk(run, "创建医疗安全事件质量问题");
-  const issues = await getApi(page, "/engine/evaluation/issues?severity=P1&status=ASSIGNED&page=1&size=20&sort=createdAt,desc");
+  const issues = await getApi(
+    page,
+    "/engine/evaluation/issues?severity=P1&status=ASSIGNED&page=1&size=20&sort=createdAt,desc",
+  );
   await expectOk(issues, "读取医疗安全事件质量问题");
   const finding = pageItems(await responseData(issues)).find((item) =>
     String(textField(item, "findingCode") ?? "").includes(options.suffix),
@@ -1350,17 +1492,28 @@ async function createAndCloseSafetyEventRectification(
   const findingId = requireText(textField(finding, "findingId"), "必须回读本轮安全事件质量问题");
   const detail = await getApi(page, `/engine/evaluation/issues/${encodeURIComponent(findingId)}`);
   await expectOk(detail, "读取安全事件质量问题详情");
-  const taskId = requireText(textFieldAtPath(await responseData(detail), "rectificationTask.taskId"), "质量问题必须自动派发整改任务");
-  const submit = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/submit`, {
-    rectificationSummary: "已补充隔离流程复盘、暴露人员追踪和院感公卫上报预填人工复核记录。",
-    evidenceRef: `public-health-safety-evidence-${options.suffix}`,
-  });
+  const taskId = requireText(
+    textFieldAtPath(await responseData(detail), "rectificationTask.taskId"),
+    "质量问题必须自动派发整改任务",
+  );
+  const submit = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
+    {
+      rectificationSummary: "已补充隔离流程复盘、暴露人员追踪和院感公卫上报预填人工复核记录。",
+      evidenceRef: `public-health-safety-evidence-${options.suffix}`,
+    },
+  );
   await expectOk(submit, "提交医疗安全事件整改证据");
-  const review = await postApi(page, `/engine/rectifications/${encodeURIComponent(taskId)}/review`, {
-    decision: "APPROVED",
-    comment: "复核通过，整改证据与本轮院感公卫安全事件一致。",
-    evidenceRef: `public-health-safety-review-${options.suffix}`,
-  });
+  const review = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
+    {
+      decision: "APPROVED",
+      comment: "复核通过，整改证据与本轮院感公卫安全事件一致。",
+      evidenceRef: `public-health-safety-review-${options.suffix}`,
+    },
+  );
   await expectOk(review, "复核关闭医疗安全事件整改任务");
   const reviewData = await responseData(review);
   return {
@@ -1389,13 +1542,15 @@ async function createActiveEvaluationIndicator(page: Page, suffix: string, depar
     subjectType: "PATIENT",
     denominatorDefinition: JSON.stringify({
       all: [
-        { fact: "extensions.local.safetyEvent.rectificationRequired", operator: "equals", value: true },
+        {
+          fact: "extensions.local.safetyEvent.rectificationRequired",
+          operator: "equals",
+          value: true,
+        },
       ],
     }),
     numeratorDefinition: JSON.stringify({
-      all: [
-        { fact: "rectification.reviewStatus", operator: "equals", value: "APPROVED" },
-      ],
+      all: [{ fact: "rectification.reviewStatus", operator: "equals", value: "APPROVED" }],
     }),
     exclusionDefinition: null,
     scoringDefinition: "命中即需整改",
@@ -1405,21 +1560,28 @@ async function createActiveEvaluationIndicator(page: Page, suffix: string, depar
     sourceRef: "local-e2e:infection-public-health-safety",
   });
   await expectOk(created, "创建院感公卫安全事件评价指标");
-  const indicatorId = requireText(textField(await responseData(created), "indicatorId"), "评价指标必须返回 indicatorId");
+  const indicatorId = requireText(
+    textField(await responseData(created), "indicatorId"),
+    "评价指标必须返回 indicatorId",
+  );
   for (const action of ["submit", "publish", "gray", "activate"]) {
-    const response = await postApi(page, `/engine/evaluation/indicators/${encodeURIComponent(indicatorId)}/${action}`, {
-      reason: `S32 医疗安全事件代表切片指标 ${action}`,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: "S32 医疗安全事件代表切片指标质量门已通过",
+    const response = await postApi(
+      page,
+      `/engine/evaluation/indicators/${encodeURIComponent(indicatorId)}/${action}`,
+      {
+        reason: `S32 医疗安全事件代表切片指标 ${action}`,
+        publishEvidence: {
+          qualityGate: {
+            schemaValid: true,
+            terminologyBindingComplete: true,
+            dependencyIntegrityVerified: true,
+            safetyMonotonicityVerified: true,
+            impactSimulationPassed: true,
+            summary: "S32 医疗安全事件代表切片指标质量门已通过",
+          },
         },
       },
-    });
+    );
     await expectOk(response, `评价指标 ${action}`);
   }
   return { indicatorId, indicatorCode };
@@ -1498,6 +1660,39 @@ async function attachInfectionPublicHealthSafetyEvidence(
         recommendation: evidence.recommendation,
         manualReview: evidence.manualReview,
         qualityRectification: evidence.qualityRectification,
+        scenarioConditionEvidence: [
+          {
+            code: "S21__HIGH_RISK",
+            scenarioCode: "S21",
+            condition: "HIGH_RISK",
+            source: "INFECTION_PUBLIC_HEALTH_MANUAL_REPORT_CONFIRMATION",
+            evidence: [
+              "阳性入站包含 U07.100、POSITIVE 和 SUSPECTED_COVID_19",
+              "上报预填必须人工提交且中枢不替代法定上报",
+              "推荐卡要求医生确认并由临床用户人工采纳",
+            ],
+          },
+          {
+            code: "S21__DEGRADATION",
+            scenarioCode: "S21",
+            condition: "DEGRADATION",
+            source: "PUBLIC_HEALTH_OUTBOUND_NOT_CONNECTED",
+            evidence: [
+              "PUBLIC_HEALTH_INFECTION_REGULATORY 出站上报预填收敛到 NOT_CONNECTED",
+              "断连补偿不阻断本地推荐和人工确认主链路",
+            ],
+          },
+          {
+            code: "S32__ABNORMAL",
+            scenarioCode: "S32",
+            condition: "ABNORMAL",
+            source: "PUBLIC_HEALTH_SAFETY_EVENT_RECTIFICATION_REVIEW",
+            evidence: [
+              "入站安全事件为 HIGH 风险职业暴露且要求整改复核",
+              "固定职责账号提交并复核关闭本轮安全事件整改任务",
+            ],
+          },
+        ],
         scenarioEvidence: [
           { code: "S21", observedStages: requiredStages.S21 },
           { code: "S32", observedStages: requiredStages.S32 },
@@ -1559,7 +1754,10 @@ async function readRecommendationTriggerDiagnose(page: Page, triggerId: string) 
 }
 
 async function localRehearsalHospitalId(page: Page) {
-  const response = await getApi(page, "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20");
+  const response = await getApi(
+    page,
+    "/engine/org/org-units?keyword=本地上线演练医院&page=1&size=20",
+  );
   await expectOk(response, "读取本地上线演练医院");
   const hospital = pageItems(await responseData(response)).find(
     (item) =>
@@ -1596,7 +1794,10 @@ async function localRehearsalQualityDepartmentId(page: Page, suffix: string) {
   return requireText(textField(department, "id"), "创建科室必须返回 id");
 }
 
-function assertRuntimeContainsAsset(detail: RuntimeReleaseDetail, expected: PublicHealthAssetCandidate) {
+function assertRuntimeContainsAsset(
+  detail: RuntimeReleaseDetail,
+  expected: PublicHealthAssetCandidate,
+) {
   const matched = (detail.items ?? []).find(
     (item) =>
       item.assetType === expected.assetType &&
@@ -1651,7 +1852,9 @@ async function waitForPost(page: Page, pathIncludes: string) {
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
   const field = dialog.getByRole("combobox", { name: label }).first();
   const selectSelector = field
-    .locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]")
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')]",
+    )
     .first()
     .locator(".ant-select-selector")
     .first();
