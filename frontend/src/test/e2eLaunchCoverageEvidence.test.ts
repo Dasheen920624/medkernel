@@ -2159,6 +2159,30 @@ const nursingContinuityEvidence = {
       ],
     },
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S20__NORMAL",
+      scenarioCode: "S20",
+      condition: "NORMAL",
+      source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
+      evidence: [
+        "FOLLOWUP 资产已激活到当前机构生效版本",
+        "临床用户从真实前台基于护理上下文生成随访计划并完成问卷",
+        "随访结果回流生成 FollowUp 标准资源并绑定同一 runtime",
+      ],
+    },
+    {
+      code: "S35__ABNORMAL",
+      scenarioCode: "S35",
+      condition: "ABNORMAL",
+      source: "NURSING_HIGH_RISK_ASSESSMENT_ABNORMAL_RETURN",
+      evidence: [
+        "标准上下文回读 NursingAssessment 高风险评估与 CarePlan 护理计划",
+        "随访计划解释消费护理评估风险等级和护理计划节点",
+        "异常回院事件、回院任务和通知事件均已登记",
+      ],
+    },
+  ],
   scenarioEvidence: [
     {
       code: "S35",
@@ -2208,6 +2232,16 @@ function expectNoNursingContinuityCoverage(body: Record<string, unknown>) {
   expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code) ?? []).not.toContain(
     "FOLLOWUP",
   );
+}
+
+function expectNoNursingContinuityScenarioConditionCoverage(
+  body: Record<string, unknown>,
+  code: "S20__NORMAL" | "S35__ABNORMAL",
+) {
+  const evidence = nursingContinuityEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain(code);
 }
 
 const pharmacyReviewAntimicrobialEvidence = {
@@ -9473,8 +9507,190 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "CLINICAL_RUNTIME",
     ]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S20__NORMAL",
+      "S35__ABNORMAL",
+    ]);
     expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S20/S35 condition rows without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = nursingContinuityEvidence;
+    const evidence = nursingContinuityEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S20", "S35"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      code: "S20__NORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S20__HIGH_RISK",
+            scenarioCode: "S20",
+            condition: "HIGH_RISK",
+            source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
+            evidence: ["护理连续照护正常闭环不能冒领高危态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      code: "S35__ABNORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S35__ABNORMAL",
+            scenarioCode: "S35",
+            condition: "ABNORMAL",
+            source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
+            evidence: ["S35 异常行来源错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      code: "S20__NORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S20__NORMAL",
+            scenarioCode: "S20",
+            condition: "NORMAL",
+            source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "FOLLOWUP 资产未激活",
+      code: "S20__NORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        runtime: {
+          ...structuredClone(nursingContinuityEvidence.runtime),
+          followupAsset: {
+            ...structuredClone(nursingContinuityEvidence.runtime.followupAsset),
+            entryState: "DRAFT",
+          },
+        },
+      },
+    },
+    {
+      name: "随访计划未由真实前台生成完成问卷",
+      code: "S20__NORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        questionnaire: {
+          ...structuredClone(nursingContinuityEvidence.questionnaire),
+          status: "DISPATCHED",
+        },
+      },
+    },
+    {
+      name: "随访结果回流未生成 FollowUp 资源",
+      code: "S20__NORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        backflowContext: {
+          ...structuredClone(nursingContinuityEvidence.backflowContext),
+          resources: {
+            followUps: [],
+          },
+        },
+      },
+    },
+    {
+      name: "护理评估不是高风险",
+      code: "S35__ABNORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        clinicalContext: {
+          ...structuredClone(nursingContinuityEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(nursingContinuityEvidence.clinicalContext.resources),
+            nursingAssessments: [
+              {
+                ...structuredClone(
+                  nursingContinuityEvidence.clinicalContext.resources.nursingAssessments[0],
+                ),
+                riskLevel: "LOW",
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      name: "随访计划解释未消费护理计划",
+      code: "S35__ABNORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        followupPlan: {
+          ...structuredClone(nursingContinuityEvidence.followupPlan),
+          generationExplanation: {
+            ...structuredClone(nursingContinuityEvidence.followupPlan.generationExplanation),
+            carePlanEvidence: [],
+          },
+        },
+      },
+    },
+    {
+      name: "随访计划解释中的护理评估不是高风险",
+      code: "S35__ABNORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        followupPlan: {
+          ...structuredClone(nursingContinuityEvidence.followupPlan),
+          generationExplanation: {
+            ...structuredClone(nursingContinuityEvidence.followupPlan.generationExplanation),
+            nursingAssessmentEvidence: [
+              {
+                ...structuredClone(
+                  nursingContinuityEvidence.followupPlan.generationExplanation
+                    .nursingAssessmentEvidence[0],
+                ),
+                riskLevel: "LOW",
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      name: "异常回院没有通知事件",
+      code: "S35__ABNORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        abnormalReport: {
+          ...structuredClone(nursingContinuityEvidence.abnormalReport),
+          notificationEventId: "",
+        },
+      },
+    },
+    {
+      name: "异常回院未绑定 RETURN_VISIT 任务",
+      code: "S35__ABNORMAL" as const,
+      body: {
+        ...structuredClone(nursingContinuityEvidence),
+        abnormalReport: {
+          ...structuredClone(nursingContinuityEvidence.abnormalReport),
+          returnTaskId: "ft-other-task",
+        },
+      },
+    },
+  ])("does not declare nursing continuity condition rows when $name", ({ body, code }) => {
+    expectNoNursingContinuityScenarioConditionCoverage(body, code);
   });
 
   it.each([

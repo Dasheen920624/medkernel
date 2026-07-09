@@ -687,6 +687,20 @@ const regionalDiagnosticMutualRecognitionScenarioConditionRows = [
     source: "REGIONAL_DIAGNOSTIC_MUTUAL_RECOGNITION_NOT_CONNECTED_COMPENSATION",
   },
 ] as const;
+const nursingContinuityScenarioConditionRows = [
+  {
+    code: "S20__NORMAL",
+    scenarioCode: "S20",
+    condition: "NORMAL",
+    source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
+  },
+  {
+    code: "S35__ABNORMAL",
+    scenarioCode: "S35",
+    condition: "ABNORMAL",
+    source: "NURSING_HIGH_RISK_ASSESSMENT_ABNORMAL_RETURN",
+  },
+] as const;
 const surgeryAnesthesiaTransfusionScenarioConditionRows = [
   {
     code: "S26__HIGH_RISK",
@@ -3936,6 +3950,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     )) {
       claims.add(claim);
     }
+    for (const claim of collectNursingContinuityScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectSurgeryAnesthesiaTransfusionScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4265,6 +4282,85 @@ function regionalDiagnosticMutualRecognitionScenarioConditionBackedByEvidence(
           parsed.workflowTodo,
           parsed.recommendation,
         )
+      );
+    default:
+      return false;
+  }
+}
+
+function collectNursingContinuityScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "nursing-continuity-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "nursing-continuity-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredNursingContinuityFrontdeskAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      nursingContinuityScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return nursingContinuityScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          nursingContinuityScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function nursingContinuityScenarioConditionBackedByEvidence(
+  code: (typeof nursingContinuityScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parseNursingContinuityRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S20__NORMAL":
+      return (
+        hasCompleteNursingContinuityApiEvidence(parsed.apiEvidence) &&
+        hasCompleteNursingContinuityActivationRequest(parsed.activationRequest, runtime) &&
+        hasCompleteNursingContinuityClinicalContext(parsed.clinicalContext, runtime.releaseId) &&
+        hasCompleteNursingContinuityFollowupPlan(
+          parsed.followupPlan,
+          runtime,
+          parsed.clinicalContext,
+        ) &&
+        hasCompleteNursingContinuityQuestionnaire(parsed.questionnaire, parsed.followupPlan) &&
+        hasCompleteNursingContinuityBackflow(
+          parsed.resultBackflow,
+          parsed.backflowContext,
+          runtime.releaseId,
+          parsed.questionnaire,
+        )
+      );
+    case "S35__ABNORMAL":
+      return (
+        hasCompleteNursingContinuityApiEvidence(parsed.apiEvidence) &&
+        hasCompleteNursingContinuityClinicalContext(parsed.clinicalContext, runtime.releaseId) &&
+        hasCompleteNursingContinuityHighRiskAssessment(parsed.clinicalContext) &&
+        hasCompleteNursingContinuityFollowupPlan(
+          parsed.followupPlan,
+          runtime,
+          parsed.clinicalContext,
+        ) &&
+        hasCompleteNursingContinuityHighRiskFollowupExplanation(
+          parsed.followupPlan,
+          parsed.clinicalContext,
+        ) &&
+        hasCompleteNursingContinuityAbnormalReport(parsed.abnormalReport, parsed.followupPlan)
       );
     default:
       return false;
@@ -8104,6 +8200,38 @@ function hasCompleteNursingContinuityClinicalContext(value: unknown, runtimeRele
   );
 }
 
+function hasCompleteNursingContinuityHighRiskAssessment(value: unknown) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const nursingAssessments = Array.isArray(resources?.nursingAssessments)
+    ? resources.nursingAssessments
+    : [];
+  const carePlans = Array.isArray(resources?.carePlans) ? resources.carePlans : [];
+  return (
+    nursingAssessments.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        hasText(row.assessmentId) &&
+        hasText(row.assessmentType) &&
+        row.riskLevel === "HIGH" &&
+        row.status === "CONFIRMED" &&
+        row.sourceSystem === "MEDKERNEL_FRONTDESK"
+      );
+    }) &&
+    carePlans.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        hasText(row.planId) &&
+        hasText(row.pathwayId) &&
+        hasText(row.currentNodeId) &&
+        row.sourceSystem === "MEDKERNEL_FRONTDESK"
+      );
+    })
+  );
+}
+
 function hasCompleteNursingContinuityFollowupPlan(
   value: unknown,
   runtime: { releaseId: string; followupAsset: NursingContinuityRuntimeAsset },
@@ -8156,6 +8284,65 @@ function hasCompleteNursingContinuityFollowupPlan(
     tasks.some((item) => {
       const row = recordValue(item);
       return row?.taskType === "QUESTIONNAIRE" && row.status === "COMPLETED";
+    })
+  );
+}
+
+function hasCompleteNursingContinuityHighRiskFollowupExplanation(
+  planValue: unknown,
+  contextValue: unknown,
+) {
+  const plan = recordValue(planValue);
+  const context = recordValue(contextValue);
+  const resources = recordValue(context?.resources);
+  const explanation = parseExplanationObject(plan?.generationExplanation);
+  if (!plan || !context || !resources || !explanation) return false;
+  const nursingEvidence = Array.isArray(explanation.nursingAssessmentEvidence)
+    ? explanation.nursingAssessmentEvidence
+    : [];
+  const carePlanEvidence = Array.isArray(explanation.carePlanEvidence)
+    ? explanation.carePlanEvidence
+    : [];
+  const nursingAssessments = Array.isArray(resources.nursingAssessments)
+    ? resources.nursingAssessments
+    : [];
+  const carePlans = Array.isArray(resources.carePlans) ? resources.carePlans : [];
+  return (
+    nursingEvidence.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        hasText(row.assessmentId) &&
+        row.riskLevel === "HIGH" &&
+        row.status === "CONFIRMED" &&
+        nursingAssessments.some((assessment) => {
+          const clinicalRow = recordValue(assessment);
+          if (!clinicalRow) return false;
+          return (
+            clinicalRow.assessmentId === row.assessmentId &&
+            clinicalRow.riskLevel === "HIGH" &&
+            clinicalRow.status === "CONFIRMED"
+          );
+        })
+      );
+    }) &&
+    carePlanEvidence.some((item) => {
+      const row = recordValue(item);
+      if (!row) return false;
+      return (
+        hasText(row.planId) &&
+        hasText(row.pathwayId) &&
+        hasText(row.currentNodeId) &&
+        carePlans.some((carePlan) => {
+          const clinicalRow = recordValue(carePlan);
+          if (!clinicalRow) return false;
+          return (
+            clinicalRow.planId === row.planId &&
+            clinicalRow.pathwayId === row.pathwayId &&
+            clinicalRow.currentNodeId === row.currentNodeId
+          );
+        })
+      );
     })
   );
 }

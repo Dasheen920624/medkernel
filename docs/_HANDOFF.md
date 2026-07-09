@@ -275,6 +275,49 @@
   但必须分别绑定 FOLLOWUP 资产、真实前台随访计划与结果回流，以及护理评估 / 护理计划 / 异常回院闭环；
   不得把护理“高风险”标题冒领为 `HIGH_RISK`，不得把同一附件中的异常回院污染 S20 正常态。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百零九批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口护理连续性 S20 与护理异常回院 S35 代表切片已有真实前台强链路，新增 2 条显式背书行：
+  `S20__NORMAL`（FOLLOWUP 资产已激活到当前机构生效版本，临床用户从真实前台基于护理上下文生成随访计划并完成问卷，
+  随访结果回流生成 FollowUp 标准资源并绑定同一 runtime）和 `S35__ABNORMAL`
+  （标准上下文回读 NursingAssessment 高风险评估与 CarePlan 护理计划，随访计划解释消费高风险且已确认的护理评估和护理计划节点，
+  异常回院事件、回院任务和通知事件均已登记）。不声明 `S20__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，
+  不声明 `S35__NORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不把“护理高风险”标题冒领为高风险五态行，也不冒领完整护理专业智能、
+  完整护理计划执行、第三方护理系统族、完整 S0-S40 或完整上线。
+- 第二百零九批实现细节：`frontend/e2e/nursing-continuity-frontdesk.spec.ts` 的
+  `nursing-continuity-frontdesk-codes` 附件新增 `scenarioConditionEvidence` 两行；
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增护理连续性条件行白名单和 collector，必须先通过完整
+  `hasRequiredNursingContinuityFrontdeskAttachment()`，再严格校验 `code/scenarioCode/condition/source/evidence`，
+  并分别绑定完整 API 证据、FOLLOWUP 激活请求、临床上下文、随访计划、问卷完成、结果回流和异常回院闭环。
+  S35 异常行额外要求随访计划解释本身消费 `riskLevel=HIGH`、`status=CONFIRMED` 且与上下文同一 `assessmentId`
+  的 NursingAssessment，并消费与上下文同一 `planId/pathwayId/currentNodeId` 的 CarePlan，避免只靠临床上下文高风险冒领。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、
+  空证据、FOLLOWUP 未激活、问卷未完成、回流缺 FollowUp、高风险评估不成立、随访计划解释未消费护理计划、
+  随访计划解释中的护理评估不是高风险、异常回院缺通知事件或未绑定 RETURN_VISIT 任务，均不声明对应条件行。
+- 第二百零九批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-nursing-condition-rows-20260709-r2 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium nursing-continuity-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-nursing-condition-rows-20260709-r2/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S20__NORMAL,S35__ABNORMAL]`，`launchCoverage.scenarios` 为 `[S20,S35]`，
+  `versionedAssets` 为 `[FOLLOWUP]`。
+- 第二百零九批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增负例“随访计划解释中的护理评估不是高风险”仍冒领 `S35__ABNORMAL`，随后收紧 S35 背书并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（482 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`（仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，无 whitespace error）。
+- 第二百零九批并行只读审计结论：本批使用 3 个只读子代理并行摸底下一批候选，均已关闭，未编辑、未暂存、未提交、未启动服务。
+  下一批优先建议 `S1__NORMAL`，但必须先把 `service-organization-scenario-codes` 升级为结构化证据附件，绑定服务机构开通、
+  首个管理员首次登录改密、医疗机构 / 科室创建、组织树回读和 `SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK` 条件行；
+  不得冒领 `LAUNCH-13` 九层组织、完整 34 入口或 S1 其他四态。备选 `S3__NORMAL` 需要把
+  `diagnosis-knowledge-scenario-codes` 升级为结构化证据附件，绑定诊断资产、诊断标准和验证病例前台维护链，
+  不得冒领完整医学知识生产、S16 诊断支持或全知识上线。`S6__NORMAL` 可以谨慎候选，但必须把语义限定为专病路径正常主链路消费
+  当前机构生效 ORDER_SET，不得解释为无变异 / 无异常路径，不得冒领完整医嘱闭环或自动开嘱。
+- 第二百零九批边界与下一步：本批只是把护理连续性 S20/S35 已有强链路接入 2 条五态总账行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是 134 清库重部署。
+  下一批建议优先做 `S1__NORMAL`，因为它低冲突且能继续减少 `LAUNCH-06` 五态总账缺口；仍需显式条件附件和强字段背书，
+  不能把普通 `scenarioEvidence`、菜单、截图或组织层级代表矩阵自动升级。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

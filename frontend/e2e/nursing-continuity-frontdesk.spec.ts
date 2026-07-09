@@ -880,6 +880,30 @@ async function attachNursingContinuityEvidence(
           abnormalFlag: "Y",
         },
         backflowContext: evidence.backflowContext,
+        scenarioConditionEvidence: [
+          {
+            code: "S20__NORMAL",
+            scenarioCode: "S20",
+            condition: "NORMAL",
+            source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
+            evidence: [
+              "FOLLOWUP 资产已激活到当前机构生效版本",
+              "临床用户从真实前台基于护理上下文生成随访计划并完成问卷",
+              "随访结果回流生成 FollowUp 标准资源并绑定同一 runtime",
+            ],
+          },
+          {
+            code: "S35__ABNORMAL",
+            scenarioCode: "S35",
+            condition: "ABNORMAL",
+            source: "NURSING_HIGH_RISK_ASSESSMENT_ABNORMAL_RETURN",
+            evidence: [
+              "标准上下文回读 NursingAssessment 高风险评估与 CarePlan 护理计划",
+              "随访计划解释消费护理评估风险等级和护理计划节点",
+              "异常回院事件、回院任务和通知事件均已登记",
+            ],
+          },
+        ],
         scenarioEvidence: [
           {
             code: "S20",
