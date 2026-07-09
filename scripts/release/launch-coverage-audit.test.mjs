@@ -157,6 +157,32 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
     ],
   );
+  assert.deepEqual(evidence.coverage.thirdPartySystemFamilyConsumerSlices, [
+    {
+      code: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.thirdPartySystemFamilyConsumerSlices.PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      observedCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(evidence.coverage.diagnosticReportFamilyConsumerMatrix, [
+    {
+      code: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.diagnosticReportFamilyConsumerMatrix.PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      observedCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
 });
 
 test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", () => {
@@ -236,6 +262,38 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
         readJson: readKnownEvidence(missingThirdParty),
       }),
     /全部第三方系统族.*MODEL_DIFY_AGENT.*缺少前置阶段证据/u,
+  );
+
+  const missingDiagnosticConsumer = completeStageEvidence();
+  missingDiagnosticConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices = missingDiagnosticConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+    (item) => item.code !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingDiagnosticConsumer),
+      }),
+    /第三方系统族真实消费者代表切片.*PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG.*缺少前置阶段证据/u,
+  );
+
+  const missingDiagnosticMatrix = completeStageEvidence();
+  missingDiagnosticMatrix[
+    "browser-e2e"
+  ].launchCoverage.diagnosticReportFamilyConsumerMatrix = missingDiagnosticMatrix[
+    "browser-e2e"
+  ].launchCoverage.diagnosticReportFamilyConsumerMatrix.filter(
+    (item) => item.code !== "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingDiagnosticMatrix),
+      }),
+    /五类医技报告族真实消费者矩阵.*PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG.*缺少前置阶段证据/u,
   );
 });
 
@@ -476,6 +534,8 @@ function completeStageEvidence(options = {}) {
     "launchReadinessStakeholderRows:IT_MANAGER_RUNTIME_DIAGNOSTICS",
     "launchReadinessStakeholderRows:IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
     "launchReadinessStakeholderRows:HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    "thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    "diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
     "semanticFamilies:DISEASE_DIAGNOSIS",
     "semanticFamilies:SYMPTOM_RISK",
     "semanticFamilies:DIAGNOSTIC_REPORT",

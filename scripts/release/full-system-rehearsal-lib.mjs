@@ -200,6 +200,14 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "MODEL_DIFY_AGENT",
     ],
   },
+  thirdPartySystemFamilyConsumerSlices: {
+    label: "第三方系统族真实消费者代表切片",
+    codes: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"],
+  },
+  diagnosticReportFamilyConsumerMatrix: {
+    label: "五类医技报告族真实消费者矩阵",
+    codes: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"],
+  },
   organizationLevels: {
     label: "集团组织层级",
     codes: [

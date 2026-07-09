@@ -10,6 +10,38 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十五批本地推进：接第一百八十四批和用户“知识只是一个点，要全局考虑、可用子代理提效”的要求，先提交
+  `1d00456dd test: 补上线保障三视角门禁` 固化上一批；随后用只读子代理并行盘点全角色入口、第三方系统族和 134
+  知识主链缺口。本批选择非破坏、证据已成熟且能推进全局上线门禁的一刀：把既有 S36 医技报告真实消费者证据纳入完整覆盖审计，
+  不停在第三方系统登记 / 诚实降级，也不把知识线片面放大为旁路资料系统。
+- 第一百八十五批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 之前已能从
+  `diagnostic-critical-value-frontdesk.spec.ts` 的 `diagnostic-critical-value-frontdesk-codes` 附件强校验
+  `thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG` 和
+  `diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`，但 `scripts/release/full-system-rehearsal-lib.mjs`
+  的完整覆盖注册表没有这两个 key，导致真实浏览器报告一旦声明消费者矩阵会在覆盖审计阶段被判“未知覆盖矩阵”。本批按 TDD
+  先在 `scripts/release/launch-coverage-audit.test.mjs` 增加正向输出和缺项拒绝用例，红灯确认为
+  `browser-e2e 阶段声明了未知覆盖矩阵 thirdPartySystemFamilyConsumerSlices`，再注册
+  `thirdPartySystemFamilyConsumerSlices`（标签：第三方系统族真实消费者代表切片）和
+  `diagnosticReportFamilyConsumerMatrix`（标签：五类医技报告族真实消费者矩阵），两者当前只接受
+  `PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`。
+- 第一百八十五批真实 E2E 与验证证据：本地后端 `/actuator/health` 返回
+  `{"status":"UP","groups":["liveness","readiness"]}`，前端 5174 返回 200。目标真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-diagnostic-family-consumer-20260709-r1 npm --prefix frontend run e2e -- --project=chromium diagnostic-critical-value-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-diagnostic-family-consumer-20260709-r1/report/results.json` 为 `PASSED`
+  （expected=1，unexpected=0，flaky=0，skipped=0，duration≈14.3s），顶层 `launchCoverage` 声明
+  `thirdPartySystemFamilyConsumerSlices.PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG` 与
+  `diagnosticReportFamilyConsumerMatrix.PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG`。附件确认 `PACS_RIS / ULTRASOUND /
+  PATHOLOGY / ENDOSCOPY / ECG` 五类报告族均以 `FHIR_R4` 标准 `DiagnosticReport` 入站，报告解读消费者处理，
+  `workflowTodoCompleted=true`，`degradationVerified=true`，并明确 `noReportRewrite=true`、`noAutoOrder=true`。
+- 第一百八十五批边界与下一步：本批仍不是完整上线、不是 13 类第三方系统族真实消费者全部完成、不是 134 清库 / 重部署复演、
+  不是 34 个入口全部业务动作闭环，也不是所有医学知识和术语体系已收集 / 生产完成。只读子代理给出的下一批高价值方向：
+  1）把 `entry-core-actions-rehearsal.spec.ts` 中 `/security/baseline`、`/admin/audit`、`/notifications`、
+  `/notifications/settings` 从六入口代表矩阵拆成合规安全 + 工作台个人入口强证据矩阵；2）继续做药事审方 Webhook /
+  NOT_CONNECTED 补偿矩阵、公卫院感 / 手麻输血 ICU 断连降级行；3）把 EVALUATION 质量上线专项契约与院长质量总览下钻结合，
+  继续绑定 134 版本资产、runtime consumer、医保 / 整改结果、审计和回滚。参考会话
+  `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 仍只作为背景：外部资料可做受控准备，正式医学知识 / 术语 / 值集 /
+  公式 / 规则 / 路径 / 安全红线等必须回到 134 生产、审核、发布、机构生效、运行消费和回滚。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十四批本地推进：接第一百八十三批和用户“前台演练需要按全角色真实操作、知识只是一个点、要全局考虑”的要求，
   选择非破坏、可本地验证的上线保障三视角强证据门禁：信息科长、实施工程师、院长。参考会话
   `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 只作为背景输入，结论仍是资料可做受控准备，正式医学知识 / 术语 /
