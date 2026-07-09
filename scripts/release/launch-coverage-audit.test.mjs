@@ -498,6 +498,21 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
     /S0–S40 业务场景.*S40.*缺少前置阶段证据/u,
   );
 
+  const missingS40Degradation = completeStageEvidence();
+  missingS40Degradation["browser-e2e"].launchCoverage.scenarioConditionRows =
+    missingS40Degradation[
+      "browser-e2e"
+    ].launchCoverage.scenarioConditionRows.filter(
+      (item) => item.code !== "S40__DEGRADATION",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingS40Degradation),
+      }),
+    /S0–S40 五态演练行.*S40__DEGRADATION.*缺少前置阶段证据/u,
+  );
+
   const missingClaim = completeStageEvidence();
   missingClaim.sandbox.launchCoverage.standardPatientResources =
     missingClaim.sandbox.launchCoverage.standardPatientResources.filter(
@@ -1025,6 +1040,12 @@ function completeStageEvidence(options = {}) {
     "specialtyDomains:RWD_RESEARCH",
     "specialtyDomains:PRIMARY_REGIONAL_REMOTE",
     ...Array.from({ length: 41 }, (_, index) => `scenarios:S${index}`),
+    ...Array.from({ length: 41 }, (_, index) => `S${index}`).flatMap(
+      (scenario) =>
+        ["NORMAL", "ABNORMAL", "MISSING_DATA", "HIGH_RISK", "DEGRADATION"].map(
+          (condition) => `scenarioConditionRows:${scenario}__${condition}`,
+        ),
+    ),
     "deliveryShapes:MANAGEMENT_WORKSPACE",
     "deliveryShapes:EMBEDDED_COMPONENT",
     "deliveryShapes:API_EVENT",

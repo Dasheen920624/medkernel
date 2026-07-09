@@ -7535,6 +7535,7 @@ describe("browser E2E launch coverage evidence", () => {
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
     ]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it.each([

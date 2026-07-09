@@ -23,6 +23,35 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第一百九十八批本地推进：接长目标继续推进和用户“不要片面优化”的要求，本批先做上线总账防冒领而不是继续新增单个
+  happy path E2E。使用 2 个只读子代理并行审计 release 总账与真实前台 34 入口，结论一致：`PRODUCT_SCOPE.md` §15
+  第 6 项要求 S0-S40 均完成正常、异常、缺数、高风险和降级演练，但 release 之前只强制 `scenarios:S0..S40` 41 行，
+  容易把“场景出现过”冒领为“五态都演练过”。本批收紧 `LAUNCH-06`：新增 `scenarioConditionRows` 覆盖矩阵，
+  对每个 S0-S40 生成 `NORMAL / ABNORMAL / MISSING_DATA / HIGH_RISK / DEGRADATION` 五态行，共 205 行，并把
+  `LAUNCH-06.requiredCoverage` 从仅 `scenarios` 改为 `scenarios + scenarioConditionRows`。
+- 第一百九十八批实现细节：`scripts/release/full-system-rehearsal-lib.mjs` 新增 `SCENARIO_CONDITIONS` 与
+  `scenarioConditionRows` required coverage，编码形如 `S40__DEGRADATION`，避免破坏现有 `key:code` 覆盖声明协议。
+  `scripts/release/full-system-rehearsal.test.mjs` 锁定 required coverage 生成 205 行、`LAUNCH-06` 必须包含
+  `scenarioConditionRows`、完整结果必须带 205 行，并在缺 `S40__DEGRADATION` 时拒绝。`scripts/release/launch-coverage-audit.test.mjs`
+  的完整夹具显式声明 205 行，并新增缺 `S40__DEGRADATION` 时的拒绝断言。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 增加断言：已证明 S2/S4 场景的真实前台证据不会自动产出
+  `scenarioConditionRows`，防止把普通场景 claim 偷偷升级成五态演练证据。当前真实浏览器 parser 仍只在具体强附件证明时声明覆盖，
+  不自动冒领 205 行。
+- 第一百九十八批验证证据：已先让 `node --test scripts/release/full-system-rehearsal.test.mjs` 红在缺
+  `scenarioConditionRows`，随后实现并复跑通过
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  （15 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（357 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  与本批触碰的 release 脚本 CRLF 将被 LF 替换，无 whitespace error。
+- 第一百九十八批边界与下一步：本批不是 S0-S40 五态真实演练完成，而是阻止完整上线总账继续用 41 个场景行冒领 205 个五态行；
+  因此下一轮完整上线审计若没有真实 `scenarioConditionRows` 将按设计失败。下一批应沿这个门禁补真实证据：优先选择系统运维 /
+  合规安全 / 临床质量中已有强服务链路的入口族，逐步让真实 E2E 附件产出 `scenarioConditionRows`，例如
+  `runtime-diagnostics` / `domestic-check` 的 NOT_CONNECTED、UNHEALTHY、缺配置和越权边界，或 `workflow-todos` /
+  `insurance-audit` 的空态、缺数、高风险、降级和审计回读。仍不是完整上线完成、不是 134 清库重部署、
+  不是全知识生产完成；当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存。
 - 第一百九十七批本地推进：接用户要求“能并行就并行、能子代理就子代理，但不要片面化”，本批使用 1 个只读子代理审阅
   “知识运营供给链是否冒领上传解析证据”（已关闭，无挂起代理），主线程继续做非破坏、本地可验证的上线总账切片：
   把知识运营资产入口族的受控来源证据从手工登记来源版本 / 手工登记 fragment / 直接调用候选生成，改为真实

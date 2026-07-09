@@ -89,6 +89,13 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
   const requiredCoverage = buildRequiredLaunchCoverage();
   assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
   assert.equal(requiredCoverage.scenarios[0].evidenceStage, null);
+  assert.equal(requiredCoverage.scenarioConditionRows.length, 205);
+  assert.equal(
+    requiredCoverage.scenarioConditionRows.some(
+      (item) => item.code === "S40__DEGRADATION",
+    ),
+    true,
+  );
   assert.deepEqual(
     requiredCoverage.databaseDialects.map((item) => item.code),
     ["POSTGRES", "KINGBASE", "ORACLE", "DM", "H2"],
@@ -176,6 +183,12 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
     requiredAcceptance.find((item) => item.code === "LAUNCH-15")
       .requiredCoverage,
     ["targetEnvironmentRehearsal"],
+  );
+  assert.equal(
+    requiredAcceptance
+      .find((item) => item.code === "LAUNCH-06")
+      .requiredCoverage.includes("scenarioConditionRows"),
+    true,
   );
   assert.equal(
     requiredAcceptance
@@ -311,6 +324,7 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
     result.coverage.scenarios,
     coverageEvidence.coverage.scenarios,
   );
+  assert.equal(result.coverage.scenarioConditionRows.length, 205);
   assert.deepEqual(
     result.coverage.versionedAssets,
     coverageEvidence.coverage.versionedAssets,
@@ -369,6 +383,16 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   missingScenario.coverage.scenarios =
     missingScenario.coverage.scenarios.filter((item) => item.code !== "S40");
   assert.throws(() => assertCompleteLaunchCoverage(missingScenario), /S0–S40/u);
+
+  const missingScenarioCondition = structuredClone(complete);
+  missingScenarioCondition.coverage.scenarioConditionRows =
+    missingScenarioCondition.coverage.scenarioConditionRows.filter(
+      (item) => item.code !== "S40__DEGRADATION",
+    );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingScenarioCondition),
+    /S0–S40 五态演练行/u,
+  );
 
   const missingDialect = structuredClone(complete);
   missingDialect.coverage.databaseDialects =

@@ -18,6 +18,13 @@ const TARGET_ENVIRONMENT_REHEARSAL_CHECKS = Object.freeze([
   "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
   "RESTART_AND_SECOND_RESTORE",
 ]);
+const SCENARIO_CONDITIONS = Object.freeze([
+  "NORMAL",
+  "ABNORMAL",
+  "MISSING_DATA",
+  "HIGH_RISK",
+  "DEGRADATION",
+]);
 const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   productLayers: {
     label: "六层产品能力",
@@ -328,6 +335,13 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     label: "S0–S40 业务场景",
     codes: Array.from({ length: 41 }, (_, index) => `S${index}`),
   },
+  scenarioConditionRows: {
+    label: "S0–S40 五态演练行",
+    codes: Array.from({ length: 41 }, (_, index) => `S${index}`).flatMap(
+      (scenario) =>
+        SCENARIO_CONDITIONS.map((condition) => `${scenario}__${condition}`),
+    ),
+  },
   deliveryShapes: {
     label: "五种交付形态",
     codes: [
@@ -523,7 +537,7 @@ const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
   {
     code: "LAUNCH-06",
     label: "S0-S40 完成正常、异常、缺数、高风险和降级演练",
-    requiredCoverage: ["scenarios"],
+    requiredCoverage: ["scenarios", "scenarioConditionRows"],
   },
   {
     code: "LAUNCH-07",
