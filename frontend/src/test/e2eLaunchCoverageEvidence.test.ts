@@ -4478,7 +4478,7 @@ const platformAdminEntryCoreActionsEvidence = {
       role: "platform-admin",
       path: "/adapter/hub",
       frontdeskAction: "前台登记系统适配器、接入申请、健康诊断和数据质量报告",
-      serviceOperation: "POST /api/v1/engine/integration/adapters",
+      serviceOperation: "POST /api/v1/engine/integration/data-quality/reports",
       serviceStatus: 200,
       readbackVerified: true,
       auditVerified: true,
@@ -10750,6 +10750,50 @@ describe("browser E2E launch coverage evidence", () => {
         ...platformAdminEntryCoreActionsEvidence,
         scopeStatement:
           "平台管理员 P0 入口核心动作代表矩阵，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+      },
+    },
+    {
+      name: "服务机构入口缺少开通租户端点",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "tenant-onboarding"
+            ? { ...item, serviceOperation: "GET /api/v1/admin/tenants" }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "身份来源入口缺少绑定端点",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "identity-bindings"
+            ? { ...item, serviceOperation: "GET /api/v1/compliance/identity-bindings" }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "系统接入口缺少数据质量报告端点",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "adapter-hub"
+            ? { ...item, serviceOperation: "POST /api/v1/engine/integration/adapters" }
+            : item,
+        ),
+      },
+    },
+    {
+      name: "服务运行保障入口缺少运行快照端点",
+      body: {
+        ...platformAdminEntryCoreActionsEvidence,
+        entryActions: platformAdminEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "system-providers"
+            ? { ...item, serviceOperation: "GET /api/v1/system/providers" }
+            : item,
+        ),
       },
     },
   ])("does not declare platform-admin entry core action coverage when $name", ({ body }) => {

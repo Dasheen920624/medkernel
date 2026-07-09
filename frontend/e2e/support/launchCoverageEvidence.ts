@@ -1907,6 +1907,12 @@ const requiredPlatformAdminEntryCoreActionPaths: Record<string, string> = {
 const requiredPlatformAdminEntryCoreActionMenuKeys = Object.keys(
   requiredPlatformAdminEntryCoreActionPaths,
 );
+const requiredPlatformAdminEntryCoreActionServiceOperations: Record<string, string[]> = {
+  "tenant-onboarding": ["POST /api/v1/admin/tenants"],
+  "identity-bindings": ["POST /api/v1/compliance/identity-bindings"],
+  "adapter-hub": ["POST /api/v1/engine/integration/data-quality/reports"],
+  "system-providers": ["GET /api/v1/system/operations"],
+};
 
 const requiredPlatformAdminP1EntryCoreActionPaths: Record<string, string> = {
   "runtime-diagnostics": "/system/runtime-diagnostics",
@@ -1916,6 +1922,16 @@ const requiredPlatformAdminP1EntryCoreActionPaths: Record<string, string> = {
 const requiredPlatformAdminP1EntryCoreActionMenuKeys = Object.keys(
   requiredPlatformAdminP1EntryCoreActionPaths,
 );
+const requiredPlatformAdminP1EntryCoreActionServiceOperations: Record<string, string[]> = {
+  "runtime-diagnostics": [
+    "GET /api/v1/system/runtime",
+    "GET /api/v1/system/runtime-diagnostics/api-contracts",
+  ],
+  "domestic-check": [
+    "GET /api/v1/system/operations",
+    "GET /api/v1/system/operations/domestic-report",
+  ],
+};
 
 const requiredClinicalEntryCoreActionPaths: Record<string, string> = {
   mpi: "/mpi",
@@ -2115,6 +2131,7 @@ function hasRequiredPlatformAdminP1EntryCoreActionsAttachment(tests: BrowserE2eT
             action,
             menuKey,
             requiredPlatformAdminP1EntryCoreActionPaths,
+            requiredPlatformAdminP1EntryCoreActionServiceOperations,
           ) ||
           actionsByMenuKey.has(menuKey)
         ) {
@@ -2497,6 +2514,8 @@ function hasCompletePlatformAdminEntryCoreAction(
   value: unknown,
   expectedMenuKey: string,
   pathByMenuKey: Record<string, string> = requiredPlatformAdminEntryCoreActionPaths,
+  serviceOperationsByMenuKey: Record<string, string[]> =
+    requiredPlatformAdminEntryCoreActionServiceOperations,
 ) {
   const action = recordValue(value);
   if (!action) return false;
@@ -2506,12 +2525,28 @@ function hasCompletePlatformAdminEntryCoreAction(
     action.role === "platform-admin" &&
     action.path === pathByMenuKey[expectedMenuKey] &&
     hasText(action.frontdeskAction) &&
-    hasText(action.serviceOperation) &&
+    hasExpectedPlatformAdminEntryCoreActionServiceOperation(
+      expectedMenuKey,
+      textValue(action.serviceOperation),
+      serviceOperationsByMenuKey,
+    ) &&
     typeof serviceStatus === "number" &&
     serviceStatus >= 200 &&
     serviceStatus < 300 &&
     action.readbackVerified === true &&
     action.auditVerified === true
+  );
+}
+
+function hasExpectedPlatformAdminEntryCoreActionServiceOperation(
+  expectedMenuKey: string,
+  serviceOperation: string | null | undefined,
+  serviceOperationsByMenuKey: Record<string, string[]>,
+) {
+  const requiredOperations = serviceOperationsByMenuKey[expectedMenuKey];
+  return Boolean(
+    serviceOperation &&
+      requiredOperations?.every((operation) => serviceOperation.includes(operation)),
   );
 }
 

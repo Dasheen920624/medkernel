@@ -10,6 +10,41 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十三批本地推进：接第一百八十二批，按“不要继续片面只围绕知识、转向全角色 / 上线保障 / 第三方真实消费者”的下一步，
+  选择非破坏、可本地验证的 P0 平台管理员四入口强证据收窄：服务机构、身份来源、系统接入、服务运行保障。134 清库 /
+  重部署、公网 Provider、真实第三方回调仍未执行，继续需要再次确认或外部资源。
+- 第一百八十三批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 为
+  `platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS` 增加逐入口代表服务操作门禁，不再只看
+  `menuKey/path/role/2xx/readback/audit`。P0 四入口必须分别包含
+  `POST /api/v1/admin/tenants`、`POST /api/v1/compliance/identity-bindings`、
+  `POST /api/v1/engine/integration/data-quality/reports`、`GET /api/v1/system/operations`；
+  P1 系统运维入口也显式保留自己的 `GET /api/v1/system/runtime`、
+  `GET /api/v1/system/runtime-diagnostics/api-contracts`、`GET /api/v1/system/operations`、
+  `GET /api/v1/system/operations/domestic-report` 门禁，避免 P0 收窄误伤 P1。
+- 第一百八十三批 TDD 与契约：先在 `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 加入四个负向用例，
+  证明服务机构 / 身份来源 / 系统接入 / 服务运行保障若缺少对应方法 + 端点，不得声明 P0 矩阵；红灯确认 parser
+  原先会放过错误 `serviceOperation`。随后实现端点门禁，修正测试 fixture 的系统接入代表端点为真实 E2E 正在写出的
+  `POST /api/v1/engine/integration/data-quality/reports`。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  新增契约，锁定四条真实 E2E 附件和 coverage parser 均保留这些代表方法 + 端点，防止后续退回泛化登记或只读菜单证据。
+- 第一百八十三批真实 E2E 与验证证据：本地后端 18092 health 为
+  `{"status":"UP","groups":["liveness","readiness"]}`，前端 5174 返回 200。复跑目标四条真实 E2E：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-platform-admin-p0-entry-core-actions-20260709-r1 npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts identity-binding-frontdesk.spec.ts third-party-system-families-rehearsal.spec.ts system-providers-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-platform-admin-p0-entry-core-actions-20260709-r1/report/results.json` 为 `PASSED`
+  （expected=5，unexpected=0，flaky=0，skipped=0，duration≈72.4s），顶层 `launchCoverage.platformAdminEntryCoreActions`
+  声明 `FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS`。附件确认四入口分别写出上述代表 serviceOperation，且
+  `serviceStatus=200`、`readbackVerified=true`、`auditVerified=true`。
+- 第一百八十三批收尾门禁：最终复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（309 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（56 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）。
+  `git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 工作树 CRLF 将被 LF 替换，没有 whitespace error。
+- 第一百八十三批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是 34 个入口全部业务动作闭环，
+  也不是第三方系统族真实消费者完整闭环。下一批优先建议继续走全局上线保障：1）补信息科长 / 实施工程师 / 院长三视角强证据矩阵，
+  绑定 `/onboarding/guide`、`/system/providers`、`/system/runtime-diagnostics`、恢复后 runtime / 第三方契约 /
+  临床冒烟；2）继续把第三方系统族从登记和诚实降级推进到更多真实消费者与闭环回传；3）仍不要把知识资料准备或代表矩阵冒领为完整上线。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十二批本地推进：接第一百八十一批和用户补充“知识只是一个点，要全局考虑、不要片面优化”。本批继续把知识缺口限定在
   134 内正式供给链证据，不新增系统外资料线，不宣称资料收集完成；参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`
   只作为背景输入：134 有受控采集 / 原文保存 / 候选生成骨架，但全医学知识和术语体系不是靠外部旁路直接生成，

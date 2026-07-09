@@ -2143,6 +2143,34 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain("spawn");
   });
 
+  it("requires platform-admin P0 entry evidence to keep representative service operations", () => {
+    const serviceOrganization = readFileSync("e2e/service-organization-frontdesk.spec.ts", "utf8");
+    const identityBinding = readFileSync("e2e/identity-binding-frontdesk.spec.ts", "utf8");
+    const thirdPartyFamilies = readFileSync(
+      "e2e/third-party-system-families-rehearsal.spec.ts",
+      "utf8",
+    );
+    const systemProviders = readFileSync("e2e/system-providers-frontdesk.spec.ts", "utf8");
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+
+    expect(serviceOrganization).toContain('serviceOperation: "POST /api/v1/admin/tenants"');
+    expect(identityBinding).toContain(
+      'serviceOperation: "POST /api/v1/compliance/identity-bindings"',
+    );
+    expect(thirdPartyFamilies).toContain(
+      'serviceOperation: "POST /api/v1/engine/integration/data-quality/reports"',
+    );
+    expect(systemProviders).toContain('serviceOperation: "GET /api/v1/system/operations"');
+    expect(coverageParser).toContain('"tenant-onboarding": ["POST /api/v1/admin/tenants"]');
+    expect(coverageParser).toContain(
+      '"identity-bindings": ["POST /api/v1/compliance/identity-bindings"]',
+    );
+    expect(coverageParser).toContain(
+      '"adapter-hub": ["POST /api/v1/engine/integration/data-quality/reports"]',
+    );
+    expect(coverageParser).toContain('"system-providers": ["GET /api/v1/system/operations"]');
+  });
+
   it("requires embedded business host rehearsal to use real embed services before launch coverage", () => {
     const source = readFileSync("e2e/embed-business-host.spec.ts", "utf8");
     const hostSource = readFileSync("e2e/support/embed-business-host-server.mjs", "utf8");
