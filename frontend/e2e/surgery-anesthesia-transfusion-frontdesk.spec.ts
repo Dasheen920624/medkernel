@@ -2078,6 +2078,36 @@ async function attachPeriopEvidence(
         recommendation: evidence.recommendation,
         manualConfirmation: evidence.manualConfirmation,
         qualityRectification: evidence.qualityRectification,
+        scenarioConditionEvidence: [
+          {
+            code: "S26__HIGH_RISK",
+            scenarioCode: "S26",
+            condition: "HIGH_RISK",
+            source: "SURGERY_ANESTHESIA_TRANSFUSION_CRITICAL_MANUAL_CONFIRMATION",
+            evidence: [
+              "SAFETY 红线和风险矩阵均为 CRITICAL",
+              "围手术期困难气道、ASA III 和用血风险进入推荐卡",
+              "医生人工确认且系统不自动开嘱、不自动输血、不自动手术",
+            ],
+          },
+          {
+            code: "S26__DEGRADATION",
+            scenarioCode: "S26",
+            condition: "DEGRADATION",
+            source: "SURGERY_ANESTHESIA_TRANSFUSION_OUTBOUND_NOT_CONNECTED",
+            evidence: [
+              "外部手麻手术室输血核查回传收敛到 NOT_CONNECTED",
+              "断连补偿不阻断本地推荐和人工确认主链路",
+            ],
+          },
+          {
+            code: "S26__ABNORMAL",
+            scenarioCode: "S26",
+            condition: "ABNORMAL",
+            source: "SURGERY_TIMELINE_RECTIFICATION_REVIEW",
+            evidence: ["围手术期时序质控形成 P1 整改任务", "固定职责账号提交并复核关闭整改"],
+          },
+        ],
         scenarioEvidence: [{ code: "S26", observedStages: requiredStages.S26 }],
       },
       null,

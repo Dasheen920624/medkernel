@@ -3662,6 +3662,36 @@ const surgeryAnesthesiaTransfusionEvidence = {
     submittedEvidenceRef: "surgery-evidence",
     reviewDecision: "APPROVED",
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S26__HIGH_RISK",
+      scenarioCode: "S26",
+      condition: "HIGH_RISK",
+      source: "SURGERY_ANESTHESIA_TRANSFUSION_CRITICAL_MANUAL_CONFIRMATION",
+      evidence: [
+        "SAFETY 红线和风险矩阵均为 CRITICAL",
+        "围手术期困难气道、ASA III 和用血风险进入推荐卡",
+        "医生人工确认且系统不自动开嘱、不自动输血、不自动手术",
+      ],
+    },
+    {
+      code: "S26__DEGRADATION",
+      scenarioCode: "S26",
+      condition: "DEGRADATION",
+      source: "SURGERY_ANESTHESIA_TRANSFUSION_OUTBOUND_NOT_CONNECTED",
+      evidence: [
+        "外部手麻手术室输血核查回传收敛到 NOT_CONNECTED",
+        "断连补偿不阻断本地推荐和人工确认主链路",
+      ],
+    },
+    {
+      code: "S26__ABNORMAL",
+      scenarioCode: "S26",
+      condition: "ABNORMAL",
+      source: "SURGERY_TIMELINE_RECTIFICATION_REVIEW",
+      evidence: ["围手术期时序质控形成 P1 整改任务", "固定职责账号提交并复核关闭整改"],
+    },
+  ],
   scenarioEvidence: [
     {
       code: "S26",
@@ -9864,7 +9894,153 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["NURSING_ANESTHESIA_TRANSFUSION_ICU"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S26__HIGH_RISK",
+      "S26__DEGRADATION",
+      "S26__ABNORMAL",
+    ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S26 condition rows without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = surgeryAnesthesiaTransfusionEvidence;
+    const evidence = surgeryAnesthesiaTransfusionEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S26__NORMAL",
+            scenarioCode: "S26",
+            condition: "NORMAL",
+            source: "SURGERY_TIMELINE_RECTIFICATION_REVIEW",
+            evidence: ["高危围手术期代表切片不能冒领普通正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S26__HIGH_RISK",
+            scenarioCode: "S26",
+            condition: "HIGH_RISK",
+            source: "SURGERY_TIMELINE_RECTIFICATION_REVIEW",
+            evidence: ["来源错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S26__HIGH_RISK",
+            scenarioCode: "S26",
+            condition: "HIGH_RISK",
+            source: "SURGERY_ANESTHESIA_TRANSFUSION_CRITICAL_MANUAL_CONFIRMATION",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "高危风险矩阵允许自动执行",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        riskMatrix: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.riskMatrix),
+          autoExecutionAllowed: true,
+        },
+      },
+    },
+    {
+      name: "高危红线不是 CRITICAL",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        safetyRedline: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.safetyRedline),
+          hazardSeverity: "HIGH",
+        },
+      },
+    },
+    {
+      name: "推荐卡不要求医师确认",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        recommendation: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.recommendation),
+          requiresPhysicianConfirmation: false,
+        },
+      },
+    },
+    {
+      name: "人工确认未接受推荐卡",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        manualConfirmation: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.manualConfirmation),
+          cardStatus: "PENDING",
+        },
+      },
+    },
+    {
+      name: "出站未收敛到 NOT_CONNECTED",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        outboundChecklist: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.outboundChecklist),
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+      },
+    },
+    {
+      name: "出站断连阻断本地主链路",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        outboundChecklist: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.outboundChecklist),
+          blocksMainFlow: true,
+        },
+      },
+    },
+    {
+      name: "整改未复核通过",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        qualityRectification: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.qualityRectification),
+          reviewDecision: "REJECTED",
+        },
+      },
+    },
+    {
+      name: "整改未绑定本轮推荐卡",
+      body: {
+        ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+        qualityRectification: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.qualityRectification),
+          sourceId: "other-card",
+        },
+      },
+    },
+  ])("does not declare S26 scenario condition rows when $name", ({ body }) => {
+    const evidence = surgeryAnesthesiaTransfusionEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it.each([

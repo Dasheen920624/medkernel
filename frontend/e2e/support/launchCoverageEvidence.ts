@@ -679,6 +679,26 @@ const diagnosticCriticalValueScenarioConditionRows = [
     source: "FHIR_LIS_NOT_CONNECTED_COMPENSATION",
   },
 ] as const;
+const surgeryAnesthesiaTransfusionScenarioConditionRows = [
+  {
+    code: "S26__HIGH_RISK",
+    scenarioCode: "S26",
+    condition: "HIGH_RISK",
+    source: "SURGERY_ANESTHESIA_TRANSFUSION_CRITICAL_MANUAL_CONFIRMATION",
+  },
+  {
+    code: "S26__DEGRADATION",
+    scenarioCode: "S26",
+    condition: "DEGRADATION",
+    source: "SURGERY_ANESTHESIA_TRANSFUSION_OUTBOUND_NOT_CONNECTED",
+  },
+  {
+    code: "S26__ABNORMAL",
+    scenarioCode: "S26",
+    condition: "ABNORMAL",
+    source: "SURGERY_TIMELINE_RECTIFICATION_REVIEW",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -3843,6 +3863,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectDiagnosticCriticalValueScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectSurgeryAnesthesiaTransfusionScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
   }
   return [...claims];
 }
@@ -4074,6 +4097,100 @@ function diagnosticCriticalValueScenarioConditionBackedByEvidence(
           parsed.inboundDiagnosticReport,
         ) &&
         hasCompleteDiagnosticCriticalValueWorkflowTodo(parsed.workflowTodo, parsed.recommendation)
+      );
+    default:
+      return false;
+  }
+}
+
+function collectSurgeryAnesthesiaTransfusionScenarioConditionClaimsFromTest(
+  test: BrowserE2eTestResult,
+) {
+  if (
+    path.basename(test.file) !== "surgery-anesthesia-transfusion-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "surgery-anesthesia-transfusion-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      surgeryAnesthesiaTransfusionScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return surgeryAnesthesiaTransfusionScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          surgeryAnesthesiaTransfusionScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function surgeryAnesthesiaTransfusionScenarioConditionBackedByEvidence(
+  code: (typeof surgeryAnesthesiaTransfusionScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parseSurgeryAnesthesiaTransfusionRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S26__HIGH_RISK":
+      return (
+        hasCompleteSurgeryAnesthesiaTransfusionApiEvidence(parsed.apiEvidence) &&
+        hasCompleteSurgeryAnesthesiaTransfusionSafetyRedline(parsed.safetyRedline) &&
+        hasCompleteSurgeryAnesthesiaTransfusionRiskMatrix(parsed.riskMatrix) &&
+        hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasCompleteSurgeryAnesthesiaTransfusionRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.ruleAsset,
+        ) &&
+        hasCompleteSurgeryAnesthesiaTransfusionManualConfirmation(
+          parsed.manualConfirmation,
+          runtime.actionCardAsset,
+        )
+      );
+    case "S26__DEGRADATION":
+      return (
+        hasCompleteSurgeryAnesthesiaTransfusionOutbound(
+          parsed.outboundChecklist,
+          parsed.adapter,
+          parsed.clinicalContext,
+        ) &&
+        hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasCompleteSurgeryAnesthesiaTransfusionRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.ruleAsset,
+        ) &&
+        hasCompleteSurgeryAnesthesiaTransfusionManualConfirmation(
+          parsed.manualConfirmation,
+          runtime.actionCardAsset,
+        )
+      );
+    case "S26__ABNORMAL":
+      return hasCompleteSurgeryAnesthesiaTransfusionRectification(
+        parsed.qualityRectification,
+        parsed.recommendation,
       );
     default:
       return false;
