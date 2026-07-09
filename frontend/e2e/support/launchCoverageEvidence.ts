@@ -418,6 +418,19 @@ const knowledgeOperationsAssetEntryCoreActionsClaims = [
   "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
 ];
 
+const knowledgeSupplyChainEvidenceMatrixClaims = [
+  "knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
+];
+
+const requiredKnowledgeSupplyChainEvidenceRows = [
+  "SOURCE_CONTROL",
+  "HUMAN_GOVERNANCE",
+  "TERMINOLOGY_SYNC",
+  "RUNTIME_LIFECYCLE",
+  "LINEAGE_CONSUMERS",
+  "SAFETY_BOUNDARY",
+];
+
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
@@ -965,6 +978,18 @@ export function buildBrowserE2eLaunchEvidence(input: {
     mergeClaims(
       evidence.launchCoverage,
       knowledgeOperationsAssetEntryCoreActionsClaims,
+      generatedAt,
+    );
+  }
+  if (hasRequiredKnowledgeSupplyChainEvidenceAttachment(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...knowledgeSupplyChainEvidenceMatrixClaims,
+        ...requiredKnowledgeSupplyChainEvidenceRows.map(
+          (row) => `knowledgeSupplyChainEvidenceRows:${row}`,
+        ),
+      ],
       generatedAt,
     );
   }
@@ -2342,6 +2367,33 @@ function hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(
   );
 }
 
+function hasRequiredKnowledgeSupplyChainEvidenceAttachment(tests: BrowserE2eTestResult[]) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== knowledgeOperationsAssetEntryActionSpecFile ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    if (!hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment([test])) continue;
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "knowledge-operations-asset-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      try {
+        const parsed = recordValue(JSON.parse(attachment.body));
+        if (hasCompleteKnowledgeSupplyChainEvidence(parsed?.knowledgeSupplyChainEvidence)) {
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
 function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
   if (!hasText(value)) return false;
   const statement = String(value);
@@ -2586,6 +2638,42 @@ function hasCompleteKnowledgeOperationsSupplyChainGates(value: unknown) {
     gates.institutionEffectiveRuntimeVerified === true &&
     gates.runtimeConsumerReadbackVerified === true &&
     gates.rollbackReadbackVerified === true
+  );
+}
+
+function hasCompleteKnowledgeSupplyChainEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  const sourceControl = recordValue(evidence?.sourceControl);
+  const humanGovernance = recordValue(evidence?.humanGovernance);
+  const terminologySync = recordValue(evidence?.terminologySync);
+  const runtimeLifecycle = recordValue(evidence?.runtimeLifecycle);
+  const lineageConsumers = recordValue(evidence?.lineageConsumers);
+  const safetyBoundary = recordValue(evidence?.safetyBoundary);
+  return (
+    sourceControl?.sourceRegistered === true &&
+    sourceControl.sourceVersionRegistered === true &&
+    sourceControl.sourceFragmentRegistered === true &&
+    sourceControl.citationBound === true &&
+    sourceControl.textExcerptVerified === true &&
+    sourceControl.qualityGateRecordCreated === true &&
+    humanGovernance?.reviewQueueRead === true &&
+    humanGovernance.candidateApproved === true &&
+    humanGovernance.noDirectPublishVerified === true &&
+    terminologySync?.standardTermRegistered === true &&
+    terminologySync.localTermRegistered === true &&
+    terminologySync.candidateGenerated === true &&
+    terminologySync.mappingConfirmed === true &&
+    terminologySync.terminologyAssetVersionCreated === true &&
+    runtimeLifecycle?.baselineAssetsPreserved === true &&
+    runtimeLifecycle.hospitalRuntimeActivated === true &&
+    runtimeLifecycle.runtimeConsumerReadbackVerified === true &&
+    runtimeLifecycle.rollbackReadbackVerified === true &&
+    lineageConsumers?.provenanceReadbackVerified === true &&
+    lineageConsumers.graphProjectionVerified === true &&
+    lineageConsumers.sourceAuditVerified === true &&
+    safetyBoundary?.externalSourcesPreparatoryOnly === true &&
+    safetyBoundary.modelDirectPublishBlocked === true &&
+    safetyBoundary.noAutoClinicalAction === true
   );
 }
 

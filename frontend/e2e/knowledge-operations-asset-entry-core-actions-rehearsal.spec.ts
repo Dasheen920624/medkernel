@@ -25,6 +25,7 @@ import {
 import {
   attachKnowledgeOperationsAssetEntryCoreActionEvidence,
   type KnowledgeOperationsAssetEntryCoreActionEvidence,
+  type KnowledgeSupplyChainEvidence,
 } from "./support/knowledgeOperationsAssetEntryCoreActions";
 
 const knowledgeOperationsAssetEntryCoreActionsAttachmentName =
@@ -110,21 +111,93 @@ test.describe("知识运营资产入口族供给链真实前台演练", () => {
         formalKnowledgeOperationsProductionChain,
       )}`,
     });
-    await attachKnowledgeOperationsAssetEntryCoreActionEvidence(testInfo, [
-      productionAction,
-      terminologyAction,
-      governanceAction,
-      ruleAction,
-      pathwayAction,
-      diagnosisAction,
-      runtimeAction,
-      institutionAction,
-      provenanceAction,
-      graphAction,
-      aiAction,
-    ]);
+    await attachKnowledgeOperationsAssetEntryCoreActionEvidence(
+      testInfo,
+      [
+        productionAction,
+        terminologyAction,
+        governanceAction,
+        ruleAction,
+        pathwayAction,
+        diagnosisAction,
+        runtimeAction,
+        institutionAction,
+        provenanceAction,
+        graphAction,
+        aiAction,
+      ],
+      {
+        knowledgeSupplyChainEvidence: buildKnowledgeSupplyChainEvidence({
+          knowledge,
+          terminology,
+          runtime,
+          productionAction,
+          governanceAction,
+          terminologyAction,
+          provenanceAction,
+          graphAction,
+          aiAction,
+        }),
+      },
+    );
   });
 });
+
+function buildKnowledgeSupplyChainEvidence(options: {
+  knowledge: KnowledgeSeed;
+  terminology: TerminologyAsset;
+  runtime: RuntimeActivationEvidence;
+  productionAction: KnowledgeOperationsAssetEntryCoreActionEvidence;
+  governanceAction: KnowledgeOperationsAssetEntryCoreActionEvidence;
+  terminologyAction: KnowledgeOperationsAssetEntryCoreActionEvidence;
+  provenanceAction: KnowledgeOperationsAssetEntryCoreActionEvidence;
+  graphAction: KnowledgeOperationsAssetEntryCoreActionEvidence;
+  aiAction: KnowledgeOperationsAssetEntryCoreActionEvidence;
+}): KnowledgeSupplyChainEvidence {
+  return {
+    sourceControl: {
+      sourceRegistered: options.knowledge.identityId > 0,
+      sourceVersionRegistered: options.knowledge.sourceVersionId > 0,
+      sourceFragmentRegistered: options.knowledge.sourceFragmentId > 0,
+      citationBound: options.knowledge.citationId > 0,
+      textExcerptVerified:
+        options.knowledge.textExcerpt.length > 0 &&
+        options.provenanceAction.sourceLineageVerified === true,
+      qualityGateRecordCreated: options.knowledge.qualityGateRecordId > 0,
+    },
+    humanGovernance: {
+      reviewQueueRead: options.governanceAction.readbackVerified === true,
+      candidateApproved: options.governanceAction.humanReviewVerified === true,
+      noDirectPublishVerified: options.governanceAction.noDirectPublishVerified === true,
+    },
+    terminologySync: {
+      standardTermRegistered: Boolean(options.terminology.standardCode),
+      localTermRegistered: Boolean(options.terminology.localCode),
+      candidateGenerated: options.terminology.mappingId > 0,
+      mappingConfirmed: options.terminologyAction.localDictionarySyncVerified === true,
+      terminologyAssetVersionCreated: options.terminologyAction.assetVersionVerified === true,
+    },
+    runtimeLifecycle: {
+      baselineAssetsPreserved:
+        options.runtime.activeAssets.length >= requiredRuntimeAssetsForRehearsal.length,
+      hospitalRuntimeActivated: Boolean(options.runtime.releaseId),
+      runtimeConsumerReadbackVerified: options.runtime.runtimeConsumerReadbackVerified === true,
+      rollbackReadbackVerified: options.runtime.rollbackReadbackVerified === true,
+    },
+    lineageConsumers: {
+      provenanceReadbackVerified: options.provenanceAction.sourceLineageVerified === true,
+      graphProjectionVerified: options.graphAction.graphProjectionVerified === true,
+      sourceAuditVerified: options.provenanceAction.sourceAuditVerified === true,
+    },
+    safetyBoundary: {
+      externalSourcesPreparatoryOnly: formalKnowledgeOperationsProductionChain.externalSourcesPreparatoryOnly,
+      modelDirectPublishBlocked:
+        formalKnowledgeOperationsProductionChain.modelDirectPublishBlocked &&
+        options.aiAction.noDirectPublishVerified === true,
+      noAutoClinicalAction: options.aiAction.modelSafetyBoundaryVerified === true,
+    },
+  };
+}
 
 async function verifyKnowledgeProductionEntry(
   page: Page,

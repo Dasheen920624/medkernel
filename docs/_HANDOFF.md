@@ -10,6 +10,56 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十二批本地推进：接第一百八十一批和用户补充“知识只是一个点，要全局考虑、不要片面优化”。本批继续把知识缺口限定在
+  134 内正式供给链证据，不新增系统外资料线，不宣称资料收集完成；参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5`
+  只作为背景输入：134 有受控采集 / 原文保存 / 候选生成骨架，但全医学知识和术语体系不是靠外部旁路直接生成，
+  所有正式资产仍必须经 134 生产、审核、发布、机构生效、运行消费和回滚审计。
+- 第一百八十二批实现细节：在 `frontend/e2e/support/knowledgeOperationsAssetEntryCoreActions.ts`、
+  `frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts` 和
+  `frontend/e2e/support/launchCoverageEvidence.ts` 增加
+  `knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE` 与
+  `knowledgeSupplyChainEvidenceRows:SOURCE_CONTROL/HUMAN_GOVERNANCE/TERMINOLOGY_SYNC/RUNTIME_LIFECYCLE/LINEAGE_CONSUMERS/SAFETY_BOUNDARY`
+  收窄门禁。矩阵只有同一真实 E2E 的知识运营 11 入口附件已经满足既有入口矩阵，并且结构化证明受控来源登记、
+  来源版本 / 片段 / citation / text excerpt / 质量记录、人工审核阻断直发、标准术语 / 院内术语 / 映射 / 术语资产版本、
+  保留 13 类 baseline 后激活医院 runtime、第三方 runtime consumer 读回、回滚读回、来源血缘、图谱投影、
+  来源审计和模型安全边界时才声明。真实红点曾出现：目标 E2E 通过但报告未声明新矩阵，根因是
+  `textExcerptVerified` 用 `includes("受控来源")` 的脆弱词面判断；已改为基于非空 `textExcerpt` 和
+  `provenanceAction.sourceLineageVerified=true`，因为 `verifyProvenanceEvidence` 已逐字段断言来源血缘中的
+  `textExcerpt` 与本轮 seed 精确一致。
+- 第一百八十二批全系统覆盖门禁：按 TDD 先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红于新矩阵未声明，再补 coverage parser；
+  又先让 `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run` 红于真实 E2E 仍使用
+  `textExcerpt.includes("受控来源")`，再改为来源血缘回读驱动。`scripts/release/full-system-rehearsal-lib.mjs`
+  注册新矩阵和六行 row，`scripts/release/launch-coverage-audit.test.mjs` 增加完整覆盖审计对新 key 的白名单和缺项拒绝。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 增至 305 tests，新增缺来源片段、缺人工审核批准、
+  缺院内术语同步、缺第三方运行契约读回、缺图谱来源消费者、缺模型直发阻断等负向，避免附件空壳或跨矩阵冒领。
+- 第一百八十二批真实 E2E 与验证证据：复用本地 18092 后端和 5174 前端，后端 health 为
+  `{"status":"UP","groups":["liveness","readiness"]}`，前端返回 200。第一次目标 E2E 报告
+  `/tmp/medkernel-e2e-knowledge-supply-chain-evidence-20260709-r1/report/results.json` 为 `PASSED`，
+  但只声明旧的 `knowledgeOperationsAssetEntryCoreActions`；附件显示 `textExcerptVerified=false`，据此定位并修复。
+  修复后复跑：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-knowledge-supply-chain-evidence-20260709-r2 npm --prefix frontend run e2e -- --project=chromium knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-knowledge-supply-chain-evidence-20260709-r2/report/results.json` 为 `PASSED`
+  （expected=1，unexpected=0，flaky=0，skipped=0，duration≈14.5s），顶层 `launchCoverage` 声明
+  `CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE`，rows 为 `SOURCE_CONTROL`、`HUMAN_GOVERNANCE`、
+  `TERMINOLOGY_SYNC`、`RUNTIME_LIFECYCLE`、`LINEAGE_CONSUMERS`、`SAFETY_BOUNDARY`；附件中六组布尔证据均为 true。
+- 第一百八十二批收尾门禁：最终复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（305 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（55 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）。
+  `git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 以及本批触碰的两个脚本文件工作树 CRLF 将被 LF
+  替换，没有 whitespace error。
+- 第一百八十二批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是完整全知识供给链上线验收、
+  不是所有医学知识和术语体系已收集或生产完成、不是 13 类医学资产逐类全部生产 / 审核 / 发布 / 机构生效 /
+  运行消费 / 回滚负向闭环，也不是完整 S0-S40 或 34 个入口全部业务动作闭环。两个只读子代理给出的下一批高价值方向：
+  1）补平台管理员 P0 入口族专门 wrapper 和逐入口端点强校验（服务机构、身份来源、系统接入、服务运行保障）；
+  2）或补信息科长 / 实施工程师 / 院长三视角上线保障强证据矩阵，绑定 `/onboarding/guide`、`/system/providers`、
+  `/system/runtime-diagnostics`、恢复后 runtime / 第三方契约 / 临床冒烟；3）第三方系统族从登记和诚实降级继续补真实消费者与闭环回传。
+  下一批应优先转向全角色 / 上线保障 / 第三方真实消费者，不要继续片面只围绕知识。目标库迁移 smoke、公网模型 Provider
+  真实证据、真实第三方回调、134 清库 / 重部署仍按 deferred / destructive 规则推进，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十一批本地推进：接第一百八十批，按用户强调“知识只是全局一点、不要片面优化、可用子代理但质量优先”，
   先用只读子代理复核参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 与本批代码风险。参考会话结论只作为背景输入：
   134 已有受控来源、原文保存、解析、候选生成、术语模块和部分声明式资产 / runtime 消费骨架，但不是完整全医学资产自增长；

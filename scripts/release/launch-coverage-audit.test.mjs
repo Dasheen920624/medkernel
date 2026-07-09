@@ -112,6 +112,30 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
     evidence.coverage.versionedAssetDedicatedReleaseContractRows.map((item) => item.code),
     ["TERMINOLOGY", "FIELD_CATALOG", "PATHWAY"],
   );
+  assert.deepEqual(evidence.coverage.knowledgeSupplyChainEvidenceMatrix, [
+    {
+      code: "CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.knowledgeSupplyChainEvidenceMatrix.CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
+      observedCode: "CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    evidence.coverage.knowledgeSupplyChainEvidenceRows.map((item) => item.code),
+    [
+      "SOURCE_CONTROL",
+      "HUMAN_GOVERNANCE",
+      "TERMINOLOGY_SYNC",
+      "RUNTIME_LIFECYCLE",
+      "LINEAGE_CONSUMERS",
+      "SAFETY_BOUNDARY",
+    ],
+  );
 });
 
 test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", () => {
@@ -420,6 +444,13 @@ function completeStageEvidence(options = {}) {
     "versionedAssetDedicatedReleaseContractRows:TERMINOLOGY",
     "versionedAssetDedicatedReleaseContractRows:FIELD_CATALOG",
     "versionedAssetDedicatedReleaseContractRows:PATHWAY",
+    "knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
+    "knowledgeSupplyChainEvidenceRows:SOURCE_CONTROL",
+    "knowledgeSupplyChainEvidenceRows:HUMAN_GOVERNANCE",
+    "knowledgeSupplyChainEvidenceRows:TERMINOLOGY_SYNC",
+    "knowledgeSupplyChainEvidenceRows:RUNTIME_LIFECYCLE",
+    "knowledgeSupplyChainEvidenceRows:LINEAGE_CONSUMERS",
+    "knowledgeSupplyChainEvidenceRows:SAFETY_BOUNDARY",
     "semanticFamilies:DISEASE_DIAGNOSIS",
     "semanticFamilies:SYMPTOM_RISK",
     "semanticFamilies:DIAGNOSTIC_REPORT",

@@ -67,6 +67,21 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     label: "术语、字段目录与路径专项发布契约资产行",
     codes: ["TERMINOLOGY", "FIELD_CATALOG", "PATHWAY"],
   },
+  knowledgeSupplyChainEvidenceMatrix: {
+    label: "知识供给链受控证据矩阵",
+    codes: ["CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE"],
+  },
+  knowledgeSupplyChainEvidenceRows: {
+    label: "知识供给链受控证据行",
+    codes: [
+      "SOURCE_CONTROL",
+      "HUMAN_GOVERNANCE",
+      "TERMINOLOGY_SYNC",
+      "RUNTIME_LIFECYCLE",
+      "LINEAGE_CONSUMERS",
+      "SAFETY_BOUNDARY",
+    ],
+  },
   knowledgeDomains: {
     label: "11 个知识内容分类",
     codes: [...FULL_KNOWLEDGE_DOMAINS],

@@ -4715,6 +4715,44 @@ const knowledgeOperationsAssetEntryCoreActionsEvidence = {
     runtimeConsumerReadbackVerified: true,
     rollbackReadbackVerified: true,
   },
+  knowledgeSupplyChainEvidence: {
+    sourceControl: {
+      sourceRegistered: true,
+      sourceVersionRegistered: true,
+      sourceFragmentRegistered: true,
+      citationBound: true,
+      textExcerptVerified: true,
+      qualityGateRecordCreated: true,
+    },
+    humanGovernance: {
+      reviewQueueRead: true,
+      candidateApproved: true,
+      noDirectPublishVerified: true,
+    },
+    terminologySync: {
+      standardTermRegistered: true,
+      localTermRegistered: true,
+      candidateGenerated: true,
+      mappingConfirmed: true,
+      terminologyAssetVersionCreated: true,
+    },
+    runtimeLifecycle: {
+      baselineAssetsPreserved: true,
+      hospitalRuntimeActivated: true,
+      runtimeConsumerReadbackVerified: true,
+      rollbackReadbackVerified: true,
+    },
+    lineageConsumers: {
+      provenanceReadbackVerified: true,
+      graphProjectionVerified: true,
+      sourceAuditVerified: true,
+    },
+    safetyBoundary: {
+      externalSourcesPreparatoryOnly: true,
+      modelDirectPublishBlocked: true,
+      noAutoClinicalAction: true,
+    },
+  },
   entryActions: [
     {
       menuKey: "knowledge-production",
@@ -9692,6 +9730,19 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions?.map((item) => item.code),
     ).toEqual(["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.knowledgeSupplyChainEvidenceMatrix?.map((item) => item.code),
+    ).toEqual(["CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE"]);
+    expect(
+      evidence.launchCoverage.knowledgeSupplyChainEvidenceRows?.map((item) => item.code),
+    ).toEqual([
+      "SOURCE_CONTROL",
+      "HUMAN_GOVERNANCE",
+      "TERMINOLOGY_SYNC",
+      "RUNTIME_LIFECYCLE",
+      "LINEAGE_CONSUMERS",
+      "SAFETY_BOUNDARY",
+    ]);
     expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.clinicalEntryCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
@@ -10358,6 +10409,101 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare knowledge-operations asset entry coverage when $name", ({ body }) => {
     expectNoKnowledgeOperationsEntryCoreActionsCoverage(body);
+  });
+
+  it.each([
+    {
+      name: "缺少来源片段",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          sourceControl: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .sourceControl,
+            sourceFragmentRegistered: false,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少人工审核批准",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          humanGovernance: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .humanGovernance,
+            candidateApproved: false,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少院内术语同步",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          terminologySync: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .terminologySync,
+            localTermRegistered: false,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少第三方运行契约读回",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          runtimeLifecycle: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .runtimeLifecycle,
+            runtimeConsumerReadbackVerified: false,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少图谱来源消费者",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          lineageConsumers: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .lineageConsumers,
+            graphProjectionVerified: false,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少模型直发阻断",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          safetyBoundary: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .safetyBoundary,
+            modelDirectPublishBlocked: false,
+          },
+        },
+      },
+    },
+  ])("does not declare knowledge supply-chain evidence matrix when $name", ({ body }) => {
+    const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.knowledgeSupplyChainEvidenceMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.knowledgeSupplyChainEvidenceRows).toBeUndefined();
   });
 
   it.each([

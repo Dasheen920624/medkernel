@@ -41,6 +41,45 @@ export type KnowledgeOperationsAssetEntryCoreActionEvidence = {
   modelSafetyBoundaryVerified?: boolean;
 };
 
+export type KnowledgeSupplyChainEvidence = {
+  sourceControl: {
+    sourceRegistered: boolean;
+    sourceVersionRegistered: boolean;
+    sourceFragmentRegistered: boolean;
+    citationBound: boolean;
+    textExcerptVerified: boolean;
+    qualityGateRecordCreated: boolean;
+  };
+  humanGovernance: {
+    reviewQueueRead: boolean;
+    candidateApproved: boolean;
+    noDirectPublishVerified: boolean;
+  };
+  terminologySync: {
+    standardTermRegistered: boolean;
+    localTermRegistered: boolean;
+    candidateGenerated: boolean;
+    mappingConfirmed: boolean;
+    terminologyAssetVersionCreated: boolean;
+  };
+  runtimeLifecycle: {
+    baselineAssetsPreserved: boolean;
+    hospitalRuntimeActivated: boolean;
+    runtimeConsumerReadbackVerified: boolean;
+    rollbackReadbackVerified: boolean;
+  };
+  lineageConsumers: {
+    provenanceReadbackVerified: boolean;
+    graphProjectionVerified: boolean;
+    sourceAuditVerified: boolean;
+  };
+  safetyBoundary: {
+    externalSourcesPreparatoryOnly: boolean;
+    modelDirectPublishBlocked: boolean;
+    noAutoClinicalAction: boolean;
+  };
+};
+
 const pathByMenuKey: Record<KnowledgeOperationsAssetEntryCoreActionMenuKey, string> = {
   "knowledge-production": "/knowledge/production",
   "knowledge-governance": "/knowledge/governance",
@@ -79,6 +118,7 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
   evidence:
     | KnowledgeOperationsAssetEntryCoreActionEvidence
     | KnowledgeOperationsAssetEntryCoreActionEvidence[],
+  options: { knowledgeSupplyChainEvidence?: KnowledgeSupplyChainEvidence } = {},
 ) {
   const entryActions = Array.isArray(evidence) ? evidence : [evidence];
   for (const action of entryActions) {
@@ -106,6 +146,7 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
           runtimeConsumerReadbackVerified: true,
           rollbackReadbackVerified: true,
         },
+        knowledgeSupplyChainEvidence: options.knowledgeSupplyChainEvidence,
         entryActions,
       },
       null,
