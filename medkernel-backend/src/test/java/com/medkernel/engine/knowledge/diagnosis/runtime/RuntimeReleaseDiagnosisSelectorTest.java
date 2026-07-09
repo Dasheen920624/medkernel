@@ -96,6 +96,26 @@ class RuntimeReleaseDiagnosisSelectorTest {
     }
 
     @Test
+    void resolvesDiagnosisKnowledgeByContentHashWhenRuntimeUsesUnifiedAssetVersionNo() {
+        ClinicalRuntimeReleaseItem diagnosis =
+            item("tenant-A", "DX.COPD", "V1", ReleaseSourceLayer.HOSPITAL, ReleaseEntryState.ACTIVE);
+        when(runtime.resolve("tenant-A", "release-DX1")).thenReturn(new ClinicalRuntimeReleaseContent(
+            release(), List.of(diagnosis)));
+        stubIdentity("tenant-A", "DX.COPD", 200L, KnowledgeDomain.DIAGNOSIS, "慢阻肺急性加重");
+        when(versions.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 200L, "V1"))
+            .thenReturn(Optional.empty());
+        when(versions.findByTenantIdAndIdentityIdAndContentHash("tenant-A", 200L, "b".repeat(64)))
+            .thenReturn(Optional.of(version(
+                20L, "tenant-A", 200L, "draft-from-2026", SourceAuthorityLevel.B_GUIDELINE)));
+
+        List<RuntimeDiagnosisReference> selected = selector.select("tenant-A", "release-DX1");
+
+        assertThat(selected)
+            .extracting(RuntimeDiagnosisReference::knowledgeVersionId, RuntimeDiagnosisReference::versionNo)
+            .containsExactly(tuple(20L, "draft-from-2026"));
+    }
+
+    @Test
     void rejectsRuntimeReleaseWhenPinnedDiagnosisVersionIsNotActive() {
         ClinicalRuntimeReleaseItem diagnosis =
             item("tenant-A", "DX.COPD", "v2.0", ReleaseSourceLayer.HOSPITAL, ReleaseEntryState.ACTIVE);

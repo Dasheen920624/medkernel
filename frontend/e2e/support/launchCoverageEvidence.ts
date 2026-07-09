@@ -683,6 +683,14 @@ const diagnosisKnowledgeScenarioConditionRows = [
     source: "DIAGNOSIS_KNOWLEDGE_EVIDENCE_EXCERPT_REJECTED_NO_ASSET_CREATED",
   },
 ] as const;
+const diagnosisAssistRuntimeScenarioConditionRows = [
+  {
+    code: "S16__NORMAL",
+    scenarioCode: "S16",
+    condition: "NORMAL",
+    source: "DIAGNOSIS_ASSIST_ACTIVE_RUNTIME_DIAGNOSIS_CONSUMPTION",
+  },
+] as const;
 const implementationGuideScenarioConditionRows = [
   {
     code: "S23__ABNORMAL",
@@ -4152,6 +4160,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectDiagnosisAssistRuntimeScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectImplementationGuideScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4519,6 +4530,36 @@ function diagnosisKnowledgeScenarioConditionBackedByEvidence(
       return hasCompleteDiagnosisKnowledgeInvalidAssetCreationRejectionEvidence(parsed);
     default:
       return false;
+  }
+}
+
+function collectDiagnosisAssistRuntimeScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "diagnosis-assist-runtime.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnosis-assist-runtime-codes",
+  );
+  if (!attachment?.body) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      diagnosisAssistRuntimeScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return diagnosisAssistRuntimeScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) && hasCompleteDiagnosisAssistRuntimeNormalEvidence(parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
   }
 }
 
@@ -7429,6 +7470,173 @@ function hasCompleteDiagnosisKnowledgeValidationCase(
     hasText(value.caseIdentity) &&
     hasText(value.findingTermCode) &&
     value.findingTermCode === standardTerm.termCode
+  );
+}
+
+function hasCompleteDiagnosisAssistRuntimeNormalEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  if (!evidence || !arrayEquals(evidence.scenarioCodes, ["S16"])) return false;
+  const apiEvidence = recordValue(evidence.apiEvidence);
+  const securityProfile = recordValue(evidence.securityProfile);
+  const standardTerm = recordValue(evidence.standardTerm);
+  const knowledge = recordValue(evidence.knowledge);
+  const runtime = recordValue(evidence.diagnosisRuntime);
+  const clinicalContext = recordValue(evidence.clinicalContext);
+  const diagnosisSupport = recordValue(evidence.diagnosisSupport);
+  const recommendationCard = recordValue(evidence.recommendationCard);
+  return (
+    hasCompleteDiagnosisAssistApiEvidence(apiEvidence) &&
+    securityProfile?.role === "clinical-user" &&
+    hasText(securityProfile?.tenantId) &&
+    hasText(securityProfile?.hospitalId) &&
+    hasText(standardTerm?.termCode) &&
+    hasText(standardTerm?.displayName) &&
+    hasCompleteDiagnosisAssistKnowledge(knowledge) &&
+    hasCompleteDiagnosisAssistRuntime(runtime, knowledge) &&
+    hasCompleteDiagnosisAssistClinicalContext(clinicalContext, runtime, standardTerm) &&
+    hasCompleteDiagnosisAssistServiceEvidence(
+      diagnosisSupport,
+      runtime,
+      clinicalContext,
+      knowledge,
+      standardTerm,
+    ) &&
+    hasCompleteDiagnosisAssistRecommendationCard(
+      recommendationCard,
+      diagnosisSupport,
+      runtime,
+      knowledge,
+    )
+  );
+}
+
+function hasCompleteDiagnosisAssistApiEvidence(value: Record<string, unknown> | null) {
+  const publish = recordValue(value?.diagnosisAssetPublishedFromGovernance);
+  const activation = recordValue(value?.runtimeReleaseActivatedWithDiagnosisKnowledge);
+  const context = recordValue(value?.contextSnapshotCreatedFromFrontdesk);
+  const assist = recordValue(value?.diagnosisAssistEvaluatedFromFrontdesk);
+  const card = recordValue(value?.diagnosisRecommendationCardReadback);
+  return (
+    publish?.operation ===
+      "POST /engine/knowledge/diagnosis/identities/{identityId}/versions/{versionId}/publish" &&
+    activation?.operation === "POST /engine/releases/hospitals/{hospitalId}/runtime-releases" &&
+    context?.operation === "POST /engine/context/snapshots" &&
+    assist?.operation === "POST /engine/recommendations/diagnosis-assist" &&
+    card?.operation === "GET /engine/recommendations/cards" &&
+    is2xxStatus(publish.status) &&
+    is2xxStatus(activation.status) &&
+    is2xxStatus(context.status) &&
+    is2xxStatus(assist.status) &&
+    is2xxStatus(card.status)
+  );
+}
+
+function hasCompleteDiagnosisAssistKnowledge(value: Record<string, unknown> | null) {
+  return (
+    value !== null &&
+    isPositiveNumber(value.identityId) &&
+    isPositiveNumber(value.versionId) &&
+    hasText(value.identityCode) &&
+    hasText(value.versionNo) &&
+    value.versionStatus === "ACTIVE"
+  );
+}
+
+function hasCompleteDiagnosisAssistRuntime(
+  value: Record<string, unknown> | null,
+  knowledge: Record<string, unknown> | null,
+) {
+  return (
+    value !== null &&
+    knowledge !== null &&
+    value.operation === "PUBLISH_ACTIVATE_DIAGNOSIS_RUNTIME" &&
+    is2xxStatus(value.publishStatus) &&
+    is2xxStatus(value.runtimeActivationStatus) &&
+    value.identityId === knowledge.identityId &&
+    value.identityCode === knowledge.identityCode &&
+    value.versionId === knowledge.versionId &&
+    value.versionNo === knowledge.versionNo &&
+    hasText(value.runtimeReleaseId) &&
+    value.runtimeConsumerReadback === true &&
+    value.activeRuntimeContainsDiagnosis === true
+  );
+}
+
+function hasCompleteDiagnosisAssistClinicalContext(
+  value: Record<string, unknown> | null,
+  runtime: Record<string, unknown> | null,
+  standardTerm: Record<string, unknown> | null,
+) {
+  return (
+    value !== null &&
+    runtime !== null &&
+    standardTerm !== null &&
+    value.operation === "POST /engine/context/snapshots" &&
+    is2xxStatus(value.status) &&
+    hasText(value.contextSnapshotId) &&
+    hasText(value.patientId) &&
+    value.runtimeReleaseId === runtime.runtimeReleaseId &&
+    value.findingTermCode === standardTerm.termCode
+  );
+}
+
+function hasCompleteDiagnosisAssistServiceEvidence(
+  value: Record<string, unknown> | null,
+  runtime: Record<string, unknown> | null,
+  clinicalContext: Record<string, unknown> | null,
+  knowledge: Record<string, unknown> | null,
+  standardTerm: Record<string, unknown> | null,
+) {
+  return (
+    value !== null &&
+    runtime !== null &&
+    clinicalContext !== null &&
+    knowledge !== null &&
+    standardTerm !== null &&
+    value.operation === "POST /engine/recommendations/diagnosis-assist" &&
+    is2xxStatus(value.status) &&
+    value.contextSnapshotId === clinicalContext.contextSnapshotId &&
+    value.runtimeReleaseId === runtime.runtimeReleaseId &&
+    value.findingTermCode === standardTerm.termCode &&
+    typeof value.candidateCount === "number" &&
+    value.candidateCount > 0 &&
+    value.candidateIdentityId === knowledge.identityId &&
+    value.candidateIdentityCode === knowledge.identityCode &&
+    value.candidateVersionId === knowledge.versionId &&
+    hasText(value.candidateConfidence) &&
+    Array.isArray(value.supportingFindings) &&
+    value.supportingFindings.includes(standardTerm.termCode) &&
+    hasText(value.traceId) &&
+    typeof value.advisoryNote === "string" &&
+    value.advisoryNote.includes("需医师确认") &&
+    value.advisoryNote.includes("非自动诊断")
+  );
+}
+
+function hasCompleteDiagnosisAssistRecommendationCard(
+  value: Record<string, unknown> | null,
+  diagnosisSupport: Record<string, unknown> | null,
+  runtime: Record<string, unknown> | null,
+  knowledge: Record<string, unknown> | null,
+) {
+  return (
+    value !== null &&
+    diagnosisSupport !== null &&
+    runtime !== null &&
+    knowledge !== null &&
+    value.readbackOperation === "GET /engine/recommendations/cards" &&
+    is2xxStatus(value.readbackStatus) &&
+    hasText(value.cardId) &&
+    value.cardType === "DIAGNOSIS" &&
+    value.scenarioCode === "S16" &&
+    value.contextSnapshotId === diagnosisSupport.contextSnapshotId &&
+    value.runtimeReleaseId === runtime.runtimeReleaseId &&
+    value.sourceVersionId === knowledge.versionId &&
+    value.sourceIdentityCode === knowledge.identityCode &&
+    value.requiresPhysicianConfirmation === true &&
+    value.aiGenerated === false &&
+    value.noAutoDiagnosis === true &&
+    value.noAutoOrder === true
   );
 }
 

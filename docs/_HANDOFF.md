@@ -167,6 +167,51 @@
   回读和临床 `/mpi` 冒烟；若仍是 dev/H2 的 `NOT_AVAILABLE`，不得声明 `S15__NORMAL`。`S30__NORMAL`、`S33__DEGRADATION`、
   `S37__NORMAL` 仍因缺慢病双向转诊、SPD/UDI 真实业务消费者或床旁知识强附件而不建议冒领。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百二十九批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只把“当前机构生效诊断知识被临床诊断支持服务真实消费并落库为需医师确认的诊断推荐卡”升级为显式
+  `S16__NORMAL`。新增 `diagnosis-assist-runtime.spec.ts`，链路从治理角色登记标准发现项、受控来源 / 来源版本 / 来源片段、
+  生成并发布 DIAGNOSIS 知识、激活包含该诊断知识的机构生效版本开始，再切换临床用户创建上下文快照、调用
+  `/engine/recommendations/diagnosis-assist` 并回读 `DIAGNOSIS` 推荐卡。只声明 `S16__NORMAL`；不声明
+  `S16__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不声明完整诊断支持、鉴别诊断体系、治疗建议、自动诊断、
+  自动开嘱、完整医学知识生产、完整 S0-S40 或完整上线验收。
+- 第二百二十九批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `S16__NORMAL` 白名单和 `hasCompleteDiagnosisAssistRuntimeNormalEvidence()`，只接受
+  `diagnosis-assist-runtime.spec.ts` 的 `diagnosis-assist-runtime-codes` 附件，且条件行必须严格匹配
+  `DIAGNOSIS_ASSIST_ACTIVE_RUNTIME_DIAGNOSIS_CONSUMPTION`。parser 要求诊断知识发布、机构生效版本激活、上下文创建、
+  诊断支持服务、推荐卡回读均为 2xx；`securityProfile.role=clinical-user`；知识 `identityId/versionId` 为正且
+  `versionStatus=ACTIVE`；runtime consumer 回读并包含同一诊断知识；临床上下文、诊断支持候选、推荐卡必须绑定同一
+  `runtimeReleaseId/contextSnapshotId/findingTermCode/identityCode/versionId`；推荐卡必须为 `DIAGNOSIS`、`scenarioCode=S16`、
+  `requiresPhysicianConfirmation=true`、`aiGenerated=false`、`noAutoDiagnosis=true`、`noAutoOrder=true`。单测覆盖正例和负例：
+  缺显式条件行、source/condition/evidence 错配、知识未发布、runtime 未包含诊断、未回读 consumer、诊断支持非 2xx、
+  候选为空、候选身份 / 版本 / 发现项不一致、推荐卡类型 / 场景 / 来源 / 上下文不一致、允许 AI / 自动诊断 / 自动开嘱，
+  均不声明 `S16__NORMAL`，也不能把 S3 维护附件冒领为 S16。
+- 第二百二十九批后端修复：真实 E2E 暴露两个阻断并已按根因修复。其一，机构 runtime 统一资产版本号可为 `V1`，
+  而诊断知识领域版本号为真实业务版本，`RuntimeReleaseDiagnosisSelector` 先按 `versionNo` 查找，找不到时按
+  `contentHash` 回查 `KnowledgeAssetVersion`，并用单测覆盖统一资产版本号映射。其二，5 方言 baseline 的
+  `recommendation_card.ck_rec_card_type` 漏掉 Java 枚举中的 `DIAGNOSIS`，导致 H2 真实插入诊断推荐卡失败；
+  已同步 `dm/h2/kingbase/oracle/postgres` 五方言约束，并新增 `RecommendationCardTypeTest` 校验 Java 枚举与迁移约束一致。
+- 第二百二十九批真实 E2E：临时启动后端 18102（dev/H2，重新构建 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。最终执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s16-normal-condition-row-20260710-r8 npm --prefix frontend run e2e -- --project=chromium diagnosis-assist-runtime.spec.ts`
+  通过；`/tmp/medkernel-e2e-s16-normal-condition-row-20260710-r8/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`scenarioConditionRows=[S16__NORMAL]`。原始附件抽查：
+  `knowledge.versionStatus=ACTIVE`、`qualityGateRecordId=20`、`runtimeAssetVersionId=av-*`、`clinicalContext.status=201`、
+  `diagnosisSupport.status=200`、`candidateCount=1`、`recommendationCard.cardType=DIAGNOSIS`、`scenarioCode=S16`、
+  `sourceVersionId=3`、`requiresPhysicianConfirmation=true`、`aiGenerated=false`、`noAutoDiagnosis=true`、
+  `noAutoOrder=true`。
+- 第二百二十九批验证证据：已先按 TDD 补 S16 正 / 负例并让 parser 红在缺 `S16__NORMAL`；实现后复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（737 tests）、
+  `mvn -f medkernel-backend/pom.xml -Dtest=RecommendationCardTypeTest,RuntimeReleaseDiagnosisSelectorTest test`（6 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `mvn -f medkernel-backend/pom.xml -DskipTests package`、`git diff --check`。
+- 第二百二十九批并行只读审计结论：本批复用并关闭 6 个已完成只读子代理，均未编辑、未暂存、未提交、未启动服务、未外调。
+  S16 审计结论确认：`S16__NORMAL` 只能由独立 `diagnosis-assist-runtime-codes` 强附件声明，S3 诊断知识维护、普通知识发布、
+  或仅 DIAGNOSIS 资产进入 runtime 均不能冒领。下一批若继续 LAUNCH-06 最短路径，多个审计均认为 `S15__NORMAL`
+  只有在存在真实 `backup.drillEvidence.status=SUCCESS`、隔离恢复、当前机构生效版本回读、第三方 runtime consumer 回读、
+  临床 `/mpi` 冒烟时才可考虑；dev/H2 `NOT_AVAILABLE` 不得升级正常态。`S30__NORMAL`、`S33__DEGRADATION`、
+  `S37__NORMAL` 仍因缺慢病双向转诊、SPD/UDI 真实业务消费者或床旁知识问答强附件，不建议冒领。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百二十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只收口检查检验建议 / 医技报告解读 `S17__NORMAL` 代表切片。`stakeholder-view-rehearsal.spec.ts` 在医技角色真实
   前台动作完成后新增 `report-interpretation-scenario-codes` 附件，绑定当前患者上下文、当前机构生效版本、

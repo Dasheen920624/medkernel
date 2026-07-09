@@ -4653,7 +4653,7 @@ ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_physician_confirmatio
 ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_review CHECK (review_requirement IN('OPTIONAL_REVIEW', 'PHYSICIAN_CONFIRMATION'));
 ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
 ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_status CHECK (status IN('PENDING', 'VIEWED', 'ACCEPTED', 'REJECTED', 'DEFERRED', 'DISMISSED', 'SUPPRESSED', 'EXPIRED'));
-ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_type CHECK (card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_type CHECK (card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP', 'DIAGNOSIS'));
 ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT pk_recommendation_fatigue_signal PRIMARY KEY (id);
 ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT uk_rec_fatigue_id UNIQUE (signal_id);
 ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT ck_rec_fatigue_signal CHECK (signal_type IN('SHOWN', 'SILENT_RECORDED', 'VIEWED', 'ACCEPTED', 'REJECTED', 'DEFERRED', 'DISMISSED', 'SUPPRESSED'));

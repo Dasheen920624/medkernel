@@ -356,6 +356,147 @@ function diagnosisKnowledgeAbnormalEvidence(overrides: Record<string, unknown> =
   };
 }
 
+function diagnosisSupportNormalEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    scenarioCodes: ["S16"],
+    apiEvidence: {
+      diagnosisAssetPublishedFromGovernance: {
+        operation:
+          "POST /engine/knowledge/diagnosis/identities/{identityId}/versions/{versionId}/publish",
+        status: 200,
+      },
+      runtimeReleaseActivatedWithDiagnosisKnowledge: {
+        operation: "POST /engine/releases/hospitals/{hospitalId}/runtime-releases",
+        status: 200,
+      },
+      contextSnapshotCreatedFromFrontdesk: {
+        operation: "POST /engine/context/snapshots",
+        status: 201,
+      },
+      diagnosisAssistEvaluatedFromFrontdesk: {
+        operation: "POST /engine/recommendations/diagnosis-assist",
+        status: 200,
+      },
+      diagnosisRecommendationCardReadback: {
+        operation: "GET /engine/recommendations/cards",
+        status: 200,
+      },
+    },
+    securityProfile: {
+      role: "clinical-user",
+      tenantId: "t-e2e-rehearsal-local",
+      hospitalId: "hospital-s16",
+    },
+    standardTerm: {
+      termCode: "TERM.LAB.FRONTDESK.S3",
+      displayName: "前台演练发现项S3",
+    },
+    knowledge: {
+      identityId: 3001,
+      identityCode: "DX.FRONTDESK.S3",
+      versionId: 9001,
+      versionNo: "frontdesk-s3",
+      versionStatus: "ACTIVE",
+    },
+    diagnosisRuntime: {
+      operation: "PUBLISH_ACTIVATE_DIAGNOSIS_RUNTIME",
+      publishStatus: 200,
+      runtimeActivationStatus: 200,
+      identityId: 3001,
+      identityCode: "DX.FRONTDESK.S3",
+      versionId: 9001,
+      versionNo: "frontdesk-s3",
+      runtimeReleaseId: "rr-s16",
+      runtimeConsumerReadback: true,
+      activeRuntimeContainsDiagnosis: true,
+    },
+    clinicalContext: {
+      operation: "POST /engine/context/snapshots",
+      status: 201,
+      contextSnapshotId: "ctx-s16",
+      runtimeReleaseId: "rr-s16",
+      patientId: "patient-s16",
+      findingTermCode: "TERM.LAB.FRONTDESK.S3",
+    },
+    diagnosisSupport: {
+      operation: "POST /engine/recommendations/diagnosis-assist",
+      status: 200,
+      contextSnapshotId: "ctx-s16",
+      runtimeReleaseId: "rr-s16",
+      findingTermCode: "TERM.LAB.FRONTDESK.S3",
+      candidateCount: 1,
+      candidateIdentityId: 3001,
+      candidateIdentityCode: "DX.FRONTDESK.S3",
+      candidateVersionId: 9001,
+      candidateConfidence: "STRONG",
+      supportingFindings: ["TERM.LAB.FRONTDESK.S3"],
+      advisoryNote: "辅助建议，需医师确认（非自动诊断）。",
+      traceId: "trace-s16",
+    },
+    recommendationCard: {
+      readbackOperation: "GET /engine/recommendations/cards",
+      readbackStatus: 200,
+      cardId: "card-s16",
+      cardType: "DIAGNOSIS",
+      scenarioCode: "S16",
+      contextSnapshotId: "ctx-s16",
+      runtimeReleaseId: "rr-s16",
+      sourceVersionId: 9001,
+      sourceIdentityCode: "DX.FRONTDESK.S3",
+      requiresPhysicianConfirmation: true,
+      aiGenerated: false,
+      noAutoDiagnosis: true,
+      noAutoOrder: true,
+    },
+    scenarioConditionEvidence: [
+      {
+        code: "S16__NORMAL",
+        scenarioCode: "S16",
+        condition: "NORMAL",
+        source: "DIAGNOSIS_ASSIST_ACTIVE_RUNTIME_DIAGNOSIS_CONSUMPTION",
+        evidence: [
+          "诊断知识版本经治理发布后进入当前机构生效版本",
+          "临床前台上下文携带同一标准发现项并触发真实诊断支持服务",
+          "服务返回候选并落库为需医师确认的 DIAGNOSIS 推荐卡",
+        ],
+      },
+    ],
+    scenarioEvidence: [
+      ...structuredClone(diagnosisKnowledgeEvidence.scenarioEvidence),
+      {
+        code: "S16",
+        observedStages: [
+          "治理发布诊断知识版本",
+          "激活包含诊断知识的机构生效版本",
+          "临床前台建立命中标准发现项的上下文快照",
+          "真实诊断支持服务返回候选并落库推荐卡",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function diagnosisAssistRuntimeEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/diagnosis-assist-runtime.spec.ts",
+        title: "临床用户触发诊断支持服务消费当前机构生效诊断知识并回读推荐卡",
+        status: "passed",
+        attachments: [
+          {
+            name: "diagnosis-assist-runtime-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
 function expectNoDiagnosisKnowledgeScenarioConditionCoverage(body: Record<string, unknown>) {
   const evidence = diagnosisKnowledgeEvidenceResult(body);
   expect(
@@ -368,6 +509,13 @@ function expectNoDiagnosisKnowledgeAbnormalCoverage(body: Record<string, unknown
   expect(
     evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
   ).not.toContain("S3__ABNORMAL");
+}
+
+function expectNoDiagnosisSupportNormalCoverage(body: Record<string, unknown>) {
+  const evidence = diagnosisAssistRuntimeEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S16__NORMAL");
 }
 
 const runtimeReleaseVersionedAssets = [
@@ -14800,6 +14948,213 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S3 abnormal condition row when $name", ({ body }) => {
     expectNoDiagnosisKnowledgeAbnormalCoverage(body);
+  });
+
+  it("declares S16 normal condition row only when diagnosis support consumes active runtime knowledge and stores a diagnosis card", () => {
+    const evidence = diagnosisAssistRuntimeEvidenceResult(diagnosisSupportNormalEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S16__NORMAL",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺显式诊断支持条件行",
+      body: diagnosisSupportNormalEvidence({
+        scenarioConditionEvidence: [
+          ...structuredClone(diagnosisKnowledgeEvidence.scenarioConditionEvidence),
+        ],
+      }),
+    },
+    {
+      name: "条件行来源错配",
+      body: diagnosisSupportNormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S16__NORMAL",
+            scenarioCode: "S16",
+            condition: "NORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
+            evidence: ["不能把诊断知识维护冒领为诊断支持运行消费"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行状态错配",
+      body: diagnosisSupportNormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S16__NORMAL",
+            scenarioCode: "S16",
+            condition: "DEGRADATION",
+            source: "DIAGNOSIS_ASSIST_ACTIVE_RUNTIME_DIAGNOSIS_CONSUMPTION",
+            evidence: ["S16 正常态条件必须严格匹配 NORMAL"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行证据为空",
+      body: diagnosisSupportNormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S16__NORMAL",
+            scenarioCode: "S16",
+            condition: "NORMAL",
+            source: "DIAGNOSIS_ASSIST_ACTIVE_RUNTIME_DIAGNOSIS_CONSUMPTION",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "诊断知识未发布",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisRuntime: {
+          ...diagnosisSupportNormalEvidence().diagnosisRuntime,
+          publishStatus: 500,
+        },
+      }),
+    },
+    {
+      name: "机构生效版本未包含诊断知识",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisRuntime: {
+          ...diagnosisSupportNormalEvidence().diagnosisRuntime,
+          activeRuntimeContainsDiagnosis: false,
+        },
+      }),
+    },
+    {
+      name: "runtime consumer 未回读诊断知识",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisRuntime: {
+          ...diagnosisSupportNormalEvidence().diagnosisRuntime,
+          runtimeConsumerReadback: false,
+        },
+      }),
+    },
+    {
+      name: "诊断支持服务非 2xx",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisSupport: {
+          ...diagnosisSupportNormalEvidence().diagnosisSupport,
+          status: 500,
+        },
+      }),
+    },
+    {
+      name: "诊断支持未返回候选",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisSupport: {
+          ...diagnosisSupportNormalEvidence().diagnosisSupport,
+          candidateCount: 0,
+        },
+      }),
+    },
+    {
+      name: "候选身份与运行时诊断知识不一致",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisSupport: {
+          ...diagnosisSupportNormalEvidence().diagnosisSupport,
+          candidateIdentityCode: "DX.OTHER",
+        },
+      }),
+    },
+    {
+      name: "候选版本与运行时诊断知识不一致",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisSupport: {
+          ...diagnosisSupportNormalEvidence().diagnosisSupport,
+          candidateVersionId: 9002,
+        },
+      }),
+    },
+    {
+      name: "命中发现项与标准术语不一致",
+      body: diagnosisSupportNormalEvidence({
+        diagnosisSupport: {
+          ...diagnosisSupportNormalEvidence().diagnosisSupport,
+          findingTermCode: "TERM.LAB.OTHER",
+        },
+      }),
+    },
+    {
+      name: "推荐卡不是诊断类型",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          cardType: "KNOWLEDGE",
+        },
+      }),
+    },
+    {
+      name: "推荐卡未绑定 S16",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          scenarioCode: "S3",
+        },
+      }),
+    },
+    {
+      name: "推荐卡不要求医师确认",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          requiresPhysicianConfirmation: false,
+        },
+      }),
+    },
+    {
+      name: "推荐卡标记为 AI 生成",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          aiGenerated: true,
+        },
+      }),
+    },
+    {
+      name: "推荐卡允许自动诊断",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          noAutoDiagnosis: false,
+        },
+      }),
+    },
+    {
+      name: "推荐卡允许自动开嘱",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "推荐卡上下文与诊断支持上下文不一致",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          contextSnapshotId: "ctx-other",
+        },
+      }),
+    },
+    {
+      name: "推荐卡来源版本与候选版本不一致",
+      body: diagnosisSupportNormalEvidence({
+        recommendationCard: {
+          ...diagnosisSupportNormalEvidence().recommendationCard,
+          sourceVersionId: 9002,
+        },
+      }),
+    },
+  ])("does not declare S16 normal condition row when $name", ({ body }) => {
+    expectNoDiagnosisSupportNormalCoverage(body);
   });
 
   const sourceLineageEvidence = {
