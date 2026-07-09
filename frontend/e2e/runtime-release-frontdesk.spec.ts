@@ -702,6 +702,16 @@ test.describe("机构生效版本真实前台发布回滚", () => {
             "第三方运行契约读取同一机构生效版本且回滚后排除本轮候选",
           ],
         },
+        {
+          code: "S13__DEGRADATION",
+          scenarioCode: "S13",
+          condition: "DEGRADATION",
+          source: "RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY",
+          evidence: [
+            "前台从历史机构生效版本执行回滚并生成更高修订号",
+            "回滚后机构当前版本与第三方运行契约均排除本轮候选资产",
+          ],
+        },
       ];
       recordCleanRuntime(page, "前台从历史机构生效版本回滚", runtime, records);
       await captureEvidence(page, testInfo, "runtime-release-frontdesk-rollback");

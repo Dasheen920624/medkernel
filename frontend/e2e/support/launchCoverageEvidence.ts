@@ -118,6 +118,12 @@ const runtimeReleaseScenarioConditionRows = [
     condition: "NORMAL",
     source: "RUNTIME_RELEASE_ACTIVATION_ROLLBACK_CONTRACT_READBACK",
   },
+  {
+    code: "S13__DEGRADATION",
+    scenarioCode: "S13",
+    condition: "DEGRADATION",
+    source: "RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY",
+  },
 ] as const;
 
 const thirdPartySystemFamilyClaims = [
@@ -4299,6 +4305,8 @@ function runtimeReleaseScenarioConditionBackedByEvidence(
         hasCompleteRuntimeReleaseOfflineDeliveryEvidence(parsed)
       );
     }
+    case "S13__DEGRADATION":
+      return hasCompleteRuntimeReleaseRollbackDegradationEvidence(parsed);
     default:
       return false;
   }
@@ -7470,6 +7478,31 @@ function hasCompleteRuntimeReleaseLocalCandidateEvidence(value: {
     runtimeReleasePayloadContainsCandidate(value.runtimeConsumerReadback, "assets", candidate, {
       requireActive: true,
     }) &&
+    runtimeReleasePayloadExcludesCandidate(value.rollbackReadback, candidate) &&
+    runtimeReleasePayloadExcludesCandidate(value.rollbackRuntimeConsumerReadback, candidate)
+  );
+}
+
+function hasCompleteRuntimeReleaseRollbackDegradationEvidence(value: Record<string, unknown>) {
+  const candidate = parseRuntimeReleaseCandidate(value.localCandidate);
+  if (
+    !candidate ||
+    !isPositiveNumber(value.activatedRevisionNo) ||
+    !isPositiveNumber(value.rolledBackRevisionNo)
+  ) {
+    return false;
+  }
+  const evidence = recordValue(value.apiEvidence);
+  if (
+    !evidence ||
+    evidence.rollbackPosted !== true ||
+    evidence.rollbackCurrentReleaseReadback !== true ||
+    evidence.rollbackRuntimeConsumerReadback !== true
+  ) {
+    return false;
+  }
+  return (
+    Number(value.rolledBackRevisionNo) > Number(value.activatedRevisionNo) &&
     runtimeReleasePayloadExcludesCandidate(value.rollbackReadback, candidate) &&
     runtimeReleasePayloadExcludesCandidate(value.rollbackRuntimeConsumerReadback, candidate)
   );

@@ -649,6 +649,25 @@ function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {})
   };
 }
 
+function runtimeReleaseDegradationEvidence(overrides: Record<string, unknown> = {}) {
+  return runtimeReleaseCompleteEvidence({
+    scenarioConditionEvidence: [
+      ...runtimeReleaseCompleteEvidence().scenarioConditionEvidence,
+      {
+        code: "S13__DEGRADATION",
+        scenarioCode: "S13",
+        condition: "DEGRADATION",
+        source: "RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY",
+        evidence: [
+          "前台从历史机构生效版本执行回滚并生成更高修订号",
+          "回滚后机构当前版本与第三方运行契约均排除本轮候选资产",
+        ],
+      },
+    ],
+    ...overrides,
+  });
+}
+
 function runtimeReleaseEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -8002,6 +8021,15 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
   });
 
+  it("declares S13 degradation condition row only from explicit rollback recovery evidence", () => {
+    const evidence = runtimeReleaseEvidenceResult(runtimeReleaseDegradationEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S13__NORMAL",
+      "S13__DEGRADATION",
+    ]);
+  });
+
   it.each([
     {
       name: "缺显式条件附件",
@@ -8133,6 +8161,111 @@ describe("browser E2E launch coverage evidence", () => {
     const evidence = runtimeReleaseEvidenceResult(runtimeReleaseCompleteEvidence(overrides));
 
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺显式降级条件行",
+      overrides: {
+        scenarioConditionEvidence: runtimeReleaseCompleteEvidence().scenarioConditionEvidence,
+      },
+    },
+    {
+      name: "降级条件行来源错配",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S13__DEGRADATION",
+            scenarioCode: "S13",
+            condition: "DEGRADATION",
+            source: "RUNTIME_RELEASE_ROLLBACK_MENU_ONLY",
+            evidence: ["不能只靠回滚菜单冒领降级恢复"],
+          },
+        ],
+      },
+    },
+    {
+      name: "降级条件行状态错配",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S13__DEGRADATION",
+            scenarioCode: "S13",
+            condition: "NORMAL",
+            source: "RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY",
+            evidence: ["条件状态必须匹配降级态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "降级条件行证据为空",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S13__DEGRADATION",
+            scenarioCode: "S13",
+            condition: "DEGRADATION",
+            source: "RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "回滚接口未成功",
+      overrides: {
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          rollbackPosted: false,
+        },
+      },
+    },
+    {
+      name: "回滚后当前机构版本未回读",
+      overrides: {
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          rollbackCurrentReleaseReadback: false,
+        },
+      },
+    },
+    {
+      name: "回滚后第三方运行契约未回读",
+      overrides: {
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          rollbackRuntimeConsumerReadback: false,
+        },
+      },
+    },
+    {
+      name: "回滚修订号未递增",
+      overrides: {
+        rolledBackRevisionNo: 9,
+      },
+    },
+    {
+      name: "回滚后机构版本仍含本轮候选",
+      overrides: {
+        rollbackReadback: { localCandidateAbsent: true, assets: [runtimeReleasePrimaryAsset] },
+      },
+    },
+    {
+      name: "回滚后第三方运行契约仍含本轮候选",
+      overrides: {
+        rollbackRuntimeConsumerReadback: {
+          localCandidateAbsent: true,
+          assets: [runtimeReleasePrimaryAsset],
+        },
+      },
+    },
+  ])("does not declare S13 degradation condition row when $name", ({ overrides }) => {
+    const evidence = runtimeReleaseEvidenceResult(runtimeReleaseDegradationEvidence(overrides));
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S13__DEGRADATION");
   });
 
   it("does not declare release governance coverage from a runtime release spec without complete runtime evidence", () => {

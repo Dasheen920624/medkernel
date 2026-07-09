@@ -54,6 +54,44 @@
   均排除本轮候选资产；不得冒领 134 清库、目标环境灾备、备份恢复、跨环境恢复、公网模型、真实第三方回调或
   `S15` 运维恢复。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百二十六批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只收口机构生效版本回滚降级恢复 `S13__DEGRADATION`。`runtime-release-frontdesk.spec.ts` 在真实前台完成
+  “生成新机构生效版本 → 当前机构版本回读 → 第三方运行契约回读 → 从历史版本回滚 → 回滚后双方再回读”后，
+  在 `runtime-release-coverage-codes` 附件新增第二条 `scenarioConditionEvidence`，来源固定为
+  `RUNTIME_RELEASE_ROLLBACK_DEGRADATION_RECOVERY`。只声明 `S13__DEGRADATION`，保留既有 `S13__NORMAL`；
+  不声明 `S13__ABNORMAL/MISSING_DATA/HIGH_RISK`，不冒领 134 清库、目标环境灾备、备份恢复、跨环境恢复、
+  公网模型 Provider、真实第三方回调、S15 运维恢复或完整上线验收。
+- 第二百二十六批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增 `S13__DEGRADATION` 白名单和
+  `hasCompleteRuntimeReleaseRollbackDegradationEvidence()`；必须先通过既有 `runtime-release-coverage-codes` 完整强附件、
+  `S13` 部分选择 / 多医院 / 平台升级 / 离线交付门禁和显式条件行严格解析，再单独要求
+  `apiEvidence.rollbackPosted=true`、`rollbackCurrentReleaseReadback=true`、`rollbackRuntimeConsumerReadback=true`、
+  `activatedRevisionNo/rolledBackRevisionNo` 为正且回滚修订号递增、`rollbackReadback` 与
+  `rollbackRuntimeConsumerReadback` 均排除本轮 `localCandidate`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式降级条件行、来源错配、状态错配、空证据、回滚接口未成功、回滚后当前机构版本未回读、
+  回滚后第三方运行契约未回读、回滚修订号未递增、回滚后机构版本仍含候选、回滚后第三方运行契约仍含候选，
+  均不声明 `S13__DEGRADATION`。
+- 第二百二十六批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s13-degradation-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s13-degradation-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S13__NORMAL,S13__DEGRADATION]`，`launchCoverage.scenarios` 为 `[S13]`。原始附件抽查：
+  `activatedRevisionNo=2`、`rolledBackRevisionNo=5`、三项 rollback API 证据均为 `true`，两处 rollback readback
+  均 `localCandidateAbsent=true`，并写出同一条 `S13__DEGRADATION` 结构化证据。
+- 第二百二十六批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增 S13 降级态正例缺
+  `S13__DEGRADATION`；随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （691 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需跑 `git diff --check`。
+- 第二百二十六批并行只读审计结论：本批使用 1 个只读 explorer 审计下一批候选，子代理未编辑、未暂存、未提交、
+  未启动服务、未外调。下一批推荐优先做 `S5__DEGRADATION`，文件 `cdss-runtime-declarative-assets.spec.ts`、
+  附件 `cdss-runtime-declarative-assets-codes`，source 可固定
+  `CDSS_MODEL_DISABLED_DECLARATIVE_RUNTIME_CONTINUES`；必须绑定 `recommendation.modelStatus=MODEL_DISABLED`、
+  VALUE_SET / FORMULA / ACTION_CARD 当前机构生效 runtime 消费、推荐解释含 runtime asset 与 condition evidence、
+  `ACTION_CARD.requiresPhysicianConfirmation=true`，不得把 AI 自动生成、自动开嘱或普通 S5 正常 / 高风险证据冒领为降级态。
+  次选 `S3__ABNORMAL` 需先补真实服务负例，`S37__NORMAL` 证据不足暂不建议。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百二十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只收口检查检验建议 / 医技报告解读 `S17__NORMAL` 代表切片。`stakeholder-view-rehearsal.spec.ts` 在医技角色真实
   前台动作完成后新增 `report-interpretation-scenario-codes` 附件，绑定当前患者上下文、当前机构生效版本、
