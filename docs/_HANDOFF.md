@@ -318,6 +318,44 @@
   下一批建议优先做 `S1__NORMAL`，因为它低冲突且能继续减少 `LAUNCH-06` 五态总账缺口；仍需显式条件附件和强字段背书，
   不能把普通 `scenarioEvidence`、菜单、截图或组织层级代表矩阵自动升级。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
   与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口服务机构开通 S1 代表切片已有真实前台强链路，新增 1 条显式背书行：`S1__NORMAL`
+  （平台管理员真实前台开通服务机构，服务端返回 2xx 且一次性临时密码只记录签发 / 展示布尔；首个机构管理员首次登录被要求改密，
+  自助改密成功后进入工作台；医疗机构与科室按同一 tenant 回读为 `ACTIVE`，科室父级绑定本轮医疗机构）。
+  不声明 `S1__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不把 S14 权限画像、平台管理员入口矩阵、菜单、截图或组织层级代表矩阵
+  冒领为 S1 正常五态行；本批仍只诚实证明 `HOSPITAL/DEPARTMENT`，不冒领 `LAUNCH-13` 九层组织。
+- 第二百一十批实现细节：`frontend/e2e/service-organization-frontdesk.spec.ts` 的
+  `service-organization-scenario-codes` 附件从阶段名扩为结构化证据：`onboardingEvidence`、`adminBootstrapEvidence`、
+  `orgTreeEvidence` 和 `scenarioConditionEvidence`；附件不写临时密码明文，只写 `temporaryPasswordIssued` 与
+  `temporaryPasswordDisplayedOnce`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增 S1 条件行白名单和 collector，
+  必须先通过完整 `hasRequiredServiceOrganizationScenarioAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并逐项绑定开通服务状态、管理员首次改密、工作台到达、机构 / 科室
+  `tenantId/id/level/status/parentId` 回读。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  缺显式条件附件、未知行、来源错配、空证据、开通接口非 2xx、临时密码未展示确认、首次登录未要求改密、改密未成功、
+  机构非 `FACILITY`、科室非 `DEPARTMENT`、科室父级错、组织树 tenant 不一致或只证明 S14 权限画像，均不声明 `S1__NORMAL`。
+- 第二百一十批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s1-condition-row-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s1-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S1__NORMAL]`，`launchCoverage.scenarios` 为 `[S1,S14]`，`organizationLevels` 为 `[HOSPITAL,DEPARTMENT]`，
+  `serviceCombinations` 为 `[ONBOARDING_INTEGRATION,COMPLIANCE_OPERATIONS]`。
+- 第二百一十批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S1__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（495 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十批并行只读审计结论：本批使用 1 个只读子代理并行摸底下一批 `S3__NORMAL`，已关闭，未编辑、未暂存、未提交、
+  未启动服务。下一批若做诊断知识维护，应把 `diagnosis-knowledge-scenario-codes` 升级为结构化证据附件，最小绑定
+  `apiEvidence`、`standardTerm`、`diagnosisAsset`、`diagnosisCriterion`、`validationCase` 和显式
+  `scenarioConditionEvidence`；4 个服务状态均需 2xx，`identityId/versionId` 为正数，诊断标准和验证病例必须绑定同一
+  `standardTerm.termCode`。不得冒领完整医学知识生产、S16 诊断支持、全知识上线、S3 其他四态或完整 S0-S40。
+- 第二百一十批边界与下一步：本批只是把服务机构 S1 已有强链路接入 1 条五态总账行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是 `LAUNCH-13` 九层组织完成、
+  不是 134 清库重部署。下一批建议优先做 `S3__NORMAL`，继续减少 `LAUNCH-06` 五态总账缺口，同时注意它只能证明诊断知识维护
+  代表切片，不能替代全医学资源生产链。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、
+  不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

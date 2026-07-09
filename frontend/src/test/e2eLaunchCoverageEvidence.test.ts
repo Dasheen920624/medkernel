@@ -10,6 +10,107 @@ const passedStats = {
   skipped: 0,
 };
 
+const serviceOrganizationEvidence = {
+  scenarioCodes: ["S1", "S14"],
+  organizationLevels: ["HOSPITAL", "DEPARTMENT"],
+  serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
+  onboardingEvidence: {
+    serviceOperation: "POST /api/v1/admin/tenants",
+    serviceStatus: 201,
+    tenantId: "t-e2e-org-s1",
+    tenantName: "上线演练服务机构S1",
+    adminUsername: "org-admin-s1",
+    adminUserId: "org-admin-s1",
+    temporaryPasswordIssued: true,
+    temporaryPasswordDisplayedOnce: true,
+  },
+  adminBootstrapEvidence: {
+    username: "org-admin-s1",
+    tenantId: "t-e2e-org-s1",
+    loginMustChangePwd: true,
+    changePasswordStatus: 204,
+    dashboardReached: true,
+  },
+  orgTreeEvidence: {
+    facility: {
+      id: "facility-s1",
+      tenantId: "t-e2e-org-s1",
+      level: "FACILITY",
+      name: "上线演练医院S1",
+      status: "ACTIVE",
+    },
+    department: {
+      id: "department-s1",
+      tenantId: "t-e2e-org-s1",
+      parentId: "facility-s1",
+      level: "DEPARTMENT",
+      name: "上线演练科室S1",
+      status: "ACTIVE",
+    },
+    facilityReadbackVerified: true,
+    departmentReadbackVerified: true,
+  },
+  scenarioConditionEvidence: [
+    {
+      code: "S1__NORMAL",
+      scenarioCode: "S1",
+      condition: "NORMAL",
+      source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
+      evidence: [
+        "前台开通服务机构接口返回 2xx 且一次性临时密码仅记录签发与展示状态",
+        "机构管理员首次登录要求改密并完成自助改密进入工作台",
+        "医疗机构与科室按同一 tenant 回读为 ACTIVE 且科室父级绑定医疗机构",
+      ],
+    },
+  ],
+  scenarioEvidence: [
+    {
+      code: "S1",
+      observedStages: [
+        "前台开通服务机构",
+        "机构管理员首次登录并改密",
+        "前台创建医疗机构与科室",
+        "前台回读服务机构组织树",
+      ],
+    },
+    {
+      code: "S14",
+      observedStages: [
+        "前台创建临床账号并绑定科室职责范围",
+        "临床账号首次登录后读取权限画像",
+        "前台停用演练账号",
+      ],
+    },
+  ],
+};
+
+function serviceOrganizationEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/service-organization-frontdesk.spec.ts",
+        title: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "service-organization-scenario-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoServiceOrganizationScenarioConditionCoverage(body: Record<string, unknown>) {
+  const evidence = serviceOrganizationEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S1__NORMAL");
+}
+
 const runtimeReleaseVersionedAssets = [
   "KNOWLEDGE",
   "TERMINOLOGY",
@@ -11478,46 +11579,7 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it("declares service organization coverage only when the passed spec attaches complete frontdesk evidence", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
-      stats: passedStats,
-      tests: [
-        {
-          file: "/repo/frontend/e2e/service-organization-frontdesk.spec.ts",
-          title: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
-          status: "passed",
-          attachments: [
-            {
-              name: "service-organization-scenario-codes",
-              contentType: "application/json",
-              body: JSON.stringify({
-                scenarioCodes: ["S1", "S14"],
-                organizationLevels: ["HOSPITAL", "DEPARTMENT"],
-                serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
-                scenarioEvidence: [
-                  {
-                    code: "S1",
-                    observedStages: [
-                      "前台开通服务机构",
-                      "机构管理员首次登录并改密",
-                      "前台创建医疗机构与科室",
-                      "前台回读服务机构组织树",
-                    ],
-                  },
-                  {
-                    code: "S14",
-                    observedStages: [
-                      "前台创建临床账号并绑定科室职责范围",
-                      "临床账号首次登录后读取权限画像",
-                      "前台停用演练账号",
-                    ],
-                  },
-                ],
-              }),
-            },
-          ],
-        },
-      ],
-    });
+    const evidence = serviceOrganizationEvidenceResult(serviceOrganizationEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S1", "S14"]);
     expect(evidence.launchCoverage.organizationLevels?.map((item) => item.code)).toEqual([
@@ -11528,7 +11590,177 @@ describe("browser E2E launch coverage evidence", () => {
       "ONBOARDING_INTEGRATION",
       "COMPLIANCE_OPERATIONS",
     ]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S1__NORMAL",
+    ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S1 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = serviceOrganizationEvidence;
+    const evidence = serviceOrganizationEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S1", "S14"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S1__HIGH_RISK",
+            scenarioCode: "S1",
+            condition: "HIGH_RISK",
+            source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
+            evidence: ["服务机构正常开通不能冒领高危态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S1__NORMAL",
+            scenarioCode: "S1",
+            condition: "NORMAL",
+            source: "PLATFORM_ADMIN_ENTRY_CORE_ACTIONS",
+            evidence: ["不能只靠平台管理员入口矩阵冒领 S1 正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S1__NORMAL",
+            scenarioCode: "S1",
+            condition: "NORMAL",
+            source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "服务机构开通接口不是 2xx",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        onboardingEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.onboardingEvidence),
+          serviceStatus: 500,
+        },
+      },
+    },
+    {
+      name: "一次性临时密码没有展示确认",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        onboardingEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.onboardingEvidence),
+          temporaryPasswordDisplayedOnce: false,
+        },
+      },
+    },
+    {
+      name: "机构管理员首次登录未要求改密",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        adminBootstrapEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.adminBootstrapEvidence),
+          loginMustChangePwd: false,
+        },
+      },
+    },
+    {
+      name: "机构管理员改密未成功",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        adminBootstrapEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.adminBootstrapEvidence),
+          changePasswordStatus: 500,
+        },
+      },
+    },
+    {
+      name: "机构不是 FACILITY",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          facility: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.facility),
+            level: "GROUP",
+          },
+        },
+      },
+    },
+    {
+      name: "科室不是 DEPARTMENT",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          department: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.department),
+            level: "WARD",
+          },
+        },
+      },
+    },
+    {
+      name: "科室父级未绑定本轮医疗机构",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          department: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.department),
+            parentId: "facility-other",
+          },
+        },
+      },
+    },
+    {
+      name: "组织树回读 tenant 不一致",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          department: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.department),
+            tenantId: "tenant-other",
+          },
+        },
+      },
+    },
+    {
+      name: "只证明 S14 权限画像",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        scenarioCodes: ["S14"],
+        scenarioEvidence: [
+          {
+            code: "S14",
+            observedStages: [
+              "前台创建临床账号并绑定科室职责范围",
+              "临床账号首次登录后读取权限画像",
+              "前台停用演练账号",
+            ],
+          },
+        ],
+      },
+    },
+  ])("does not declare S1 normal condition row when $name", ({ body }) => {
+    expectNoServiceOrganizationScenarioConditionCoverage(body);
   });
 
   it("declares MFA login coverage only when the passed spec attaches complete authentication-safety evidence", () => {

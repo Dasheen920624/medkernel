@@ -608,6 +608,14 @@ const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
 
+const serviceOrganizationScenarioConditionRows = [
+  {
+    code: "S1__NORMAL",
+    scenarioCode: "S1",
+    condition: "NORMAL",
+    source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
+  },
+] as const;
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
 const s2s4ScenarioConditionRows = [
   {
@@ -3933,6 +3941,9 @@ function s2s4ScenarioConditionBackedByApiEvidence(
 function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
   const claims = new Set<string>();
   for (const test of tests) {
+    for (const claim of collectServiceOrganizationScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectMedicationSafetyScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -3967,6 +3978,59 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     }
   }
   return [...claims];
+}
+
+function collectServiceOrganizationScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "service-organization-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "service-organization-scenario-codes",
+  );
+  if (!attachment?.body || !hasRequiredServiceOrganizationScenarioAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      serviceOrganizationScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return serviceOrganizationScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          serviceOrganizationScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function serviceOrganizationScenarioConditionBackedByEvidence(
+  code: (typeof serviceOrganizationScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S1__NORMAL":
+      return (
+        hasCompleteServiceOrganizationOnboardingEvidence(parsed.onboardingEvidence) &&
+        hasCompleteServiceOrganizationAdminBootstrapEvidence(
+          parsed.adminBootstrapEvidence,
+          parsed.onboardingEvidence,
+        ) &&
+        hasCompleteServiceOrganizationOrgTreeEvidence(
+          parsed.orgTreeEvidence,
+          parsed.onboardingEvidence,
+        )
+      );
+    default:
+      return false;
+  }
 }
 
 function collectMedicationSafetyScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
@@ -5975,6 +6039,63 @@ function hasRequiredServiceOrganizationScenarioAttachment(test: BrowserE2eTestRe
   } catch {
     return false;
   }
+}
+
+function hasCompleteServiceOrganizationOnboardingEvidence(value: unknown) {
+  const onboarding = recordValue(value);
+  return (
+    onboarding?.serviceOperation === "POST /api/v1/admin/tenants" &&
+    is2xxStatus(onboarding.serviceStatus) &&
+    hasText(onboarding.tenantId) &&
+    hasText(onboarding.tenantName) &&
+    hasText(onboarding.adminUsername) &&
+    onboarding.adminUserId === onboarding.adminUsername &&
+    onboarding.temporaryPasswordIssued === true &&
+    onboarding.temporaryPasswordDisplayedOnce === true
+  );
+}
+
+function hasCompleteServiceOrganizationAdminBootstrapEvidence(
+  value: unknown,
+  onboardingValue: unknown,
+) {
+  const bootstrap = recordValue(value);
+  const onboarding = recordValue(onboardingValue);
+  return (
+    bootstrap !== null &&
+    onboarding !== null &&
+    bootstrap.username === onboarding.adminUsername &&
+    bootstrap.tenantId === onboarding.tenantId &&
+    bootstrap.loginMustChangePwd === true &&
+    is2xxStatus(bootstrap.changePasswordStatus) &&
+    bootstrap.dashboardReached === true
+  );
+}
+
+function hasCompleteServiceOrganizationOrgTreeEvidence(value: unknown, onboardingValue: unknown) {
+  const orgTree = recordValue(value);
+  const onboarding = recordValue(onboardingValue);
+  const facility = recordValue(orgTree?.facility);
+  const department = recordValue(orgTree?.department);
+  return (
+    orgTree !== null &&
+    onboarding !== null &&
+    facility !== null &&
+    department !== null &&
+    orgTree.facilityReadbackVerified === true &&
+    orgTree.departmentReadbackVerified === true &&
+    hasText(facility.id) &&
+    facility.tenantId === onboarding.tenantId &&
+    facility.level === "FACILITY" &&
+    hasText(facility.name) &&
+    facility.status === "ACTIVE" &&
+    hasText(department.id) &&
+    department.tenantId === onboarding.tenantId &&
+    department.parentId === facility.id &&
+    department.level === "DEPARTMENT" &&
+    hasText(department.name) &&
+    department.status === "ACTIVE"
+  );
 }
 
 function hasRequiredMfaLoginScenarioAttachment(test: BrowserE2eTestResult) {

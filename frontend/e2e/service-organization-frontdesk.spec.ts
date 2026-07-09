@@ -42,6 +42,32 @@ type ClinicalUserCredential = {
   personId: string;
 };
 
+type ServiceOrganizationEvidence = {
+  onboardingEvidence: {
+    serviceOperation: "POST /api/v1/admin/tenants";
+    serviceStatus: number;
+    tenantId: string;
+    tenantName: string;
+    adminUsername: string;
+    adminUserId: string;
+    temporaryPasswordIssued: boolean;
+    temporaryPasswordDisplayedOnce: boolean;
+  } | null;
+  adminBootstrapEvidence: {
+    username: string;
+    tenantId: string;
+    loginMustChangePwd: boolean;
+    changePasswordStatus: number;
+    dashboardReached: boolean;
+  } | null;
+  orgTreeEvidence: {
+    facility: OrgUnit;
+    department: OrgUnit;
+    facilityReadbackVerified: boolean;
+    departmentReadbackVerified: boolean;
+  } | null;
+};
+
 const requiredServiceOrganizationScenarioEvidence = [
   {
     code: "S1",
@@ -82,6 +108,11 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
     let provisionedOrganization: ProvisionedOrganization | null = null;
     let adminCleanupPassword = "";
     let clinicalUser: ClinicalUserCredential | null = null;
+    const evidence: ServiceOrganizationEvidence = {
+      onboardingEvidence: null,
+      adminBootstrapEvidence: null,
+      orgTreeEvidence: null,
+    };
     const observedStages = new Set<string>();
 
     try {
@@ -89,18 +120,35 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
       const provisioned = await provisionServiceOrganizationFromUi(page, organization);
       recordServiceOrganizationStage(observedStages, "前台开通服务机构");
       provisionedOrganization = provisioned;
-      const adminPassword = await completeTenantAdminFirstLoginFromUi(
+      evidence.onboardingEvidence = {
+        serviceOperation: "POST /api/v1/admin/tenants",
+        serviceStatus: provisioned.provisionStatus,
+        tenantId: provisioned.tenantId,
+        tenantName: provisioned.tenantName,
+        adminUsername: provisioned.adminUsername,
+        adminUserId: provisioned.adminUserId,
+        temporaryPasswordIssued: provisioned.adminPassword.length > 0,
+        temporaryPasswordDisplayedOnce: true,
+      };
+      const adminBootstrap = await completeTenantAdminFirstLoginFromUi(
         page,
         provisioned,
         adminFinalPassword,
       );
       recordServiceOrganizationStage(observedStages, "机构管理员首次登录并改密");
-      adminCleanupPassword = adminPassword;
+      adminCleanupPassword = adminBootstrap.password;
+      evidence.adminBootstrapEvidence = {
+        username: provisioned.adminUsername,
+        tenantId: provisioned.tenantId,
+        loginMustChangePwd: adminBootstrap.loginMustChangePwd,
+        changePasswordStatus: adminBootstrap.changePasswordStatus,
+        dashboardReached: adminBootstrap.dashboardReached,
+      };
       await loginAsInstitutionUser(
         page,
         provisioned.tenantName,
         provisioned.adminUsername,
-        adminPassword,
+        adminBootstrap.password,
       );
 
       const orgTree = await createFacilityAndDepartmentFromUi(page, suffix);
@@ -132,6 +180,25 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
         facility: orgTree.facility,
         department: orgTree.department,
       });
+      evidence.orgTreeEvidence = {
+        facility: {
+          id: orgTree.facility.id,
+          tenantId: provisioned.tenantId,
+          level: orgTree.facility.level,
+          name: orgTree.facility.name,
+          status: "ACTIVE",
+        },
+        department: {
+          id: orgTree.department.id,
+          tenantId: provisioned.tenantId,
+          parentId: orgTree.department.parentId,
+          level: orgTree.department.level,
+          name: orgTree.department.name,
+          status: "ACTIVE",
+        },
+        facilityReadbackVerified: true,
+        departmentReadbackVerified: true,
+      };
       recordServiceOrganizationStage(observedStages, "前台回读服务机构组织树");
 
       const screenshotPath = testInfo.outputPath("service-organization-clinical-scope.png");
@@ -150,7 +217,7 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
         recordServiceOrganizationStage(observedStages, "前台停用演练账号");
       }
     }
-    await attachServiceOrganizationScenarioEvidence(testInfo, observedStages);
+    await attachServiceOrganizationScenarioEvidence(testInfo, observedStages, evidence);
     await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
       menuKey: "tenant-onboarding",
       role: "platform-admin",
@@ -249,14 +316,27 @@ async function completeTenantAdminFirstLoginFromUi(
   organization: ProvisionedOrganization,
   finalPassword: string,
 ) {
-  await loginExpectingBootstrap(
+  const loginMustChangePwd = await loginExpectingBootstrap(
     page,
     organization.tenantName,
     organization.adminUsername,
     organization.adminPassword,
   );
-  await completeFirstPasswordChange(page, organization.adminPassword, finalPassword);
-  return finalPassword;
+  const changePasswordStatus = await completeFirstPasswordChange(
+    page,
+    organization.adminPassword,
+    finalPassword,
+  );
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("button", { name: "当前用户菜单" })).toBeVisible({
+    timeout: 20_000,
+  });
+  return {
+    password: finalPassword,
+    loginMustChangePwd,
+    changePasswordStatus,
+    dashboardReached: true,
+  };
 }
 
 async function createFacilityAndDepartmentFromUi(
@@ -533,6 +613,7 @@ async function loginExpectingBootstrap(
   expect(loginPayload.data?.mustChangePwd).toBe(true);
   await expect(page).toHaveURL(/\/bootstrap$/);
   await expect(page.getByRole("heading", { name: "完成首次改密" })).toBeVisible();
+  return loginPayload.data?.mustChangePwd === true;
 }
 
 async function completeFirstPasswordChange(page: Page, oldPassword: string, newPassword: string) {
@@ -548,6 +629,7 @@ async function completeFirstPasswordChange(page: Page, oldPassword: string, newP
   );
   await expect(page.getByText("账号安全设置完成")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "进入工作台" }).click();
+  return response.status();
 }
 
 async function createOrgUnitFromUi(
@@ -655,6 +737,7 @@ function recordServiceOrganizationStage(observedStages: Set<string>, stage: stri
 async function attachServiceOrganizationScenarioEvidence(
   testInfo: TestInfo,
   observedStageSet: Set<string>,
+  evidence: ServiceOrganizationEvidence,
 ) {
   const scenarioEvidence = requiredServiceOrganizationScenarioEvidence.map((scenario) => ({
     code: scenario.code,
@@ -674,6 +757,28 @@ async function attachServiceOrganizationScenarioEvidence(
         scenarioCodes: completedScenarioCodes,
         organizationLevels: ["HOSPITAL", "DEPARTMENT"],
         serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
+        onboardingEvidence: evidence.onboardingEvidence,
+        adminBootstrapEvidence: evidence.adminBootstrapEvidence,
+        orgTreeEvidence: evidence.orgTreeEvidence,
+        scenarioConditionEvidence:
+          completedScenarioCodes.includes("S1") &&
+          evidence.onboardingEvidence &&
+          evidence.adminBootstrapEvidence &&
+          evidence.orgTreeEvidence
+            ? [
+                {
+                  code: "S1__NORMAL",
+                  scenarioCode: "S1",
+                  condition: "NORMAL",
+                  source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
+                  evidence: [
+                    "前台开通服务机构接口返回 2xx 且一次性临时密码仅记录签发与展示状态",
+                    "机构管理员首次登录要求改密并完成自助改密进入工作台",
+                    "医疗机构与科室按同一 tenant 回读为 ACTIVE 且科室父级绑定医疗机构",
+                  ],
+                },
+              ]
+            : [],
         scenarioEvidence,
       },
       null,
