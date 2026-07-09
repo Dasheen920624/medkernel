@@ -1968,6 +1968,41 @@ async function attachCriticalEmergencyIcuEvidence(
         manualEscalation: evidence.manualEscalation,
         escalationTodo: evidence.escalationTodo,
         rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S19__HIGH_RISK",
+            scenarioCode: "S19",
+            condition: "HIGH_RISK",
+            source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+            evidence: [
+              "监护入站和急诊上下文证明休克指数、乳酸和 CRITICAL 风险",
+              "风险矩阵要求医师确认且禁止自动执行",
+              "医生人工确认升级建议并保留不自动开嘱证据",
+            ],
+          },
+          {
+            code: "S24__HIGH_RISK",
+            scenarioCode: "S24",
+            condition: "HIGH_RISK",
+            source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+            evidence: [
+              "急诊分诊 LEVEL_1 且 ICU 去向仅作为人工确认候选",
+              "系统不自动转 ICU、不自动开嘱",
+              "临床用户完成升级协同待办",
+            ],
+          },
+          {
+            code: "S27__HIGH_RISK",
+            scenarioCode: "S27",
+            condition: "HIGH_RISK",
+            source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+            evidence: [
+              "ICU 生命支持上下文包含机械通气、升压药和不控制设备证据",
+              "动作卡和人工确认均要求 noDeviceControl/noAutoVentilatorChange",
+              "升级待办完成说明保留不控制设备边界",
+            ],
+          },
+        ],
         scenarioEvidence: [
           { code: "S19", observedStages: requiredStages.S19 },
           { code: "S24", observedStages: requiredStages.S24 },

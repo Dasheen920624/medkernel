@@ -205,6 +205,42 @@
   不是 134 清库重部署。下一批建议继续沿 `LAUNCH-06` 选急危重 / ICU 三行高危或区域互认 S40 降级；
   仍需显式条件附件和强字段背书，不能把普通 `scenarioEvidence` 自动升级。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百零七批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口急危重 / ICU / 转运 S19、S24、S27 代表切片已有真实前台强链路，新增 3 条显式背书行：
+  `S19__HIGH_RISK`（监护入站和急诊上下文证明休克指数、乳酸和 `CRITICAL` 风险，风险矩阵要求医生确认且禁止自动执行，
+  医生人工确认升级建议并保留不自动开嘱证据）、`S24__HIGH_RISK`（急诊分诊 `LEVEL_1` 且 ICU 去向仅为人工确认候选，
+  系统不自动转 ICU、不自动开嘱，临床用户完成升级协同待办）、`S27__HIGH_RISK`
+  （ICU 生命支持上下文包含机械通气、升压药和不控制设备证据，动作卡和人工确认均要求
+  `noDeviceControl/noAutoVentilatorChange`，升级待办完成说明保留不控制设备边界）。不声明
+  `S19/S24/S27` 的 `NORMAL/MISSING_DATA/ABNORMAL/DEGRADATION`，不冒领完整急诊系统、完整 ICU 系统、
+  生命支持设备控制、完整第三方系统族覆盖、完整 S0-S40 或完整上线。
+- 第二百零七批实现细节：`frontend/e2e/critical-emergency-icu-frontdesk.spec.ts` 的
+  `critical-emergency-icu-frontdesk-codes` 附件新增 `scenarioConditionEvidence` 三行；
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S19/S24/S27 条件行白名单和 collector，必须先通过完整
+  `hasRequiredCriticalEmergencyIcuFrontdeskAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并分别绑定完整 API 证据、`CRITICAL` 风险矩阵、动作卡、急危重临床上下文、
+  签名入站监护事件、当前 runtime 推荐卡、人工升级采纳和升级待办闭环。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、空证据、风险矩阵非 `CRITICAL`、
+  风险矩阵允许自动执行、动作卡不要求医生确认、人工确认未采纳、允许自动转 ICU、允许控制设备、
+  升级待办未完成或未绑定本轮推荐卡，均不声明 S19/S24/S27 条件行。
+- 第二百零七批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-critical-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium critical-emergency-icu-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-critical-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S19__HIGH_RISK,S24__HIGH_RISK,S27__HIGH_RISK]`，`launchCoverage.scenarios` 为 `[S19,S24,S27]`，
+  `thirdPartySystemFamilyConsumerSlices` 为 `[LIS_MONITORING_CRITICAL]`。
+- 第二百零七批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在 S19/S24/S27 正例缺条件行，随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （458 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑最终门禁。
+- 第二百零七批边界与下一步：本批只是把急危重 / ICU / 转运 S19/S24/S27 已有强链路接入 3 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、
+  不是 134 清库重部署。下一批建议继续沿 `LAUNCH-06` 选择区域检查互认 `S40__DEGRADATION`，
+  但必须绑定 FHIR 接入 `NOT_CONNECTED`、DiagnosticReport 入站 `NOT_CONNECTED/RETRYING`、补偿 `NOT_CONNECTED`、
+  医生确认待办完成、`noAutoOrder=true` 和 `noAutoRecognition=true`；不得声明 S40 其他四态。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

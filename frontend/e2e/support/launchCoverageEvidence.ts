@@ -739,6 +739,26 @@ const infectionPublicHealthSafetyScenarioConditionRows = [
     source: "PUBLIC_HEALTH_SAFETY_EVENT_RECTIFICATION_REVIEW",
   },
 ] as const;
+const criticalEmergencyIcuScenarioConditionRows = [
+  {
+    code: "S19__HIGH_RISK",
+    scenarioCode: "S19",
+    condition: "HIGH_RISK",
+    source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+  },
+  {
+    code: "S24__HIGH_RISK",
+    scenarioCode: "S24",
+    condition: "HIGH_RISK",
+    source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+  },
+  {
+    code: "S27__HIGH_RISK",
+    scenarioCode: "S27",
+    condition: "HIGH_RISK",
+    source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -3912,6 +3932,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectInfectionPublicHealthSafetyScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectCriticalEmergencyIcuScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
   }
   return [...claims];
 }
@@ -4425,6 +4448,83 @@ function infectionPublicHealthSafetyScenarioConditionBackedByEvidence(
         hasCompleteInfectionPublicHealthRectification(
           parsed.qualityRectification,
           parsed.recommendation,
+        )
+      );
+    default:
+      return false;
+  }
+}
+
+function collectCriticalEmergencyIcuScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "critical-emergency-icu-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "critical-emergency-icu-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      criticalEmergencyIcuScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return criticalEmergencyIcuScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          criticalEmergencyIcuScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function criticalEmergencyIcuScenarioConditionBackedByEvidence(
+  code: (typeof criticalEmergencyIcuScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parseCriticalEmergencyIcuRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S19__HIGH_RISK":
+    case "S24__HIGH_RISK":
+    case "S27__HIGH_RISK":
+      return (
+        hasCompleteCriticalEmergencyIcuApiEvidence(parsed.apiEvidence) &&
+        hasCompleteCriticalEmergencyIcuRiskMatrix(parsed.riskMatrix) &&
+        hasCompleteCriticalEmergencyIcuActionCard(parsed.actionCard) &&
+        hasCompleteCriticalEmergencyIcuClinicalContext(parsed.clinicalContext, runtime.releaseId) &&
+        hasCompleteCriticalEmergencyIcuInbound(
+          parsed.inboundMonitoringEvent,
+          parsed.monitoringAdapter,
+          parsed.webhookSignature,
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasCompleteCriticalEmergencyIcuRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.ruleAsset,
+        ) &&
+        hasCompleteCriticalEmergencyIcuManualEscalation(
+          parsed.manualEscalation,
+          runtime.actionCardAsset,
+          parsed.recommendation,
+        ) &&
+        hasCompleteCriticalEmergencyIcuTodo(
+          parsed.escalationTodo,
+          parsed.recommendation,
+          parsed.clinicalContext,
         )
       );
     default:

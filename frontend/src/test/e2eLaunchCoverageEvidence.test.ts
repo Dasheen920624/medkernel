@@ -4214,6 +4214,41 @@ const criticalEmergencyIcuEvidence = {
     patientId: "mpi-critical",
     encounterId: "enc-critical-ed",
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S19__HIGH_RISK",
+      scenarioCode: "S19",
+      condition: "HIGH_RISK",
+      source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+      evidence: [
+        "监护入站和急诊上下文证明休克指数、乳酸和 CRITICAL 风险",
+        "风险矩阵要求医师确认且禁止自动执行",
+        "医生人工确认升级建议并保留不自动开嘱证据",
+      ],
+    },
+    {
+      code: "S24__HIGH_RISK",
+      scenarioCode: "S24",
+      condition: "HIGH_RISK",
+      source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+      evidence: [
+        "急诊分诊 LEVEL_1 且 ICU 去向仅作为人工确认候选",
+        "系统不自动转 ICU、不自动开嘱",
+        "临床用户完成升级协同待办",
+      ],
+    },
+    {
+      code: "S27__HIGH_RISK",
+      scenarioCode: "S27",
+      condition: "HIGH_RISK",
+      source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+      evidence: [
+        "ICU 生命支持上下文包含机械通气、升压药和不控制设备证据",
+        "动作卡和人工确认均要求 noDeviceControl/noAutoVentilatorChange",
+        "升级待办完成说明保留不控制设备边界",
+      ],
+    },
+  ],
   rollbackNegativeEvidence: rollbackNegativeEvidence(
     [
       {
@@ -10671,7 +10706,151 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["LIS_MONITORING_CRITICAL"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S19__HIGH_RISK",
+      "S24__HIGH_RISK",
+      "S27__HIGH_RISK",
+    ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S19/S24/S27 condition rows without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = criticalEmergencyIcuEvidence;
+    const evidence = criticalEmergencyIcuEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S19__NORMAL",
+            scenarioCode: "S19",
+            condition: "NORMAL",
+            source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+            evidence: ["急危重高危切片不能冒领普通正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S24__HIGH_RISK",
+            scenarioCode: "S24",
+            condition: "HIGH_RISK",
+            source: "CRITICAL_EMERGENCY_ICU_NORMAL_TRIAGE",
+            evidence: ["来源错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S27__HIGH_RISK",
+            scenarioCode: "S27",
+            condition: "HIGH_RISK",
+            source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "风险矩阵不是 CRITICAL",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        riskMatrix: {
+          ...structuredClone(criticalEmergencyIcuEvidence.riskMatrix),
+          riskLevel: "HIGH",
+        },
+      },
+    },
+    {
+      name: "风险矩阵允许自动执行",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        riskMatrix: {
+          ...structuredClone(criticalEmergencyIcuEvidence.riskMatrix),
+          autoExecutionAllowed: true,
+        },
+      },
+    },
+    {
+      name: "动作卡不要求医生确认",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        actionCard: {
+          ...structuredClone(criticalEmergencyIcuEvidence.actionCard),
+          requiresPhysicianConfirmation: false,
+        },
+      },
+    },
+    {
+      name: "人工确认未采纳",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          cardStatus: "PENDING",
+        },
+      },
+    },
+    {
+      name: "人工确认允许自动转 ICU",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          noAutoTransfer: false,
+        },
+      },
+    },
+    {
+      name: "人工确认允许控制设备",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          noDeviceControl: false,
+        },
+      },
+    },
+    {
+      name: "升级待办未完成",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      },
+    },
+    {
+      name: "升级待办未绑定本轮推荐卡",
+      body: {
+        ...structuredClone(criticalEmergencyIcuEvidence),
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          sourceId: "card-other",
+        },
+      },
+    },
+  ])("does not declare S19/S24/S27 scenario condition rows when $name", ({ body }) => {
+    const evidence = criticalEmergencyIcuEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it("declares S19/S24/S27 critical emergency ICU coverage for the real frontdesk attachment shape", () => {
