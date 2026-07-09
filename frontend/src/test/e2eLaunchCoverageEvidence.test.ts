@@ -111,6 +111,102 @@ function expectNoServiceOrganizationScenarioConditionCoverage(body: Record<strin
   ).not.toContain("S1__NORMAL");
 }
 
+const diagnosisKnowledgeEvidence = {
+  scenarioCodes: ["S3"],
+  productLayers: ["MEDICAL_ASSET"],
+  semanticFamilies: ["DISEASE_DIAGNOSIS"],
+  specialtyDomains: ["CLINICAL_SPECIALTIES"],
+  apiEvidence: {
+    standardTermRegisteredFromFrontdesk: {
+      operation: "POST /engine/terminology/terms/standard",
+      status: 201,
+    },
+    diagnosisAssetDraftCreatedFromFrontdesk: {
+      operation: "POST /engine/knowledge/diagnosis/assets",
+      status: 201,
+    },
+    diagnosisCriterionRegisteredFromFrontdesk: { operation: "POST /criteria", status: 201 },
+    validationCaseRegisteredFromFrontdesk: { operation: "POST /test-cases", status: 201 },
+  },
+  standardTerm: {
+    operation: "POST /engine/terminology/terms/standard",
+    status: 201,
+    system: "TERM.LAB",
+    termCode: "TERM.LAB.FRONTDESK.S3",
+    displayName: "前台演练发现项S3",
+  },
+  diagnosisAsset: {
+    operation: "POST /engine/knowledge/diagnosis/assets",
+    status: 201,
+    identityId: 3001,
+    identityCode: "DX.FRONTDESK.S3",
+    versionId: 9001,
+    requestedIdentityCode: "frontdesk-dx-s3",
+    evidenceExcerpt: "需登记为结构化诊断标准，并保留验证病例复算证据",
+  },
+  diagnosisCriterion: {
+    operation: "POST /criteria",
+    status: 201,
+    findingTermCode: "TERM.LAB.FRONTDESK.S3",
+  },
+  validationCase: {
+    operation: "POST /test-cases",
+    status: 201,
+    caseIdentity: "DXCASE-S3",
+    findingTermCode: "TERM.LAB.FRONTDESK.S3",
+  },
+  scenarioConditionEvidence: [
+    {
+      code: "S3__NORMAL",
+      scenarioCode: "S3",
+      condition: "NORMAL",
+      source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
+      evidence: [
+        "前台登记标准发现项术语后创建证据完整诊断资产草稿",
+        "诊断标准和验证病例均绑定同一标准发现项术语",
+      ],
+    },
+  ],
+  scenarioEvidence: [
+    {
+      code: "S3",
+      observedStages: [
+        "前台登记标准发现项术语",
+        "前台创建证据完整诊断资产草稿",
+        "前台登记诊断标准",
+        "前台登记验证病例",
+      ],
+    },
+  ],
+};
+
+function diagnosisKnowledgeEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/diagnosis-knowledge-maintenance.spec.ts",
+        title: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
+        status: "passed",
+        attachments: [
+          {
+            name: "diagnosis-knowledge-scenario-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoDiagnosisKnowledgeScenarioConditionCoverage(body: Record<string, unknown>) {
+  const evidence = diagnosisKnowledgeEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S3__NORMAL");
+}
+
 const runtimeReleaseVersionedAssets = [
   "KNOWLEDGE",
   "TERMINOLOGY",
@@ -11986,39 +12082,7 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it("declares diagnosis knowledge maintenance coverage only when the passed spec attaches complete asset-production evidence", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
-      stats: passedStats,
-      tests: [
-        {
-          file: "/repo/frontend/e2e/diagnosis-knowledge-maintenance.spec.ts",
-          title: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
-          status: "passed",
-          attachments: [
-            {
-              name: "diagnosis-knowledge-scenario-codes",
-              contentType: "application/json",
-              body: JSON.stringify({
-                scenarioCodes: ["S3"],
-                productLayers: ["MEDICAL_ASSET"],
-                semanticFamilies: ["DISEASE_DIAGNOSIS"],
-                specialtyDomains: ["CLINICAL_SPECIALTIES"],
-                scenarioEvidence: [
-                  {
-                    code: "S3",
-                    observedStages: [
-                      "前台登记标准发现项术语",
-                      "前台创建证据完整诊断资产草稿",
-                      "前台登记诊断标准",
-                      "前台登记验证病例",
-                    ],
-                  },
-                ],
-              }),
-            },
-          ],
-        },
-      ],
-    });
+    const evidence = diagnosisKnowledgeEvidenceResult(diagnosisKnowledgeEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S3"]);
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
@@ -12031,6 +12095,132 @@ describe("browser E2E launch coverage evidence", () => {
       "CLINICAL_SPECIALTIES",
     ]);
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).not.toContain("S16");
+  });
+
+  it("declares S3 normal condition row only from diagnosis asset, standard and validation case evidence", () => {
+    const evidence = diagnosisKnowledgeEvidenceResult(diagnosisKnowledgeEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S3__NORMAL",
+    ]);
+  });
+
+  it("does not declare S3 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = diagnosisKnowledgeEvidence;
+    const evidence = diagnosisKnowledgeEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S3"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S3__HIGH_RISK",
+            scenarioCode: "S3",
+            condition: "HIGH_RISK",
+            source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
+            evidence: ["诊断知识维护正常主链不能冒领高危态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S3__NORMAL",
+            scenarioCode: "S3",
+            condition: "NORMAL",
+            source: "DIAGNOSIS_SUPPORT_RUNTIME",
+            evidence: ["不能把诊断支持消费冒领为诊断知识维护"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S3__NORMAL",
+            scenarioCode: "S3",
+            condition: "NORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "标准术语接口不是 2xx",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        standardTerm: {
+          ...structuredClone(diagnosisKnowledgeEvidence.standardTerm),
+          status: 500,
+        },
+      },
+    },
+    {
+      name: "诊断资产缺知识身份",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        diagnosisAsset: {
+          ...structuredClone(diagnosisKnowledgeEvidence.diagnosisAsset),
+          identityId: 0,
+        },
+      },
+    },
+    {
+      name: "诊断资产缺版本",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        diagnosisAsset: {
+          ...structuredClone(diagnosisKnowledgeEvidence.diagnosisAsset),
+          versionId: undefined,
+        },
+      },
+    },
+    {
+      name: "诊断标准发现项与标准术语不一致",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        diagnosisCriterion: {
+          ...structuredClone(diagnosisKnowledgeEvidence.diagnosisCriterion),
+          findingTermCode: "TERM.LAB.OTHER",
+        },
+      },
+    },
+    {
+      name: "验证病例发现项与标准术语不一致",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        validationCase: {
+          ...structuredClone(diagnosisKnowledgeEvidence.validationCase),
+          findingTermCode: "TERM.LAB.OTHER",
+        },
+      },
+    },
+    {
+      name: "验证病例身份为空",
+      body: {
+        ...structuredClone(diagnosisKnowledgeEvidence),
+        validationCase: {
+          ...structuredClone(diagnosisKnowledgeEvidence.validationCase),
+          caseIdentity: "",
+        },
+      },
+    },
+  ])("does not declare S3 normal condition row when $name", ({ body }) => {
+    expectNoDiagnosisKnowledgeScenarioConditionCoverage(body);
   });
 
   it("declares S7 source lineage coverage only from a complete graph provenance attachment", () => {

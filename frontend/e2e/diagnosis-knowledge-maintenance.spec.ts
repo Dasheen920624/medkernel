@@ -6,6 +6,37 @@ type StandardTerm = {
   standardSystem: string;
   termCode: string;
   displayName?: string | null;
+  status: number;
+};
+
+type DiagnosisKnowledgeAttachmentEvidence = {
+  standardTerm: {
+    operation: string;
+    status: number;
+    system: string;
+    termCode: string;
+    displayName: string;
+  };
+  diagnosisAsset: {
+    operation: string;
+    status: number;
+    identityId: number;
+    identityCode: string;
+    versionId: number;
+    requestedIdentityCode: string;
+    evidenceExcerpt: string;
+  };
+  diagnosisCriterion: {
+    operation: string;
+    status: number;
+    findingTermCode: string;
+  };
+  validationCase: {
+    operation: string;
+    status: number;
+    caseIdentity: string;
+    findingTermCode: string;
+  };
 };
 
 const requiredDiagnosisKnowledgeScenarioEvidence = [
@@ -37,6 +68,8 @@ test.describe("诊断知识库真实前台链路", () => {
     const subject = `前台诊断维护演练${suffix}`;
     const sourceContent = `${subject} 来源原文：当 ${findingTerm.displayName ?? "标准发现项"} 与临床事实一致时，需登记为结构化诊断标准，并保留验证病例复算证据。`;
     const evidenceExcerpt = "需登记为结构化诊断标准，并保留验证病例复算证据";
+    const requestedIdentityCode = `frontdesk-dx-${suffix}`;
+    const validationCaseIdentity = `DXCASE-${suffix.toUpperCase()}`;
 
     await page.goto(appPath("/knowledge/diagnosis"), { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
@@ -54,7 +87,7 @@ test.describe("诊断知识库真实前台链路", () => {
     });
     await expect(drawer).toBeVisible({ timeout: 10_000 });
     await drawer.getByLabel("诊断名称").fill(subject);
-    await drawer.getByLabel("稳定诊断身份").fill(`frontdesk-dx-${suffix}`);
+    await drawer.getByLabel("稳定诊断身份").fill(requestedIdentityCode);
     await drawer.getByLabel("资产说明").fill("真实前台演练创建的诊断知识资产");
     await drawer.getByLabel("来源标题").fill(`${subject} 来源指南`);
     await drawer.getByLabel("稳定来源身份").fill(`DXSRC.${suffix.toUpperCase()}`);
@@ -77,6 +110,12 @@ test.describe("诊断知识库真实前台链路", () => {
     };
     expect(created.data?.identity?.id, "创建诊断资产应返回知识身份").toBeTruthy();
     expect(created.data?.version?.id, "创建诊断资产应返回候选版本").toBeTruthy();
+    const identityId = created.data?.identity?.id;
+    const identityCode = created.data?.identity?.identityCode;
+    const versionId = created.data?.version?.id;
+    expect(typeof identityId, "诊断资产知识身份应为数值").toBe("number");
+    expect(typeof identityCode, "诊断资产身份编码应为字符串").toBe("string");
+    expect(typeof versionId, "诊断资产候选版本应为数值").toBe("number");
     recordDiagnosisKnowledgeStage(observedStages, "前台创建证据完整诊断资产草稿");
     await expect(drawer).toBeHidden({ timeout: 20_000 });
     await expect(page.getByText(subject).first()).toBeVisible({ timeout: 30_000 });
@@ -100,7 +139,7 @@ test.describe("诊断知识库真实前台链路", () => {
     await page.getByRole("button", { name: /新增病例/ }).click();
     const caseDialog = page.getByRole("dialog", { name: "新增验证病例" });
     await expect(caseDialog).toBeVisible({ timeout: 10_000 });
-    await caseDialog.getByLabel("稳定验证病例身份").fill(`DXCASE-${suffix.toUpperCase()}`);
+    await caseDialog.getByLabel("稳定验证病例身份").fill(validationCaseIdentity);
     await caseDialog.getByLabel("发现项身份").fill(findingTerm.termCode);
     const caseResponsePromise = waitForPost(page, "/test-cases");
     await clickDialogOk(caseDialog);
@@ -109,7 +148,7 @@ test.describe("诊断知识库真实前台链路", () => {
     await expect(page.getByText("验证病例已登记").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("发现项证据已记录").first()).toBeVisible();
     await expect(page.getByText("强支持").first()).toBeVisible();
-    await expect(page.locator("main")).not.toContainText(`DXCASE-${suffix.toUpperCase()}`);
+    await expect(page.locator("main")).not.toContainText(validationCaseIdentity);
     await expect(page.locator("main")).not.toContainText(findingTerm.termCode);
     recordDiagnosisKnowledgeStage(observedStages, "前台登记验证病例");
 
@@ -121,7 +160,35 @@ test.describe("诊断知识库真实前台链路", () => {
       path: testInfo.outputPath("diagnosis-knowledge-maintenance.png"),
       fullPage: true,
     });
-    await attachDiagnosisKnowledgeScenarioEvidence(testInfo, observedStages);
+    await attachDiagnosisKnowledgeScenarioEvidence(testInfo, observedStages, {
+      standardTerm: {
+        operation: "POST /engine/terminology/terms/standard",
+        status: findingTerm.status,
+        system: findingTerm.standardSystem,
+        termCode: findingTerm.termCode,
+        displayName: findingTerm.displayName ?? "",
+      },
+      diagnosisAsset: {
+        operation: "POST /engine/knowledge/diagnosis/assets",
+        status: createAssetResponse.status(),
+        identityId: identityId as number,
+        identityCode: identityCode as string,
+        versionId: versionId as number,
+        requestedIdentityCode,
+        evidenceExcerpt,
+      },
+      diagnosisCriterion: {
+        operation: "POST /criteria",
+        status: criterionResponse.status(),
+        findingTermCode: findingTerm.termCode,
+      },
+      validationCase: {
+        operation: "POST /test-cases",
+        status: caseResponse.status(),
+        caseIdentity: validationCaseIdentity,
+        findingTermCode: findingTerm.termCode,
+      },
+    });
   });
 });
 
@@ -152,7 +219,7 @@ async function registerFindingTermFromFrontend(page: Page, suffix: string): Prom
   await expectBrowserResponseOk(response, "前台登记标准术语");
   await expect(dialog).toBeHidden({ timeout: 20_000 });
 
-  return { standardSystem: "TERM.LAB", termCode, displayName };
+  return { standardSystem: "TERM.LAB", termCode, displayName, status: response.status() };
 }
 
 async function selectCriterionFindingTerm(
@@ -242,6 +309,7 @@ function recordDiagnosisKnowledgeStage(observedStages: Set<string>, stage: strin
 async function attachDiagnosisKnowledgeScenarioEvidence(
   testInfo: TestInfo,
   observedStageSet: Set<string>,
+  evidence: DiagnosisKnowledgeAttachmentEvidence,
 ) {
   const scenarioEvidence = requiredDiagnosisKnowledgeScenarioEvidence.map((scenario) => ({
     code: scenario.code,
@@ -262,6 +330,40 @@ async function attachDiagnosisKnowledgeScenarioEvidence(
         productLayers: ["MEDICAL_ASSET"],
         semanticFamilies: ["DISEASE_DIAGNOSIS"],
         specialtyDomains: ["CLINICAL_SPECIALTIES"],
+        apiEvidence: {
+          standardTermRegisteredFromFrontdesk: {
+            operation: evidence.standardTerm.operation,
+            status: evidence.standardTerm.status,
+          },
+          diagnosisAssetDraftCreatedFromFrontdesk: {
+            operation: evidence.diagnosisAsset.operation,
+            status: evidence.diagnosisAsset.status,
+          },
+          diagnosisCriterionRegisteredFromFrontdesk: {
+            operation: evidence.diagnosisCriterion.operation,
+            status: evidence.diagnosisCriterion.status,
+          },
+          validationCaseRegisteredFromFrontdesk: {
+            operation: evidence.validationCase.operation,
+            status: evidence.validationCase.status,
+          },
+        },
+        standardTerm: evidence.standardTerm,
+        diagnosisAsset: evidence.diagnosisAsset,
+        diagnosisCriterion: evidence.diagnosisCriterion,
+        validationCase: evidence.validationCase,
+        scenarioConditionEvidence: [
+          {
+            code: "S3__NORMAL",
+            scenarioCode: "S3",
+            condition: "NORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
+            evidence: [
+              "前台登记标准发现项术语后创建证据完整诊断资产草稿",
+              "诊断标准和验证病例均绑定同一标准发现项术语",
+            ],
+          },
+        ],
         scenarioEvidence,
       },
       null,

@@ -616,6 +616,14 @@ const serviceOrganizationScenarioConditionRows = [
     source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
   },
 ] as const;
+const diagnosisKnowledgeScenarioConditionRows = [
+  {
+    code: "S3__NORMAL",
+    scenarioCode: "S3",
+    condition: "NORMAL",
+    source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
+  },
+] as const;
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
 const s2s4ScenarioConditionRows = [
   {
@@ -3944,6 +3952,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectServiceOrganizationScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectMedicationSafetyScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4028,6 +4039,49 @@ function serviceOrganizationScenarioConditionBackedByEvidence(
           parsed.onboardingEvidence,
         )
       );
+    default:
+      return false;
+  }
+}
+
+function collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "diagnosis-knowledge-maintenance.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnosis-knowledge-scenario-codes",
+  );
+  if (!attachment?.body || !hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      diagnosisKnowledgeScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return diagnosisKnowledgeScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          diagnosisKnowledgeScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function diagnosisKnowledgeScenarioConditionBackedByEvidence(
+  code: (typeof diagnosisKnowledgeScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S3__NORMAL":
+      return hasCompleteDiagnosisKnowledgeStructuredEvidence(parsed);
     default:
       return false;
   }
@@ -6149,6 +6203,11 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
       productLayers?: unknown;
       semanticFamilies?: unknown;
       specialtyDomains?: unknown;
+      apiEvidence?: unknown;
+      standardTerm?: unknown;
+      diagnosisAsset?: unknown;
+      diagnosisCriterion?: unknown;
+      validationCase?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
@@ -6156,6 +6215,7 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
       !arrayEquals(parsed.productLayers, ["MEDICAL_ASSET"]) ||
       !arrayEquals(parsed.semanticFamilies, ["DISEASE_DIAGNOSIS"]) ||
       !arrayEquals(parsed.specialtyDomains, ["CLINICAL_SPECIALTIES"]) ||
+      !hasCompleteDiagnosisKnowledgeStructuredEvidence(parsed) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -6180,6 +6240,97 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
   } catch {
     return false;
   }
+}
+
+function hasCompleteDiagnosisKnowledgeStructuredEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  const apiEvidence = recordValue(evidence?.apiEvidence);
+  const standardTerm = recordValue(evidence?.standardTerm);
+  const diagnosisAsset = recordValue(evidence?.diagnosisAsset);
+  const diagnosisCriterion = recordValue(evidence?.diagnosisCriterion);
+  const validationCase = recordValue(evidence?.validationCase);
+  return (
+    evidence !== null &&
+    hasCompleteDiagnosisKnowledgeApiEvidence(apiEvidence) &&
+    hasCompleteDiagnosisKnowledgeStandardTerm(standardTerm) &&
+    hasCompleteDiagnosisKnowledgeAsset(diagnosisAsset) &&
+    hasCompleteDiagnosisKnowledgeCriterion(diagnosisCriterion, standardTerm) &&
+    hasCompleteDiagnosisKnowledgeValidationCase(validationCase, standardTerm)
+  );
+}
+
+function hasCompleteDiagnosisKnowledgeApiEvidence(value: Record<string, unknown> | null) {
+  const standardTerm = recordValue(value?.standardTermRegisteredFromFrontdesk);
+  const diagnosisAsset = recordValue(value?.diagnosisAssetDraftCreatedFromFrontdesk);
+  const criterion = recordValue(value?.diagnosisCriterionRegisteredFromFrontdesk);
+  const validationCase = recordValue(value?.validationCaseRegisteredFromFrontdesk);
+  return (
+    standardTerm !== null &&
+    diagnosisAsset !== null &&
+    criterion !== null &&
+    validationCase !== null &&
+    standardTerm.operation === "POST /engine/terminology/terms/standard" &&
+    diagnosisAsset.operation === "POST /engine/knowledge/diagnosis/assets" &&
+    criterion.operation === "POST /criteria" &&
+    validationCase.operation === "POST /test-cases" &&
+    is2xxStatus(standardTerm.status) &&
+    is2xxStatus(diagnosisAsset.status) &&
+    is2xxStatus(criterion.status) &&
+    is2xxStatus(validationCase.status)
+  );
+}
+
+function hasCompleteDiagnosisKnowledgeStandardTerm(value: Record<string, unknown> | null) {
+  return (
+    value !== null &&
+    value.operation === "POST /engine/terminology/terms/standard" &&
+    is2xxStatus(value.status) &&
+    hasText(value.system) &&
+    hasText(value.termCode) &&
+    hasText(value.displayName)
+  );
+}
+
+function hasCompleteDiagnosisKnowledgeAsset(value: Record<string, unknown> | null) {
+  return (
+    value !== null &&
+    value.operation === "POST /engine/knowledge/diagnosis/assets" &&
+    is2xxStatus(value.status) &&
+    isPositiveNumber(value.identityId) &&
+    isPositiveNumber(value.versionId) &&
+    hasText(value.identityCode) &&
+    hasText(value.requestedIdentityCode) &&
+    hasText(value.evidenceExcerpt)
+  );
+}
+
+function hasCompleteDiagnosisKnowledgeCriterion(
+  value: Record<string, unknown> | null,
+  standardTerm: Record<string, unknown> | null,
+) {
+  return (
+    value !== null &&
+    standardTerm !== null &&
+    value.operation === "POST /criteria" &&
+    is2xxStatus(value.status) &&
+    hasText(value.findingTermCode) &&
+    value.findingTermCode === standardTerm.termCode
+  );
+}
+
+function hasCompleteDiagnosisKnowledgeValidationCase(
+  value: Record<string, unknown> | null,
+  standardTerm: Record<string, unknown> | null,
+) {
+  return (
+    value !== null &&
+    standardTerm !== null &&
+    value.operation === "POST /test-cases" &&
+    is2xxStatus(value.status) &&
+    hasText(value.caseIdentity) &&
+    hasText(value.findingTermCode) &&
+    value.findingTermCode === standardTerm.termCode
+  );
 }
 
 function hasRequiredRuntimeReleaseAttachment(test: BrowserE2eTestResult) {
@@ -12296,6 +12447,10 @@ function hasNonEmptyTextArray(value: unknown) {
 
 function is2xxStatus(value: unknown) {
   return typeof value === "number" && value >= 200 && value < 300;
+}
+
+function isPositiveNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function textValue(value: unknown) {
