@@ -4700,6 +4700,117 @@ function expectNoImplementationGuideEntryCoreActionsCoverage(body: Record<string
   expect(evidence.launchCoverage.implementationGuideEntryCoreActionRows).toBeUndefined();
 }
 
+const dashboardWorkbenchCoreActionsEvidence = {
+  matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
+  scopeStatement:
+    "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 34 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。",
+  roleActions: [
+    {
+      role: "platform-admin",
+      row: "PLATFORM_ADMIN",
+      title: "平台管理员工作台",
+      path: "/dashboard",
+      primaryActionLabel: "维护人员与账号",
+      primaryActionPath: "/admin/users",
+      highFrequencyPaths: ["/security/baseline", "/onboarding/guide", "/adapter/hub"],
+      serviceOperation:
+        "GET /api/v1/security/me + GET /api/v1/system/operations + GET /api/v1/compliance/audit/events + GET /api/v1/large-lists/audit-events/list + GET /api/v1/engine/tenant/success-plan",
+      serviceStatus: 200,
+      readbackVerified: true,
+      primaryActionVerified: true,
+      highFrequencyTasksVerified: true,
+      sourceStatusVerified: true,
+      noBrowserErrors: true,
+      noServerErrors: true,
+      noNetworkFailures: true,
+    },
+    {
+      role: "engine-operator",
+      row: "ENGINE_OPERATOR",
+      title: "医疗引擎运营员工作台",
+      path: "/dashboard",
+      primaryActionLabel: "进入知识生产",
+      primaryActionPath: "/knowledge/production",
+      highFrequencyPaths: ["/knowledge/governance", "/qc/alerts", "/advanced/provenance"],
+      serviceOperation:
+        "GET /api/v1/security/me + GET /api/v1/compliance/audit/events + GET /api/v1/large-lists/audit-events/list",
+      serviceStatus: 200,
+      readbackVerified: true,
+      primaryActionVerified: true,
+      highFrequencyTasksVerified: true,
+      sourceStatusVerified: true,
+      noBrowserErrors: true,
+      noServerErrors: true,
+      noNetworkFailures: true,
+    },
+    {
+      role: "clinical-user",
+      row: "CLINICAL_USER",
+      title: "临床使用者工作台",
+      path: "/dashboard",
+      primaryActionLabel: "处理协同任务",
+      primaryActionPath: "/workflow/todos",
+      highFrequencyPaths: ["/pathway/patients", "/cdss/fatigue", "/clinical/followup"],
+      serviceOperation: "GET /api/v1/security/me",
+      serviceStatus: 200,
+      readbackVerified: true,
+      primaryActionVerified: true,
+      highFrequencyTasksVerified: true,
+      sourceStatusVerified: true,
+      noBrowserErrors: true,
+      noServerErrors: true,
+      noNetworkFailures: true,
+    },
+    {
+      role: "auditor",
+      row: "AUDITOR",
+      title: "审计员工作台",
+      path: "/dashboard",
+      primaryActionLabel: "查看审计证据",
+      primaryActionPath: "/admin/audit",
+      highFrequencyPaths: ["/advanced/provenance", "/security/baseline"],
+      serviceOperation:
+        "GET /api/v1/security/me + GET /api/v1/system/operations + GET /api/v1/compliance/audit/events + GET /api/v1/large-lists/audit-events/list",
+      serviceStatus: 200,
+      readbackVerified: true,
+      primaryActionVerified: true,
+      highFrequencyTasksVerified: true,
+      sourceStatusVerified: true,
+      noBrowserErrors: true,
+      noServerErrors: true,
+      noNetworkFailures: true,
+    },
+  ],
+};
+
+function dashboardWorkbenchCoreActionsEvidenceResult(
+  body: Record<string, unknown> = dashboardWorkbenchCoreActionsEvidence,
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/product-role-journeys.spec.ts",
+        title: "desktop-1440 下全部角色工作台可完成主任务起步",
+        status: "passed",
+        attachments: [
+          {
+            name: "dashboard-workbench-core-actions-codes-desktop-1440",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoDashboardWorkbenchCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = dashboardWorkbenchCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.dashboardWorkbenchCoreActions).toBeUndefined();
+  expect(evidence.launchCoverage.dashboardWorkbenchCoreActionRows).toBeUndefined();
+}
+
 const platformAdminP1EntryCoreActionsEvidence = {
   matrixCode: "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS",
   scopeStatement:
@@ -5945,6 +6056,134 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.implementationGuideEntryCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.implementationGuideEntryCoreActionRows).toBeUndefined();
+  });
+
+  it("declares dashboard workbench core actions only from four-role structured service evidence", () => {
+    const evidence = dashboardWorkbenchCoreActionsEvidenceResult();
+
+    expect(evidence.launchCoverage.dashboardWorkbenchCoreActions?.map((item) => item.code)).toEqual(
+      ["FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS"],
+    );
+    expect(
+      evidence.launchCoverage.dashboardWorkbenchCoreActionRows?.map((item) => item.code),
+    ).toEqual(["PLATFORM_ADMIN", "ENGINE_OPERATOR", "CLINICAL_USER", "AUDITOR"]);
+  });
+
+  it.each([
+    {
+      name: "缺少边界声明",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        scopeStatement: "四职责工作台完整上线验收已完成",
+      },
+    },
+    {
+      name: "缺少审计员职责行",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.filter(
+          (action) => action.role !== "auditor",
+        ),
+      },
+    },
+    {
+      name: "不是工作台路径",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "clinical-user" ? { ...action, path: "/workflow/todos" } : action,
+        ),
+      },
+    },
+    {
+      name: "职责行码错配",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "auditor" ? { ...action, row: "AUDIT_VIEW_ONLY" } : action,
+        ),
+      },
+    },
+    {
+      name: "缺少真实服务来源",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "platform-admin"
+            ? { ...action, serviceOperation: "GET /api/v1/security/me" }
+            : action,
+        ),
+      },
+    },
+    {
+      name: "缺少工作台审计来源",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "engine-operator"
+            ? {
+                ...action,
+                serviceOperation:
+                  "GET /api/v1/security/me + GET /api/v1/large-lists/audit-events/list",
+              }
+            : action,
+        ),
+      },
+    },
+    {
+      name: "没有验证主动作",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "engine-operator" ? { ...action, primaryActionVerified: false } : action,
+        ),
+      },
+    },
+    {
+      name: "没有高频任务入口",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "auditor"
+            ? { ...action, highFrequencyPaths: ["/advanced/provenance"] }
+            : action,
+        ),
+      },
+    },
+    {
+      name: "有服务端错误",
+      body: {
+        ...dashboardWorkbenchCoreActionsEvidence,
+        roleActions: dashboardWorkbenchCoreActionsEvidence.roleActions.map((action) =>
+          action.role === "clinical-user" ? { ...action, noServerErrors: false } : action,
+        ),
+      },
+    },
+  ])("does not declare dashboard workbench core actions when $name", ({ body }) => {
+    expectNoDashboardWorkbenchCoreActionsCoverage(body);
+  });
+
+  it("does not declare dashboard workbench core actions from a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-dashboard.spec.ts",
+          title: "工作台附件不能由非目标 spec 冒领",
+          status: "passed",
+          attachments: [
+            {
+              name: "dashboard-workbench-core-actions-codes-desktop-1440",
+              contentType: "application/json",
+              body: JSON.stringify(dashboardWorkbenchCoreActionsEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.dashboardWorkbenchCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.dashboardWorkbenchCoreActionRows).toBeUndefined();
   });
 
   it("declares release governance and runtime asset coverage only when the real runtime release spec passes", () => {

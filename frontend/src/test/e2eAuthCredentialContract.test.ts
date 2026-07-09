@@ -2411,6 +2411,32 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain('"system-providers": ["GET /api/v1/system/operations"]');
   });
 
+  it("requires product role journey rehearsal to attach structured dashboard workbench evidence", () => {
+    const source = readFileSync("e2e/product-role-journeys.spec.ts", "utf8");
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+
+    expect(source).toContain("DashboardWorkbenchRoleActionEvidence");
+    expect(source).toContain("dashboard-workbench-core-actions-codes-");
+    expect(source).toContain("DASHBOARD_WORKBENCH_CORE_ACTIONS");
+    expect(source).toContain("四职责工作台核心动作代表矩阵");
+    expect(source).toContain("不代表 34 个入口全部业务动作闭环");
+    expect(source).toContain("assertDashboardSourceServices");
+    expect(source).toContain("GET /api/v1/security/me");
+    expect(source).toContain("GET /api/v1/system/operations");
+    expect(source).toContain("GET /api/v1/compliance/audit/events");
+    expect(source).toContain("GET /api/v1/large-lists/audit-events/list");
+    expect(source).toContain("GET /api/v1/engine/tenant/success-plan");
+    expect(source).toContain("primaryActionVerified");
+    expect(source).toContain("highFrequencyTasksVerified");
+    expect(source).toContain("sourceStatusVerified");
+    expect(source).toContain("noBrowserErrors");
+    expect(source).toContain("noServerErrors");
+    expect(source).toContain("noNetworkFailures");
+    expect(coverageParser).toContain('"GET /api/v1/compliance/audit/events"');
+    expect(coverageParser).toContain("dashboardWorkbenchCoreActions");
+    expect(coverageParser).toContain("dashboardWorkbenchCoreActionRows");
+  });
+
   it("requires embedded business host rehearsal to use real embed services before launch coverage", () => {
     const source = readFileSync("e2e/embed-business-host.spec.ts", "utf8");
     const hostSource = readFileSync("e2e/support/embed-business-host-server.mjs", "utf8");

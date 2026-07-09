@@ -102,6 +102,14 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     label: "实施与验收入口代表动作行",
     codes: ["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"],
   },
+  dashboardWorkbenchCoreActions: {
+    label: "四职责工作台核心动作矩阵",
+    codes: ["FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS"],
+  },
+  dashboardWorkbenchCoreActionRows: {
+    label: "四职责工作台核心动作行",
+    codes: ["PLATFORM_ADMIN", "ENGINE_OPERATOR", "CLINICAL_USER", "AUDITOR"],
+  },
   knowledgeDomains: {
     label: "11 个知识内容分类",
     codes: [...FULL_KNOWLEDGE_DOMAINS],

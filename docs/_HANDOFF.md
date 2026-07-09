@@ -10,6 +10,56 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十九批本地推进：接第一百八十八批和用户“前台演练需要按全角色真实操作、不要片面优化”的要求，
+  本批继续做非破坏、可本地验证且能收紧上线门禁的一刀：把 `/dashboard` 工作台从菜单 / 路由 / 主按钮可达底座推进到
+  四职责真实工作台核心动作结构化证据矩阵。范围仍是四职责工作台代表动作，不冒领 34 个入口全部业务动作闭环、每个入口完整业务流程、
+  完整上线验收、134 清库重部署或全知识资料生产完成。
+- 第一百八十九批实现细节：`frontend/e2e/product-role-journeys.spec.ts` 在既有
+  `${viewport.name} 下全部角色工作台可完成主任务起步` 真实前台测试内新增
+  `dashboard-workbench-core-actions-codes-${viewport.name}` 附件，矩阵码
+  `DASHBOARD_WORKBENCH_CORE_ACTIONS`。四个固定职责均真实登录、进入 `/dashboard`、确认当前角色标题、唯一主按钮、
+  高频任务入口和主动作跳转，并监听工作台自身来源服务响应；附件逐行写出
+  `role/row/title/path/primaryActionLabel/primaryActionPath/highFrequencyPaths/serviceOperation/serviceStatus/
+  readbackVerified/primaryActionVerified/highFrequencyTasksVerified/sourceStatusVerified/noBrowserErrors/noServerErrors/noNetworkFailures`。
+  平台管理员行要求 `GET /api/v1/security/me`、`GET /api/v1/system/operations`、
+  `GET /api/v1/compliance/audit/events`、`GET /api/v1/engine/tenant/success-plan` 和审计大列表回读
+  `GET /api/v1/large-lists/audit-events/list`；医疗引擎运营员行要求 `security/me`、工作台真实
+  `compliance/audit/events` 和审计大列表回读；临床使用者行要求 `security/me`；审计员行要求 `security/me`、
+  `system/operations`、工作台真实 `compliance/audit/events` 和审计大列表回读。
+- 第一百八十九批完整覆盖门禁：`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `dashboardWorkbenchCoreActions:FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS` 与
+  `dashboardWorkbenchCoreActionRows:PLATFORM_ADMIN/ENGINE_OPERATOR/CLINICAL_USER/AUDITOR`，只接受
+  `product-role-journeys.spec.ts` passed/expected 的 `dashboard-workbench-core-actions-codes-*` 附件，并强校验
+  `matrixCode`、边界声明、职责行码、工作台路径、主动作 label/path、高频任务路径、上述真实服务操作、2xx 状态、来源 / 回读 /
+  主动作 / 高频任务 / 三类错误全为真。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 增至 350 个用例，覆盖缺边界、
+  缺职责行、路径错配、职责行码错配、缺真实来源、缺工作台审计来源、未验证主动作、缺高频任务、服务端错误、非目标 spec 等拒绝用例；
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 增至 64 个契约测试，锁定 `product-role-journeys.spec.ts` 必须继续产出
+  工作台结构化附件和关键服务证据。`scripts/release/full-system-rehearsal-lib.mjs` 与
+  `scripts/release/launch-coverage-audit.test.mjs` 将该矩阵和四行纳入完整覆盖审计，并增加缺 `CLINICAL_USER` 行拒绝。
+- 第一百八十九批真实 E2E 与验证证据：先跑窄范围
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-dashboard-workbench-core-actions-20260709-r1 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts --grep "desktop-1440 下全部角色工作台可完成主任务起步"`
+  通过；`/tmp/medkernel-e2e-dashboard-workbench-core-actions-20260709-r1/report/results.json` 为 `PASSED`
+  （expected=1，unexpected=0，flaky=0，skipped=0），顶层 `launchCoverage` 声明工作台矩阵和四条 row。随后复跑完整
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-dashboard-workbench-core-actions-20260709-r2 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts`
+  通过；`/tmp/medkernel-e2e-dashboard-workbench-core-actions-20260709-r2/report/results.json` 为 `PASSED`
+  （expected=9，unexpected=0，flaky=0，skipped=0，duration≈180.8s），四个附件
+  `desktop-1440/desktop-1366/tablet/mobile` 均含 4 个职责行，所有行 `serviceStatus=200`、
+  `primaryActionVerified/highFrequencyTasksVerified/sourceStatusVerified/noBrowserErrors/noServerErrors/noNetworkFailures=true`，
+  顶层 `launchCoverage.dashboardWorkbenchCoreActions` 与四条 `dashboardWorkbenchCoreActionRows` 均为 PASSED。
+- 第一百八十九批收尾门禁：最终复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（350 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（64 tests）、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`。`git diff --check`
+  退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与两个脚本文件 CRLF 将被 LF 替换，无 whitespace error。
+  本批临时启动的后端 18102 与前端 5175 已停止，复核 curl 返回无法连接。
+- 第一百八十九批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是 34 个入口全部业务动作闭环、
+  不是 13 类第三方系统族真实消费者全部完成、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成，也不是全部医学知识、
+  术语、值集、公式、安全红线或标准包收集 / 生产完成。下一批建议继续按全局上线门禁推进：1）沿 34 入口继续补剩余页面的真实业务动作，
+  不能退回菜单 / 路由 / 文案；2）继续扩第三方系统族真实消费者和断连降级补偿矩阵；3）把知识资料准备继续落回 134 标准包导入、
+  院内字典同步、原文 / 原包留存、结构校验、覆盖矩阵、持续更新、影响分析和回滚审计；4）目标库迁移 smoke、公网模型 Provider
+  真实证据、真实第三方回调、134 清库 / 重部署仍按 destructive / external 规则，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十八批本地推进：接第一百八十七批和用户“前台演练需要按全角色真实操作、不要片面优化”的要求，
   本批继续做非破坏、可本地验证且能收紧上线门禁的一刀：把 `/onboarding/guide` 实施与验收入口从三视角中文摘要推进到
   结构化服务强证据矩阵，并修复真实 E2E 暴露的报告解读运行资产闭包问题。范围仍是实施工程师代表入口和报告解读 runtime

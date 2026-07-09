@@ -1,4 +1,10 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Response as PlaywrightResponse,
+} from "@playwright/test";
 
 import { PRODUCT_ROLE_JOURNEYS } from "../src/shared/config/productRoleJourneys";
 import { routeMetas, type RouteMeta } from "../src/shared/config/routes";
@@ -83,12 +89,75 @@ const menuReachabilityViewports = [
 ] as const;
 
 const routeByMenuKey = new Map(
-  routeMetas
-    .filter((route) => route.menuKey)
-    .map((route) => [route.menuKey as string, route]),
+  routeMetas.filter((route) => route.menuKey).map((route) => [route.menuKey as string, route]),
 );
 const interactionRoleFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_ROLES);
 const interactionMenuFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_MENU_KEYS);
+const dashboardWorkbenchScopeStatement =
+  "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 34 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。";
+
+type DashboardServiceOperationEvidence = {
+  operation: string;
+  status: number;
+  source: "frontdesk" | "readback";
+};
+
+type DashboardWorkbenchRoleActionEvidence = {
+  role: RoleAccount;
+  row: string;
+  title: string;
+  path: "/dashboard";
+  primaryActionLabel: string;
+  primaryActionPath: string;
+  highFrequencyPaths: string[];
+  serviceOperation: string;
+  serviceStatus: number;
+  readbackVerified: boolean;
+  primaryActionVerified: boolean;
+  highFrequencyTasksVerified: boolean;
+  sourceStatusVerified: boolean;
+  noBrowserErrors: boolean;
+  noServerErrors: boolean;
+  noNetworkFailures: boolean;
+};
+
+const dashboardWorkbenchSourceRequirements: Record<
+  RoleAccount,
+  { row: string; sourceOperations: string[]; readbackOperations: string[] }
+> = {
+  "platform-admin": {
+    row: "PLATFORM_ADMIN",
+    sourceOperations: [
+      "GET /api/v1/security/me",
+      "GET /api/v1/system/operations",
+      "GET /api/v1/compliance/audit/events",
+      "GET /api/v1/engine/tenant/success-plan",
+    ],
+    readbackOperations: ["GET /api/v1/large-lists/audit-events/list"],
+  },
+  "engine-operator": {
+    row: "ENGINE_OPERATOR",
+    sourceOperations: ["GET /api/v1/security/me", "GET /api/v1/compliance/audit/events"],
+    readbackOperations: ["GET /api/v1/large-lists/audit-events/list"],
+  },
+  "clinical-user": {
+    row: "CLINICAL_USER",
+    sourceOperations: ["GET /api/v1/security/me"],
+    readbackOperations: [],
+  },
+  auditor: {
+    row: "AUDITOR",
+    sourceOperations: [
+      "GET /api/v1/security/me",
+      "GET /api/v1/system/operations",
+      "GET /api/v1/compliance/audit/events",
+    ],
+    readbackOperations: ["GET /api/v1/large-lists/audit-events/list"],
+  },
+};
+const dashboardWorkbenchSourceOperations = new Set(
+  Object.values(dashboardWorkbenchSourceRequirements).flatMap((item) => item.sourceOperations),
+);
 
 test.describe.configure({ mode: "serial" });
 
@@ -109,6 +178,7 @@ test.describe("四个客户职责角色任务旅程", () => {
       const browserErrors = collectBrowserErrors(page);
       const serverErrors = collectServerErrors(page);
       const networkFailures = collectNetworkFailures(page);
+      const dashboardRoleActions: DashboardWorkbenchRoleActionEvidence[] = [];
 
       for (const role of roleAccounts) {
         const journey = PRODUCT_ROLE_JOURNEYS.find((item) => item.roleCode === role);
@@ -117,12 +187,20 @@ test.describe("四个客户职责角色任务旅程", () => {
         browserErrors.length = 0;
         serverErrors.length = 0;
         networkFailures.length = 0;
+        const dashboardSourceResponses = collectDashboardServiceResponses(page);
         await page.goto("/dashboard", { waitUntil: "networkidle" });
 
         await expect(page.getByRole("heading", { name: journey?.title })).toBeVisible();
         const primaryButtons = appMainContent(page).locator(".ant-btn-primary");
         await expect(primaryButtons, `${role} 只能有一个主动作`).toHaveCount(1);
         await expect(primaryButtons).toContainText(journey?.primaryAction.label ?? "");
+        await assertHighFrequencyTasksVisible(page, role, journey);
+        const serviceEvidence = await assertDashboardSourceServices(
+          page,
+          role,
+          dashboardSourceResponses.responses,
+        );
+        dashboardSourceResponses.stop();
         await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
         await expectNoRootOverflow(page, `${role} · ${viewport.name}`);
         expect(serverErrors, `${role} · ${viewport.name} 工作台不应产生 HTTP 错误`).toEqual([]);
@@ -144,7 +222,42 @@ test.describe("四个客户职责角色任务旅程", () => {
         expect(serverErrors, `${role} 主动作 · ${viewport.name} 不应产生 HTTP 错误`).toEqual([]);
         expect(networkFailures, `${role} 主动作 · ${viewport.name} 不应产生网络失败`).toEqual([]);
         expect(browserErrors, `${role} 主动作 · ${viewport.name} 不应产生浏览器错误`).toEqual([]);
+
+        dashboardRoleActions.push({
+          role,
+          row: dashboardWorkbenchSourceRequirements[role].row,
+          title: journey?.title ?? "",
+          path: "/dashboard",
+          primaryActionLabel: journey?.primaryAction.label ?? "",
+          primaryActionPath: journey?.primaryAction.path ?? "",
+          highFrequencyPaths: journey?.highFrequencyActions.map((action) => action.path) ?? [],
+          serviceOperation: serviceEvidence.map((item) => item.operation).join(" + "),
+          serviceStatus: Math.max(...serviceEvidence.map((item) => item.status)),
+          readbackVerified: serviceEvidence.every((item) => isSuccessfulStatus(item.status)),
+          primaryActionVerified: new URL(page.url()).pathname === journey?.primaryAction.path,
+          highFrequencyTasksVerified: true,
+          sourceStatusVerified: serviceEvidence.every((item) => isSuccessfulStatus(item.status)),
+          noBrowserErrors: browserErrors.length === 0,
+          noServerErrors: serverErrors.length === 0,
+          noNetworkFailures: networkFailures.length === 0,
+        });
       }
+
+      await testInfo.attach(`dashboard-workbench-core-actions-codes-${viewport.name}`, {
+        contentType: "application/json",
+        body: Buffer.from(
+          JSON.stringify(
+            {
+              matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
+              scopeStatement: dashboardWorkbenchScopeStatement,
+              roleActions: dashboardRoleActions,
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        ),
+      });
 
       const screenshotPath = testInfo.outputPath(`role-primary-action-${viewport.name}.png`);
       await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -156,9 +269,7 @@ test.describe("四个客户职责角色任务旅程", () => {
   }
 
   for (const viewport of menuReachabilityViewports) {
-    test(`${viewport.name} 下四职责授权路由直达可达性`, async ({
-      page,
-    }, testInfo) => {
+    test(`${viewport.name} 下四职责授权路由直达可达性`, async ({ page }, testInfo) => {
       test.setTimeout(1_200_000);
       const roleMenuReachability = await openGrantedMenuRoutesForViewport(page, viewport);
 
@@ -191,7 +302,8 @@ test.describe("四个客户职责角色任务旅程", () => {
               viewport: viewport.name,
               expectedMenus,
               roleMenuInteractions,
-              scope: "真实点击页头、个人菜单、桌面侧栏或移动抽屉入口；不代表每页核心业务动作已闭环。",
+              scope:
+                "真实点击页头、个人菜单、桌面侧栏或移动抽屉入口；不代表每页核心业务动作已闭环。",
             },
             null,
             2,
@@ -209,6 +321,94 @@ async function loadProfile(page: Page, role: RoleAccount) {
   });
   await expectOk(response, `读取 ${role} 权限画像`);
   return (await response.json()).data as { menuKeys: string[] };
+}
+
+function collectDashboardServiceResponses(page: Page) {
+  const responses: DashboardServiceOperationEvidence[] = [];
+  const listener = (response: PlaywrightResponse) => {
+    const operation = normalizeApiOperation(response.request().method(), response.url());
+    if (operation && dashboardWorkbenchSourceOperations.has(operation)) {
+      responses.push({ operation, status: response.status(), source: "frontdesk" });
+    }
+  };
+  page.on("response", listener);
+  return {
+    responses,
+    stop: () => page.off("response", listener),
+  };
+}
+
+async function assertHighFrequencyTasksVisible(
+  page: Page,
+  role: RoleAccount,
+  journey: (typeof PRODUCT_ROLE_JOURNEYS)[number] | undefined,
+) {
+  expect(journey, `${role} 必须有工作台高频任务配置`).toBeDefined();
+  for (const action of journey?.highFrequencyActions ?? []) {
+    await expect(
+      appMainContent(page).getByRole("button", { name: action.label }).first(),
+      `${role} 工作台必须展示高频任务入口：${action.label}`,
+    ).toBeVisible();
+  }
+}
+
+async function assertDashboardSourceServices(
+  page: Page,
+  role: RoleAccount,
+  frontdeskResponses: DashboardServiceOperationEvidence[],
+) {
+  const requirement = dashboardWorkbenchSourceRequirements[role];
+  for (const operation of requirement.sourceOperations) {
+    await expect
+      .poll(
+        () =>
+          frontdeskResponses.some(
+            (item) => item.operation === operation && isSuccessfulStatus(item.status),
+          ),
+        { message: `${role} 工作台必须由真实前台读取来源服务：${operation}` },
+      )
+      .toBe(true);
+  }
+
+  const sourceEvidence = requirement.sourceOperations.map((operation) => {
+    const response = [...frontdeskResponses]
+      .reverse()
+      .find((item) => item.operation === operation && isSuccessfulStatus(item.status));
+    expect(response, `${role} 工作台来源服务必须有 2xx 响应：${operation}`).toBeDefined();
+    return response as DashboardServiceOperationEvidence;
+  });
+  const readbackEvidence = await readDashboardServiceEvidence(page, role);
+  return [...sourceEvidence, ...readbackEvidence];
+}
+
+async function readDashboardServiceEvidence(page: Page, role: RoleAccount) {
+  const evidence: DashboardServiceOperationEvidence[] = [];
+  for (const operation of dashboardWorkbenchSourceRequirements[role].readbackOperations) {
+    if (operation === "GET /api/v1/large-lists/audit-events/list") {
+      const response = await page.request.get(`${apiBase}/large-lists/audit-events/list?size=5`, {
+        headers: { "X-Trace-Id": `e2e-dashboard-audit-readback-${role}-${Date.now()}` },
+      });
+      await expectOk(response, `${role} 工作台审计大列表回读`);
+      evidence.push({ operation, status: response.status(), source: "readback" });
+    }
+  }
+  return evidence;
+}
+
+function normalizeApiOperation(method: string, url: string) {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return null;
+  }
+  const apiIndex = pathname.indexOf("/api/v1/");
+  if (apiIndex < 0) return null;
+  return `${method.toUpperCase()} ${pathname.slice(apiIndex)}`;
+}
+
+function isSuccessfulStatus(status: number) {
+  return status >= 200 && status < 300;
 }
 
 function collectBrowserErrors(page: Page) {
@@ -288,9 +488,10 @@ async function openGrantedMenuRoutesForViewport(
         networkFailures,
         `${role} 菜单 ${menuKey} · ${viewport.name} 不应产生网络失败`,
       ).toEqual([]);
-      expect(browserErrors, `${role} 菜单 ${menuKey} · ${viewport.name} 不应产生浏览器错误`).toEqual(
-        [],
-      );
+      expect(
+        browserErrors,
+        `${role} 菜单 ${menuKey} · ${viewport.name} 不应产生浏览器错误`,
+      ).toEqual([]);
 
       roleMenuReachability.push({
         role,
@@ -342,16 +543,18 @@ async function openGrantedMenuEntriesThroughUi(
       await waitForMainContent(page, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name}`);
       await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
       await expectNoRootOverflow(page, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name}`);
-      expect(serverErrors, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生 HTTP 错误`).toEqual(
-        [],
-      );
+      expect(
+        serverErrors,
+        `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生 HTTP 错误`,
+      ).toEqual([]);
       expect(
         networkFailures,
         `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生网络失败`,
       ).toEqual([]);
-      expect(browserErrors, `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生浏览器错误`).toEqual(
-        [],
-      );
+      expect(
+        browserErrors,
+        `${role} 菜单 ${menuKey} 真实点击 · ${viewport.name} 不应产生浏览器错误`,
+      ).toEqual([]);
 
       roleMenuInteractions.push({
         role,

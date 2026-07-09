@@ -174,6 +174,23 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
     evidence.coverage.implementationGuideEntryCoreActionRows.map((item) => item.code),
     ["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"],
   );
+  assert.deepEqual(evidence.coverage.dashboardWorkbenchCoreActions, [
+    {
+      code: "FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.dashboardWorkbenchCoreActions.FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
+      observedCode: "FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    evidence.coverage.dashboardWorkbenchCoreActionRows.map((item) => item.code),
+    ["PLATFORM_ADMIN", "ENGINE_OPERATOR", "CLINICAL_USER", "AUDITOR"],
+  );
   assert.deepEqual(evidence.coverage.complianceWorkbenchPersonalEntryMatrix, [
     {
       code: "COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
@@ -425,6 +442,22 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
       }),
     /实施与验收入口代表动作行.*IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY.*缺少前置阶段证据/u,
   );
+
+  const missingDashboardWorkbench = completeStageEvidence();
+  missingDashboardWorkbench[
+    "browser-e2e"
+  ].launchCoverage.dashboardWorkbenchCoreActionRows = missingDashboardWorkbench[
+    "browser-e2e"
+  ].launchCoverage.dashboardWorkbenchCoreActionRows.filter(
+    (item) => item.code !== "CLINICAL_USER",
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingDashboardWorkbench),
+      }),
+    /四职责工作台核心动作行.*CLINICAL_USER.*缺少前置阶段证据/u,
+  );
 });
 
 test("完整覆盖审计遇到任一前置阶段失败时拒绝生成 PASSED 证据", () => {
@@ -666,6 +699,11 @@ function completeStageEvidence(options = {}) {
     "launchReadinessStakeholderRows:HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
     "implementationGuideEntryCoreActions:IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
     "implementationGuideEntryCoreActionRows:IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
+    "dashboardWorkbenchCoreActions:FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
+    "dashboardWorkbenchCoreActionRows:PLATFORM_ADMIN",
+    "dashboardWorkbenchCoreActionRows:ENGINE_OPERATOR",
+    "dashboardWorkbenchCoreActionRows:CLINICAL_USER",
+    "dashboardWorkbenchCoreActionRows:AUDITOR",
     "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
     "complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE",
     "complianceWorkbenchPersonalEntryRows:AUDIT_EVIDENCE_EXPORT_VERIFY",

@@ -461,6 +461,62 @@ const implementationGuideEntryCoreActionsClaims = [
 const implementationGuideEntryCoreActionRowClaims = [
   "implementationGuideEntryCoreActionRows:IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
 ];
+const dashboardWorkbenchCoreActionsClaims = [
+  "dashboardWorkbenchCoreActions:FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
+];
+const requiredDashboardWorkbenchRows = [
+  {
+    role: "platform-admin",
+    row: "PLATFORM_ADMIN",
+    title: "平台管理员工作台",
+    primaryActionLabel: "维护人员与账号",
+    primaryActionPath: "/admin/users",
+    highFrequencyPaths: ["/security/baseline", "/onboarding/guide", "/adapter/hub"],
+    serviceOperations: [
+      "GET /api/v1/security/me",
+      "GET /api/v1/system/operations",
+      "GET /api/v1/compliance/audit/events",
+      "GET /api/v1/large-lists/audit-events/list",
+      "GET /api/v1/engine/tenant/success-plan",
+    ],
+  },
+  {
+    role: "engine-operator",
+    row: "ENGINE_OPERATOR",
+    title: "医疗引擎运营员工作台",
+    primaryActionLabel: "进入知识生产",
+    primaryActionPath: "/knowledge/production",
+    highFrequencyPaths: ["/knowledge/governance", "/qc/alerts", "/advanced/provenance"],
+    serviceOperations: [
+      "GET /api/v1/security/me",
+      "GET /api/v1/compliance/audit/events",
+      "GET /api/v1/large-lists/audit-events/list",
+    ],
+  },
+  {
+    role: "clinical-user",
+    row: "CLINICAL_USER",
+    title: "临床使用者工作台",
+    primaryActionLabel: "处理协同任务",
+    primaryActionPath: "/workflow/todos",
+    highFrequencyPaths: ["/pathway/patients", "/cdss/fatigue", "/clinical/followup"],
+    serviceOperations: ["GET /api/v1/security/me"],
+  },
+  {
+    role: "auditor",
+    row: "AUDITOR",
+    title: "审计员工作台",
+    primaryActionLabel: "查看审计证据",
+    primaryActionPath: "/admin/audit",
+    highFrequencyPaths: ["/advanced/provenance", "/security/baseline"],
+    serviceOperations: [
+      "GET /api/v1/security/me",
+      "GET /api/v1/system/operations",
+      "GET /api/v1/compliance/audit/events",
+      "GET /api/v1/large-lists/audit-events/list",
+    ],
+  },
+] as const;
 const requiredLaunchReadinessStakeholders = [
   {
     row: "IT_MANAGER_RUNTIME_DIAGNOSTICS",
@@ -1062,6 +1118,18 @@ export function buildBrowserE2eLaunchEvidence(input: {
       [
         ...implementationGuideEntryCoreActionsClaims,
         ...implementationGuideEntryCoreActionRowClaims,
+      ],
+      generatedAt,
+    );
+  }
+  if (hasRequiredDashboardWorkbenchCoreActionsAttachment(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...dashboardWorkbenchCoreActionsClaims,
+        ...requiredDashboardWorkbenchRows.map(
+          (row) => `dashboardWorkbenchCoreActionRows:${row.row}`,
+        ),
       ],
       generatedAt,
     );
@@ -2013,7 +2081,9 @@ function hasRequiredComplianceWorkbenchPersonalEntryEvidence(tests: BrowserE2eTe
   if (!roleActions || !entryActions) return false;
   return requiredComplianceWorkbenchPersonalEntryRows.every((entry) => {
     const actions = entry.source === "role" ? roleActions : entryActions;
-    return actions.some((action) => hasCompleteComplianceWorkbenchPersonalEntryAction(action, entry));
+    return actions.some((action) =>
+      hasCompleteComplianceWorkbenchPersonalEntryAction(action, entry),
+    );
   });
 }
 
@@ -2343,9 +2413,7 @@ function hasPlatformAdminP1EntryCoreActionScopeBoundary(value: unknown) {
   );
 }
 
-function hasRequiredImplementationGuideEntryCoreActionsAttachment(
-  tests: BrowserE2eTestResult[],
-) {
+function hasRequiredImplementationGuideEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
   for (const test of tests) {
     if (
       path.basename(test.file) !== "stakeholder-view-rehearsal.spec.ts" ||
@@ -2434,6 +2502,99 @@ function hasExpectedImplementationGuideEntryCoreActionServiceOperation(
     "GET /api/v1/engine/tenant/onboarding-readiness",
     "POST /api/v1/engine/integration/data-quality/reports",
   ].every((expected) => serviceOperation.includes(expected));
+}
+
+function hasRequiredDashboardWorkbenchCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "product-role-journeys.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    for (const attachment of test.attachments) {
+      if (!attachment.name.startsWith("dashboard-workbench-core-actions-codes-")) continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body || body.matrixCode !== "DASHBOARD_WORKBENCH_CORE_ACTIONS") continue;
+      if (!hasDashboardWorkbenchCoreActionScopeBoundary(body.scopeStatement)) return false;
+      if (!Array.isArray(body.roleActions)) return false;
+      const rowsByRole = new Map<string, Record<string, unknown>>();
+      for (const item of body.roleActions) {
+        const action = recordValue(item);
+        const role = textValue(action?.role);
+        if (
+          !action ||
+          !role ||
+          !hasCompleteDashboardWorkbenchCoreAction(action, role) ||
+          rowsByRole.has(role)
+        ) {
+          return false;
+        }
+        rowsByRole.set(role, action);
+      }
+      return requiredDashboardWorkbenchRows.every((row) => rowsByRole.has(row.role));
+    }
+  }
+  return false;
+}
+
+function hasDashboardWorkbenchCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("四职责工作台核心动作代表矩阵") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "每个入口的完整业务流程") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveDashboardWorkbenchCompleteScopeClaim(statement)
+  );
+}
+
+function hasPositiveDashboardWorkbenchCompleteScopeClaim(statement: string) {
+  return [
+    "34 个入口全部业务动作闭环",
+    "每个入口的完整业务流程",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+    "全角色上线完成",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCompleteDashboardWorkbenchCoreAction(value: unknown, role: string) {
+  const action = recordValue(value);
+  const expected = requiredDashboardWorkbenchRows.find((row) => row.role === role);
+  const serviceOperation = textValue(action?.serviceOperation);
+  const serviceStatus = action?.serviceStatus;
+  if (!action || !expected || !serviceOperation) return false;
+  return (
+    action.row === expected.row &&
+    action.title === expected.title &&
+    action.path === "/dashboard" &&
+    action.primaryActionLabel === expected.primaryActionLabel &&
+    action.primaryActionPath === expected.primaryActionPath &&
+    arrayEquals(action.highFrequencyPaths, expected.highFrequencyPaths) &&
+    expected.serviceOperations.every((operation) => serviceOperation.includes(operation)) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.primaryActionVerified === true &&
+    action.highFrequencyTasksVerified === true &&
+    action.sourceStatusVerified === true &&
+    action.noBrowserErrors === true &&
+    action.noServerErrors === true &&
+    action.noNetworkFailures === true
+  );
 }
 
 function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
@@ -2853,8 +3014,10 @@ function hasCompletePlatformAdminEntryCoreAction(
   value: unknown,
   expectedMenuKey: string,
   pathByMenuKey: Record<string, string> = requiredPlatformAdminEntryCoreActionPaths,
-  serviceOperationsByMenuKey: Record<string, string[]> =
-    requiredPlatformAdminEntryCoreActionServiceOperations,
+  serviceOperationsByMenuKey: Record<
+    string,
+    string[]
+  > = requiredPlatformAdminEntryCoreActionServiceOperations,
 ) {
   const action = recordValue(value);
   if (!action) return false;
@@ -10307,7 +10470,7 @@ function hasCompletePathwayOrderSetRuntimeConsumerEvidence(value: unknown) {
   );
 }
 
-function arrayEquals(value: unknown, expected: string[]) {
+function arrayEquals(value: unknown, expected: readonly string[]) {
   if (!Array.isArray(value)) return false;
   const observed = value.filter((item): item is string => typeof item === "string").sort();
   return JSON.stringify(observed) === JSON.stringify([...expected].sort());
