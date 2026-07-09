@@ -160,44 +160,7 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
       failures: [],
       runtimeBinding: { ready: true, externalSideEffects: false },
     },
-    "full-knowledge": {
-      status: "PASSED",
-      coverage: {
-        expectedDomains: [
-          "GUIDELINE",
-          "DRUG",
-          "PATHWAY_KNOWLEDGE",
-          "NURSING",
-          "DIAGNOSTIC_ITEM",
-          "TCM",
-          "PROTOCOL",
-          "POLICY",
-          "LITERATURE",
-          "OTHER",
-          "DIAGNOSIS",
-        ],
-        publishedDomains: [
-          "GUIDELINE",
-          "DRUG",
-          "PATHWAY_KNOWLEDGE",
-          "NURSING",
-          "DIAGNOSTIC_ITEM",
-          "TCM",
-          "PROTOCOL",
-          "POLICY",
-          "LITERATURE",
-          "OTHER",
-          "DIAGNOSIS",
-        ],
-      },
-      versionLifecycle: {
-        v1VersionId: 101,
-        v2VersionId: 102,
-        rollbackActiveVersionId: 101,
-        restoredActiveVersionId: 102,
-        finalStatus: "ACTIVE",
-      },
-    },
+    "full-knowledge": fullKnowledgeEvidence(),
     "runtime-resilience": {
       status: "PASSED",
       disabled: {
@@ -325,6 +288,27 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   );
   assert.throws(
     () =>
+      validateStageEvidence("full-knowledge", {
+        ...completeStageEvidence()["full-knowledge"],
+        sourceVerification: [],
+      }),
+    /全知识来源核验/u,
+  );
+  assert.throws(
+    () =>
+      validateStageEvidence("full-knowledge", {
+        ...completeStageEvidence()["full-knowledge"],
+        knowledge: completeStageEvidence()["full-knowledge"].knowledge.map(
+          (item, index) =>
+            index === 0
+              ? { ...item, runtimeEvidence: { ...item.runtimeEvidence, citationCount: 0 } }
+              : item,
+        ),
+      }),
+    /质量门、影子评测或运行证据/u,
+  );
+  assert.throws(
+    () =>
       validateStageEvidence("browser-e2e", {
         stats: { expected: 81, unexpected: 1, flaky: 0 },
       }),
@@ -383,44 +367,7 @@ function completeStageEvidence() {
       failures: [],
       runtimeBinding: { ready: true, externalSideEffects: false },
     },
-    "full-knowledge": {
-      status: "PASSED",
-      coverage: {
-        expectedDomains: [
-          "GUIDELINE",
-          "DRUG",
-          "PATHWAY_KNOWLEDGE",
-          "NURSING",
-          "DIAGNOSTIC_ITEM",
-          "TCM",
-          "PROTOCOL",
-          "POLICY",
-          "LITERATURE",
-          "OTHER",
-          "DIAGNOSIS",
-        ],
-        publishedDomains: [
-          "GUIDELINE",
-          "DRUG",
-          "PATHWAY_KNOWLEDGE",
-          "NURSING",
-          "DIAGNOSTIC_ITEM",
-          "TCM",
-          "PROTOCOL",
-          "POLICY",
-          "LITERATURE",
-          "OTHER",
-          "DIAGNOSIS",
-        ],
-      },
-      versionLifecycle: {
-        v1VersionId: 101,
-        v2VersionId: 102,
-        rollbackActiveVersionId: 101,
-        restoredActiveVersionId: 102,
-        finalStatus: "ACTIVE",
-      },
-    },
+    "full-knowledge": fullKnowledgeEvidence(),
     "runtime-resilience": {
       status: "PASSED",
       disabled: {
@@ -439,6 +386,110 @@ function completeStageEvidence() {
     },
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
     "launch-coverage": completeLaunchCoverageEvidence(),
+  };
+}
+
+const fullKnowledgeDomains = [
+  "GUIDELINE",
+  "DRUG",
+  "PATHWAY_KNOWLEDGE",
+  "NURSING",
+  "DIAGNOSTIC_ITEM",
+  "TCM",
+  "PROTOCOL",
+  "POLICY",
+  "LITERATURE",
+  "OTHER",
+  "DIAGNOSIS",
+];
+
+function fullKnowledgeEvidence() {
+  return {
+    status: "PASSED",
+    coverage: {
+      expectedDomains: fullKnowledgeDomains,
+      publishedDomains: fullKnowledgeDomains,
+      structuralTemplatesObserved: 11,
+    },
+    sourceVerification: fullKnowledgeDomains.map((domain) => ({
+      domain,
+      status: "VERIFIED",
+      sourceUrl: `https://example.org/${domain.toLowerCase()}`,
+      httpStatus: 200,
+      contentSha256: "a".repeat(64),
+      matchedTerms: [domain],
+    })),
+    knowledge: fullKnowledgeDomains.map((domain, index) => ({
+      domain,
+      identityCode: `launch.${domain.toLowerCase()}.asset`,
+      sourceCode: `SOURCE-${domain}`,
+      sourceVersionId: 100 + index,
+      sourceContentHash: "b".repeat(64),
+      jobCode: `job-${index + 1}`,
+      modelTaskId: `task-${index + 1}`,
+      modelMode: "LOCAL_MODEL",
+      modelVersion: "medkernel-qwen25:1.5b-v1",
+      promptVersion: "prompt-v1",
+      toolVersion: "tool-v1",
+      modelTaskDurationMs: 1000 + index,
+      candidateRef: `kv:${index + 1}:1`,
+      classificationId: 200 + index,
+      versionId: 1000 + index,
+      versionNo: "1",
+      status: "ACTIVE",
+      technicalEvidence: {
+        gateCount: 3,
+        triageAction: "STANDARD_REVIEW",
+        shadowStatus: "PASSED",
+        shadowCaseCount: 5,
+      },
+      qualityGateRecordId: 300 + index,
+      runtimeEvidence: {
+        activeVersionId: 1000 + index,
+        citationCount: 1,
+        sourceEvidenceCount: 1,
+      },
+    })),
+    versionLifecycle: {
+      identityCode: "launch.guideline.governance-boundary",
+      v1VersionId: 1000,
+      v2VersionId: 2000,
+      rollbackActiveVersionId: 1000,
+      restoredActiveVersionId: 2000,
+      finalStatus: "ACTIVE",
+      v2ModelTask: {
+        domain: "GUIDELINE",
+        phase: "V2",
+        modelTaskId: "task-v2",
+        modelTaskDurationMs: 1200,
+      },
+    },
+    observability: {
+      totalDomains: 11,
+      completedDomains: 11,
+      remainingDomains: 0,
+      modelTasks: [
+        ...fullKnowledgeDomains.map((domain, index) => ({
+          domain,
+          phase: "V1",
+          modelTaskId: `task-${index + 1}`,
+          modelTaskDurationMs: 1000 + index,
+        })),
+        {
+          domain: "GUIDELINE",
+          phase: "V2",
+          modelTaskId: "task-v2",
+          modelTaskDurationMs: 1200,
+        },
+      ],
+    },
+    safety: {
+      containsCredentials: false,
+      containsPatientData: false,
+      clinicalActionGenerated: false,
+      automatedOrderGenerated: false,
+      mfaRequired: false,
+    },
   };
 }
 

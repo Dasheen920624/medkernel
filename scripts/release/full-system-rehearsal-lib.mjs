@@ -725,6 +725,31 @@ export function validateStageEvidence(stageId, evidence) {
       const expected = new Set(FULL_KNOWLEDGE_DOMAINS);
       const declared = new Set(evidence.coverage?.expectedDomains ?? []);
       const published = new Set(evidence.coverage?.publishedDomains ?? []);
+      const verifiedSources = Array.isArray(evidence.sourceVerification)
+        ? evidence.sourceVerification
+        : [];
+      const knowledgeRows = Array.isArray(evidence.knowledge)
+        ? evidence.knowledge
+        : [];
+      const verifiedSourceDomains = new Set(
+        verifiedSources
+          .filter(
+            (item) =>
+              item?.status === "VERIFIED" &&
+              Number(item.httpStatus) >= 200 &&
+              Number(item.httpStatus) < 300 &&
+              hasText(item.sourceUrl) &&
+              hasText(item.contentSha256) &&
+              Array.isArray(item.matchedTerms) &&
+              item.matchedTerms.length > 0,
+          )
+          .map((item) => item.domain),
+      );
+      const provenKnowledgeDomains = new Set(
+        knowledgeRows
+          .filter((item) => hasCompleteKnowledgeProductionEvidence(item))
+          .map((item) => item.domain),
+      );
       const lifecycle = evidence.versionLifecycle;
       const lifecycleValid =
         lifecycle?.v1VersionId != null &&
@@ -742,6 +767,34 @@ export function validateStageEvidence(stageId, evidence) {
         !lifecycleValid
       ) {
         throw new Error("正式全知识没有完整覆盖 11 个知识域及 V1/V2 回滚恢复");
+      }
+      if (
+        verifiedSourceDomains.size !== 11 ||
+        [...expected].some((domain) => !verifiedSourceDomains.has(domain))
+      ) {
+        throw new Error("正式全知识来源核验没有完整覆盖 11 个知识域");
+      }
+      if (
+        provenKnowledgeDomains.size !== 11 ||
+        [...expected].some((domain) => !provenKnowledgeDomains.has(domain))
+      ) {
+        throw new Error("正式全知识生产、质量门、影子评测或运行证据不完整");
+      }
+      if (
+        evidence.observability?.completedDomains !== 11 ||
+        evidence.observability?.remainingDomains !== 0 ||
+        !Array.isArray(evidence.observability?.modelTasks) ||
+        evidence.observability.modelTasks.length < 12
+      ) {
+        throw new Error("正式全知识进度和模型任务证据不完整");
+      }
+      if (
+        evidence.safety?.containsCredentials !== false ||
+        evidence.safety?.containsPatientData !== false ||
+        evidence.safety?.clinicalActionGenerated !== false ||
+        evidence.safety?.automatedOrderGenerated !== false
+      ) {
+        throw new Error("正式全知识安全边界证据不完整");
       }
       return {
         knowledgeDomainCount: 11,
@@ -1073,6 +1126,41 @@ function formatDuration(value) {
   if (milliseconds < 1000) return `${milliseconds}ms`;
   const seconds = Math.round(milliseconds / 100) / 10;
   return `${seconds}s`;
+}
+
+function hasCompleteKnowledgeProductionEvidence(item) {
+  const technical = item?.technicalEvidence;
+  const runtime = item?.runtimeEvidence;
+  return (
+    hasText(item?.domain) &&
+    hasText(item.identityCode) &&
+    hasText(item.sourceCode) &&
+    item.sourceVersionId != null &&
+    hasText(item.sourceContentHash) &&
+    hasText(item.jobCode) &&
+    hasText(item.modelTaskId) &&
+    hasText(item.modelMode) &&
+    item.modelMode !== "B0" &&
+    hasText(item.modelVersion) &&
+    hasText(item.promptVersion) &&
+    hasText(item.toolVersion) &&
+    Number(item.modelTaskDurationMs) > 0 &&
+    hasText(item.candidateRef) &&
+    item.classificationId != null &&
+    item.versionId != null &&
+    hasText(String(item.versionNo ?? "")) &&
+    item.status === "ACTIVE" &&
+    Number(technical?.gateCount) > 0 &&
+    hasText(technical?.triageAction) &&
+    technical.triageAction.endsWith("REVIEW") &&
+    (technical.shadowStatus === "PASSED" ||
+      technical.shadowStatus === "PENDING_REVIEW") &&
+    Number(technical.shadowCaseCount) > 0 &&
+    item.qualityGateRecordId != null &&
+    runtime?.activeVersionId === item.versionId &&
+    Number(runtime.citationCount) > 0 &&
+    Number(runtime.sourceEvidenceCount) > 0
+  );
 }
 
 function requireText(value, label) {

@@ -306,6 +306,40 @@ test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", ()
   );
 });
 
+test("完整覆盖审计拒绝用知识域名称替代完整知识生产证据", () => {
+  const missingSourceVerification = completeStageEvidence();
+  missingSourceVerification["full-knowledge"].sourceVerification = [];
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingSourceVerification),
+      }),
+    /全知识来源核验/u,
+  );
+
+  const missingRuntimeCitation = completeStageEvidence();
+  missingRuntimeCitation["full-knowledge"].knowledge = missingRuntimeCitation[
+    "full-knowledge"
+  ].knowledge.map((item, index) =>
+    index === 0
+      ? {
+          ...item,
+          runtimeEvidence: {
+            ...item.runtimeEvidence,
+            citationCount: 0,
+          },
+        }
+      : item,
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingRuntimeCitation),
+      }),
+    /质量门、影子评测或运行证据/u,
+  );
+});
+
 test("完整覆盖审计拒绝把单一浏览器角色切片包装成全量覆盖", () => {
   const stageEvidence = completeStageEvidence();
   stageEvidence["browser-e2e"].launchCoverage = launchCoverageClaims([
@@ -579,44 +613,7 @@ function completeStageEvidence(options = {}) {
       failures: [],
       runtimeBinding: { ready: true, externalSideEffects: false },
     },
-    "full-knowledge": {
-      status: "PASSED",
-      coverage: {
-        expectedDomains: [
-          "GUIDELINE",
-          "DRUG",
-          "PATHWAY_KNOWLEDGE",
-          "NURSING",
-          "DIAGNOSTIC_ITEM",
-          "TCM",
-          "PROTOCOL",
-          "POLICY",
-          "LITERATURE",
-          "OTHER",
-          "DIAGNOSIS",
-        ],
-        publishedDomains: [
-          "GUIDELINE",
-          "DRUG",
-          "PATHWAY_KNOWLEDGE",
-          "NURSING",
-          "DIAGNOSTIC_ITEM",
-          "TCM",
-          "PROTOCOL",
-          "POLICY",
-          "LITERATURE",
-          "OTHER",
-          "DIAGNOSIS",
-        ],
-      },
-      versionLifecycle: {
-        v1VersionId: 101,
-        v2VersionId: 102,
-        rollbackActiveVersionId: 101,
-        restoredActiveVersionId: 102,
-        finalStatus: "ACTIVE",
-      },
-    },
+    "full-knowledge": fullKnowledgeEvidence(),
     "runtime-resilience": {
       status: "PASSED",
       disabled: {
@@ -834,6 +831,97 @@ function launchCoverageClaims(entries) {
     });
   }
   return claims;
+}
+
+function fullKnowledgeEvidence() {
+  const domains = knowledgeDomains();
+  return {
+    status: "PASSED",
+    coverage: {
+      expectedDomains: domains,
+      publishedDomains: domains,
+      structuralTemplatesObserved: 11,
+    },
+    sourceVerification: domains.map((domain) => ({
+      domain,
+      status: "VERIFIED",
+      sourceUrl: `https://example.org/${domain.toLowerCase()}`,
+      httpStatus: 200,
+      contentSha256: "a".repeat(64),
+      matchedTerms: [domain],
+    })),
+    knowledge: domains.map((domain, index) => ({
+      domain,
+      identityCode: `launch.${domain.toLowerCase()}.asset`,
+      sourceCode: `SOURCE-${domain}`,
+      sourceVersionId: 100 + index,
+      sourceContentHash: "b".repeat(64),
+      jobCode: `job-${index + 1}`,
+      modelTaskId: `task-${index + 1}`,
+      modelMode: "LOCAL_MODEL",
+      modelVersion: "medkernel-qwen25:1.5b-v1",
+      promptVersion: "prompt-v1",
+      toolVersion: "tool-v1",
+      modelTaskDurationMs: 1000 + index,
+      candidateRef: `kv:${index + 1}:1`,
+      classificationId: 200 + index,
+      versionId: 1000 + index,
+      versionNo: "1",
+      status: "ACTIVE",
+      technicalEvidence: {
+        gateCount: 3,
+        triageAction: "STANDARD_REVIEW",
+        shadowStatus: "PASSED",
+        shadowCaseCount: 5,
+      },
+      qualityGateRecordId: 300 + index,
+      runtimeEvidence: {
+        activeVersionId: 1000 + index,
+        citationCount: 1,
+        sourceEvidenceCount: 1,
+      },
+    })),
+    versionLifecycle: {
+      identityCode: "launch.guideline.governance-boundary",
+      v1VersionId: 1000,
+      v2VersionId: 2000,
+      rollbackActiveVersionId: 1000,
+      restoredActiveVersionId: 2000,
+      finalStatus: "ACTIVE",
+      v2ModelTask: {
+        domain: "GUIDELINE",
+        phase: "V2",
+        modelTaskId: "task-v2",
+        modelTaskDurationMs: 1200,
+      },
+    },
+    observability: {
+      totalDomains: 11,
+      completedDomains: 11,
+      remainingDomains: 0,
+      modelTasks: [
+        ...domains.map((domain, index) => ({
+          domain,
+          phase: "V1",
+          modelTaskId: `task-${index + 1}`,
+          modelTaskDurationMs: 1000 + index,
+        })),
+        {
+          domain: "GUIDELINE",
+          phase: "V2",
+          modelTaskId: "task-v2",
+          modelTaskDurationMs: 1200,
+        },
+      ],
+    },
+    safety: {
+      containsCredentials: false,
+      containsPatientData: false,
+      clinicalActionGenerated: false,
+      automatedOrderGenerated: false,
+      mfaRequired: false,
+    },
+  };
 }
 
 function knowledgeDomains() {
