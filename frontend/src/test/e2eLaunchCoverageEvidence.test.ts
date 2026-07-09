@@ -14355,6 +14355,69 @@ describe("browser E2E launch coverage evidence", () => {
     ).not.toContain("S12__ABNORMAL");
   }
 
+  function realFrontdeskFollowupPatientServiceConsumerEvidence(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      ...structuredClone(realFrontdeskScenarioEvidence),
+      followupPatientServiceConsumerSlice: {
+        systemFamilyCode: "FOLLOWUP_PATIENT_SERVICE",
+        familyName: "随访、消息和患者服务",
+        canonicalResources: ["Patient", "Encounter", "FollowUp"],
+        sourceSystems: ["MEDKERNEL_FRONTDESK", "FOLLOWUP"],
+        consumer: "FOLLOWUP_RESULT_BACKFLOW",
+        consumerVerified: true,
+        standardResourceVerified: true,
+        runtimeConsumerVerified: true,
+        questionnaireVerified: true,
+        abnormalReturnVerified: true,
+        resultBackflowVerified: true,
+        auditVerified: true,
+        noAutoOrder: true,
+        followUpResourcePath: "backflowContext.resources.followUps[0]",
+        resultBackflowContextPath: "resultBackflow.contextSnapshotId",
+        auditEventPath: "resultBackflow.eventId",
+        scopeStatement:
+          "随访、消息和患者服务代表消费者切片：真实前台用 Patient、Encounter 与 FollowUp 标准资源驱动 FOLLOWUP 随访方案发布、机构生效版本消费、随访计划生成、患者自填问卷、异常回院登记和随访结果回流；不代表完整随访系统覆盖，不代表完整患者服务系统覆盖，不代表完整第三方系统族覆盖，不代表完整 S12，不代表完整 S30，不代表完整 S0-S40，不代表完整上线验收。",
+      },
+      resultBackflow: {
+        eventId: "followup-result-event-s12",
+        contextSnapshotId: "ctx-real-frontdesk-s12-backflow",
+        sourceQuestionnaireId: "followup-questionnaire-s12",
+        abnormalFlag: "Y",
+      },
+      backflowContext: {
+        patientId: "mpi-real-frontdesk-s12",
+        encounterId: "enc-real-frontdesk-s12",
+        contextSnapshotId: "ctx-real-frontdesk-s12-backflow",
+        runtimeReleaseId: "runtime-followup-s12",
+        resources: {
+          followUps: [
+            {
+              followUpId: "followup-questionnaire-s12",
+              planType: "FOLLOWUP_RESULT",
+              plannedAt: "2026-07-20T08:00:00.000Z",
+              questionnaireId: "FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK",
+              abnormalFlag: "Y",
+              sourceSystem: "FOLLOWUP",
+              sourceRecordId: "followup-questionnaire-s12",
+              mappedVersion: "FOLLOWUP_RESULT",
+              qualityStatus: "VALID",
+            },
+          ],
+        },
+      },
+      ...overrides,
+    };
+  }
+
+  function expectNoFollowupPatientServiceConsumerSlice(body: Record<string, unknown>) {
+    const evidence = realFrontdeskScenarioEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+    ).not.toContain("FOLLOWUP_PATIENT_SERVICE");
+  }
+
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {
     const evidence = realFrontdeskScenarioEvidenceResult(realFrontdeskScenarioEvidence);
 
@@ -14381,6 +14444,197 @@ describe("browser E2E launch coverage evidence", () => {
       "S12__NORMAL",
       "S12__ABNORMAL",
     ]);
+  });
+
+  it("declares followup patient-service representative consumer slice only from explicit real-frontdesk followup evidence", () => {
+    const evidence = realFrontdeskScenarioEvidenceResult(
+      realFrontdeskFollowupPatientServiceConsumerEvidence(),
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["FOLLOWUP_PATIENT_SERVICE"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S12__NORMAL",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺少显式消费者切片附件",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupPatientServiceConsumerSlice: undefined,
+      }),
+    },
+    {
+      name: "系统族代码错配",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupPatientServiceConsumerSlice: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence()
+            .followupPatientServiceConsumerSlice as Record<string, unknown>),
+          systemFamilyCode: "MEDICAL_RECORD_INSURANCE_PAYMENT",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整随访系统",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupPatientServiceConsumerSlice: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence()
+            .followupPatientServiceConsumerSlice as Record<string, unknown>),
+          scopeStatement: "随访患者服务代表消费者切片，完整随访系统覆盖已完成。",
+        },
+      }),
+    },
+    {
+      name: "标准资源缺少 FollowUp",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupPatientServiceConsumerSlice: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence()
+            .followupPatientServiceConsumerSlice as Record<string, unknown>),
+          canonicalResources: ["Patient", "Encounter"],
+        },
+      }),
+    },
+    {
+      name: "来源系统不是真实前台",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupPatientServiceConsumerSlice: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence()
+            .followupPatientServiceConsumerSlice as Record<string, unknown>),
+          sourceSystems: ["FOLLOWUP_PATIENT_SERVICE"],
+        },
+      }),
+    },
+    {
+      name: "机构生效版本未包含 FOLLOWUP 资产",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupRuntime: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupRuntime),
+          currentRuntimeContainsAsset: false,
+        },
+      }),
+    },
+    {
+      name: "随访计划未绑定机构生效版本",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        followupPlan: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupPlan),
+          runtimeReleaseId: "",
+        },
+      }),
+    },
+    {
+      name: "患者自填问卷未提交",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        questionnaire: {
+          ...structuredClone(realFrontdeskScenarioEvidence.questionnaire),
+          submitted: false,
+        },
+      }),
+    },
+    {
+      name: "异常回院未登记",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          registered: false,
+        },
+      }),
+    },
+    {
+      name: "异常回院允许自动开嘱",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "缺少随访结果回流响应",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        resultBackflow: undefined,
+      }),
+    },
+    {
+      name: "回流上下文缺少 FollowUp 标准资源",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        backflowContext: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+            string,
+            unknown
+          >),
+          resources: { followUps: [] },
+        },
+      }),
+    },
+    {
+      name: "FollowUp 来源系统不是 FOLLOWUP",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        backflowContext: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+            string,
+            unknown
+          >),
+          resources: {
+            followUps: (
+              (
+                realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+                  string,
+                  unknown
+                >
+              ).resources as { followUps: Array<Record<string, unknown>> }
+            ).followUps.map((item) => ({ ...item, sourceSystem: "MEDKERNEL_FRONTDESK" })),
+          },
+        },
+      }),
+    },
+    {
+      name: "FollowUp 缺少来源记录标识",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        backflowContext: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+            string,
+            unknown
+          >),
+          resources: {
+            followUps: (
+              (
+                realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+                  string,
+                  unknown
+                >
+              ).resources as { followUps: Array<Record<string, unknown>> }
+            ).followUps.map((item) => ({ ...item, sourceRecordId: "" })),
+          },
+        },
+      }),
+    },
+    {
+      name: "FollowUp 数据质量无效",
+      body: realFrontdeskFollowupPatientServiceConsumerEvidence({
+        backflowContext: {
+          ...(realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+            string,
+            unknown
+          >),
+          resources: {
+            followUps: (
+              (
+                realFrontdeskFollowupPatientServiceConsumerEvidence().backflowContext as Record<
+                  string,
+                  unknown
+                >
+              ).resources as { followUps: Array<Record<string, unknown>> }
+            ).followUps.map((item) => ({ ...item, qualityStatus: "INVALID" })),
+          },
+        },
+      }),
+    },
+  ])("does not declare followup patient-service consumer slice when $name", ({ body }) => {
+    expectNoFollowupPatientServiceConsumerSlice(body);
   });
 
   it("does not declare S12 normal condition row without explicit condition evidence", () => {

@@ -23,6 +23,47 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十六批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有随访协同真实前台链路补齐“随访结果回流 → 标准 FollowUp 资源回读 → 审计事件”后，
+  升级为 `thirdPartySystemFamilyConsumerSlices:FOLLOWUP_PATIENT_SERVICE` 代表消费者切片。证据固定来源于
+  `real-frontdesk-rehearsal.spec.ts` 的 `real-frontdesk-scenario-codes` 附件：真实前台创建并发布 FOLLOWUP 随访方案、
+  纳入当前机构生效版本、临床用户基于 Patient / Encounter 上下文生成随访计划、患者自填问卷、登记高风险异常回院、
+  点击“回流随访结果”、回读 `backflowContext.resources.followUps[0]` 标准 FollowUp 资源。明确不声明完整随访系统、
+  完整患者服务系统、完整 S12 五态、S30 慢病基层双向转诊、完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百三十六批实现细节：`frontend/e2e/real-frontdesk-rehearsal.spec.ts` 在随访问卷与异常回院后真实点击
+  `POST /engine/followup/results`，回读 `/engine/context/snapshots/{contextSnapshotId}`，附件新增
+  `resultBackflow`、`backflowContext`、`followupPatientServiceConsumerSlice`，并在 `standardPatientResourceConsumerMatrix`
+  追加 FollowUp 行；原 `S12__NORMAL/S12__ABNORMAL` 条件行保持不变。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增严格 collector，只接受 `real-frontdesk-rehearsal.spec.ts` 的显式切片附件，且要求 S12 正常强链路、FOLLOWUP 当前机构生效版本、
+  2xx 服务状态、同一 plan / template / runtime、回流上下文 runtime 一致、FollowUp `sourceSystem=FOLLOWUP`、
+  `mappedVersion=FOLLOWUP_RESULT`、`qualityStatus=VALID`、来源记录非空、切片 scope 明确否定完整随访 / 患者服务 / 第三方系统族 /
+  S12 / S30 / S0-S40 / 上线验收。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例与负例：
+  缺显式 slice、系统族错配、scope 冒领、标准资源缺 FollowUp、来源错、机构生效版本未含 FOLLOWUP、计划未绑定 runtime、
+  问卷未提交、异常回院未登记、允许自动开嘱、缺结果回流、回流上下文缺 FollowUp、FollowUp 来源错、缺来源记录、质量无效均不声明。
+  `scripts/release/full-system-rehearsal-lib.mjs`、`scripts/release/launch-coverage-audit.test.mjs` 与
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步把 `FOLLOWUP_PATIENT_SERVICE` 纳入代表消费者切片门禁。
+- 第二百三十六批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。最终执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-followup-patient-service-consumer-slice-20260710-r6 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-followup-patient-service-consumer-slice-20260710-r6/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.thirdPartySystemFamilyConsumerSlices=[FOLLOWUP_PATIENT_SERVICE]`，
+  且只保留既有 `scenarioConditionRows=[S12__NORMAL,S12__ABNORMAL]`，未新增 S30 或 S12 其他三态。附件抽查：
+  `followupPatientServiceConsumerSlice.consumer=FOLLOWUP_RESULT_BACKFLOW`、`noAutoOrder=true`，
+  `resultBackflow.contextSnapshotId` 非空，FollowUp 标准资源 `followUpId/sourceRecordId` 绑定同一问卷记录、
+  `questionnaireId=FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK`、`sourceSystem=FOLLOWUP`、`mappedVersion=FOLLOWUP_RESULT`、
+  `qualityStatus=VALID`。
+- 第二百三十六批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增随访患者服务消费者切片正例缺
+  `FOLLOWUP_PATIENT_SERVICE`；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（814 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（881 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
+  和真实 E2E。提交前仍需跑 `git diff --check`。本批使用 2 个子代理：一个受限写集 worker 补 release / 契约门禁；
+  一个只读 explorer 审计下一批 `HIS_EMR_CDR`，结论是可从 `critical-emergency-icu-frontdesk.spec.ts` 补显式
+  `hisEmrCdrConsumerSlice`，但不能用现有 `LIS_MONITORING_CRITICAL` 或 scope 文案冒领。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十五批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行，也不重复第一百八十批已完成的 `EVALUATION` 代表供给链 / 回滚负证据；只把质量管理真实前台链路中
   “Claim 标准患者资源 → 病案质控 → DRG/DIP 分组 → 医保审核 → 评价运行 → 质量问题整改 / 审计回读”的强链路升级为

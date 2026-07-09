@@ -24,6 +24,7 @@ type ContextSnapshotSummary = {
   snapshotId: string;
   patientId: string;
   encounterId?: string | null;
+  runtimeReleaseId?: string | null;
   resources?: Record<string, unknown>;
 };
 
@@ -185,12 +186,29 @@ type FollowupAbnormalReturnEvidence = {
   noAutoOrder: boolean;
 };
 
+type FollowupResultBackflowEvidence = {
+  eventId?: string | null;
+  contextSnapshotId?: string | null;
+  sourceQuestionnaireId?: string | null;
+  abnormalFlag: "Y";
+};
+
+type FollowupBackflowContextEvidence = {
+  patientId?: string | null;
+  encounterId?: string | null;
+  contextSnapshotId?: string | null;
+  runtimeReleaseId?: string | null;
+  resources?: Record<string, unknown>;
+};
+
 type FollowupS12Evidence = {
   template: FollowupTemplateEvidence;
   runtime: FollowupRuntimeEvidence;
   plan: FollowupPlanEvidence;
   questionnaire: FollowupQuestionnaireEvidence;
   abnormalReturn: FollowupAbnormalReturnEvidence;
+  resultBackflow: FollowupResultBackflowEvidence;
+  backflowContext: FollowupBackflowContextEvidence;
 };
 
 type QualityAlertPayload = {
@@ -1978,7 +1996,12 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
     defaultName: string;
   },
   snapshot: ContextSnapshotSummary,
-): Promise<Pick<FollowupS12Evidence, "plan" | "questionnaire" | "abnormalReturn">> {
+): Promise<
+  Pick<
+    FollowupS12Evidence,
+    "plan" | "questionnaire" | "abnormalReturn" | "resultBackflow" | "backflowContext"
+  >
+> {
   await ensureReadySession(page, "clinical-user");
   clearRuntime(runtime);
   await page.goto("/clinical/followup", { waitUntil: "networkidle" });
@@ -2085,6 +2108,30 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   };
   expect(abnormal.data?.eventId, "异常回院响应应返回事件身份").toBeTruthy();
   await expect(page.getByText("异常回院证据已登记")).toBeVisible({ timeout: 20_000 });
+
+  const backflowResponsePromise = waitForPost(page, "/api/v1/engine/followup/results");
+  await page.getByRole("button", { name: "回流随访结果" }).click();
+  const backflowResponse = await backflowResponsePromise;
+  const backflowText = await backflowResponse.text();
+  expect(
+    backflowResponse.ok(),
+    `前台回流随访结果应返回成功 status=${backflowResponse.status()} body=${backflowText}`,
+  ).toBe(true);
+  const backflow = JSON.parse(backflowText) as {
+    data?: {
+      eventId?: string;
+      contextSnapshotId?: string;
+    };
+  };
+  expect(backflow.data?.eventId, "随访结果回流响应应返回事件身份").toBeTruthy();
+  expect(backflow.data?.contextSnapshotId, "随访结果回流响应应返回上下文身份").toBeTruthy();
+  await expect(page.getByText("随访结果回流已完成")).toBeVisible({ timeout: 20_000 });
+
+  const backflowContext = await readFollowupBackflowContext(page, {
+    contextSnapshotId: backflow.data?.contextSnapshotId ?? "",
+    questionnaireId: questionnaire.data?.questionnaireId ?? "",
+    runtimeReleaseId: result.data?.runtimeReleaseId ?? null,
+  });
   await captureEvidence(page, testInfo, "real-frontdesk-followup-plan-questionnaire-abnormal");
   recordCleanRuntime(page, "前台生成随访计划并完成问卷与异常回院登记", runtime, records);
   return {
@@ -2124,6 +2171,89 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
       registered: true,
       noAutoOrder: true,
     },
+    resultBackflow: {
+      eventId: backflow.data?.eventId ?? null,
+      contextSnapshotId: backflow.data?.contextSnapshotId ?? null,
+      sourceQuestionnaireId: questionnaire.data?.questionnaireId ?? null,
+      abnormalFlag: "Y",
+    },
+    backflowContext,
+  };
+}
+
+async function readFollowupBackflowContext(
+  page: Page,
+  options: {
+    contextSnapshotId: string;
+    questionnaireId: string;
+    runtimeReleaseId?: string | null;
+  },
+): Promise<FollowupBackflowContextEvidence> {
+  expect(options.contextSnapshotId, "随访结果回流必须返回上下文 ID").toBeTruthy();
+  expect(options.questionnaireId, "随访结果回流必须绑定真实问卷 ID").toBeTruthy();
+  const response = await page.request.get(
+    `/medkernel/api/v1/engine/context/snapshots/${encodeURIComponent(options.contextSnapshotId)}`,
+    { headers: { "X-Trace-Id": `e2e-followup-backflow-context-${Date.now()}` } },
+  );
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `应能回读随访结果回流上下文 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const result = JSON.parse(text) as {
+    data?: {
+      snapshotId?: string;
+      patientId?: string;
+      encounterId?: string | null;
+      runtimeReleaseId?: string | null;
+      resources?: Record<string, unknown>;
+    };
+  };
+  expect(result.data?.snapshotId).toBe(options.contextSnapshotId);
+  expect(
+    result.data?.runtimeReleaseId,
+    "随访结果回流上下文必须继承随访计划机构生效版本",
+  ).toBe(options.runtimeReleaseId);
+  const followUps = Array.isArray(result.data?.resources?.followUps)
+    ? result.data.resources.followUps
+    : [];
+  const followUpSummary = followUps.map((item) =>
+    isRecord(item)
+      ? {
+          followUpId: item.followUpId,
+          questionnaireId: item.questionnaireId,
+          sourceRecordId: item.sourceRecordId,
+          abnormalFlag: item.abnormalFlag,
+          sourceSystem: item.sourceSystem,
+          mappedVersion: item.mappedVersion,
+          qualityStatus: item.qualityStatus,
+        }
+      : item,
+  );
+  expect(
+    followUps.some(
+      (item) =>
+        isRecord(item) &&
+        item.followUpId === options.questionnaireId &&
+        typeof item.questionnaireId === "string" &&
+        item.questionnaireId.length > 0 &&
+        typeof item.sourceRecordId === "string" &&
+        item.sourceRecordId.length > 0 &&
+        item.abnormalFlag === "Y" &&
+        item.sourceSystem === "FOLLOWUP" &&
+        item.mappedVersion === "FOLLOWUP_RESULT" &&
+        item.qualityStatus === "VALID",
+    ),
+    `回流上下文必须回读同一问卷生成的 FollowUp 标准资源：${JSON.stringify(
+      followUpSummary,
+    )}`,
+  ).toBe(true);
+  return {
+    patientId: result.data?.patientId ?? null,
+    encounterId: result.data?.encounterId ?? null,
+    contextSnapshotId: result.data?.snapshotId ?? null,
+    runtimeReleaseId: result.data?.runtimeReleaseId ?? null,
+    resources: result.data?.resources ?? {},
   };
 }
 
@@ -2590,6 +2720,10 @@ function cssStringEscape(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function collectRuntime(page: Page): RuntimeCollectors {
   return {
     browserErrors: collectBrowserErrors(page),
@@ -2723,6 +2857,34 @@ async function attachScenarioEvidence(
                 followupPlan: resourceEvidence.followupS12?.plan,
                 questionnaire: resourceEvidence.followupS12?.questionnaire,
                 abnormalReturn: resourceEvidence.followupS12?.abnormalReturn,
+                resultBackflow: resourceEvidence.followupS12
+                  ? resourceEvidence.followupS12.resultBackflow
+                  : undefined,
+                backflowContext: resourceEvidence.followupS12
+                  ? resourceEvidence.followupS12.backflowContext
+                  : undefined,
+                followupPatientServiceConsumerSlice: resourceEvidence.followupS12
+                  ? {
+                      systemFamilyCode: "FOLLOWUP_PATIENT_SERVICE",
+                      familyName: "随访、消息和患者服务",
+                      canonicalResources: ["Patient", "Encounter", "FollowUp"],
+                      sourceSystems: ["MEDKERNEL_FRONTDESK", "FOLLOWUP"],
+                      consumer: "FOLLOWUP_RESULT_BACKFLOW",
+                      consumerVerified: true,
+                      standardResourceVerified: true,
+                      runtimeConsumerVerified: true,
+                      questionnaireVerified: true,
+                      abnormalReturnVerified: true,
+                      resultBackflowVerified: true,
+                      auditVerified: true,
+                      noAutoOrder: true,
+                      followUpResourcePath: "backflowContext.resources.followUps[0]",
+                      resultBackflowContextPath: "resultBackflow.contextSnapshotId",
+                      auditEventPath: "resultBackflow.eventId",
+                      scopeStatement:
+                        "随访、消息和患者服务代表消费者切片：真实前台用 Patient、Encounter 与 FollowUp 标准资源驱动 FOLLOWUP 随访方案发布、机构生效版本消费、随访计划生成、患者自填问卷、异常回院登记和随访结果回流；不代表完整随访系统覆盖，不代表完整患者服务系统覆盖，不代表完整第三方系统族覆盖，不代表完整 S12，不代表完整 S30，不代表完整 S0-S40，不代表完整上线验收。",
+                    }
+                  : undefined,
                 scenarioConditionEvidence: resourceEvidence.followupS12
                   ? [
                       {
@@ -2765,6 +2927,25 @@ async function attachScenarioEvidence(
                     evaluationRunVerified: true,
                     qualityRectificationVerified: true,
                   },
+                  ...(resourceEvidence.followupS12
+                    ? [
+                        {
+                          resourceType: "FollowUp",
+                          resourcePath: "backflowContext.resources.followUps[0]",
+                          sourceSystem: "FOLLOWUP",
+                          sourceIdPath: "backflowContext.resources.followUps[0].sourceRecordId",
+                          patientVerified: true,
+                          encounterVerified: true,
+                          snapshotReadbackVerified: true,
+                          consumer: "FOLLOWUP_RESULT_BACKFLOW",
+                          consumerEvidencePaths: ["resultBackflow.contextSnapshotId"],
+                          consumerVerified: true,
+                          auditEvidencePaths: ["resultBackflow.eventId"],
+                          auditVerified: true,
+                          dataQualityVerified: true,
+                        } as const,
+                      ]
+                    : []),
                 ]),
               }
             : {}),

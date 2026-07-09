@@ -388,6 +388,18 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
     },
+    {
+      code: "FOLLOWUP_PATIENT_SERVICE",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.thirdPartySystemFamilyConsumerSlices.FOLLOWUP_PATIENT_SERVICE",
+      observedCode: "FOLLOWUP_PATIENT_SERVICE",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
   ]);
   assert.deepEqual(
     evidence.coverage.thirdPartySystemFamilyDegradationRows.map(
@@ -636,6 +648,23 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
         readJson: readKnownEvidence(missingMedicalRecordInsuranceConsumer),
       }),
     /第三方系统族真实消费者代表切片.*MEDICAL_RECORD_INSURANCE_PAYMENT.*缺少前置阶段证据/u,
+  );
+
+  const missingFollowupPatientServiceConsumer = completeStageEvidence();
+  missingFollowupPatientServiceConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices =
+    missingFollowupPatientServiceConsumer[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+      (item) => item.code !== "FOLLOWUP_PATIENT_SERVICE",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingFollowupPatientServiceConsumer),
+      }),
+    /第三方系统族真实消费者代表切片.*FOLLOWUP_PATIENT_SERVICE.*缺少前置阶段证据/u,
   );
 
   const missingDiagnosticMatrix = completeStageEvidence();
@@ -1037,6 +1066,7 @@ function completeStageEvidence(options = {}) {
     "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
     "thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE",
     "thirdPartySystemFamilyConsumerSlices:MEDICAL_RECORD_INSURANCE_PAYMENT",
+    "thirdPartySystemFamilyConsumerSlices:FOLLOWUP_PATIENT_SERVICE",
     "diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
     "semanticFamilies:DISEASE_DIAGNOSIS",
     "semanticFamilies:SYMPTOM_RISK",

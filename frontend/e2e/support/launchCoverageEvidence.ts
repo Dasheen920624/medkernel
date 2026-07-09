@@ -73,6 +73,7 @@ type CoverageProof = {
   requiresSixEntryCoreActionsAttachment?: boolean;
   requiresPlatformAdminEntryCoreActionsAttachment?: boolean;
   requiresDomainFacadeB0EvidenceAttachment?: boolean;
+  requiresFollowupPatientServiceConsumerSliceAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -409,6 +410,10 @@ const criticalEmergencyIcuFrontdeskClaims = [
 ];
 
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
+
+const followupPatientServiceConsumerSliceClaims = [
+  "thirdPartySystemFamilyConsumerSlices:FOLLOWUP_PATIENT_SERVICE",
+];
 
 const serviceOrganizationClaims = [
   "scenarios:S1",
@@ -1463,6 +1468,14 @@ const coverageProofs: CoverageProof[] = [
     requiresRealFrontdeskScenarioAttachment: true,
   },
   {
+    file: "real-frontdesk-rehearsal.spec.ts",
+    titleIncludes:
+      "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+    claims: followupPatientServiceConsumerSliceClaims,
+    requiresRealFrontdeskScenarioAttachment: true,
+    requiresFollowupPatientServiceConsumerSliceAttachment: true,
+  },
+  {
     file: "service-organization-frontdesk.spec.ts",
     titleIncludes: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
     claims: serviceOrganizationClaims,
@@ -1763,7 +1776,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresPlatformAdminEntryCoreActionsAttachment ||
         hasRequiredPlatformAdminEntryCoreActionsAttachment([test])) &&
       (!proof.requiresDomainFacadeB0EvidenceAttachment ||
-        hasRequiredDomainFacadeB0EvidenceAttachment(test))
+        hasRequiredDomainFacadeB0EvidenceAttachment(test)) &&
+      (!proof.requiresFollowupPatientServiceConsumerSliceAttachment ||
+        hasRequiredFollowupPatientServiceConsumerSliceAttachment(test))
     );
   });
 }
@@ -3451,6 +3466,120 @@ function hasCompleteMedicalRecordInsurancePaymentConsumerSlice(body: Record<stri
     hasCompleteQualityManagementEntryCoreActionForBody(body, "insurance-audit") &&
     hasCompleteQualityManagementEntryCoreActionForBody(body, "qc-alerts")
   );
+}
+
+function hasRequiredFollowupPatientServiceConsumerSliceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "real-frontdesk-scenario-codes",
+  );
+  if (!attachment?.body || attachment.contentType !== "application/json") return false;
+  try {
+    const body = recordValue(JSON.parse(attachment.body));
+    return body !== null && hasCompleteFollowupPatientServiceConsumerSlice(body);
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteFollowupPatientServiceConsumerSlice(body: Record<string, unknown>) {
+  if (!hasCompleteFollowupS12NormalEvidence(body)) return false;
+  const slice = recordValue(body.followupPatientServiceConsumerSlice);
+  const template = recordValue(body.followupTemplate);
+  const runtime = recordValue(body.followupRuntime);
+  const plan = recordValue(body.followupPlan);
+  const questionnaire = recordValue(body.questionnaire);
+  const abnormal = recordValue(body.abnormalReturn);
+  const result = recordValue(body.resultBackflow);
+  const backflowContext = recordValue(body.backflowContext);
+  const resources = recordValue(backflowContext?.resources);
+  const followUps = Array.isArray(resources?.followUps) ? resources.followUps.map(recordValue) : [];
+  const followUp = followUps.find((item) => {
+    if (!item || !questionnaire) return false;
+    return (
+      item.followUpId === questionnaire.questionnaireId &&
+      item.sourceSystem === "FOLLOWUP" &&
+      item.mappedVersion === "FOLLOWUP_RESULT" &&
+      item.qualityStatus === "VALID" &&
+      hasText(item.sourceRecordId) &&
+      resourceHasStandardPatientResourceShape(item, "FollowUp")
+    );
+  });
+  return (
+    slice !== null &&
+    template !== null &&
+    runtime !== null &&
+    plan !== null &&
+    questionnaire !== null &&
+    abnormal !== null &&
+    result !== null &&
+    backflowContext !== null &&
+    followUp !== undefined &&
+    slice.systemFamilyCode === "FOLLOWUP_PATIENT_SERVICE" &&
+    hasText(slice.familyName) &&
+    String(slice.familyName).includes("随访") &&
+    arrayEquals(slice.canonicalResources, ["Patient", "Encounter", "FollowUp"]) &&
+    arrayEquals(slice.sourceSystems, ["MEDKERNEL_FRONTDESK", "FOLLOWUP"]) &&
+    slice.consumer === "FOLLOWUP_RESULT_BACKFLOW" &&
+    slice.consumerVerified === true &&
+    slice.standardResourceVerified === true &&
+    slice.runtimeConsumerVerified === true &&
+    slice.questionnaireVerified === true &&
+    slice.abnormalReturnVerified === true &&
+    slice.resultBackflowVerified === true &&
+    slice.auditVerified === true &&
+    slice.noAutoOrder === true &&
+    slice.followUpResourcePath === "backflowContext.resources.followUps[0]" &&
+    slice.resultBackflowContextPath === "resultBackflow.contextSnapshotId" &&
+    slice.auditEventPath === "resultBackflow.eventId" &&
+    hasFollowupPatientServiceConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasText(result.eventId) &&
+    hasText(result.contextSnapshotId) &&
+    result.contextSnapshotId === backflowContext.contextSnapshotId &&
+    result.sourceQuestionnaireId === questionnaire.questionnaireId &&
+    result.abnormalFlag === "Y" &&
+    backflowContext.runtimeReleaseId === plan.runtimeReleaseId &&
+    backflowContext.runtimeReleaseId === runtime.runtimeReleaseId &&
+    plan.templateId === template.templateId &&
+    plan.templateCode === template.templateCode &&
+    evidencePathsResolve(body, [
+      slice.followUpResourcePath,
+      slice.resultBackflowContextPath,
+      slice.auditEventPath,
+    ])
+  );
+}
+
+function hasFollowupPatientServiceConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表消费者切片") &&
+    !hasUnnegatedFollowupPatientServiceConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整随访系统覆盖") &&
+    hasNegatedScopeTerm(statement, "完整患者服务系统覆盖") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S12") &&
+    hasNegatedScopeTerm(statement, "完整 S30") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedFollowupPatientServiceConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整随访系统覆盖",
+    "完整患者服务系统覆盖",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整 S12",
+    "完整S12",
+    "完整 S30",
+    "完整S30",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasCompleteQualityManagementEntryCoreActionForBody(

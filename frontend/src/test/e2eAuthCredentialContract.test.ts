@@ -607,6 +607,25 @@ describe("E2E credential contract", () => {
     expect(qualitySource).not.toContain("完整病案医保支付系统族已上线");
   });
 
+  it("requires followup patient service consumer slice to stay explicit and bounded", () => {
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    const fullSystemGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
+    const auditGate = readFileSync("../scripts/release/launch-coverage-audit.test.mjs", "utf8");
+    const realFrontdeskSource = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
+
+    expect(coverageParser).toContain(
+      "thirdPartySystemFamilyConsumerSlices:FOLLOWUP_PATIENT_SERVICE",
+    );
+    expect(fullSystemGate).toContain('"FOLLOWUP_PATIENT_SERVICE"');
+    expect(fullSystemGate).toMatch(
+      /thirdPartySystemFamilyConsumerSlices:\s*\{[\s\S]*"FOLLOWUP_PATIENT_SERVICE"/u,
+    );
+    expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:FOLLOWUP_PATIENT_SERVICE");
+    expect(realFrontdeskSource).toMatch(
+      /followupPatientServiceConsumerSlice|"FOLLOWUP_PATIENT_SERVICE"/u,
+    );
+  });
+
   it("keeps third-party family evidence API readback on the real backend API base", () => {
     const source = readFileSync("e2e/third-party-system-families-rehearsal.spec.ts", "utf8");
 
