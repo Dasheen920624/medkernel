@@ -23,6 +23,43 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百零二批本地推进：接用户要求继续加速并允许子代理，本批使用 1 个只读子代理审计临床 / 质量入口五态候选、
+  1 个只读子代理并行审计 `LAUNCH-13.organizationLevels`，两个子代理均已关闭，未编辑、未暂存、未提交。
+  主线程继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：把已有真实前台强链路从
+  “入口代表动作 / 场景覆盖”升级为显式 `scenarioConditionEvidence` 后才声明条件行。本批新增 3 条真实背书行：
+  `S5__HIGH_RISK`（用药安全 CRITICAL 红线 + 医生人工确认 + 无自动开嘱）、`S10__NORMAL`（医保审核病案质控 / DRG 分组 /
+  医保审核服务回读并派整改）、`S11__NORMAL`（协同任务完成和质量整改复核闭环，重复证明按 `mergeClaims()` 去重）。
+  不声明 `S5__NORMAL/ABNORMAL/MISSING_DATA/DEGRADATION`，不声明 `S10__HIGH_RISK`，不把通知、疲劳抑制、菜单或文案冒领为五态行，
+  也不冒领完整 S0-S40 205 行矩阵。
+- 第二百零二批实现细节：`frontend/e2e/medication-safety-frontdesk.spec.ts` 的 `medication-safety-frontdesk-codes`
+  附件新增 `S5__HIGH_RISK` 条件行；`frontend/e2e/support/clinicalEntryCoreActions.ts` 和
+  `frontend/e2e/support/qualityManagementEntryCoreActions.ts` 在真实入口动作完整时分别写出临床协同 / 质量管理
+  `scenarioConditionEvidence`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增前台条件行 collector：
+  药事必须先通过完整 `hasRequiredMedicationSafetyFrontdeskAttachment()`，且风险矩阵、SAFETY 红线、已确认过敏资源、
+  PENDING 推荐卡、医生 ACCEPTED 和 `noAutoOrder=true` 均成立；医保 / 质量 / 协同任务必须先通过对应完整入口矩阵，
+  且目标入口 `serviceOperation`、2xx、`readbackVerified`、`auditVerified` 全成立。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知行、状态 / 来源错配、空证据、药事自动执行或非 CRITICAL、服务非 2xx、
+  缺回读 / 审计均不声明。
+- 第二百零二批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175 无监听）。
+  执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-frontdesk-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium medication-safety-frontdesk.spec.ts quality-management-entry-core-actions-rehearsal.spec.ts clinical-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-frontdesk-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=3`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S11__NORMAL,S5__HIGH_RISK,S10__NORMAL]`，其中临床和质量附件分别读回 `S11__NORMAL`、`S10__NORMAL/S11__NORMAL`。
+- 第二百零二批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例缺条件行，
+  随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（397 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  下一步提交前仍需跑 `git diff --check`。
+- 第二百零二批组织九层并行审计结论：当前 `launchCoverage.organizationLevels` 只能诚实证明 `HOSPITAL` 与 `DEPARTMENT`；
+  未找到可安全新增 `PLATFORM/GROUP/CAMPUS_OR_MEMBER/WARD/CARE_TEAM/SPECIALTY_CENTER/SHARED_CENTER` 的真实组织层级创建、
+  回读、任职范围或审计附件。下一批若转 `LAUNCH-13`，必须先补真实组织模型 / 服务动作 / 附件字段，不能用平台管理员角色、
+  菜单、路由、`specialtyId` 或专病横切维度冒领组织层级。
+- 第二百零二批边界与下一步：本批只是把药事、医保审核、质量整改和临床协同任务已存在的真实前台强证据转为 3 条五态总账行；
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是
+  `LAUNCH-13` 九层组织完成，也不是 134 清库重部署。下一批建议二选一：继续沿 `LAUNCH-06` 补诊断危急值 / 护理连续性 /
+  药学审方 / 感控公卫等已有强链路的 `HIGH_RISK/DEGRADATION/NORMAL` 条件行；或进入 `LAUNCH-13` 先建真实组织层级证据模型。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

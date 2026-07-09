@@ -83,6 +83,7 @@ export async function attachQualityManagementEntryCoreActionEvidence(
         scopeStatement: qualityManagementEntryCoreActionScopeStatement,
         ...assetEvidence,
         entryActions,
+        scenarioConditionEvidence: buildQualityManagementScenarioConditionEvidence(entryActions),
       },
       null,
       2,
@@ -93,6 +94,43 @@ export async function attachQualityManagementEntryCoreActionEvidence(
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+function buildQualityManagementScenarioConditionEvidence(
+  entryActions: QualityManagementEntryCoreActionEvidence[],
+) {
+  const rows = [];
+  const insuranceAudit = entryActions.find((action) => action.menuKey === "insurance-audit");
+  if (insuranceAudit) {
+    rows.push({
+      code: "S10__NORMAL",
+      scenarioCode: "S10",
+      condition: "NORMAL",
+      source: "INSURANCE_AUDIT_SERVICE_READBACK",
+      evidence: [
+        "医保审核真实前台执行病案质控、DRG 分组和医保审核",
+        `服务操作：${insuranceAudit.serviceOperation}`,
+        "服务回读命中问题并派发整改",
+        "医保审核生成的质量问题写入审计",
+      ],
+    });
+  }
+  const qualityAlerts = entryActions.find((action) => action.menuKey === "qc-alerts");
+  if (qualityAlerts) {
+    rows.push({
+      code: "S11__NORMAL",
+      scenarioCode: "S11",
+      condition: "NORMAL",
+      source: "QUALITY_ALERT_RECTIFICATION_REVIEW",
+      evidence: [
+        "质量问题整改真实前台提交整改证据",
+        `服务操作：${qualityAlerts.serviceOperation}`,
+        "整改复核服务关闭本轮质量问题",
+        "质量整改闭环写入审计",
+      ],
+    });
+  }
+  return rows;
 }
 
 function assertQualityManagementEntryCoreAction(action: QualityManagementEntryCoreActionEvidence) {

@@ -1169,6 +1169,20 @@ const medicationSafetyFrontdeskEvidence = {
       ],
     },
   ],
+  scenarioConditionEvidence: [
+    {
+      code: "S5__HIGH_RISK",
+      scenarioCode: "S5",
+      condition: "HIGH_RISK",
+      source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+      evidence: [
+        "CDSS_RISK 风险矩阵与 SAFETY 红线均为 CRITICAL",
+        "药物过敏 AllergyIntolerance 已确认且命中红线条件",
+        "推荐卡保持 PENDING，医生人工确认后 ACCEPTED",
+        "系统未自动开嘱",
+      ],
+    },
+  ],
 };
 
 function medicationSafetyEvidenceResult(body: Record<string, unknown>) {
@@ -4992,6 +5006,19 @@ const clinicalEntryCoreActionsEvidence = {
       auditVerified: true,
     },
   ],
+  scenarioConditionEvidence: [
+    {
+      code: "S11__NORMAL",
+      scenarioCode: "S11",
+      condition: "NORMAL",
+      source: "CLINICAL_WORKFLOW_TODO_COMPLETION",
+      evidence: [
+        "临床用户从真实前台完成人工协同待办",
+        "服务回读待办已完成",
+        "协同任务完成动作写入审计",
+      ],
+    },
+  ],
 };
 
 const qualityManagementEntryCoreActionsEvidence = {
@@ -5102,6 +5129,30 @@ const qualityManagementEntryCoreActionsEvidence = {
       readbackVerified: true,
       auditVerified: true,
       sourceAuditVerified: true,
+    },
+  ],
+  scenarioConditionEvidence: [
+    {
+      code: "S10__NORMAL",
+      scenarioCode: "S10",
+      condition: "NORMAL",
+      source: "INSURANCE_AUDIT_SERVICE_READBACK",
+      evidence: [
+        "医保审核真实前台执行病案质控、DRG 分组和医保审核",
+        "服务回读命中问题并派发整改",
+        "医保审核生成的质量问题写入审计",
+      ],
+    },
+    {
+      code: "S11__NORMAL",
+      scenarioCode: "S11",
+      condition: "NORMAL",
+      source: "QUALITY_ALERT_RECTIFICATION_REVIEW",
+      evidence: [
+        "质量问题整改真实前台提交整改证据",
+        "整改复核服务关闭本轮质量问题",
+        "质量整改闭环写入审计",
+      ],
     },
   ],
 };
@@ -11161,6 +11212,232 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S14__ABNORMAL",
     ]);
+  });
+
+  it("declares medication safety high-risk, insurance normal and workflow normal condition rows from explicit backed evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        ...medicationSafetyEvidenceResult(medicationSafetyFrontdeskEvidence).tests,
+        ...qualityManagementEntryCoreActionsEvidenceResult(
+          qualityManagementEntryCoreActionsEvidence,
+        ).tests,
+        ...clinicalEntryCoreActionsEvidenceResult(clinicalEntryCoreActionsEvidence).tests,
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S5__HIGH_RISK",
+      "S10__NORMAL",
+      "S11__NORMAL",
+    ]);
+  });
+
+  it("does not declare medication safety high-risk row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = medicationSafetyFrontdeskEvidence;
+    const evidence = medicationSafetyEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__NORMAL",
+            scenarioCode: "S5",
+            condition: "NORMAL",
+            source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+            evidence: ["不能把高风险红线冒领为正常行"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行状态错配",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__HIGH_RISK",
+            scenarioCode: "S5",
+            condition: "NORMAL",
+            source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+            evidence: ["状态错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S5__HIGH_RISK",
+            scenarioCode: "S5",
+            condition: "HIGH_RISK",
+            source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "风险矩阵允许自动执行",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        riskMatrix: {
+          ...medicationSafetyFrontdeskEvidence.riskMatrix,
+          autoExecutionAllowed: true,
+        },
+      },
+    },
+    {
+      name: "安全红线不是 CRITICAL",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        safetyRedline: {
+          ...medicationSafetyFrontdeskEvidence.safetyRedline,
+          hazardSeverity: "HIGH",
+        },
+      },
+    },
+    {
+      name: "医生确认链路允许自动开嘱",
+      body: {
+        ...medicationSafetyFrontdeskEvidence,
+        feedback: {
+          ...medicationSafetyFrontdeskEvidence.feedback,
+          noAutoOrder: false,
+        },
+      },
+    },
+  ])("does not declare S5 high-risk condition row when $name", ({ body }) => {
+    const evidence = medicationSafetyEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "医保审核服务不是 2xx",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "insurance-audit" ? { ...item, serviceStatus: 409 } : item,
+        ),
+      },
+      expectedMissing: "S10__NORMAL",
+    },
+    {
+      name: "医保审核缺少服务回读",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "insurance-audit" ? { ...item, readbackVerified: false } : item,
+        ),
+      },
+      expectedMissing: "S10__NORMAL",
+    },
+    {
+      name: "质量整改缺少复核服务",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-alerts"
+            ? {
+                ...item,
+                serviceOperation: "POST /api/v1/engine/rectifications/{taskId}/submit",
+              }
+            : item,
+        ),
+      },
+      expectedMissing: "S11__NORMAL",
+    },
+    {
+      name: "质量整改缺少审计",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-alerts" ? { ...item, auditVerified: false } : item,
+        ),
+      },
+      expectedMissing: "S11__NORMAL",
+    },
+    {
+      name: "条件行夹带未知代码",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        scenarioConditionEvidence: [
+          ...qualityManagementEntryCoreActionsEvidence.scenarioConditionEvidence,
+          {
+            code: "S10__HIGH_RISK",
+            scenarioCode: "S10",
+            condition: "HIGH_RISK",
+            source: "INSURANCE_AUDIT_SERVICE_READBACK",
+            evidence: ["医保审核问题不能冒领高风险行"],
+          },
+        ],
+      },
+      expectedMissing: "S10__NORMAL",
+    },
+  ])("does not declare quality scenario condition rows when $name", ({ body }) => {
+    const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "协同任务服务不是 2xx",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "workflow-todos" ? { ...item, serviceStatus: 409 } : item,
+        ),
+      },
+    },
+    {
+      name: "协同任务不是临床用户角色",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "workflow-todos" ? { ...item, role: "engine-operator" } : item,
+        ),
+      },
+    },
+    {
+      name: "协同任务缺少审计",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        entryActions: clinicalEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "workflow-todos" ? { ...item, auditVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...clinicalEntryCoreActionsEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S11__NORMAL",
+            scenarioCode: "S11",
+            condition: "NORMAL",
+            source: "NOTIFICATION_READBACK",
+            evidence: ["通知回读不能冒领临床协同任务五态行"],
+          },
+        ],
+      },
+    },
+  ])("does not declare clinical workflow normal condition row when $name", ({ body }) => {
+    const evidence = clinicalEntryCoreActionsEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it("keeps scenario condition rows unique when system providers and P1 both prove S14 abnormal", () => {

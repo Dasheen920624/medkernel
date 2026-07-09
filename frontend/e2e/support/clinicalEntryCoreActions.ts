@@ -47,6 +47,7 @@ export async function attachClinicalEntryCoreActionEvidence(
         matrixCode: "CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS",
         scopeStatement: clinicalEntryCoreActionScopeStatement,
         entryActions,
+        scenarioConditionEvidence: buildClinicalEntryScenarioConditionEvidence(entryActions),
       },
       null,
       2,
@@ -57,6 +58,27 @@ export async function attachClinicalEntryCoreActionEvidence(
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+function buildClinicalEntryScenarioConditionEvidence(
+  entryActions: ClinicalEntryCoreActionEvidence[],
+) {
+  const workflowTodo = entryActions.find((action) => action.menuKey === "workflow-todos");
+  if (!workflowTodo) return [];
+  return [
+    {
+      code: "S11__NORMAL",
+      scenarioCode: "S11",
+      condition: "NORMAL",
+      source: "CLINICAL_WORKFLOW_TODO_COMPLETION",
+      evidence: [
+        "临床用户从真实前台完成人工协同待办",
+        `服务操作：${workflowTodo.serviceOperation}`,
+        "服务回读待办已完成",
+        "协同任务完成动作写入审计",
+      ],
+    },
+  ];
 }
 
 function assertClinicalEntryCoreAction(action: ClinicalEntryCoreActionEvidence) {

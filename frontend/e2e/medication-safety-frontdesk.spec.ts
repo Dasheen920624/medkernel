@@ -1684,6 +1684,20 @@ async function attachMedicationSafetyEvidence(
             observedStages: Array.from(evidence.observedStages),
           },
         ],
+        scenarioConditionEvidence: [
+          {
+            code: "S5__HIGH_RISK",
+            scenarioCode: "S5",
+            condition: "HIGH_RISK",
+            source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+            evidence: [
+              "CDSS_RISK 风险矩阵与 SAFETY 红线均为 CRITICAL",
+              "药物过敏 AllergyIntolerance 已确认且命中红线条件",
+              "推荐卡保持 PENDING，医生人工确认后 ACCEPTED",
+              "系统未自动开嘱",
+            ],
+          },
+        ],
       },
       null,
       2,

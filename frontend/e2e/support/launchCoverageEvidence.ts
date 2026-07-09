@@ -635,6 +635,36 @@ const s2s4ScenarioConditionRows = [
     source: "INVALID_MASTER_DATA_SIGNATURE_REJECTED",
   },
 ] as const;
+const medicationSafetyScenarioConditionRows = [
+  {
+    code: "S5__HIGH_RISK",
+    scenarioCode: "S5",
+    condition: "HIGH_RISK",
+    source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+  },
+] as const;
+const qualityManagementScenarioConditionRows = [
+  {
+    code: "S10__NORMAL",
+    scenarioCode: "S10",
+    condition: "NORMAL",
+    source: "INSURANCE_AUDIT_SERVICE_READBACK",
+  },
+  {
+    code: "S11__NORMAL",
+    scenarioCode: "S11",
+    condition: "NORMAL",
+    source: "QUALITY_ALERT_RECTIFICATION_REVIEW",
+  },
+] as const;
+const clinicalEntryScenarioConditionRows = [
+  {
+    code: "S11__NORMAL",
+    scenarioCode: "S11",
+    condition: "NORMAL",
+    source: "CLINICAL_WORKFLOW_TODO_COMPLETION",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -1303,6 +1333,10 @@ export function buildBrowserE2eLaunchEvidence(input: {
   const s2s4ScenarioConditionClaims = collectS2S4ScenarioConditionClaims(input.tests);
   if (s2s4ScenarioConditionClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, s2s4ScenarioConditionClaims, generatedAt);
+  }
+  const frontdeskScenarioConditionClaims = collectFrontdeskScenarioConditionClaims(input.tests);
+  if (frontdeskScenarioConditionClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, frontdeskScenarioConditionClaims, generatedAt);
   }
   const systemProvidersScenarioConditionClaims = collectSystemProvidersScenarioConditionClaims(
     input.tests,
@@ -2820,7 +2854,6 @@ function hasCompleteDashboardWorkbenchCoreAction(value: unknown, role: string) {
 }
 
 function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
-  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
   let sawAttachment = false;
   for (const test of tests) {
     if (
@@ -2843,27 +2876,30 @@ function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResu
       const body = recordValue(parsed);
       if (!body || body.matrixCode !== "CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS") continue;
       sawAttachment = true;
-      if (!hasClinicalEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
-      if (!Array.isArray(body.entryActions)) return false;
-      for (const item of body.entryActions) {
-        const action = recordValue(item);
-        const menuKey = textValue(action?.menuKey);
-        if (
-          !action ||
-          !menuKey ||
-          !hasCompleteClinicalEntryCoreAction(action, menuKey) ||
-          actionsByMenuKey.has(menuKey)
-        ) {
-          return false;
-        }
-        actionsByMenuKey.set(menuKey, action);
-      }
+      if (!hasCompleteClinicalEntryCoreActionMatrix(body)) return false;
     }
   }
-  return (
-    sawAttachment &&
-    requiredClinicalEntryCoreActionMenuKeys.every((menuKey) => actionsByMenuKey.has(menuKey))
-  );
+  return sawAttachment;
+}
+
+function hasCompleteClinicalEntryCoreActionMatrix(body: Record<string, unknown>) {
+  const actionsByMenuKey = new Map<string, Record<string, unknown>>();
+  if (!hasClinicalEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+  if (!Array.isArray(body.entryActions)) return false;
+  for (const item of body.entryActions) {
+    const action = recordValue(item);
+    const menuKey = textValue(action?.menuKey);
+    if (
+      !action ||
+      !menuKey ||
+      !hasCompleteClinicalEntryCoreAction(action, menuKey) ||
+      actionsByMenuKey.has(menuKey)
+    ) {
+      return false;
+    }
+    actionsByMenuKey.set(menuKey, action);
+  }
+  return requiredClinicalEntryCoreActionMenuKeys.every((menuKey) => actionsByMenuKey.has(menuKey));
 }
 
 function hasRequiredQualityManagementEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {
@@ -3773,6 +3809,179 @@ function s2s4ScenarioConditionBackedByApiEvidence(
       );
     case "S4__ABNORMAL":
       return apiEvidence.invalidMasterDataSignatureRejected === true;
+    default:
+      return false;
+  }
+}
+
+function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
+  const claims = new Set<string>();
+  for (const test of tests) {
+    for (const claim of collectMedicationSafetyScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
+    for (const claim of collectQualityManagementScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
+    for (const claim of collectClinicalEntryScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
+  }
+  return [...claims];
+}
+
+function collectMedicationSafetyScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "medication-safety-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "medication-safety-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredMedicationSafetyFrontdeskAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      medicationSafetyScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return medicationSafetyScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          medicationSafetyScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function medicationSafetyScenarioConditionBackedByEvidence(
+  code: (typeof medicationSafetyScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S5__HIGH_RISK":
+      return (
+        hasCompleteMedicationSafetyApiEvidence(parsed.apiEvidence) &&
+        hasCompleteMedicationSafetyRiskMatrix(parsed.riskMatrix) &&
+        hasCompleteMedicationSafetyRedline(parsed.safetyRedline, parsed.riskMatrix) &&
+        hasCompleteMedicationSafetyClinicalContext(
+          parsed.clinicalContext,
+          String(recordValue(parsed.runtime)?.releaseId ?? ""),
+        ) &&
+        hasCompleteMedicationSafetyRecommendationEvidence(
+          parsed.recommendation,
+          { releaseId: String(recordValue(parsed.runtime)?.releaseId ?? "") },
+          parsed.clinicalTrigger,
+          parsed.riskMatrix,
+          parsed.safetyRedline,
+        ) &&
+        hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback)
+      );
+    default:
+      return false;
+  }
+}
+
+function collectQualityManagementScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== qualityManagementEntryCoreActionSpecFile ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "quality-management-entry-core-actions-codes",
+  );
+  if (!attachment?.body) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    if (!parsed || !hasCompleteQualityManagementEntryCoreActionMatrix(parsed)) return [];
+    const rows = collectStrictScenarioConditionRows(
+      parsed.scenarioConditionEvidence,
+      qualityManagementScenarioConditionRows,
+    );
+    if (rows === null) return [];
+    const entryActions = Array.isArray(parsed.entryActions) ? parsed.entryActions : [];
+    return qualityManagementScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          qualityManagementScenarioConditionBackedByEvidence(expected.code, entryActions),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function qualityManagementScenarioConditionBackedByEvidence(
+  code: (typeof qualityManagementScenarioConditionRows)[number]["code"],
+  entryActions: unknown[],
+) {
+  switch (code) {
+    case "S10__NORMAL":
+      return entryActions.some((action) =>
+        hasCompleteQualityManagementEntryCoreAction(action, "insurance-audit"),
+      );
+    case "S11__NORMAL":
+      return entryActions.some((action) =>
+        hasCompleteQualityManagementEntryCoreAction(action, "qc-alerts"),
+      );
+    default:
+      return false;
+  }
+}
+
+function collectClinicalEntryScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== clinicalEntryCoreActionSpecFile ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "clinical-entry-core-actions-codes",
+  );
+  if (!attachment?.body) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    if (!parsed || !hasCompleteClinicalEntryCoreActionMatrix(parsed)) return [];
+    const rows = collectStrictScenarioConditionRows(
+      parsed.scenarioConditionEvidence,
+      clinicalEntryScenarioConditionRows,
+    );
+    if (rows === null) return [];
+    const entryActions = Array.isArray(parsed.entryActions) ? parsed.entryActions : [];
+    return clinicalEntryScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          clinicalEntryScenarioConditionBackedByEvidence(expected.code, entryActions),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function clinicalEntryScenarioConditionBackedByEvidence(
+  code: (typeof clinicalEntryScenarioConditionRows)[number]["code"],
+  entryActions: unknown[],
+) {
+  switch (code) {
+    case "S11__NORMAL":
+      return entryActions.some((action) =>
+        hasCompleteClinicalEntryCoreAction(action, "workflow-todos"),
+      );
     default:
       return false;
   }
