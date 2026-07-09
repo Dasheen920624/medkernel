@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
-import { appPath, ensureReadySession } from "./support/auth";
+import { apiBase, appPath, ensureReadySession, postApi } from "./support/auth";
 
 type StandardTerm = {
   standardSystem: string;
@@ -36,6 +36,19 @@ type DiagnosisKnowledgeAttachmentEvidence = {
     status: number;
     caseIdentity: string;
     findingTermCode: string;
+  };
+  invalidAssetCreationRejection: {
+    operation: string;
+    status: number;
+    errorCode: string;
+    traceId: string;
+    requestedIdentityCode: string;
+    evidenceExcerptPresentInSource: boolean;
+    assetReadbackAbsent: boolean;
+    versionIdAbsent: boolean;
+    validationCaseAttempted: boolean;
+    readbackOperation: string;
+    readbackStatus: number;
   };
 };
 
@@ -152,8 +165,15 @@ test.describe("诊断知识库真实前台链路", () => {
     await expect(page.locator("main")).not.toContainText(findingTerm.termCode);
     recordDiagnosisKnowledgeStage(observedStages, "前台登记验证病例");
 
+    const invalidAssetCreationRejection = await attemptInvalidDiagnosisAssetCreation(page, suffix);
+
     expect(browserErrors, "诊断知识库前台演练不应产生浏览器错误").toEqual([]);
-    expect(serverErrors, "诊断知识库前台演练不应产生 HTTP 错误").toEqual([]);
+    expect(
+      serverErrors.filter(
+        (error) => !error.includes("POST") || !error.includes("/engine/knowledge/diagnosis/assets"),
+      ),
+      "诊断知识库前台演练除受控 400 负例外不应产生 HTTP 错误",
+    ).toEqual([]);
     expect(networkFailures, "诊断知识库前台演练不应产生网络失败").toEqual([]);
 
     await page.screenshot({
@@ -188,9 +208,157 @@ test.describe("诊断知识库真实前台链路", () => {
         caseIdentity: validationCaseIdentity,
         findingTermCode: findingTerm.termCode,
       },
+      invalidAssetCreationRejection,
     });
   });
 });
+
+async function attemptInvalidDiagnosisAssetCreation(
+  page: Page,
+  suffix: string,
+): Promise<DiagnosisKnowledgeAttachmentEvidence["invalidAssetCreationRejection"]> {
+  const profile = await readCurrentSecurityProfile(page);
+  const invalidSuffix = `${suffix}-invalid`;
+  const requestedIdentityCode = `frontdesk-dx-invalid-${suffix}`;
+  const invalidSubject = `前台诊断维护拒绝演练${suffix}`;
+  const sourceContent = `${invalidSubject} 来源原文：仅包含可验证的 A 段描述，服务必须拒绝脱离原文的证据片段。`;
+  const missingExcerpt = "原文中不存在的证据片段";
+  const traceId = `trace-s3-invalid-asset-${invalidSuffix}`;
+  const response = await postApi(
+    page,
+    "/engine/knowledge/diagnosis/assets",
+    {
+      request_id: `req-s3-invalid-asset-${invalidSuffix}`,
+      trace_id: traceId,
+      tenant_id: profile.dataScope.tenantId,
+      group_id: profile.dataScope.groupId,
+      hospital_id: profile.dataScope.hospitalId,
+      campus_id: profile.dataScope.campusId,
+      site_id: profile.dataScope.siteId,
+      department_id: profile.dataScope.departmentId,
+      specialty_id: profile.dataScope.specialtyId,
+      user_id: profile.userId,
+      role_codes: profile.roles.map((role) => role.code),
+      identity: {
+        identitySlug: requestedIdentityCode,
+        subject: invalidSubject,
+        assetSpecialtyId: "CLINICAL_SPECIALTIES",
+        description: "真实前台演练的诊断知识异常负例，不应生成资产版本",
+      },
+      source: {
+        sourceCode: `DXSRC.INVALID.${suffix.toUpperCase()}`,
+        sourceType: "GUIDELINE",
+        authorityLevel: "B_GUIDELINE",
+        authorityBasis: "上线演练受控负例来源",
+        title: `${invalidSubject} 来源指南`,
+        publisher: "MedKernel E2E",
+        license: "INTERNAL",
+        language: "zh-CN",
+        versionNo: "2026",
+        fileUri: `repository://diagnosis/${invalidSuffix}`,
+        content: sourceContent,
+      },
+      version: {
+        versionNo: `frontdesk-invalid-${suffix}`,
+        versionLabel: `${invalidSubject} 候选版`,
+        riskLevel: "MEDIUM",
+        gradeQuality: "MODERATE",
+        gradeStrength: "WEAK",
+        reviewCycleMonths: 12,
+      },
+      evidence: {
+        anchorPath: "diagnosis.criteria.frontdesk.invalid",
+        anchorLabel: "诊断标准负例",
+        textExcerpt: missingExcerpt,
+      },
+    },
+    { "X-Trace-Id": traceId },
+  );
+  const body = (await response.json()) as { code?: string; traceId?: string };
+  expect(response.status(), "证据片段不属于来源原文的诊断资产创建必须被服务拒绝").toBe(400);
+  expect(body.code, "异常负例应返回参数校验错误码").toBe("ENG-API-002");
+  expect(typeof body.traceId === "string" && body.traceId.length > 0, "异常负例应返回 traceId").toBe(
+    true,
+  );
+
+  await page.goto(appPath("/knowledge/diagnosis"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await setEvidenceDetails(page, false);
+  await expect(page.getByRole("heading", { name: "诊断知识库" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.locator("main")).not.toContainText(invalidSubject);
+  await expect(page.locator("main")).not.toContainText(requestedIdentityCode);
+  const readbackResponse = await page.request.get(
+    `${apiBase}/engine/knowledge/identities?domain=DIAGNOSIS&keyword=${encodeURIComponent(
+      requestedIdentityCode,
+    )}&page=1&size=5`,
+    { headers: { "X-Trace-Id": `e2e-s3-invalid-readback-${invalidSuffix}` } },
+  );
+  expect(readbackResponse.ok(), "拒绝后诊断资产列表回读应成功").toBe(true);
+  const readback = (await readbackResponse.json()) as {
+    data?: { items?: Array<{ identityCode?: string; subject?: string }> };
+  };
+  const rejectedAssetVisible =
+    readback.data?.items?.some(
+      (item) => item.identityCode === requestedIdentityCode || item.subject === invalidSubject,
+    ) ?? false;
+  expect(rejectedAssetVisible, "拒绝后不应生成诊断知识身份或版本").toBe(false);
+
+  return {
+    operation: "POST /engine/knowledge/diagnosis/assets",
+    status: response.status(),
+    errorCode: body.code ?? "",
+    traceId: body.traceId ?? "",
+    requestedIdentityCode,
+    evidenceExcerptPresentInSource: sourceContent.includes(missingExcerpt),
+    assetReadbackAbsent: true,
+    versionIdAbsent: true,
+    validationCaseAttempted: false,
+    readbackOperation: "GET /engine/knowledge/identities",
+    readbackStatus: readbackResponse.status(),
+  };
+}
+
+async function readCurrentSecurityProfile(page: Page) {
+  const response = await page.request.get(`${apiBase}/security/me`, {
+    headers: { "X-Trace-Id": `e2e-s3-profile-${Date.now()}` },
+  });
+  expect(response.ok(), "诊断知识异常负例应能读取当前前台安全画像").toBe(true);
+  const body = (await response.json()) as {
+    data?: {
+      userId?: string;
+      roles?: Array<{ code?: string }>;
+      dataScope?: {
+        tenantId?: string;
+        groupId?: string | null;
+        hospitalId?: string | null;
+        campusId?: string | null;
+        siteId?: string | null;
+        departmentId?: string | null;
+        specialtyId?: string | null;
+      };
+    };
+  };
+  expect(body.data?.userId, "安全画像应包含用户身份").toBeTruthy();
+  expect(body.data?.dataScope?.tenantId, "安全画像应包含当前租户").toBeTruthy();
+  expect(body.data?.roles?.some((role) => role.code === "engine-operator"), "当前账号应为运营员").toBe(
+    true,
+  );
+  return body.data as {
+    userId: string;
+    roles: Array<{ code: string }>;
+    dataScope: {
+      tenantId: string;
+      groupId?: string | null;
+      hospitalId?: string | null;
+      campusId?: string | null;
+      siteId?: string | null;
+      departmentId?: string | null;
+      specialtyId?: string | null;
+    };
+  };
+}
 
 async function registerFindingTermFromFrontend(page: Page, suffix: string): Promise<StandardTerm> {
   const termCode = `TERM.LAB.FRONTDESK.${suffix.toUpperCase()}`;
@@ -347,11 +515,22 @@ async function attachDiagnosisKnowledgeScenarioEvidence(
             operation: evidence.validationCase.operation,
             status: evidence.validationCase.status,
           },
+          invalidAssetCreateRejectedFromFrontdesk: {
+            operation: evidence.invalidAssetCreationRejection.operation,
+            status: evidence.invalidAssetCreationRejection.status,
+            errorCode: evidence.invalidAssetCreationRejection.errorCode,
+            traceId: evidence.invalidAssetCreationRejection.traceId,
+          },
+          assetReadbackAfterRejection: {
+            operation: evidence.invalidAssetCreationRejection.readbackOperation,
+            status: evidence.invalidAssetCreationRejection.readbackStatus,
+          },
         },
         standardTerm: evidence.standardTerm,
         diagnosisAsset: evidence.diagnosisAsset,
         diagnosisCriterion: evidence.diagnosisCriterion,
         validationCase: evidence.validationCase,
+        invalidAssetCreationRejection: evidence.invalidAssetCreationRejection,
         scenarioConditionEvidence: [
           {
             code: "S3__NORMAL",
@@ -361,6 +540,16 @@ async function attachDiagnosisKnowledgeScenarioEvidence(
             evidence: [
               "前台登记标准发现项术语后创建证据完整诊断资产草稿",
               "诊断标准和验证病例均绑定同一标准发现项术语",
+            ],
+          },
+          {
+            code: "S3__ABNORMAL",
+            scenarioCode: "S3",
+            condition: "ABNORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_EVIDENCE_EXCERPT_REJECTED_NO_ASSET_CREATED",
+            evidence: [
+              "证据片段不在来源原文中的诊断资产创建请求被真实服务拒绝",
+              "拒绝后诊断资产列表回读确认未生成资产版本或验证病例",
             ],
           },
         ],

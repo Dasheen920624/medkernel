@@ -129,6 +129,44 @@
   `S3__NORMAL`、页面校验或静态字段冒领为异常态。`S15__NORMAL` 因 dev/H2 仍缺真实备份恢复连续性证据暂不建议立即做；
   `S30__NORMAL`、`S33__DEGRADATION`、`S37__NORMAL` 当前证据不足暂不建议。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百二十八批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只把诊断知识维护中“证据片段不属于来源原文时拒绝创建资产”的真实服务负例升级为显式
+  `S3__ABNORMAL`。`diagnosis-knowledge-maintenance.spec.ts` 在既有 `S3__NORMAL` 强链路后，使用当前前台会话安全画像
+  通过真实写接口提交非法诊断资产创建请求，服务返回 `400/ENG-API-002` 且 `traceId` 可读；随后通过诊断知识列表页面和
+  `/engine/knowledge/identities` 回读确认未生成本轮非法诊断身份、资产版本或验证病例。只声明 `S3__ABNORMAL`，
+  保留既有 `S3__NORMAL`；不声明 `S3__MISSING_DATA/HIGH_RISK/DEGRADATION`，不声明 S16 诊断支持，不冒领完整诊断知识生产、
+  全医学知识生产、全知识上线、完整 S0-S40 或完整上线验收。
+- 第二百二十八批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增 `S3__ABNORMAL` 白名单和
+  `hasCompleteDiagnosisKnowledgeInvalidAssetCreationRejectionEvidence()`；必须先通过既有 S3 结构化强附件，再要求
+  `apiEvidence.invalidAssetCreateRejectedFromFrontdesk` 与根级 `invalidAssetCreationRejection` 匹配，
+  `operation=POST /engine/knowledge/diagnosis/assets`、`status=400`、`errorCode=ENG-API-002`、`traceId` 非空、
+  `requestedIdentityCode` 非空、`evidenceExcerptPresentInSource=false`、`assetReadbackAbsent=true`、
+  `versionIdAbsent=true`、`validationCaseAttempted=false`，以及 `GET /engine/knowledge/identities` 回读状态为 2xx。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式异常条件行、source/condition/evidence
+  错配、非法资产创建返回 2xx、错误码非 `ENG-API-002`、缺 traceId、被拒绝身份为空、证据片段实际存在、拒绝后仍可回读资产、
+  拒绝后仍生成版本、仍尝试验证病例、回读非 2xx，均不声明 `S3__ABNORMAL`。
+- 第二百二十八批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。首次运行失败于非法资产直连请求缺 CSRF 头，第二次失败于负例 payload 硬编码 `tenant_id=t-1`
+  与当前演练租户不一致；均按根因修复为复用 `postApi` 和当前 `/security/me` 安全画像。最终执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s3-abnormal-condition-row-20260710-r3 npm --prefix frontend run e2e -- --project=chromium diagnosis-knowledge-maintenance.spec.ts`
+  通过；`/tmp/medkernel-e2e-s3-abnormal-condition-row-20260710-r3/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S3__NORMAL,S3__ABNORMAL]`，`launchCoverage.scenarios` 为 `[S3]`。原始附件抽查：
+  `invalidAssetCreationRejection.status=400`、`errorCode=ENG-API-002`、`traceId=trace-s3-invalid-asset-mrdqdc9c-invalid`、
+  `evidenceExcerptPresentInSource=false`、`assetReadbackAbsent=true`、`versionIdAbsent=true`、
+  `validationCaseAttempted=false`、`readbackStatus=200`。
+- 第二百二十八批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 readback operation 错配导致新增 S3 异常态正例缺
+  `S3__ABNORMAL`；随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （716 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需跑 `git diff --check`。
+- 第二百二十八批并行只读审计结论：本批使用 1 个只读 explorer 审计下一批候选，子代理未编辑、未暂存、未提交、
+  未启动服务、未外调。它只推荐 `S15__NORMAL` 作为中优先候选，source 可固定 `SYSTEM_OPERATIONS_RESTORE_CONTINUITY`，
+  但必须绑定真实 `backup.drillEvidence.status=SUCCESS`、隔离恢复证据、当前机构生效版本回读、第三方 runtime consumer
+  回读和临床 `/mpi` 冒烟；若仍是 dev/H2 的 `NOT_AVAILABLE`，不得声明 `S15__NORMAL`。`S30__NORMAL`、`S33__DEGRADATION`、
+  `S37__NORMAL` 仍因缺慢病双向转诊、SPD/UDI 真实业务消费者或床旁知识强附件而不建议冒领。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百二十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只收口检查检验建议 / 医技报告解读 `S17__NORMAL` 代表切片。`stakeholder-view-rehearsal.spec.ts` 在医技角色真实
   前台动作完成后新增 `report-interpretation-scenario-codes` 附件，绑定当前患者上下文、当前机构生效版本、

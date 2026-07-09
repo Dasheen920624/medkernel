@@ -676,6 +676,12 @@ const diagnosisKnowledgeScenarioConditionRows = [
     condition: "NORMAL",
     source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
   },
+  {
+    code: "S3__ABNORMAL",
+    scenarioCode: "S3",
+    condition: "ABNORMAL",
+    source: "DIAGNOSIS_KNOWLEDGE_EVIDENCE_EXCERPT_REJECTED_NO_ASSET_CREATED",
+  },
 ] as const;
 const implementationGuideScenarioConditionRows = [
   {
@@ -4509,6 +4515,8 @@ function diagnosisKnowledgeScenarioConditionBackedByEvidence(
   switch (code) {
     case "S3__NORMAL":
       return hasCompleteDiagnosisKnowledgeStructuredEvidence(parsed);
+    case "S3__ABNORMAL":
+      return hasCompleteDiagnosisKnowledgeInvalidAssetCreationRejectionEvidence(parsed);
     default:
       return false;
   }
@@ -7336,6 +7344,38 @@ function hasCompleteDiagnosisKnowledgeApiEvidence(value: Record<string, unknown>
     is2xxStatus(diagnosisAsset.status) &&
     is2xxStatus(criterion.status) &&
     is2xxStatus(validationCase.status)
+  );
+}
+
+function hasCompleteDiagnosisKnowledgeInvalidAssetCreationRejectionEvidence(
+  value: Record<string, unknown>,
+) {
+  if (!hasCompleteDiagnosisKnowledgeStructuredEvidence(value)) return false;
+  const apiEvidence = recordValue(value.apiEvidence);
+  const rejectionApi = recordValue(apiEvidence?.invalidAssetCreateRejectedFromFrontdesk);
+  const readbackApi = recordValue(apiEvidence?.assetReadbackAfterRejection);
+  const rejection = recordValue(value.invalidAssetCreationRejection);
+  return (
+    rejection !== null &&
+    rejectionApi !== null &&
+    readbackApi !== null &&
+    rejection.operation === "POST /engine/knowledge/diagnosis/assets" &&
+    rejectionApi.operation === "POST /engine/knowledge/diagnosis/assets" &&
+    rejectionApi.status === rejection.status &&
+    rejectionApi.errorCode === rejection.errorCode &&
+    rejectionApi.traceId === rejection.traceId &&
+    rejection.status === 400 &&
+    rejection.errorCode === "ENG-API-002" &&
+    hasText(rejection.traceId) &&
+    hasText(rejection.requestedIdentityCode) &&
+    rejection.evidenceExcerptPresentInSource === false &&
+    rejection.assetReadbackAbsent === true &&
+    rejection.versionIdAbsent === true &&
+    rejection.validationCaseAttempted === false &&
+    rejection.readbackOperation === "GET /engine/knowledge/identities" &&
+    readbackApi.operation === "GET /engine/knowledge/identities" &&
+    is2xxStatus(rejection.readbackStatus) &&
+    readbackApi.status === rejection.readbackStatus
   );
 }
 

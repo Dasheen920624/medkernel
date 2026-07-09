@@ -310,11 +310,64 @@ function diagnosisKnowledgeEvidenceResult(body: Record<string, unknown>) {
   });
 }
 
+function diagnosisKnowledgeAbnormalEvidence(overrides: Record<string, unknown> = {}) {
+  return {
+    ...structuredClone(diagnosisKnowledgeEvidence),
+    apiEvidence: {
+      ...structuredClone(diagnosisKnowledgeEvidence.apiEvidence),
+      invalidAssetCreateRejectedFromFrontdesk: {
+        operation: "POST /engine/knowledge/diagnosis/assets",
+        status: 400,
+        errorCode: "ENG-API-002",
+        traceId: "trace-s3-invalid-asset",
+      },
+      assetReadbackAfterRejection: {
+        operation: "GET /engine/knowledge/identities",
+        status: 200,
+      },
+    },
+    invalidAssetCreationRejection: {
+      operation: "POST /engine/knowledge/diagnosis/assets",
+      status: 400,
+      errorCode: "ENG-API-002",
+      traceId: "trace-s3-invalid-asset",
+      requestedIdentityCode: "frontdesk-dx-invalid-s3",
+      evidenceExcerptPresentInSource: false,
+      assetReadbackAbsent: true,
+      versionIdAbsent: true,
+      validationCaseAttempted: false,
+      readbackOperation: "GET /engine/knowledge/identities",
+      readbackStatus: 200,
+    },
+    scenarioConditionEvidence: [
+      ...structuredClone(diagnosisKnowledgeEvidence.scenarioConditionEvidence),
+      {
+        code: "S3__ABNORMAL",
+        scenarioCode: "S3",
+        condition: "ABNORMAL",
+        source: "DIAGNOSIS_KNOWLEDGE_EVIDENCE_EXCERPT_REJECTED_NO_ASSET_CREATED",
+        evidence: [
+          "证据片段不在来源原文中的诊断资产创建请求被真实服务拒绝",
+          "拒绝后诊断资产列表回读确认未生成资产版本或验证病例",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function expectNoDiagnosisKnowledgeScenarioConditionCoverage(body: Record<string, unknown>) {
   const evidence = diagnosisKnowledgeEvidenceResult(body);
   expect(
     evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
   ).not.toContain("S3__NORMAL");
+}
+
+function expectNoDiagnosisKnowledgeAbnormalCoverage(body: Record<string, unknown>) {
+  const evidence = diagnosisKnowledgeEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S3__ABNORMAL");
 }
 
 const runtimeReleaseVersionedAssets = [
@@ -14483,6 +14536,15 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
   });
 
+  it("declares S3 abnormal condition row only when invalid evidence excerpt is rejected without creating an asset", () => {
+    const evidence = diagnosisKnowledgeEvidenceResult(diagnosisKnowledgeAbnormalEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S3__NORMAL",
+      "S3__ABNORMAL",
+    ]);
+  });
+
   it("does not declare S3 normal condition row without explicit condition evidence", () => {
     const { scenarioConditionEvidence: _omitted, ...body } = diagnosisKnowledgeEvidence;
     const evidence = diagnosisKnowledgeEvidenceResult(body);
@@ -14599,6 +14661,145 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S3 normal condition row when $name", ({ body }) => {
     expectNoDiagnosisKnowledgeScenarioConditionCoverage(body);
+  });
+
+  it("does not declare S3 abnormal condition row without explicit abnormal condition evidence", () => {
+    const evidence = diagnosisKnowledgeEvidenceResult(diagnosisKnowledgeEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S3__NORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S3__ABNORMAL");
+  });
+
+  it.each([
+    {
+      name: "异常条件行来源错配",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S3__ABNORMAL",
+            scenarioCode: "S3",
+            condition: "ABNORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_PAGE_VALIDATION_ONLY",
+            evidence: ["不能用前端表单校验冒领真实服务异常态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "异常条件行状态错配",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S3__ABNORMAL",
+            scenarioCode: "S3",
+            condition: "NORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_EVIDENCE_EXCERPT_REJECTED_NO_ASSET_CREATED",
+            evidence: ["条件状态必须匹配异常态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "异常条件行证据为空",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S3__ABNORMAL",
+            scenarioCode: "S3",
+            condition: "ABNORMAL",
+            source: "DIAGNOSIS_KNOWLEDGE_EVIDENCE_EXCERPT_REJECTED_NO_ASSET_CREATED",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "非法诊断资产创建返回 2xx",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          status: 201,
+        },
+      }),
+    },
+    {
+      name: "非法诊断资产创建错误码不是参数校验失败",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          errorCode: "ENG-API-000",
+        },
+      }),
+    },
+    {
+      name: "非法诊断资产创建缺 traceId",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          traceId: "",
+        },
+      }),
+    },
+    {
+      name: "被拒绝的稳定诊断身份为空",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          requestedIdentityCode: "",
+        },
+      }),
+    },
+    {
+      name: "证据片段实际存在于来源原文",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          evidenceExcerptPresentInSource: true,
+        },
+      }),
+    },
+    {
+      name: "拒绝后仍可回读诊断资产",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          assetReadbackAbsent: false,
+        },
+      }),
+    },
+    {
+      name: "拒绝后仍生成版本",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          versionIdAbsent: false,
+        },
+      }),
+    },
+    {
+      name: "拒绝后仍尝试登记验证病例",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          validationCaseAttempted: true,
+        },
+      }),
+    },
+    {
+      name: "拒绝后缺少诊断资产列表回读",
+      body: diagnosisKnowledgeAbnormalEvidence({
+        invalidAssetCreationRejection: {
+          ...diagnosisKnowledgeAbnormalEvidence().invalidAssetCreationRejection,
+          readbackStatus: 500,
+        },
+      }),
+    },
+  ])("does not declare S3 abnormal condition row when $name", ({ body }) => {
+    expectNoDiagnosisKnowledgeAbnormalCoverage(body);
   });
 
   const sourceLineageEvidence = {
