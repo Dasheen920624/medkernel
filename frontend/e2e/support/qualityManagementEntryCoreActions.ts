@@ -52,6 +52,19 @@ export type QualityManagementRollbackNegativeEvidence = {
   runtimeConsumer: unknown;
 };
 
+export type MedicalRecordQualityIssueEvidence = {
+  operation: "CASE_REVIEW_DRG_INSURANCE_AUDIT";
+  caseReviewStatus: number;
+  drgGroupingStatus: number;
+  insuranceAuditStatus: number;
+  auditStatus: "ISSUE_FOUND";
+  issueId: string;
+  evaluationRunId: string;
+  findingId: string;
+  findingCount: number;
+  taskCount: number;
+};
+
 const pathByMenuKey: Record<QualityManagementEntryCoreActionMenuKey, string> = {
   "qc-dashboard": "/qc/dashboard",
   "qc-alerts": "/qc/alerts",
@@ -68,6 +81,7 @@ export async function attachQualityManagementEntryCoreActionEvidence(
   assetEvidence?: {
     evaluationAssetSupplyChainEvidence: QualityManagementEvaluationAssetEvidence;
     rollbackNegativeEvidence: QualityManagementRollbackNegativeEvidence;
+    medicalRecordQualityIssueEvidence?: MedicalRecordQualityIssueEvidence;
   },
 ) {
   const entryActions = Array.isArray(evidence) ? evidence : [evidence];
@@ -102,6 +116,17 @@ function buildQualityManagementScenarioConditionEvidence(
   const rows = [];
   const insuranceAudit = entryActions.find((action) => action.menuKey === "insurance-audit");
   if (insuranceAudit) {
+    rows.push({
+      code: "S9__ABNORMAL",
+      scenarioCode: "S9",
+      condition: "ABNORMAL",
+      source: "MEDICAL_RECORD_CASE_REVIEW_ISSUE_FOUND",
+      evidence: [
+        "病历内涵质控真实前台执行病案质控并命中质量问题",
+        `服务操作：${insuranceAudit.serviceOperation}`,
+        "医保审核返回 ISSUE_FOUND、评价运行、质量问题和整改任务",
+      ],
+    });
     rows.push({
       code: "S10__NORMAL",
       scenarioCode: "S10",

@@ -15,6 +15,7 @@ import {
 } from "./support/auth";
 import {
   attachQualityManagementEntryCoreActionEvidence,
+  type MedicalRecordQualityIssueEvidence,
   type QualityManagementEntryCoreActionEvidence,
   type QualityManagementEvaluationAssetEvidence,
   type QualityManagementRollbackNegativeEvidence,
@@ -70,6 +71,12 @@ type InsuranceAuditSummary = {
   issueId: string;
   evaluationRunId: string;
   findingId: string;
+  auditStatus: "ISSUE_FOUND";
+  findingCount: number;
+  taskCount: number;
+  caseReviewStatus: number;
+  drgGroupingStatus: number;
+  insuranceAuditStatus: number;
 };
 
 type RectificationSummary = {
@@ -113,6 +120,9 @@ test.describe("质量管理入口核心动作真实前台演练", () => {
       {
         evaluationAssetSupplyChainEvidence,
         rollbackNegativeEvidence,
+        medicalRecordQualityIssueEvidence: buildMedicalRecordQualityIssueEvidence(
+          insuranceAudit.payload,
+        ),
       },
     );
   });
@@ -425,7 +435,17 @@ async function runInsuranceAuditFromUi(
   await ensureReadySession(page, "engine-operator");
 
   return {
-    payload: { issueId, evaluationRunId, findingId },
+    payload: {
+      issueId,
+      evaluationRunId,
+      findingId,
+      auditStatus: "ISSUE_FOUND",
+      findingCount: audit.data?.findingCount ?? 0,
+      taskCount: audit.data?.taskCount ?? 0,
+      caseReviewStatus: caseReviewResponse.status(),
+      drgGroupingStatus: drgResponse.status(),
+      insuranceAuditStatus: auditResponse.status(),
+    },
     action: {
       menuKey: "insurance-audit",
       role: "engine-operator",
@@ -441,6 +461,23 @@ async function runInsuranceAuditFromUi(
       readbackVerified: Boolean(issueId && evaluationRunId && findingId),
       auditVerified,
     },
+  };
+}
+
+function buildMedicalRecordQualityIssueEvidence(
+  audit: InsuranceAuditSummary,
+): MedicalRecordQualityIssueEvidence {
+  return {
+    operation: "CASE_REVIEW_DRG_INSURANCE_AUDIT",
+    caseReviewStatus: audit.caseReviewStatus,
+    drgGroupingStatus: audit.drgGroupingStatus,
+    insuranceAuditStatus: audit.insuranceAuditStatus,
+    auditStatus: audit.auditStatus,
+    issueId: audit.issueId,
+    evaluationRunId: audit.evaluationRunId,
+    findingId: audit.findingId,
+    findingCount: audit.findingCount,
+    taskCount: audit.taskCount,
   };
 }
 

@@ -724,6 +724,54 @@
   下一批继续沿 `LAUNCH-06` 时优先只读预审尚未具备条件行的真实强链路，不能用 `NOT_AVAILABLE` 冒领正常态；
   也可转向 `LAUNCH-13` 九层组织真实证据模型。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
   仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百二十一批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口，
+  本批只收口病历内涵质控 / 医保审核链路中已由真实前台和服务回读证明的异常态，新增 1 条显式背书行：
+  `S9__ABNORMAL`（病案质控、DRG 分组和医保审核真实前台执行，医保审核返回 `ISSUE_FOUND`，
+  评价运行、质量问题和整改任务均有结构化回读）。不声明 `S9__NORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，
+  不把既有 `S10__NORMAL`、`S11__NORMAL`、菜单入口、普通 `scenarioEvidence` 或质量管理代表矩阵冒领为完整 S9、
+  完整 S9-S11、完整 DRG/DIP、完整医保支付审核、完整质量管理、完整 S0-S40 或完整上线。
+- 第二百二十一批实现细节：`frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts`
+  在 `quality-management-entry-core-actions-codes` 附件新增 `medicalRecordQualityIssueEvidence`，
+  记录 `CASE_REVIEW_DRG_INSURANCE_AUDIT`、三段服务状态、`auditStatus=ISSUE_FOUND`、
+  `issueId/evaluationRunId/findingId`、`findingCount/taskCount`，并由
+  `frontend/e2e/support/qualityManagementEntryCoreActions.ts` 生成显式 `scenarioConditionEvidence`，
+  来源固定为 `MEDICAL_RECORD_CASE_REVIEW_ISSUE_FOUND`。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增 S9 异常行白名单和 backing helper，必须同时满足质量管理入口 `insurance-audit` 动作完整、
+  服务 2xx、回读和审计成立、`ISSUE_FOUND`、评价运行 / 问题 / 整改任务非空且计数大于 0，才声明
+  `S9__ABNORMAL`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  缺显式条件附件、未知行、来源错配、空证据、服务非 2xx、缺服务回读、缺审计、审核状态非 `ISSUE_FOUND`、
+  缺评价运行、质量问题数为 0 或整改任务数为 0，均不声明 `S9__ABNORMAL`。
+- 第二百二十一批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；
+  复核 18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s9-abnormal-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium quality-management-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s9-abnormal-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`，
+  Playwright stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.scenarioConditionRows` 为 `[S9__ABNORMAL,S10__NORMAL,S11__NORMAL]`。附件抽查显示
+  `medicalRecordQualityIssueEvidence.operation=CASE_REVIEW_DRG_INSURANCE_AUDIT`、
+  `caseReviewStatus/drgGroupingStatus/insuranceAuditStatus=201`、`auditStatus=ISSUE_FOUND`、
+  `evaluationRunId` 非空、`findingCount=1`、`taskCount=1`，且显式条件行来源为
+  `MEDICAL_RECORD_CASE_REVIEW_ISSUE_FOUND`。
+- 第二百二十一批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增 `S9__ABNORMAL` 正例缺条件行和未知行严格拒绝，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（631 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  首次 `npm --prefix frontend run format:check` 仅提示
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 需 Prettier，已只格式化该文件；提交前仍需在更新本文件后复跑
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`、`npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、release 双脚本和 `git diff --check`。
+- 第二百二十一批并行只读审计结论：本批使用 1 个只读 explorer 审计下一批候选，子代理未编辑、未暂存、未启动服务、
+  未外调。结论是下一批可优先评估 `S0__NORMAL`，但必须把 `product-role-journeys.spec.ts` 的工作台四职责真实前台、
+  服务回读、主动作、高频任务、无权限不足、无浏览器 / 服务端 / 网络错误和六态边界升级为显式条件附件；
+  当前不建议直接做 `S33__DEGRADATION`，因为现有 `third-party-system-family-codes` 只证明 `SPD_UDI_DEVICE`
+  登记、健康诊断和质量缺口诚实回读，`consumerVerified=false`、`standardResourceVerified=false`，
+  不足以证明器械耗材与医疗技术业务降级闭环。下一批不得把第三方系统族降级行、菜单、路由、文案或普通
+  `scenarioEvidence` 冒领为五态条件行。
+- 第二百二十一批边界与下一步：本批只是把病历内涵质控命中质量问题的异常态强链路接入 1 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是完整 S9 或 S9-S11 完成、不是完整质量管理 / 医保审核 /
+  DRG/DIP 完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是 134 清库重部署。下一批继续沿
+  `LAUNCH-06` 时优先复核 `S0__NORMAL` 强字段和六态边界；当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

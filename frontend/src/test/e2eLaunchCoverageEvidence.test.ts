@@ -5672,6 +5672,18 @@ const qualityManagementEntryCoreActionsEvidence = {
     ],
     "QUALITY_MANAGEMENT_EVALUATION_INDICATOR",
   ),
+  medicalRecordQualityIssueEvidence: {
+    operation: "CASE_REVIEW_DRG_INSURANCE_AUDIT",
+    caseReviewStatus: 200,
+    drgGroupingStatus: 200,
+    insuranceAuditStatus: 200,
+    auditStatus: "ISSUE_FOUND",
+    issueId: "issue-qc-medical-record",
+    evaluationRunId: "eval-qc-medical-record",
+    findingId: "finding-qc-medical-record",
+    findingCount: 1,
+    taskCount: 1,
+  },
   entryActions: [
     {
       menuKey: "qc-eval-sets",
@@ -5720,6 +5732,16 @@ const qualityManagementEntryCoreActionsEvidence = {
     },
   ],
   scenarioConditionEvidence: [
+    {
+      code: "S9__ABNORMAL",
+      scenarioCode: "S9",
+      condition: "ABNORMAL",
+      source: "MEDICAL_RECORD_CASE_REVIEW_ISSUE_FOUND",
+      evidence: [
+        "病历内涵质控真实前台执行病案质控并命中质量问题",
+        "医保审核返回 ISSUE_FOUND、评价运行、质量问题和整改任务",
+      ],
+    },
     {
       code: "S10__NORMAL",
       scenarioCode: "S10",
@@ -14711,6 +14733,7 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S5__HIGH_RISK",
+      "S9__ABNORMAL",
       "S10__NORMAL",
       "S11__NORMAL",
     ]);
@@ -14807,6 +14830,93 @@ describe("browser E2E launch coverage evidence", () => {
 
   it.each([
     {
+      name: "病历内涵质控服务不是 2xx",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "insurance-audit" ? { ...item, serviceStatus: 409 } : item,
+        ),
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控缺少服务回读",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "insurance-audit" ? { ...item, readbackVerified: false } : item,
+        ),
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控缺少审计",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "insurance-audit" ? { ...item, auditVerified: false } : item,
+        ),
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控条件行来源错配",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        scenarioConditionEvidence:
+          qualityManagementEntryCoreActionsEvidence.scenarioConditionEvidence.map((item) =>
+            item.code === "S9__ABNORMAL"
+              ? { ...item, source: "QUALITY_ALERT_RECTIFICATION_REVIEW" }
+              : item,
+          ),
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控审核状态不是 ISSUE_FOUND",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordQualityIssueEvidence: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordQualityIssueEvidence,
+          auditStatus: "PASS",
+        },
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控缺少评价运行",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordQualityIssueEvidence: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordQualityIssueEvidence,
+          evaluationRunId: "",
+        },
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控没有质量问题",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordQualityIssueEvidence: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordQualityIssueEvidence,
+          findingCount: 0,
+        },
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
+      name: "病历内涵质控没有整改任务",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordQualityIssueEvidence: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordQualityIssueEvidence,
+          taskCount: 0,
+        },
+      },
+      expectedMissing: "S9__ABNORMAL",
+    },
+    {
       name: "医保审核服务不是 2xx",
       body: {
         ...qualityManagementEntryCoreActionsEvidence,
@@ -14867,12 +14977,22 @@ describe("browser E2E launch coverage evidence", () => {
         ],
       },
       expectedMissing: "S10__NORMAL",
+      expectAllMissing: true,
     },
-  ])("does not declare quality scenario condition rows when $name", ({ body }) => {
-    const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
+  ])(
+    "does not declare quality scenario condition rows when $name",
+    ({ body, expectedMissing, expectAllMissing }) => {
+      const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
 
-    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
-  });
+      if (expectAllMissing) {
+        expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+        return;
+      }
+      expect(
+        evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+      ).not.toContain(expectedMissing);
+    },
+  );
 
   it.each([
     {

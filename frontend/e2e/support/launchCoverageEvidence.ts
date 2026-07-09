@@ -717,6 +717,12 @@ const medicationSafetyScenarioConditionRows = [
 ] as const;
 const qualityManagementScenarioConditionRows = [
   {
+    code: "S9__ABNORMAL",
+    scenarioCode: "S9",
+    condition: "ABNORMAL",
+    source: "MEDICAL_RECORD_CASE_REVIEW_ISSUE_FOUND",
+  },
+  {
     code: "S10__NORMAL",
     scenarioCode: "S10",
     condition: "NORMAL",
@@ -4633,7 +4639,7 @@ function collectQualityManagementScenarioConditionClaimsFromTest(test: BrowserE2
       .filter(
         (expected) =>
           rows.has(expected.code) &&
-          qualityManagementScenarioConditionBackedByEvidence(expected.code, entryActions),
+          qualityManagementScenarioConditionBackedByEvidence(expected.code, parsed, entryActions),
       )
       .map((row) => `scenarioConditionRows:${row.code}`);
   } catch {
@@ -4643,9 +4649,16 @@ function collectQualityManagementScenarioConditionClaimsFromTest(test: BrowserE2
 
 function qualityManagementScenarioConditionBackedByEvidence(
   code: (typeof qualityManagementScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
   entryActions: unknown[],
 ) {
   switch (code) {
+    case "S9__ABNORMAL":
+      return (
+        entryActions.some((action) =>
+          hasCompleteQualityManagementEntryCoreAction(action, "insurance-audit"),
+        ) && hasCompleteMedicalRecordQualityIssueEvidence(parsed.medicalRecordQualityIssueEvidence)
+      );
     case "S10__NORMAL":
       return entryActions.some((action) =>
         hasCompleteQualityManagementEntryCoreAction(action, "insurance-audit"),
@@ -4657,6 +4670,25 @@ function qualityManagementScenarioConditionBackedByEvidence(
     default:
       return false;
   }
+}
+
+function hasCompleteMedicalRecordQualityIssueEvidence(value: unknown) {
+  const evidence = recordValue(value);
+  return (
+    evidence !== null &&
+    evidence.operation === "CASE_REVIEW_DRG_INSURANCE_AUDIT" &&
+    is2xxStatus(evidence.caseReviewStatus) &&
+    is2xxStatus(evidence.drgGroupingStatus) &&
+    is2xxStatus(evidence.insuranceAuditStatus) &&
+    evidence.auditStatus === "ISSUE_FOUND" &&
+    hasText(evidence.issueId) &&
+    hasText(evidence.evaluationRunId) &&
+    hasText(evidence.findingId) &&
+    typeof evidence.findingCount === "number" &&
+    evidence.findingCount > 0 &&
+    typeof evidence.taskCount === "number" &&
+    evidence.taskCount > 0
+  );
 }
 
 function collectClinicalEntryScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
