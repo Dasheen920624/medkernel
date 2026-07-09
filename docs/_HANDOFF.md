@@ -609,6 +609,44 @@
   下一批可新增显式 `scenarioConditionEvidence`，但必须严格绑定 activation/current/consumer/rollback 字段，不声明
   S13 其他四态、离线交付完成、13 类资产全生命周期或完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
   与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十八批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口。
+  本批使用 2 个只读 explorer 并行审计：一个复核 `S13__NORMAL` 强字段边界，一个审计下一批候选；子代理均未编辑、
+  未暂存、未启动服务、未外调。主线程收口机构生效版本 S13 正常主链路，新增 1 条显式背书行：`S13__NORMAL`
+  （前台生成机构生效版本，请求携带本轮本院候选；当前机构生效版本回读本轮候选为 `ACTIVE`；第三方 runtime consumer
+  读取同一候选；部分选择排除未选候选；从历史版本回滚后当前读回和第三方运行契约均排除本轮候选）。不声明
+  `S13__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不把普通 `scenarios:S13`、13 类资产类型覆盖、平台升级分析、
+  离线交付预检或两机构代表切片冒领为完整 S13、13 类资产全生命周期或完整上线。
+- 第二百一十八批实现细节：`frontend/e2e/runtime-release-frontdesk.spec.ts` 的
+  `runtime-release-coverage-codes` 附件新增显式 `scenarioConditionEvidence`，仅写出 `S13__NORMAL`；附件
+  `versionedAssets` 从资产实例列表收敛为去重后的资产类型清单，避免两个 `ACTION_CARD` 实例导致 release coverage
+  严格解析器拒绝普通 S13 与条件行。`frontend/e2e/support/launchCoverageEvidence.ts` 新增 S13 正常行白名单和 collector，
+  必须同时满足目标 spec 通过且非 flaky、完整 `hasRequiredRuntimeReleaseAttachment()`、完整
+  `hasRequiredRuntimeReleasePartialSelectionAttachment()`、严格 `code/scenarioCode/condition/source/evidence`、正数
+  `activatedRevisionNo/rolledBackRevisionNo` 且回滚修订号更高、API 强布尔全真、local candidate activation/current/consumer/rollback
+  闭环、partial selection 缺席证明、两机构隔离、平台升级分析和离线交付证据。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知 row、来源错配、空 evidence、激活 / 当前回读 / 第三方回读缺失、
+  激活请求不含本轮候选、当前或第三方未读回 `ACTIVE` 本轮候选、回滚后仍含本轮候选、未选候选未被排除、资产类型清单含重复项，
+  均不声明 `S13__NORMAL`。
+- 第二百一十八批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175
+  无监听）。首次执行到
+  `/tmp/medkernel-e2e-s13-normal-condition-row-20260709-r1` 时主链路通过且原始附件写出 `S13__NORMAL`，但聚合
+  `launchCoverage` 为空；根因是附件 `versionedAssets` 含重复 `ACTION_CARD`，严格解析器按类型清单拒绝。修复去重后复跑
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s13-normal-condition-row-20260709-r2 npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s13-normal-condition-row-20260709-r2/report/results.json` 读回 `status=PASSED`、`expected=1`、
+  `unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.productLayers=[RELEASE_GOVERNANCE]`、
+  `launchCoverage.scenarios=[S13]`、`launchCoverage.scenarioConditionRows=[S13__NORMAL]`、`versionedAssetCount=13`；
+  原始附件 `activatedRevisionNo=7`、`rolledBackRevisionNo=10`，并写出同一条结构化 `scenarioConditionEvidence`。
+- 第二百一十八批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S13__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（588 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十八批并行只读审计结论与下一步：下一批候选可优先评估 `S14__HIGH_RISK`
+  （`mfa-login-frontdesk.spec.ts` 的真实 MFA 开启、TOTP 绑定、挑战页、2xx 验证、`/security/me` 回读、配置恢复和临时账号停用），
+  但必须先新增结构化证据和显式 `scenarioConditionEvidence`，不得混用既有 `S14__NORMAL` 身份来源绑定或
+  `S14__ABNORMAL` 越权拒绝，也不得冒领完整身份治理 / 权限体系 / MFA 运营策略。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

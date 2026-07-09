@@ -503,6 +503,8 @@ function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {})
     deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
     serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
     apiEvidence: runtimeReleaseApiEvidence,
+    activatedRevisionNo: 9,
+    rolledBackRevisionNo: 10,
     localCandidate: runtimeReleasePrimaryCandidate,
     unselectedLocalCandidate: runtimeReleaseUnselectedCandidate,
     activationRequest: { activeAssets: [runtimeReleasePrimaryCandidate] },
@@ -521,6 +523,18 @@ function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {})
     rollbackReadback: { localCandidateAbsent: true, assets: [] },
     rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
     scenarioEvidence: runtimeReleaseScenarioEvidence,
+    scenarioConditionEvidence: [
+      {
+        code: "S13__NORMAL",
+        scenarioCode: "S13",
+        condition: "NORMAL",
+        source: "RUNTIME_RELEASE_ACTIVATION_ROLLBACK_CONTRACT_READBACK",
+        evidence: [
+          "前台生成机构生效版本并回读当前机构资产闭包",
+          "第三方运行契约读取同一机构生效版本且回滚后排除本轮候选",
+        ],
+      },
+    ],
     ...overrides,
   };
 }
@@ -7223,6 +7237,147 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S13"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S13 normal condition row only with explicit runtime release activation, consumer, and rollback evidence", () => {
+    const evidence = runtimeReleaseEvidenceResult(runtimeReleaseCompleteEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S13__NORMAL",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺显式条件附件",
+      overrides: { scenarioConditionEvidence: undefined },
+    },
+    {
+      name: "未知条件行",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S13__ABNORMAL",
+            scenarioCode: "S13",
+            condition: "ABNORMAL",
+            source: "RUNTIME_RELEASE_ACTIVATION_ROLLBACK_CONTRACT_READBACK",
+            evidence: ["未知条件不应声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "来源错配",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S13__NORMAL",
+            scenarioCode: "S13",
+            condition: "NORMAL",
+            source: "RUNTIME_RELEASE_MENU_NAVIGATION_ONLY",
+            evidence: ["错误来源不应声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "证据文本为空",
+      overrides: {
+        scenarioConditionEvidence: [
+          {
+            code: "S13__NORMAL",
+            scenarioCode: "S13",
+            condition: "NORMAL",
+            source: "RUNTIME_RELEASE_ACTIVATION_ROLLBACK_CONTRACT_READBACK",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "激活接口未成功",
+      overrides: {
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          activationPosted: false,
+        },
+      },
+    },
+    {
+      name: "当前机构版本未回读",
+      overrides: {
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          currentReleaseReadback: false,
+        },
+      },
+    },
+    {
+      name: "第三方运行契约未回读",
+      overrides: {
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          runtimeConsumerReadback: false,
+        },
+      },
+    },
+    {
+      name: "激活请求不含本轮候选",
+      overrides: {
+        activationRequest: { activeAssets: [] },
+      },
+    },
+    {
+      name: "机构版本回读候选未 ACTIVE",
+      overrides: {
+        activationReadback: {
+          assets: [{ ...runtimeReleasePrimaryAsset, entryState: "DISABLED" }],
+        },
+      },
+    },
+    {
+      name: "第三方运行契约缺本轮候选",
+      overrides: {
+        runtimeConsumerReadback: { assets: [] },
+      },
+    },
+    {
+      name: "回滚后机构版本仍含本轮候选",
+      overrides: {
+        rollbackReadback: { localCandidateAbsent: true, assets: [runtimeReleasePrimaryAsset] },
+      },
+    },
+    {
+      name: "回滚后第三方运行契约仍含本轮候选",
+      overrides: {
+        rollbackRuntimeConsumerReadback: {
+          localCandidateAbsent: true,
+          assets: [runtimeReleasePrimaryAsset],
+        },
+      },
+    },
+    {
+      name: "未选候选未被排除",
+      overrides: {
+        partialSelection: {
+          selectedCandidate: runtimeReleasePrimaryCandidate,
+          unselectedCandidate: runtimeReleaseUnselectedCandidate,
+          activationRequestOmitsUnselected: false,
+          activationReadbackOmitsUnselected: true,
+          runtimeConsumerOmitsUnselected: true,
+        },
+      },
+    },
+    {
+      name: "资产类型清单含重复项",
+      overrides: {
+        versionedAssets: [...runtimeReleaseVersionedAssets, "ACTION_CARD"],
+      },
+    },
+  ])("does not declare S13 normal condition row when $name", ({ overrides }) => {
+    const evidence = runtimeReleaseEvidenceResult(runtimeReleaseCompleteEvidence(overrides));
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it("does not declare release governance coverage from a runtime release spec without complete runtime evidence", () => {

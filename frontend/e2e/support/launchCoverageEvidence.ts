@@ -110,6 +110,14 @@ const runtimeReleaseClaims = [
 ];
 
 const runtimeReleasePartialSelectionClaims = ["scenarios:S13"];
+const runtimeReleaseScenarioConditionRows = [
+  {
+    code: "S13__NORMAL",
+    scenarioCode: "S13",
+    condition: "NORMAL",
+    source: "RUNTIME_RELEASE_ACTIVATION_ROLLBACK_CONTRACT_READBACK",
+  },
+] as const;
 
 const thirdPartySystemFamilyClaims = [
   "productLayers:DATA_INTEROPERABILITY",
@@ -3997,6 +4005,9 @@ function s2s4ScenarioConditionBackedByApiEvidence(
 function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
   const claims = new Set<string>();
   for (const test of tests) {
+    for (const claim of collectRuntimeReleaseScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectServiceOrganizationScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4055,6 +4066,72 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     }
   }
   return [...claims];
+}
+
+function collectRuntimeReleaseScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "runtime-release-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "runtime-release-coverage-codes",
+  );
+  if (
+    !attachment?.body ||
+    !hasRequiredRuntimeReleaseAttachment(test) ||
+    !hasRequiredRuntimeReleasePartialSelectionAttachment(test)
+  ) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      runtimeReleaseScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return runtimeReleaseScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          runtimeReleaseScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function runtimeReleaseScenarioConditionBackedByEvidence(
+  code: (typeof runtimeReleaseScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S13__NORMAL": {
+      if (
+        !isPositiveNumber(parsed.activatedRevisionNo) ||
+        !isPositiveNumber(parsed.rolledBackRevisionNo)
+      ) {
+        return false;
+      }
+      const activatedRevisionNo = Number(parsed.activatedRevisionNo);
+      const rolledBackRevisionNo = Number(parsed.rolledBackRevisionNo);
+      return (
+        rolledBackRevisionNo > activatedRevisionNo &&
+        hasCompleteRuntimeReleaseApiEvidence(parsed.apiEvidence) &&
+        hasCompleteRuntimeReleaseLocalCandidateEvidence(parsed) &&
+        hasCompleteRuntimeReleasePartialSelectionEvidence(parsed) &&
+        hasCompleteRuntimeReleaseMultiHospitalEvidence(parsed.multiHospitalDifferentiation) &&
+        hasCompleteRuntimeReleasePlatformUpgradeEvidence(parsed.platformUpgradeAnalysis) &&
+        hasCompleteRuntimeReleaseOfflineDeliveryEvidence(parsed)
+      );
+    }
+    default:
+      return false;
+  }
 }
 
 function collectServiceOrganizationScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {

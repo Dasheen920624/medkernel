@@ -101,6 +101,13 @@ type RuntimeReleaseCoverageEvidence = {
     assets: RuntimeReleaseAssetEvidence[];
   };
   scenarioEvidence: Array<{ observedStages: string[] }>;
+  scenarioConditionEvidence?: Array<{
+    code: string;
+    scenarioCode: string;
+    condition: string;
+    source: string;
+    evidence: string[];
+  }>;
 };
 type RuntimeReleasePlatformUpgradeEvidence = {
   targetBaseline: {
@@ -684,6 +691,18 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         coverageEvidence,
         "回滚后后端和第三方运行契约读取同一修订",
       );
+      coverageEvidence.scenarioConditionEvidence = [
+        {
+          code: "S13__NORMAL",
+          scenarioCode: "S13",
+          condition: "NORMAL",
+          source: "RUNTIME_RELEASE_ACTIVATION_ROLLBACK_CONTRACT_READBACK",
+          evidence: [
+            "前台生成机构生效版本并回读当前机构资产闭包",
+            "第三方运行契约读取同一机构生效版本且回滚后排除本轮候选",
+          ],
+        },
+      ];
       recordCleanRuntime(page, "前台从历史机构生效版本回滚", runtime, records);
       await captureEvidence(page, testInfo, "runtime-release-frontdesk-rollback");
     } finally {
@@ -1826,7 +1845,9 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
 function createRuntimeReleaseCoverageEvidence(): RuntimeReleaseCoverageEvidence {
   return {
     productLayers: ["RELEASE_GOVERNANCE"],
-    versionedAssets: requiredRuntimeAssetsForRehearsal.map((asset) => asset.assetType),
+    versionedAssets: Array.from(
+      new Set(requiredRuntimeAssetsForRehearsal.map((asset) => asset.assetType)),
+    ),
     deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
     serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
     apiEvidence: {
