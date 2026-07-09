@@ -109,6 +109,7 @@ import {
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useDomainFacadeB0Evidence,
   useModelEvaluationRunDetail,
   useModelEvaluationRuns,
   useRunModelEvaluation,
@@ -4971,6 +4972,44 @@ describe("knowledge review api helpers", () => {
         reason: "已核对来源、回归病例和发布范围。",
       },
     );
+  });
+
+  it("loads domain facade B0 evidence through the real engine endpoint", async () => {
+    const evidence = [
+      {
+        code: "SPECIALTY-EXT-01",
+        kind: "DOMAIN",
+        status: "PASS",
+        evidenceId: "domain-facade-b0-SPECIALTY-EXT-01",
+        b0Executable: true,
+        modelRequired: false,
+        clinicalContentSeeded: false,
+        newBusinessEngineRequired: false,
+        honestEmptyWhenAssetsMissing: true,
+        serviceCombinationMembersResolvable: true,
+        assetSeedPolicy: "NO_REAL_CLINICAL_CONTENT_SEEDED",
+        b0Workflows: ["共享规则链路"],
+        engineEvidence: [
+          {
+            engine: "RULE",
+            sharedHandlerClass: "com.medkernel.engine.rule.RuleEngineService",
+            b0Route: "GET /api/v1/engine/rules",
+            b0Assertion: "无模型确定性规则入口可达",
+            deterministic: true,
+            handlerPresent: true,
+            clinicalContentSeeded: false,
+          },
+        ],
+        memberFacadeCodes: [],
+        verifiedMemberFacadeCodes: [],
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: evidence } });
+
+    const hook = renderApiHook(() => useDomainFacadeB0Evidence());
+
+    await waitFor(() => expect(hook.result.current.data).toBe(evidence));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/domain-facades/b0-evidence");
   });
 });
 

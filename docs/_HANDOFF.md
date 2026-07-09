@@ -18,11 +18,52 @@
   以 [PRODUCT_SCOPE](PRODUCT_SCOPE.md) §15 的 15 项完整上线验收为唯一收口清单，每个后续批次都要明确映射到其中的
   一个或多个验收项，并区分“已证实”“代表切片”“仍缺失”“需外部/破坏性确认”。不得把代表矩阵冒领为完整上线。
 - 当前最高优先缺口顺序：1）把 13 类版本化资产与 11 类知识内容分类从代表证据升级为受控医学资源生产、
-  审核、发布、机构生效、运行消费、持续更新、影响分析和回滚审计的完整主链；2）按 34 个菜单入口补齐真实业务动作、
+  审核、发布、机构生效、运行消费、持续更新、影响分析和回滚审计的完整主链；2）按 35 个菜单入口补齐真实业务动作、
   服务回读、审计、六态和权限边界，不能停在菜单、路由或文案；3）继续扩 13 类第三方系统族真实消费者与
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十二批本地推进：用户要求在保证质量前提下加速并使用并行/子代理。本批不再硬凑 S0-S40 五态行，
+  改为补“全专业领域门面 B0 真实前台证据”底座覆盖：新增知识治理入口“领域门面无模型证据”，由医疗引擎运营员
+  从前台真实回读 `GET /engine/domain-facades/b0-evidence`，严格证明 17 张专业领域门面均进入共享 B0 主链路、
+  模型非必需、无临床内容预置、不新增专属业务引擎，且 `SPECIALTY-EXT-01` 缺资产时诚实空态、
+  `SVC-DOMAIN-01/02` 组合成员可解析。本批只声明
+  `domainFacadeB0Coverage:CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG`；不声明 `scenarioConditionRows`、
+  不声明 `scenarios:S28/S29/S30/S37/S38/S39`，不冒领完整专业领域、真实消费者、业务闭环、完整 S0-S40、
+  134 清库、目标环境部署或完整上线验收。
+- 第二百三十二批实现细节：`frontend/src/shared/api/hooks.ts` 新增
+  `useDomainFacadeB0Evidence()` 与领域门面 B0 类型；`frontend/src/pages/quality/DomainFacadeB0Evidence.tsx`
+  新增只读页面；`frontend/src/shared/config/routes.ts`、`frontend/src/app/router.tsx`、菜单/路由/产品目录测试同步接入
+  `/knowledge/domain-facades/b0-evidence`。后端权限目录同步新增 `menu.domain-facade-b0-evidence`，
+  医疗引擎运营员默认菜单可见；`scripts/audit/export-product-capabilities.mjs` 重新生成
+  `docs/audit/product-function-catalog.md` 与 `docs/audit/product-role-journeys.md`，四职责菜单并集更新为 35 个产品入口。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增独立 `domainFacadeB0Coverage` collector，只接受
+  `domain-facade-b0-evidence.spec.ts` 的指定标题与 `domain-facade-b0-evidence-codes` 附件，要求 17 个 code 精确匹配、
+  API 2xx、每行 `status=PASS`、`evidenceId=DOMAIN-B0-${code}`、`b0Executable=true`、`modelRequired=false`、
+  `clinicalContentSeeded=false`、`newBusinessEngineRequired=false`、共享 handler/route/确定性证据完整，并要求 scope 明确否定
+  完整专业领域、S0-S40、真实消费者、业务闭环和完整上线。
+- 第二百三十二批测试与调试：本批复用并关闭上一轮 6 个子代理，并新增 1 个只读 explorer 审计本批 coverage 边界；
+  子代理未编辑、未暂存、未提交、未启动服务、未外调。审计确认 collector 没有把 B0 coverage 并入
+  `scenarioConditionRows` 或 `scenarios`，并指出负例不足；主线程补齐缺附件、错文件、错标题、错附件名、错 coverage key、
+  行级 `status/evidenceId/b0Executable/newBusinessEngineRequired` 等负例，`e2eLaunchCoverageEvidence` 由 767 项增至
+  776 项。真实 E2E 前两次失败均为 Playwright strict mode 文本定位命中重复元素，按根因收窄为统计标题 / 表格行定位，
+  不是产品接口或权限失败。
+- 第二百三十二批真实 E2E：先停止上一轮残留本地后端 18102 和前端 5175，重新
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 构建 jar，再临时启动后端 18102（dev/H2）和前端 5175。
+  最终执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-domain-facade-b0-20260710-r4 npm --prefix frontend run e2e -- --project=chromium domain-facade-b0-evidence.spec.ts`
+  通过；`/tmp/medkernel-e2e-domain-facade-b0-20260710-r4/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.domainFacadeB0Coverage` 仅含
+  `CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG`，且不含 `scenarios` / `scenarioConditionRows`。E2E 后已停止本地服务并复核
+  18102/5175 无监听。
+- 第二百三十二批验证证据：已通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（776 tests）、
+  `npm --prefix frontend run test -- productCatalog menu productRoleJourneys routes router hooks e2eLaunchCoverageEvidence -- --run`
+  （994 tests）、`mvn -f medkernel-backend/pom.xml -Dtest=MenuPermissionCatalogTest,MenuPermissionControllerTest,DefaultPermissionPolicyTest,SecurityMeControllerTest test`
+  （27 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 和真实 E2E。提交前仍需跑 `git diff --check`。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百二十五批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只把已有随访协同真实前台强链路中的异常回院登记升级为显式 `S12__ABNORMAL` 条件行。`real-frontdesk-rehearsal.spec.ts`
   的 `real-frontdesk-scenario-codes` 附件在既有 `S12__NORMAL` 外新增第二条 `scenarioConditionEvidence`，来源仍固定为

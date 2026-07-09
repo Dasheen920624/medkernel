@@ -12,6 +12,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
 import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_RELEASES;
 import static com.medkernel.engine.security.PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE;
+import static com.medkernel.engine.security.PermissionCode.MENU_DOMAIN_FACADE_B0_EVIDENCE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
 import static com.medkernel.engine.security.PermissionCode.MENU_GRAPH_EXPLORE;
 import static com.medkernel.engine.security.PermissionCode.MENU_IDENTITY_BINDINGS;
@@ -41,7 +42,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>入口权限只承认 32 个按业务域分类的主导航、1 个页头和 1 个个人入口。
+ * <p>入口权限只承认 33 个按业务域分类的主导航、1 个页头和 1 个个人入口。
  */
 public final class MenuPermissionCatalog {
 
@@ -63,6 +64,8 @@ public final class MenuPermissionCatalog {
             MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "terminology-mapping", "术语字典",
             MENU_TERMINOLOGY_MAPPING, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "domain-facade-b0-evidence", "领域门面无模型证据",
+            MENU_DOMAIN_FACADE_B0_EVIDENCE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "rule-definitions", "临床规则",
             MENU_RULE_DEFINITIONS, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "pathway-templates", "临床路径库",

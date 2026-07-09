@@ -42,6 +42,7 @@ const KnowledgeProduction = lazy(() => import("@/pages/quality/KnowledgeProducti
 const DiagnosisKnowledgeMaintenance = lazy(
   () => import("@/pages/quality/DiagnosisKnowledgeMaintenance"),
 );
+const DomainFacadeB0Evidence = lazy(() => import("@/pages/quality/DomainFacadeB0Evidence"));
 
 // 机构与安全治理域
 const AdminUsers = lazy(() => import("@/pages/compliance/AdminUsers"));
@@ -100,6 +101,10 @@ export function AppRouter() {
           <Route path="/knowledge/institution" element={<InstitutionKnowledge />} />
           <Route path="/knowledge/diagnosis" element={<DiagnosisKnowledgeMaintenance />} />
           <Route path="/knowledge/production" element={<KnowledgeProduction />} />
+          <Route
+            path="/knowledge/domain-facades/b0-evidence"
+            element={<DomainFacadeB0Evidence />}
+          />
 
           {/* 机构与安全治理 */}
           <Route path="/admin/users" element={<AdminUsers />} />

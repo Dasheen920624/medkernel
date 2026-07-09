@@ -94,8 +94,8 @@ describe("product function catalog", () => {
         };
       });
 
-    expect(backendEntries).toHaveLength(34);
-    expect(frontendEntries).toHaveLength(34);
+    expect(backendEntries).toHaveLength(35);
+    expect(frontendEntries).toHaveLength(35);
     expect(backendEntries).toEqual(expect.arrayContaining(frontendEntries));
     expect(
       backendEntries.filter((entry) => entry.placement === "primary").map((entry) => entry.menuKey),

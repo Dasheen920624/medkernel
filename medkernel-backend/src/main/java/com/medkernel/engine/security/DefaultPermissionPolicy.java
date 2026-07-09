@@ -100,6 +100,7 @@ public final class DefaultPermissionPolicy {
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_INSTITUTION_KNOWLEDGE,
             MENU_DIAGNOSIS_KNOWLEDGE,
+            MENU_DOMAIN_FACADE_B0_EVIDENCE,
             MENU_RUNTIME_RELEASES,
             MENU_TERMINOLOGY_MAPPING,
             MENU_RULE_DEFINITIONS,

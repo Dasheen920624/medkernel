@@ -720,6 +720,35 @@ const knowledgeProductionExperience: RouteExperience = {
   ],
 };
 
+const domainFacadeB0EvidenceExperience: RouteExperience = {
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "核查 17 张门面 B0 共享链路，不声明完整专业领域上线",
+    "门面 B0 证据",
+    "small",
+  ),
+  evidenceDetailContent: [
+    "门面代码",
+    "B0 证据编号",
+    "共享处理器",
+    "确定性入口",
+    "成员门面解析结果",
+  ],
+  evidence: "只证明 17 张领域门面复用无模型 B0 主链路；不证明完整专业领域、真实消费者或业务闭环",
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "核查门面目录是否进入共享 B0 链路并保留无模型证据",
+      boundary: "该页面不声明完整专业领域上线，也不替代 S0-S40 上线验收",
+    },
+    {
+      role: "知识治理负责人",
+      responsibility: "确认门面未预置真实医学内容，缺资产时仍诚实空态",
+      boundary: "真实医学内容仍需通过受控知识生产、审核、发布和运行消费链路进入",
+    },
+  ],
+};
+
 const systemProvidersExperience: RouteExperience = {
   ...readonlyExperience("平台管理员", "核查依赖服务、备份恢复与国产化运行状态", "异常优先"),
   stakeholderViews: [
@@ -1364,6 +1393,20 @@ const routeMetaInputs: RouteMetaInput[] = [
     experience: knowledgeProductionExperience,
     pageType: "configuration",
     stateMachine: "config",
+  },
+  {
+    path: "/knowledge/domain-facades/b0-evidence",
+    title: "领域门面无模型证据",
+    breadcrumb: ["知识治理", "领域门面无模型证据"],
+    requireAuth: true,
+    sectionKey: "knowledge-governance",
+    menuKey: "domain-facade-b0-evidence",
+    menuLabel: "领域门面无模型证据",
+    placement: "primary",
+    navigationOrder: 5.5,
+    requiredPermissions: ["menu.domain-facade-b0-evidence", "knowledge.read"],
+    experience: domainFacadeB0EvidenceExperience,
+    pageType: "review",
   },
   {
     path: "/admin/users",

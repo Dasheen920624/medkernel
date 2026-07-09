@@ -55,7 +55,7 @@ describe("route metadata", () => {
       }, {});
 
     expect(placementCounts).toEqual({
-      primary: 32,
+      primary: 33,
       header: 1,
       profile: 1,
     });
@@ -1299,6 +1299,17 @@ describe("route metadata", () => {
       pageType: "configuration",
       stateMachine: "config",
     });
+    expect(findRouteByPath("/knowledge/domain-facades/b0-evidence")).toMatchObject({
+      title: "领域门面无模型证据",
+      sectionKey: "knowledge-governance",
+      menuKey: "domain-facade-b0-evidence",
+      menuLabel: "领域门面无模型证据",
+      requiredPermissions: ["menu.domain-facade-b0-evidence", "knowledge.read"],
+      pageType: "review",
+    });
+    expect(findRouteByPath("/knowledge/domain-facades/b0-evidence")?.experience?.goal).toBe(
+      "核查 17 张门面 B0 共享链路，不声明完整专业领域上线",
+    );
   });
 
   it("requires the knowledge production menu and knowledge read permission", () => {

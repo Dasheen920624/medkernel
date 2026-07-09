@@ -20,14 +20,14 @@
 | 职责 | 菜单键（按目录顺序） |
 |---|---|
 | 平台管理员 | `workbench, tenant-onboarding, admin-users, identity-bindings, admin-audit, security-baseline, implementation-guide, adapter-hub, system-providers, runtime-diagnostics, domestic-check, notifications, notification-settings` |
-| 医疗引擎运营员 | `workbench, knowledge-governance, runtime-releases, institution-knowledge, diagnosis-knowledge, terminology-mapping, rule-definitions, pathway-templates, provenance, graph-explore, knowledge-production, ai-workflows, clinical-followup, sandbox, qc-dashboard, qc-alerts, insurance-audit, qc-eval-sets, admin-audit, notifications, notification-settings` |
+| 医疗引擎运营员 | `workbench, knowledge-governance, runtime-releases, institution-knowledge, diagnosis-knowledge, terminology-mapping, domain-facade-b0-evidence, rule-definitions, pathway-templates, provenance, graph-explore, knowledge-production, ai-workflows, clinical-followup, sandbox, qc-dashboard, qc-alerts, insurance-audit, qc-eval-sets, admin-audit, notifications, notification-settings` |
 | 临床使用者 | `workbench, mpi, patient-pathways, cdss-fatigue, workflow-todos, clinical-followup, sandbox, notifications, notification-settings` |
 | 审计员 | `workbench, provenance, admin-audit, security-baseline, notifications, notification-settings` |
 
-四个职责的并集必须等于当前 34 个产品入口。任何入口都不能因职责收缩被删除或变成无人可达。
+四个职责的并集必须等于当前 35 个产品入口。任何入口都不能因职责收缩被删除或变成无人可达。
 
 ## 3. 自动化证据
 
-- `DefaultPermissionPolicyTest` 锁定四职责菜单快照、最小权限边界和 34 个入口全覆盖。
+- `DefaultPermissionPolicyTest` 锁定四职责菜单快照、最小权限边界和 35 个入口全覆盖。
 - `routes.test.ts` 锁定前端只按菜单与权限判定，不再重复检查角色。
 - `productRoleJourneys.test.ts` 锁定工作台标题、主动作、高频任务与本文同步。

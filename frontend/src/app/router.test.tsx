@@ -78,6 +78,31 @@ vi.mock("@/shared/api/hooks", () => ({
   useRenewSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
+  useDomainFacadeB0Evidence: () => ({
+    data: [
+      {
+        code: "SPECIALTY-EXT-01",
+        kind: "DOMAIN",
+        status: "PASS",
+        evidenceId: "domain-facade-b0-SPECIALTY-EXT-01",
+        b0Executable: true,
+        modelRequired: false,
+        clinicalContentSeeded: false,
+        newBusinessEngineRequired: false,
+        honestEmptyWhenAssetsMissing: true,
+        serviceCombinationMembersResolvable: true,
+        assetSeedPolicy: "NO_REAL_CLINICAL_CONTENT_SEEDED",
+        b0Workflows: ["共享规则链路"],
+        engineEvidence: [],
+        memberFacadeCodes: [],
+        verifiedMemberFacadeCodes: [],
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }));
 
 function authenticatedProfile() {
@@ -141,6 +166,31 @@ function runtimeReleaseProfile() {
       },
     ],
     menuKeys: [...profile.menuKeys, "runtime-releases"],
+  };
+}
+
+function domainFacadeB0EvidenceProfile() {
+  const profile = authenticatedProfile();
+  return {
+    ...profile,
+    permissions: [
+      ...profile.permissions,
+      {
+        code: "knowledge.read",
+        dimension: "ACTION",
+        target: "knowledge.read",
+        displayName: "读取知识",
+        risk: "LOW",
+      },
+      {
+        code: "menu.domain-facade-b0-evidence",
+        dimension: "MENU",
+        target: "domain-facade-b0-evidence",
+        displayName: "领域门面无模型证据",
+        risk: "LOW",
+      },
+    ],
+    menuKeys: [...profile.menuKeys, "domain-facade-b0-evidence"],
   };
 }
 
@@ -241,5 +291,14 @@ describe("AppRouter", () => {
 
     expect(await screen.findByText("运行验收自检")).toBeInTheDocument();
     expect(screen.queryByText(/W3|业务域任务实装/)).toBeNull();
+  });
+
+  it("routes domain facade B0 evidence through the protected knowledge layout", async () => {
+    securityProfileState.value = { data: domainFacadeB0EvidenceProfile(), isError: false };
+    renderRouter("/knowledge/domain-facades/b0-evidence");
+
+    expect(await screen.findByRole("heading", { name: "领域门面无模型证据" })).toBeInTheDocument();
+    expect(screen.getByText("17 张领域门面")).toBeInTheDocument();
+    expect(screen.getByText(/不声明完整专业领域上线/)).toBeInTheDocument();
   });
 });

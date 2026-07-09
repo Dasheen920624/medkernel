@@ -209,6 +209,12 @@ const routeDecisions = {
     targetEntry: "诊断知识库",
     task: "管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
   },
+  "/knowledge/domain-facades/b0-evidence": {
+    decision: "SPLIT",
+    targetDomain: "知识治理",
+    targetEntry: "领域门面无模型证据",
+    task: "核查 17 张专业领域门面复用无模型 B0 主链路、缺资产诚实空态和无新增专属业务引擎边界",
+  },
   "/knowledge/production": {
     decision: "SPLIT",
     targetDomain: "知识生产",

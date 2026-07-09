@@ -6,9 +6,9 @@
 
 ## 1. 库存结论
 
-- 前端路由：43 项。
-- 后端菜单：34 项。
-- 页面与页内组件：53 项。
+- 前端路由：44 项。
+- 后端菜单：35 项。
+- 页面与页内组件：54 项。
 - 后端控制器：94 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、知识生产、临床协同、质量管理、合规安全、系统运维。
@@ -22,7 +22,7 @@
 | MOVE | 60 |
 | REMOVE | 1 |
 | RENAME | 24 |
-| SPLIT | 8 |
+| SPLIT | 11 |
 
 ## 2. 前端路由与客户任务裁决
 
@@ -118,6 +118,9 @@
 <!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
 <!-- route:/knowledge/production -->
 | `/knowledge/production` | 知识生产工作台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产工作台 | 核查知识生产准备、生产任务、候选血缘、安全校验、候选分流、影子证据和高敏患者上下文用途确认重试 |
+<!-- capability:route:route@%2Fknowledge%2Fdomain-facades%2Fb0-evidence decision=SPLIT -->
+<!-- route:/knowledge/domain-facades/b0-evidence -->
+| `/knowledge/domain-facades/b0-evidence` | 领域门面无模型证据 | knowledge-governance | domain-facade-b0-evidence | primary | SPLIT | 知识治理 | 领域门面无模型证据 | 核查 17 张专业领域门面复用无模型 B0 主链路、缺资产诚实空态和无新增专属业务引擎边界 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -189,6 +192,9 @@
 <!-- capability:menu:menu@terminology-mapping decision=MOVE -->
 <!-- menu:terminology-mapping -->
 | `terminology-mapping` | 术语字典 | `knowledge-governance` | primary | `MENU_TERMINOLOGY_MAPPING` | MOVE | 知识治理 | 术语字典 |
+<!-- capability:menu:menu@domain-facade-b0-evidence decision=SPLIT -->
+<!-- menu:domain-facade-b0-evidence -->
+| `domain-facade-b0-evidence` | 领域门面无模型证据 | `knowledge-governance` | primary | `MENU_DOMAIN_FACADE_B0_EVIDENCE` | SPLIT | 知识治理 | 领域门面无模型证据 |
 <!-- capability:menu:menu@rule-definitions decision=MOVE -->
 <!-- menu:rule-definitions -->
 | `rule-definitions` | 临床规则 | `knowledge-governance` | primary | `MENU_RULE_DEFINITIONS` | MOVE | 知识治理 | 临床规则 |
@@ -331,6 +337,8 @@
 | `frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgePanel.tsx decision=MERGE -->
 | `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDomainFacadeB0Evidence.tsx decision=SPLIT -->
+| `frontend/src/pages/quality/DomainFacadeB0Evidence.tsx` | `/knowledge/domain-facades/b0-evidence` | SPLIT | 知识治理 | 领域门面无模型证据 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInstitutionKnowledge.tsx decision=SPLIT -->
 | `frontend/src/pages/quality/InstitutionKnowledge.tsx` | `/knowledge/institution` | SPLIT | 知识治理 | 机构知识库 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInsuranceAudit.tsx decision=RENAME -->
@@ -463,7 +471,7 @@
 <!-- capability:controller:controller@KnowledgeExportController decision=MERGE -->
 | `KnowledgeExportController` | POST /api/v1/engine/knowledge/exports<br>GET /api/v1/engine/knowledge/exports/{jobCode}<br>GET /api/v1/engine/knowledge/exports<br>POST /api/v1/engine/knowledge/exports/{jobCode}/cancel<br>GET /api/v1/engine/knowledge/exports/{jobCode}/download | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@KnowledgeIdentityController decision=KEEP -->
-| `KnowledgeIdentityController` | GET /api/v1/engine/knowledge/identities<br>POST /api/v1/engine/knowledge/identities<br>GET /api/v1/engine/knowledge/identities/{id}<br>GET /api/v1/engine/knowledge/identities/by-code/{identityCode}<br>GET /api/v1/engine/knowledge/identities/{id}/active<br>GET /api/v1/engine/knowledge/identities/{id}/lineage<br>GET /api/v1/engine/knowledge/identities/{id}/provenance<br>GET /api/v1/engine/knowledge/identities/{id}/citations<br>其余 5 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `KnowledgeIdentityController` | GET /api/v1/engine/knowledge/identities<br>POST /api/v1/engine/knowledge/identities<br>GET /api/v1/engine/knowledge/identities/{id}<br>GET /api/v1/engine/knowledge/identities/by-code/{identityCode}<br>GET /api/v1/engine/knowledge/identities/{id}/active<br>GET /api/v1/engine/knowledge/identities/{id}/lineage<br>GET /api/v1/engine/knowledge/identities/{id}/provenance<br>GET /api/v1/engine/knowledge/identities/{id}/citations<br>其余 6 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeRetirementController decision=KEEP -->
 | `KnowledgeRetirementController` | POST /api/v1/engine/knowledge/identities/{identityId}/deprecate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeVersionController decision=KEEP -->

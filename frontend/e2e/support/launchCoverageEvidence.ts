@@ -72,6 +72,7 @@ type CoverageProof = {
   requiresFourRoleCoreActionsAttachment?: boolean;
   requiresSixEntryCoreActionsAttachment?: boolean;
   requiresPlatformAdminEntryCoreActionsAttachment?: boolean;
+  requiresDomainFacadeB0EvidenceAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -429,6 +430,30 @@ const diagnosisKnowledgeClaims = [
   "productLayers:MEDICAL_ASSET",
   "semanticFamilies:DISEASE_DIAGNOSIS",
   "specialtyDomains:CLINICAL_SPECIALTIES",
+];
+
+const requiredDomainFacadeB0Codes = [
+  "NURSING-01",
+  "REPORT-01",
+  "POC-KNOW-01",
+  "PHARMACY-01",
+  "CRITICAL-01",
+  "SPECIAL-POP-01",
+  "PERIOP-01",
+  "ONCO-RENAL-01",
+  "ALLIED-CARE-01",
+  "TCM-HEALTH-01",
+  "INFECTION-PH-01",
+  "PRIMARY-CARE-01",
+  "REGION-COLLAB-01",
+  "SPECIALTY-EXT-01",
+  "RWD-01",
+  "SVC-DOMAIN-01",
+  "SVC-DOMAIN-02",
+] as const;
+
+const domainFacadeB0Claims = [
+  "domainFacadeB0Coverage:CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG",
 ];
 
 const sourceLineageClaims = ["scenarios:S7", "semanticFamilies:SOURCE_VALIDITY"];
@@ -1441,6 +1466,12 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosisKnowledgeScenarioAttachment: true,
   },
   {
+    file: "domain-facade-b0-evidence.spec.ts",
+    titleIncludes: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+    claims: domainFacadeB0Claims,
+    requiresDomainFacadeB0EvidenceAttachment: true,
+  },
+  {
     file: "d6-graph-explore.spec.ts",
     titleIncludes: "医疗引擎运营员可重建并探索真实知识投影",
     claims: sourceLineageClaims,
@@ -1708,7 +1739,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresSixEntryCoreActionsAttachment ||
         hasRequiredSixEntryCoreActionsAttachment(test)) &&
       (!proof.requiresPlatformAdminEntryCoreActionsAttachment ||
-        hasRequiredPlatformAdminEntryCoreActionsAttachment([test]))
+        hasRequiredPlatformAdminEntryCoreActionsAttachment([test])) &&
+      (!proof.requiresDomainFacadeB0EvidenceAttachment ||
+        hasRequiredDomainFacadeB0EvidenceAttachment(test))
     );
   });
 }
@@ -7558,6 +7591,166 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
   } catch {
     return false;
   }
+}
+
+function hasRequiredDomainFacadeB0EvidenceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "domain-facade-b0-evidence-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    if (!parsed) return false;
+    const apiEvidence = recordValue(parsed.apiEvidence);
+    const readback = recordValue(apiEvidence?.b0EvidenceReadFromFrontdesk);
+    return (
+      arrayEquals(parsed.domainFacadeCodes, requiredDomainFacadeB0Codes) &&
+      arrayEquals(parsed.domainFacadeB0Coverage, [
+        "CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG",
+      ]) &&
+      readback?.operation === "GET /engine/domain-facades/b0-evidence" &&
+      is2xxStatus(readback.status) &&
+      hasDomainFacadeB0ScopeBoundary(parsed.scopeStatement) &&
+      hasCompleteDomainFacadeB0Rows(parsed.facadeEvidence)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteDomainFacadeB0Rows(value: unknown) {
+  if (!Array.isArray(value) || value.length !== requiredDomainFacadeB0Codes.length) return false;
+  const rows = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const row = recordValue(item);
+    const code = textValue(row?.code);
+    if (!row || !code || rows.has(code)) return false;
+    rows.set(code, row);
+  }
+  if (![...rows.keys()].every((code) => (requiredDomainFacadeB0Codes as readonly string[]).includes(code))) {
+    return false;
+  }
+  return requiredDomainFacadeB0Codes.every((code) => {
+    const row = rows.get(code);
+    if (!row || !hasCompleteDomainFacadeB0Row(code, row)) return false;
+    if (code === "SPECIALTY-EXT-01") {
+      return (
+        row.honestEmptyWhenAssetsMissing === true &&
+        row.assetSeedPolicy === "NO_SEED_HONEST_EMPTY"
+      );
+    }
+    if (code === "SVC-DOMAIN-01") {
+      return hasResolvableDomainFacadeMembers(row, [
+        "CRITICAL-01",
+        "PERIOP-01",
+        "ONCO-RENAL-01",
+        "SPECIAL-POP-01",
+        "TCM-HEALTH-01",
+        "PRIMARY-CARE-01",
+        "INFECTION-PH-01",
+      ]);
+    }
+    if (code === "SVC-DOMAIN-02") {
+      return hasResolvableDomainFacadeMembers(row, [
+        "NURSING-01",
+        "PHARMACY-01",
+        "REPORT-01",
+        "POC-KNOW-01",
+        "ALLIED-CARE-01",
+        "RWD-01",
+        "REGION-COLLAB-01",
+      ]);
+    }
+    return true;
+  });
+}
+
+function hasCompleteDomainFacadeB0Row(code: string, row: Record<string, unknown>) {
+  return (
+    row.status === "PASS" &&
+    row.evidenceId === `DOMAIN-B0-${code}` &&
+    row.b0Executable === true &&
+    row.modelRequired === false &&
+    row.clinicalContentSeeded === false &&
+    row.newBusinessEngineRequired === false &&
+    row.serviceCombinationMembersResolvable === true &&
+    ["NO_CLINICAL_CONTENT_SEED", "NO_SEED_HONEST_EMPTY"].includes(
+      textValue(row.assetSeedPolicy) ?? "",
+    ) &&
+    hasNonEmptyTextArray(row.b0Workflows) &&
+    hasCompleteDomainFacadeEngineEvidence(row.engineEvidence)
+  );
+}
+
+function hasCompleteDomainFacadeEngineEvidence(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  return value.every((item) => {
+    const evidence = recordValue(item);
+    return (
+      evidence !== null &&
+      hasText(evidence.engine) &&
+      hasText(evidence.sharedHandlerClass) &&
+      String(evidence.sharedHandlerClass).startsWith("com.medkernel.engine.") &&
+      hasText(evidence.b0Route) &&
+      String(evidence.b0Route).startsWith("/api/v1/") &&
+      hasText(evidence.b0Assertion) &&
+      evidence.deterministic === true &&
+      evidence.handlerPresent === true &&
+      evidence.clinicalContentSeeded === false
+    );
+  });
+}
+
+function hasResolvableDomainFacadeMembers(
+  row: Record<string, unknown>,
+  expected: readonly string[],
+) {
+  return (
+    arrayEquals(row.memberFacadeCodes, expected) &&
+    arrayEquals(row.verifiedMemberFacadeCodes, expected)
+  );
+}
+
+function hasDomainFacadeB0ScopeBoundary(value: unknown) {
+  const scope = recordValue(value);
+  if (!scope || typeof scope.provesOnly !== "string") return false;
+  const statement = scope.provesOnly;
+  return (
+    statement.includes("17 张专业领域门面") &&
+    statement.includes("B0") &&
+    statement.includes("模型非必需") &&
+    statement.includes("无临床内容预置") &&
+    scope.notFullSpecialtyDomainCoverage === true &&
+    scope.notScenarioConditionRows === true &&
+    scope.notFullS0S40Coverage === true &&
+    scope.notFullLaunchReadiness === true &&
+    arrayEquals(scope.notCompleteScenarioCodes, ["S28", "S29", "S30", "S37", "S38", "S39"]) &&
+    !hasUnnegatedDomainFacadeB0ScopeClaim(statement)
+  );
+}
+
+function hasUnnegatedDomainFacadeB0ScopeClaim(statement: string) {
+  return [
+    "完整专业领域",
+    "完整 S28",
+    "完整S28",
+    "完整 S29",
+    "完整S29",
+    "完整 S30",
+    "完整S30",
+    "完整 S37",
+    "完整S37",
+    "完整 S38",
+    "完整S38",
+    "完整 S39",
+    "完整S39",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线",
+    "完整上线验收",
+    "真实消费者",
+    "业务闭环",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasCompleteDiagnosisKnowledgeStructuredEvidence(value: unknown) {

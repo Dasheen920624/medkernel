@@ -43,6 +43,7 @@ class DefaultPermissionPolicyTest {
             "institution-knowledge",
             "diagnosis-knowledge",
             "terminology-mapping",
+            "domain-facade-b0-evidence",
             "rule-definitions",
             "pathway-templates",
             "provenance",

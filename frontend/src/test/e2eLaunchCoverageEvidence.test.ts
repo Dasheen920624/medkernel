@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBrowserE2eLaunchEvidence } from "../../e2e/support/launchCoverageEvidence.ts";
+import {
+  buildBrowserE2eLaunchEvidence,
+  type BrowserE2eTestResult,
+} from "../../e2e/support/launchCoverageEvidence.ts";
 
 const passedStats = {
   startTime: "2026-07-06T08:00:00.000Z",
@@ -308,6 +311,168 @@ function diagnosisKnowledgeEvidenceResult(body: Record<string, unknown>) {
       },
     ],
   });
+}
+
+const requiredDomainFacadeCodes = [
+  "NURSING-01",
+  "REPORT-01",
+  "POC-KNOW-01",
+  "PHARMACY-01",
+  "CRITICAL-01",
+  "SPECIAL-POP-01",
+  "PERIOP-01",
+  "ONCO-RENAL-01",
+  "ALLIED-CARE-01",
+  "TCM-HEALTH-01",
+  "INFECTION-PH-01",
+  "PRIMARY-CARE-01",
+  "REGION-COLLAB-01",
+  "SPECIALTY-EXT-01",
+  "RWD-01",
+  "SVC-DOMAIN-01",
+  "SVC-DOMAIN-02",
+];
+
+function domainFacadeB0Evidence(overrides: Record<string, unknown> = {}) {
+  const rows = requiredDomainFacadeCodes.map((code) => ({
+    code,
+    status: "PASS",
+    evidenceId: `DOMAIN-B0-${code}`,
+    b0Executable: true,
+    modelRequired: false,
+    clinicalContentSeeded: false,
+    newBusinessEngineRequired: false,
+    honestEmptyWhenAssetsMissing: code === "SPECIALTY-EXT-01",
+    serviceCombinationMembersResolvable: true,
+    assetSeedPolicy:
+      code === "SPECIALTY-EXT-01" ? "NO_SEED_HONEST_EMPTY" : "NO_CLINICAL_CONTENT_SEED",
+    b0Workflows: ["统一治理", "B0 一致"],
+    memberFacadeCodes:
+      code === "SVC-DOMAIN-01"
+        ? [
+            "CRITICAL-01",
+            "PERIOP-01",
+            "ONCO-RENAL-01",
+            "SPECIAL-POP-01",
+            "TCM-HEALTH-01",
+            "PRIMARY-CARE-01",
+            "INFECTION-PH-01",
+          ]
+        : code === "SVC-DOMAIN-02"
+          ? [
+              "NURSING-01",
+              "PHARMACY-01",
+              "REPORT-01",
+              "POC-KNOW-01",
+              "ALLIED-CARE-01",
+              "RWD-01",
+              "REGION-COLLAB-01",
+            ]
+          : [],
+    verifiedMemberFacadeCodes:
+      code === "SVC-DOMAIN-01"
+        ? [
+            "CRITICAL-01",
+            "PERIOP-01",
+            "ONCO-RENAL-01",
+            "SPECIAL-POP-01",
+            "TCM-HEALTH-01",
+            "PRIMARY-CARE-01",
+            "INFECTION-PH-01",
+          ]
+        : code === "SVC-DOMAIN-02"
+          ? [
+              "NURSING-01",
+              "PHARMACY-01",
+              "REPORT-01",
+              "POC-KNOW-01",
+              "ALLIED-CARE-01",
+              "RWD-01",
+              "REGION-COLLAB-01",
+            ]
+          : [],
+    engineEvidence: [
+      {
+        engine: "KNOWLEDGE",
+        sharedHandlerClass: "com.medkernel.engine.knowledge.KnowledgeIdentityService",
+        b0Route: "/api/v1/engine/knowledge/identities",
+        b0Assertion: "复用关系库权威知识身份与 ACTIVE 版本读取入口",
+        deterministic: true,
+        handlerPresent: true,
+        clinicalContentSeeded: false,
+      },
+    ],
+  }));
+  return {
+    domainFacadeCodes: requiredDomainFacadeCodes,
+    productLayers: ["MEDICAL_ASSET"],
+    serviceCombinations: ["PROFESSIONAL_COLLABORATION"],
+    domainFacadeB0Coverage: ["CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG"],
+    apiEvidence: {
+      b0EvidenceReadFromFrontdesk: {
+        operation: "GET /engine/domain-facades/b0-evidence",
+        status: 200,
+      },
+    },
+    scopeStatement: {
+      provesOnly:
+        "仅证明 17 张专业领域门面复用同一 B0 引擎链路、模型非必需、无临床内容预置和缺资产诚实空态；不声明完整专业领域、完整 S28/S29/S30/S37/S38/S39、真实消费者、业务闭环、完整 S0-S40 或完整上线验收",
+      notFullSpecialtyDomainCoverage: true,
+      notScenarioConditionRows: true,
+      notFullS0S40Coverage: true,
+      notFullLaunchReadiness: true,
+      notCompleteScenarioCodes: ["S28", "S29", "S30", "S37", "S38", "S39"],
+    },
+    facadeEvidence: rows,
+    ...overrides,
+  };
+}
+
+function domainFacadeB0EvidenceResult(body: Record<string, unknown>) {
+  return domainFacadeB0EvidenceResultFromTest({
+    file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+    title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+    status: "passed",
+    attachments: [
+      {
+        name: "domain-facade-b0-evidence-codes",
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      },
+    ],
+  });
+}
+
+function domainFacadeB0EvidenceResultFromTest(
+  test: Parameters<typeof buildBrowserE2eLaunchEvidence>[0]["tests"][number],
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [test],
+  });
+}
+
+function domainFacadeB0BrowserTest(test: BrowserE2eTestResult) {
+  return test;
+}
+
+function expectNoDomainFacadeB0Coverage(body: Record<string, unknown>) {
+  const evidence = domainFacadeB0EvidenceResult(body);
+  expect(
+    evidence.launchCoverage.domainFacadeB0Coverage?.map((item) => item.code) ?? [],
+  ).not.toContain("CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG");
+  expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+}
+
+function expectNoDomainFacadeB0CoverageFromTest(
+  test: Parameters<typeof buildBrowserE2eLaunchEvidence>[0]["tests"][number],
+) {
+  const evidence = domainFacadeB0EvidenceResultFromTest(test);
+  expect(
+    evidence.launchCoverage.domainFacadeB0Coverage?.map((item) => item.code) ?? [],
+  ).not.toContain("CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG");
+  expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  expect(evidence.launchCoverage.scenarios).toBeUndefined();
 }
 
 function diagnosisKnowledgeAbnormalEvidence(overrides: Record<string, unknown> = {}) {
@@ -15107,6 +15272,225 @@ describe("browser E2E launch coverage evidence", () => {
       "S3__NORMAL",
       "S3__ABNORMAL",
     ]);
+  });
+
+  it("declares domain facade B0 coverage only from the real frontdesk readback of all 17 shared-engine facades", () => {
+    const evidence = domainFacadeB0EvidenceResult(domainFacadeB0Evidence());
+
+    expect(evidence.launchCoverage.domainFacadeB0Coverage?.map((item) => item.code)).toEqual([
+      "CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG",
+    ]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少附件",
+      test: domainFacadeB0BrowserTest({
+        file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+        title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+        status: "passed",
+        attachments: [],
+      }),
+    },
+    {
+      name: "来源文件不是领域门面前台 E2E",
+      test: domainFacadeB0BrowserTest({
+        file: "/repo/frontend/e2e/diagnosis-knowledge-maintenance.spec.ts",
+        title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+        status: "passed",
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence-codes",
+            contentType: "application/json",
+            body: JSON.stringify(domainFacadeB0Evidence()),
+          },
+        ],
+      }),
+    },
+    {
+      name: "测试标题错配",
+      test: domainFacadeB0BrowserTest({
+        file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+        title: "运营员只打开领域门面页面",
+        status: "passed",
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence-codes",
+            contentType: "application/json",
+            body: JSON.stringify(domainFacadeB0Evidence()),
+          },
+        ],
+      }),
+    },
+    {
+      name: "附件名称错配",
+      test: domainFacadeB0BrowserTest({
+        file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+        title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+        status: "passed",
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence",
+            contentType: "application/json",
+            body: JSON.stringify(domainFacadeB0Evidence()),
+          },
+        ],
+      }),
+    },
+    {
+      name: "coverage key 错配",
+      test: domainFacadeB0BrowserTest({
+        file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+        title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+        status: "passed",
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence-codes",
+            contentType: "application/json",
+            body: JSON.stringify(
+              domainFacadeB0Evidence({
+                domainFacadeB0Coverage: ["COMPLETE_SPECIALTY_DOMAIN_PRODUCTION"],
+              }),
+            ),
+          },
+        ],
+      }),
+    },
+  ])("does not declare domain facade B0 coverage when $name", ({ test }) => {
+    expectNoDomainFacadeB0CoverageFromTest(test);
+  });
+
+  it.each([
+    {
+      name: "缺少 17 张门面之一",
+      body: domainFacadeB0Evidence({
+        domainFacadeCodes: requiredDomainFacadeCodes.filter((code) => code !== "SVC-DOMAIN-02"),
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.filter(
+          (row: { code: string }) => row.code !== "SVC-DOMAIN-02",
+        ),
+      }),
+    },
+    {
+      name: "B0 证据接口非 2xx",
+      body: domainFacadeB0Evidence({
+        apiEvidence: {
+          b0EvidenceReadFromFrontdesk: {
+            operation: "GET /engine/domain-facades/b0-evidence",
+            status: 500,
+          },
+        },
+      }),
+    },
+    {
+      name: "声明完整专业领域上线",
+      body: domainFacadeB0Evidence({
+        scopeStatement: {
+          provesOnly: "完整专业领域和完整 S28/S29/S30/S37/S38/S39 均已上线",
+          notFullSpecialtyDomainCoverage: false,
+          notScenarioConditionRows: true,
+          notFullS0S40Coverage: true,
+          notFullLaunchReadiness: true,
+          notCompleteScenarioCodes: ["S28", "S29", "S30", "S37", "S38", "S39"],
+        },
+      }),
+    },
+    {
+      name: "门面依赖模型",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "POC-KNOW-01" ? { ...row, modelRequired: true } : row,
+        ),
+      }),
+    },
+    {
+      name: "预置临床医学内容",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "POC-KNOW-01" ? { ...row, clinicalContentSeeded: true } : row,
+        ),
+      }),
+    },
+    {
+      name: "门面状态不是 PASS",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "NURSING-01" ? { ...row, status: "WARN" } : row,
+        ),
+      }),
+    },
+    {
+      name: "门面证据编号错配",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "REPORT-01" ? { ...row, evidenceId: "DOMAIN-B0-OTHER" } : row,
+        ),
+      }),
+    },
+    {
+      name: "门面 B0 不可执行",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "POC-KNOW-01" ? { ...row, b0Executable: false } : row,
+        ),
+      }),
+    },
+    {
+      name: "门面需要新增专属业务引擎",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "PHARMACY-01" ? { ...row, newBusinessEngineRequired: true } : row,
+        ),
+      }),
+    },
+    {
+      name: "共享 handler 缺失",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "SVC-DOMAIN-01"
+              ? {
+                  ...row,
+                  engineEvidence: [
+                    {
+                      engine: "RELEASE",
+                      sharedHandlerClass: "",
+                      b0Route: "/api/v1/engine/releases/platform-baselines",
+                      b0Assertion: "复用平台标准版本与机构生效版本发布入口",
+                      deterministic: true,
+                      handlerPresent: false,
+                      clinicalContentSeeded: false,
+                    },
+                  ],
+                }
+              : row,
+        ),
+      }),
+    },
+    {
+      name: "没有证明专科扩展缺资产诚实空态",
+      body: domainFacadeB0Evidence({
+        facadeEvidence: domainFacadeB0Evidence().facadeEvidence.map(
+          (row: Record<string, unknown>) =>
+            row.code === "SPECIALTY-EXT-01"
+              ? {
+                  ...row,
+                  honestEmptyWhenAssetsMissing: false,
+                  assetSeedPolicy: "NO_CLINICAL_CONTENT_SEED",
+                }
+              : row,
+        ),
+      }),
+    },
+  ])("does not declare domain facade B0 coverage when $name", ({ body }) => {
+    expectNoDomainFacadeB0Coverage(body);
   });
 
   it("does not declare S3 normal condition row without explicit condition evidence", () => {

@@ -6419,6 +6419,47 @@ export function useQualityFindingDetail(findingId: string) {
   });
 }
 
+export interface DomainFacadeEngineEvidence {
+  engine: string;
+  sharedHandlerClass: string;
+  b0Route: string;
+  b0Assertion: string;
+  deterministic: boolean;
+  handlerPresent: boolean;
+  clinicalContentSeeded: boolean;
+}
+
+export interface DomainFacadeB0Evidence {
+  code: string;
+  kind: string;
+  status: string;
+  evidenceId: string;
+  b0Executable: boolean;
+  modelRequired: boolean;
+  clinicalContentSeeded: boolean;
+  newBusinessEngineRequired: boolean;
+  honestEmptyWhenAssetsMissing: boolean;
+  serviceCombinationMembersResolvable: boolean;
+  assetSeedPolicy: string;
+  b0Workflows: string[];
+  engineEvidence: DomainFacadeEngineEvidence[];
+  memberFacadeCodes: string[];
+  verifiedMemberFacadeCodes: string[];
+}
+
+export function useDomainFacadeB0Evidence(enabled = true) {
+  return useQuery({
+    queryKey: ["domain-facades", "b0-evidence"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: DomainFacadeB0Evidence[] }>(
+        "/engine/domain-facades/b0-evidence",
+      );
+      return data.data ?? [];
+    },
+    enabled,
+  });
+}
+
 export function useSubmitRectification(taskId: string) {
   return useMutation({
     mutationFn: async (payload: {
