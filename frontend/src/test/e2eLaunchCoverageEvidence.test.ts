@@ -2694,6 +2694,36 @@ const pharmacyReviewAntimicrobialEvidence = {
     submittedEvidenceRef: "pharmacy-review-antimicrobial-evidence",
     reviewDecision: "APPROVED",
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S18__HIGH_RISK",
+      scenarioCode: "S18",
+      condition: "HIGH_RISK",
+      source: "PHARMACY_REVIEW_ANTIMICROBIAL_CRITICAL_MANUAL_CONFIRMATION",
+      evidence: [
+        "抗菌药物 SAFETY 红线和风险矩阵均为 CRITICAL",
+        "推荐卡要求医生确认且药师复核不关闭医生确认链路",
+        "医生逐条确认采纳并保持 noAutoOrder=true",
+      ],
+    },
+    {
+      code: "S31__DEGRADATION",
+      scenarioCode: "S31",
+      condition: "DEGRADATION",
+      source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
+      evidence: [
+        "PHARMACY_REVIEW 出站审方请求收敛到 NOT_CONNECTED",
+        "断连补偿不阻断本地推荐、药师复核和医生确认主链路",
+      ],
+    },
+    {
+      code: "S31__ABNORMAL",
+      scenarioCode: "S31",
+      condition: "ABNORMAL",
+      source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
+      evidence: ["药事治理问题形成 P1 整改任务", "固定职责账号提交并复核关闭整改"],
+    },
+  ],
   scenarioEvidence: [
     {
       code: "S18",
@@ -9378,7 +9408,169 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["PHARMACY_REVIEW"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S18__HIGH_RISK",
+      "S31__DEGRADATION",
+      "S31__ABNORMAL",
+    ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare S18/S31 condition rows without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = pharmacyReviewAntimicrobialEvidence;
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S31__NORMAL",
+            scenarioCode: "S31",
+            condition: "NORMAL",
+            source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
+            evidence: ["药学审方断连与整改链路不能冒领普通正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S18__HIGH_RISK",
+            scenarioCode: "S18",
+            condition: "HIGH_RISK",
+            source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
+            evidence: ["来源错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S31__DEGRADATION",
+            scenarioCode: "S31",
+            condition: "DEGRADATION",
+            source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "高危风险矩阵允许自动执行",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        riskMatrix: {
+          ...pharmacyReviewAntimicrobialEvidence.riskMatrix,
+          autoExecutionAllowed: true,
+        },
+      },
+    },
+    {
+      name: "高危红线不是 CRITICAL",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        safetyRedline: {
+          ...pharmacyReviewAntimicrobialEvidence.safetyRedline,
+          hazardSeverity: "HIGH",
+        },
+      },
+    },
+    {
+      name: "药师复核直接关闭医生确认链路",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          pharmacist: {
+            ...pharmacyReviewAntimicrobialEvidence.feedback.pharmacist,
+            cardStatus: "ACCEPTED",
+          },
+        },
+      },
+    },
+    {
+      name: "医生未确认采纳",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          physician: {
+            ...pharmacyReviewAntimicrobialEvidence.feedback.physician,
+            cardStatus: "PENDING",
+          },
+        },
+      },
+    },
+    {
+      name: "反馈链路允许自动开嘱",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          noAutoOrder: false,
+        },
+      },
+    },
+    {
+      name: "出站审方未收敛到 NOT_CONNECTED",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+      },
+    },
+    {
+      name: "出站断连阻断主链路",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          blocksMainFlow: true,
+        },
+      },
+    },
+    {
+      name: "整改未复核通过",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          reviewDecision: "REJECTED",
+        },
+      },
+    },
+    {
+      name: "整改未绑定本轮推荐卡",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          sourceId: "other-card",
+        },
+      },
+    },
+  ])("does not declare S18/S31 scenario condition rows when $name", ({ body }) => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it.each([

@@ -699,6 +699,26 @@ const surgeryAnesthesiaTransfusionScenarioConditionRows = [
     source: "SURGERY_TIMELINE_RECTIFICATION_REVIEW",
   },
 ] as const;
+const pharmacyReviewAntimicrobialScenarioConditionRows = [
+  {
+    code: "S18__HIGH_RISK",
+    scenarioCode: "S18",
+    condition: "HIGH_RISK",
+    source: "PHARMACY_REVIEW_ANTIMICROBIAL_CRITICAL_MANUAL_CONFIRMATION",
+  },
+  {
+    code: "S31__DEGRADATION",
+    scenarioCode: "S31",
+    condition: "DEGRADATION",
+    source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
+  },
+  {
+    code: "S31__ABNORMAL",
+    scenarioCode: "S31",
+    condition: "ABNORMAL",
+    source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -3866,6 +3886,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectSurgeryAnesthesiaTransfusionScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectPharmacyReviewAntimicrobialScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
   }
   return [...claims];
 }
@@ -4189,6 +4212,89 @@ function surgeryAnesthesiaTransfusionScenarioConditionBackedByEvidence(
       );
     case "S26__ABNORMAL":
       return hasCompleteSurgeryAnesthesiaTransfusionRectification(
+        parsed.qualityRectification,
+        parsed.recommendation,
+      );
+    default:
+      return false;
+  }
+}
+
+function collectPharmacyReviewAntimicrobialScenarioConditionClaimsFromTest(
+  test: BrowserE2eTestResult,
+) {
+  if (
+    path.basename(test.file) !== "pharmacy-review-antimicrobial-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "pharmacy-review-antimicrobial-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      pharmacyReviewAntimicrobialScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return pharmacyReviewAntimicrobialScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          pharmacyReviewAntimicrobialScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function pharmacyReviewAntimicrobialScenarioConditionBackedByEvidence(
+  code: (typeof pharmacyReviewAntimicrobialScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parsePharmacyReviewRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S18__HIGH_RISK":
+      return (
+        hasCompletePharmacyReviewApiEvidence(parsed.apiEvidence) &&
+        hasCompletePharmacyReviewRiskMatrix(parsed.riskMatrix) &&
+        hasCompletePharmacyReviewSafetyRedline(parsed.safetyRedline, parsed.riskMatrix) &&
+        hasCompletePharmacyReviewClinicalContext(parsed.clinicalContext, runtime.releaseId) &&
+        hasCompletePharmacyReviewRecommendation(
+          parsed.recommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.riskMatrix,
+          parsed.safetyRedline,
+        ) &&
+        hasCompletePharmacyReviewRuleRecommendation(
+          parsed.ruleRecommendation,
+          runtime,
+          parsed.clinicalTrigger,
+          parsed.ruleAsset,
+        ) &&
+        hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback, runtime.actionCardAsset)
+      );
+    case "S31__DEGRADATION":
+      return (
+        hasCompletePharmacyReviewOutbound(
+          parsed.outboundReview,
+          parsed.adapter,
+          parsed.clinicalContext,
+        ) &&
+        hasCompletePharmacyReviewClinicalContext(parsed.clinicalContext, runtime.releaseId) &&
+        hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback, runtime.actionCardAsset)
+      );
+    case "S31__ABNORMAL":
+      return hasCompletePharmacyReviewRectification(
         parsed.qualityRectification,
         parsed.recommendation,
       );

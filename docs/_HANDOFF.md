@@ -125,6 +125,41 @@
   或院感公卫 `S21__HIGH_RISK/S21__DEGRADATION/S32__ABNORMAL`；仍需显式条件附件和强字段背书，不能把普通
   `scenarioEvidence` 自动升级。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、
   不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百零五批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口药学审方 / 抗菌药物 S18 与药事治理 S31 代表切片已有真实前台强链路，新增 3 条显式背书行：
+  `S18__HIGH_RISK`（抗菌药物 SAFETY 红线与 CDSS_RISK 风险矩阵均为 `CRITICAL`，推荐卡要求医生确认，
+  药师复核不关闭医生确认链路，医生逐条确认采纳且 `noAutoOrder=true`）、`S31__DEGRADATION`
+  （`PHARMACY_REVIEW` 出站审方请求收敛到 `NOT_CONNECTED`，断连补偿不阻断本地推荐、药师复核和医生确认主链路）、
+  `S31__ABNORMAL`（药事治理问题形成 P1 整改任务，固定职责账号提交并复核关闭整改）。不声明
+  `S18__NORMAL/ABNORMAL/MISSING_DATA/DEGRADATION`，不声明 `S31__NORMAL/HIGH_RISK/MISSING_DATA`，
+  不冒领完整 S18/S31、完整药学审方系统、完整第三方系统族覆盖、完整 S0-S40 或完整上线。
+- 第二百零五批实现细节：`frontend/e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts` 的
+  `pharmacy-review-antimicrobial-frontdesk-codes` 附件新增 `scenarioConditionEvidence` 三行；
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S18/S31 条件行白名单和 collector，必须先通过完整
+  `hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并分别绑定完整 API 证据、SAFETY 红线、风险矩阵、临床上下文、
+  推荐卡、规则推荐、药师/医生反馈链路、出站补偿和质量整改闭环。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、空证据、风险矩阵允许自动执行、红线非 `CRITICAL`、
+  药师复核关闭医生确认链路、医生未采纳、允许自动开嘱、出站未 `NOT_CONNECTED`、出站阻断主链路、整改未复核通过或
+  未绑定本轮推荐卡，均不声明 S18/S31 条件行。
+- 第二百零五批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pharmacy-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-pharmacy-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S18__HIGH_RISK,S31__DEGRADATION,S31__ABNORMAL]`，`launchCoverage.scenarios` 为 `[S18,S31]`，
+  `thirdPartySystemFamilyConsumerSlices` 为 `[PHARMACY_REVIEW]`。
+- 第二百零五批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在 S18/S31 正例缺条件行，随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （432 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需跑 `git diff --check`。
+- 第二百零五批边界与下一步：本批只是把药学审方 / 药事治理 S18/S31 已有强链路接入 3 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、
+  不是 134 清库重部署。下一批建议继续沿 `LAUNCH-06` 选择院感公卫
+  `S21__HIGH_RISK/S21__DEGRADATION/S32__ABNORMAL`，仍需显式条件附件和强字段背书，不能把普通
+  `scenarioEvidence` 自动升级。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、
+  不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

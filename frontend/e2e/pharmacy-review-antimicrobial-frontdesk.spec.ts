@@ -2115,6 +2115,36 @@ async function attachPharmacyReviewAntimicrobialEvidence(
         ruleRecommendation: evidence.ruleRecommendation,
         feedback: evidence.feedback,
         qualityRectification: evidence.qualityRectification,
+        scenarioConditionEvidence: [
+          {
+            code: "S18__HIGH_RISK",
+            scenarioCode: "S18",
+            condition: "HIGH_RISK",
+            source: "PHARMACY_REVIEW_ANTIMICROBIAL_CRITICAL_MANUAL_CONFIRMATION",
+            evidence: [
+              "抗菌药物 SAFETY 红线和风险矩阵均为 CRITICAL",
+              "推荐卡要求医生确认且药师复核不关闭医生确认链路",
+              "医生逐条确认采纳并保持 noAutoOrder=true",
+            ],
+          },
+          {
+            code: "S31__DEGRADATION",
+            scenarioCode: "S31",
+            condition: "DEGRADATION",
+            source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
+            evidence: [
+              "PHARMACY_REVIEW 出站审方请求收敛到 NOT_CONNECTED",
+              "断连补偿不阻断本地推荐、药师复核和医生确认主链路",
+            ],
+          },
+          {
+            code: "S31__ABNORMAL",
+            scenarioCode: "S31",
+            condition: "ABNORMAL",
+            source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
+            evidence: ["药事治理问题形成 P1 整改任务", "固定职责账号提交并复核关闭整改"],
+          },
+        ],
         scenarioEvidence: [
           { code: "S18", observedStages: requiredStages.S18 },
           { code: "S31", observedStages: requiredStages.S31 },
