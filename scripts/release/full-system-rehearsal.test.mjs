@@ -88,11 +88,57 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
     ),
       false,
   );
+  assert.equal(requiredCoverage.menuEntryCoreActionRows.length, 34);
+  assert.deepEqual(
+    requiredCoverage.menuEntryCoreActionRows.map((item) => item.code),
+    [
+      "workbench",
+      "tenant-onboarding",
+      "admin-users",
+      "identity-bindings",
+      "admin-audit",
+      "security-baseline",
+      "implementation-guide",
+      "adapter-hub",
+      "system-providers",
+      "runtime-diagnostics",
+      "domestic-check",
+      "notifications",
+      "notification-settings",
+      "knowledge-governance",
+      "runtime-releases",
+      "institution-knowledge",
+      "diagnosis-knowledge",
+      "terminology-mapping",
+      "rule-definitions",
+      "pathway-templates",
+      "provenance",
+      "graph-explore",
+      "knowledge-production",
+      "ai-workflows",
+      "clinical-followup",
+      "sandbox",
+      "qc-dashboard",
+      "qc-alerts",
+      "insurance-audit",
+      "qc-eval-sets",
+      "mpi",
+      "patient-pathways",
+      "cdss-fatigue",
+      "workflow-todos",
+    ],
+  );
   const requiredAcceptance = buildRequiredLaunchAcceptance();
   assert.equal(requiredAcceptance.length, 15);
   assert.deepEqual(
     requiredAcceptance.find((item) => item.code === "LAUNCH-11").requiredCoverage,
     ["databaseMigrationSource", "databaseDialects"],
+  );
+  assert.equal(
+    requiredAcceptance
+      .find((item) => item.code === "LAUNCH-09")
+      .requiredCoverage.includes("menuEntryCoreActionRows"),
+    true,
   );
 });
 
@@ -229,6 +275,11 @@ test("九阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(result.coverage.deliveryShapes.length, 5);
   assert.equal(result.coverage.serviceCombinations.length, 7);
   assert.equal(result.coverage.stakeholderViews.length, 12);
+  assert.equal(result.coverage.menuEntryCoreActionRows.length, 34);
+  assert.equal(
+    result.acceptance.find((item) => item.code === "LAUNCH-09")?.status,
+    "PASSED",
+  );
   assert.equal(written.length, 1);
   assert.equal(written[0].value.status, "PASSED");
 });

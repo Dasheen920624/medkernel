@@ -10,7 +10,7 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第一百九十批已本地提交：`897f7c7f2 test: 补区域互认消费者门禁与待办定位`。
+- 第一百九十二批已本地提交：`2bc75f1a4 test: 补上线总账与五方言迁移门禁`。
   提交后工作树仍只保留无关脏文件 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`，
   不要回滚、不要暂存、不要把 `/tmp` 或 Playwright 原始产物提交进仓库。
 - 用户已暂停“持续推进”并要求校准是否走偏。当前判断：方向仍是全角色真实前台、真实服务链路和上线门禁，
@@ -59,6 +59,35 @@
   同步推进 13 类版本化资产/11 类知识内容分类的实际生产链和运行消费者证据；继续补第三方系统族断连降级、S0-S40 异常/缺数/高风险/降级矩阵。
   134 清库 V1、重部署、备份恢复、公网模型 Provider 和真实第三方回调仍属 destructive/external，执行前必须再次取得用户明确确认。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
+- 第一百九十三批本地推进：接用户纠偏“不是只有知识功能，是整套系统功能”，本批继续回到 `PRODUCT_SCOPE.md` §15
+  第 9 项“四职责覆盖全部菜单和运行端点”的主线，只做非破坏、可本地验证且能防止 34 入口冒领的一刀：
+  新增 `menuEntryCoreActions:ALL_34_MENU_ENTRY_CORE_ACTIONS` 与 34 行 `menuEntryCoreActionRows:*` release 覆盖总账。
+  该总账不从菜单可达性、路由可达性或代表文案推断，只聚合既有强附件：四职责工作台、四职责主动作、六入口代表、
+  平台管理员 P0/P1、实施与验收入口、合规/个人入口、临床协同、质量管理和知识运营资产入口族。任一入口族缺真实服务动作、
+  回读、审计或边界附件时，不声明 34 入口总账；release 审计缺 `insurance-audit` 等任一权威菜单行会拒绝放行。
+- 第一百九十三批权威菜单键纠偏：质量管理医保审核入口原覆盖附件使用 `qc-insurance`，但权威菜单快照和后端菜单均为
+  `insurance-audit`。本批统一 `frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts`、
+  `frontend/e2e/support/qualityManagementEntryCoreActions.ts`、
+  `frontend/e2e/support/launchCoverageEvidence.ts` 与
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 为 `insurance-audit`，仍指向真实页面 `/qc/insurance`
+  和真实服务链路 `case-review / drg-grouping / insurance-audit`。
+- 第一百九十三批 release 门禁：`scripts/release/full-system-rehearsal-lib.mjs` 将 `menuEntryCoreActions` 与
+  `menuEntryCoreActionRows` 纳入必需覆盖，并加入 `LAUNCH-09` 的 requiredCoverage；`full-system-rehearsal.test.mjs`
+  断言 34 行权威菜单顺序和 `LAUNCH-09` 状态；`launch-coverage-audit.test.mjs` 断言完整输出含 34 行，并新增缺
+  `insurance-audit` 行时拒绝放行。
+- 第一百九十三批验证证据：已复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（352 tests）、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（13 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与两个 release 脚本 CRLF 将被 LF 替换，无 whitespace error。
+- 第一百九十三批边界与下一步：本批让 34 入口强证据成为机器总账，但仍不是完整上线完成、不是 34 个入口每个完整业务流程都已达到
+  生产深度、不是 S0-S40 全异常/缺数/高风险/降级完成、不是全部第三方系统族真实消费者完成、不是完整全医学资源实际生产完成、
+  也不是 134 清库重部署复演。下一批应继续沿 `menuEntryCoreActionRows` 向真实业务深度推进：优先复跑目标 E2E 产出真实
+  `ALL_34_MENU_ENTRY_CORE_ACTIONS` 附件，随后按缺口入口族补六态、权限边界、异常/缺数/降级和服务端审计；同步推进第三方系统族、
+  S0-S40 和知识资源生产链，不再把知识当成唯一主线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存。
 - 用户最新补充：知识生产不能只覆盖少量代表样例，必须面向整个系统运行所需的全部医疗知识与术语资源，
   包括但不限于字典、标准术语、指南、共识、法规、药品说明书、检验检查说明书、护理 / 药事 / 医技 / 质控 /
   医保 / 公卫 / 中医药等领域知识、值集、公式、安全红线、规则 / 路径依赖、医嘱套餐和动作卡。后续设计要支持

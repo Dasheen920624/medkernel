@@ -91,10 +91,7 @@ test.describe("质量管理入口核心动作真实前台演练", () => {
     const suffix = Date.now().toString(36);
 
     const indicator = await createActiveClaimIndicatorFromUi(page, suffix);
-    const runtime = await activateHospitalRuntimeWithClaimIndicator(
-      page,
-      indicator.payload,
-    );
+    const runtime = await activateHospitalRuntimeWithClaimIndicator(page, indicator.payload);
     const snapshot = await preparePatientSnapshotFromUi(page, suffix);
     expect(snapshot.runtimeReleaseId, "病案快照必须绑定包含本轮 CLAIM 指标的机构生效版本").toBe(
       runtime.releaseId,
@@ -430,7 +427,7 @@ async function runInsuranceAuditFromUi(
   return {
     payload: { issueId, evaluationRunId, findingId },
     action: {
-      menuKey: "qc-insurance",
+      menuKey: "insurance-audit",
       role: "engine-operator",
       path: "/qc/insurance",
       frontdeskAction: "医疗引擎运营员前台选择真实病案快照并执行医保审核派整改",
@@ -582,14 +579,14 @@ async function drilldownQualityDashboardFromUi(
   };
   const drilldownIncludesTask = Boolean(
     drilldown.data?.items?.some(
-      (item) =>
-        item.sourceId === rectification.taskId && item.sourceType === "rectification_task",
+      (item) => item.sourceId === rectification.taskId && item.sourceType === "rectification_task",
     ),
   );
   const drilldownHasExport = Boolean(drilldown.data?.evidenceExport?.exportId);
-  expect(drilldownIncludesTask && drilldownHasExport, "下钻服务结果必须包含本轮整改任务和证据导出").toBe(
-    true,
-  );
+  expect(
+    drilldownIncludesTask && drilldownHasExport,
+    "下钻服务结果必须包含本轮整改任务和证据导出",
+  ).toBe(true);
   const drilldownDialog = page.getByRole("dialog").filter({ hasText: "问题下钻证据" }).last();
   await expect(drilldownDialog).toBeVisible({ timeout: 20_000 });
   await expect(drilldownDialog).toContainText(rectification.taskId, { timeout: 20_000 });
@@ -766,7 +763,10 @@ async function activateHospitalRuntimeWithClaimIndicator(
   assertRuntimeCarriesRequiredAssets(currentAfterRuntime);
   assertRuntimeContainsClaimIndicator(currentAfterRuntime, indicator, candidate);
   const runtimeReadback = runtimeReadbackEvidence(currentAfterRuntime);
-  const runtimeConsumer = await readRuntimeConsumerEvidence(page, "读取包含 CLAIM 指标的第三方运行契约");
+  const runtimeConsumer = await readRuntimeConsumerEvidence(
+    page,
+    "读取包含 CLAIM 指标的第三方运行契约",
+  );
   assertAssetsContain(runtimeConsumer.assets, [candidate], "第三方运行契约必须包含本轮 CLAIM 指标");
   expect(runtimeConsumer.releaseId, "第三方运行契约 releaseId 必须与 current 一致").toBe(
     runtimeReadback.releaseId,
@@ -971,12 +971,18 @@ function runtimeReadbackEvidence(value: unknown): RuntimeReadbackEvidence {
 }
 
 async function readRuntimeConsumerEvidence(page: Page, label: string) {
-  const response = await getApi(page, "/engine/integration/knowledge-runtime/runtime-release/current");
+  const response = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
   await expectOk(response, label);
   const value = await responseData(response);
   const evidence = {
     contractVersion: "v1" as const,
-    releaseId: requireLocalText(textField(value, "releaseId"), "runtime consumer 必须返回 releaseId"),
+    releaseId: requireLocalText(
+      textField(value, "releaseId"),
+      "runtime consumer 必须返回 releaseId",
+    ),
     revisionNo: numberField(value, "revisionNo") ?? 0,
     manifestSha256: requireLocalText(
       textField(value, "manifestSha256"),

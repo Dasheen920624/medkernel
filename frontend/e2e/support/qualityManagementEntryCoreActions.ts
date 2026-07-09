@@ -5,7 +5,7 @@ import type { TestInfo } from "@playwright/test";
 export type QualityManagementEntryCoreActionMenuKey =
   | "qc-dashboard"
   | "qc-alerts"
-  | "qc-insurance"
+  | "insurance-audit"
   | "qc-eval-sets";
 
 export type QualityManagementEntryCoreActionEvidence = {
@@ -55,7 +55,7 @@ export type QualityManagementRollbackNegativeEvidence = {
 const pathByMenuKey: Record<QualityManagementEntryCoreActionMenuKey, string> = {
   "qc-dashboard": "/qc/dashboard",
   "qc-alerts": "/qc/alerts",
-  "qc-insurance": "/qc/insurance",
+  "insurance-audit": "/qc/insurance",
   "qc-eval-sets": "/qc/eval/sets",
 };
 
@@ -64,9 +64,7 @@ export const qualityManagementEntryCoreActionScopeStatement =
 
 export async function attachQualityManagementEntryCoreActionEvidence(
   testInfo: TestInfo,
-  evidence:
-    | QualityManagementEntryCoreActionEvidence
-    | QualityManagementEntryCoreActionEvidence[],
+  evidence: QualityManagementEntryCoreActionEvidence | QualityManagementEntryCoreActionEvidence[],
   assetEvidence?: {
     evaluationAssetSupplyChainEvidence: QualityManagementEvaluationAssetEvidence;
     rollbackNegativeEvidence: QualityManagementRollbackNegativeEvidence;

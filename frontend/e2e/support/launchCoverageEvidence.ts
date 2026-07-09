@@ -547,6 +547,43 @@ const qualityManagementEntryCoreActionsClaims = [
 const knowledgeOperationsAssetEntryCoreActionsClaims = [
   "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
 ];
+const menuEntryCoreActionsClaims = ["menuEntryCoreActions:ALL_34_MENU_ENTRY_CORE_ACTIONS"];
+const requiredMenuEntryCoreActionRows = [
+  "workbench",
+  "tenant-onboarding",
+  "admin-users",
+  "identity-bindings",
+  "admin-audit",
+  "security-baseline",
+  "implementation-guide",
+  "adapter-hub",
+  "system-providers",
+  "runtime-diagnostics",
+  "domestic-check",
+  "notifications",
+  "notification-settings",
+  "knowledge-governance",
+  "runtime-releases",
+  "institution-knowledge",
+  "diagnosis-knowledge",
+  "terminology-mapping",
+  "rule-definitions",
+  "pathway-templates",
+  "provenance",
+  "graph-explore",
+  "knowledge-production",
+  "ai-workflows",
+  "clinical-followup",
+  "sandbox",
+  "qc-dashboard",
+  "qc-alerts",
+  "insurance-audit",
+  "qc-eval-sets",
+  "mpi",
+  "patient-pathways",
+  "cdss-fatigue",
+  "workflow-todos",
+] as const;
 
 const knowledgeSupplyChainEvidenceMatrixClaims = [
   "knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
@@ -1154,6 +1191,16 @@ export function buildBrowserE2eLaunchEvidence(input: {
     mergeClaims(
       evidence.launchCoverage,
       knowledgeOperationsAssetEntryCoreActionsClaims,
+      generatedAt,
+    );
+  }
+  if (hasRequiredMenuEntryCoreActionEvidence(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...menuEntryCoreActionsClaims,
+        ...requiredMenuEntryCoreActionRows.map((row) => `menuEntryCoreActionRows:${row}`),
+      ],
       generatedAt,
     );
   }
@@ -2085,6 +2132,98 @@ function hasRequiredComplianceWorkbenchPersonalEntryEvidence(tests: BrowserE2eTe
   });
 }
 
+function hasRequiredMenuEntryCoreActionEvidence(tests: BrowserE2eTestResult[]) {
+  const observed = new Set<string>();
+  addMenuRowsIf(observed, hasRequiredDashboardWorkbenchCoreActionsAttachment(tests), ["workbench"]);
+  addMenuRowsIf(observed, hasRequiredFourRoleCoreActionsFromTargetSpec(tests), [
+    "admin-users",
+    "knowledge-production",
+    "workflow-todos",
+    "admin-audit",
+  ]);
+  addMenuRowsIf(observed, hasRequiredSixEntryCoreActionsFromTargetSpec(tests), [
+    "security-baseline",
+    "knowledge-governance",
+    "rule-definitions",
+    "notifications",
+    "notification-settings",
+    "sandbox",
+    "provenance",
+  ]);
+  addMenuRowsIf(observed, hasRequiredPlatformAdminEntryCoreActionsAttachment(tests), [
+    "tenant-onboarding",
+    "identity-bindings",
+    "adapter-hub",
+    "system-providers",
+  ]);
+  addMenuRowsIf(observed, hasRequiredPlatformAdminP1EntryCoreActionsAttachment(tests), [
+    "runtime-diagnostics",
+    "domestic-check",
+  ]);
+  addMenuRowsIf(observed, hasRequiredImplementationGuideEntryCoreActionsAttachment(tests), [
+    "implementation-guide",
+  ]);
+  addMenuRowsIf(observed, hasRequiredComplianceWorkbenchPersonalEntryEvidence(tests), [
+    "security-baseline",
+    "admin-audit",
+    "notifications",
+    "notification-settings",
+    "provenance",
+  ]);
+  addMenuRowsIf(observed, hasRequiredClinicalEntryCoreActionsAttachment(tests), [
+    "mpi",
+    "patient-pathways",
+    "cdss-fatigue",
+    "workflow-todos",
+    "clinical-followup",
+  ]);
+  addMenuRowsIf(observed, hasRequiredQualityManagementEntryCoreActionsAttachment(tests), [
+    "qc-dashboard",
+    "qc-alerts",
+    "insurance-audit",
+    "qc-eval-sets",
+  ]);
+  addMenuRowsIf(observed, hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(tests), [
+    "knowledge-production",
+    "knowledge-governance",
+    "runtime-releases",
+    "institution-knowledge",
+    "diagnosis-knowledge",
+    "terminology-mapping",
+    "rule-definitions",
+    "pathway-templates",
+    "provenance",
+    "graph-explore",
+    "ai-workflows",
+  ]);
+  return requiredMenuEntryCoreActionRows.every((row) => observed.has(row));
+}
+
+function addMenuRowsIf(target: Set<string>, condition: boolean, rows: readonly string[]) {
+  if (!condition) return;
+  for (const row of rows) target.add(row);
+}
+
+function hasRequiredFourRoleCoreActionsFromTargetSpec(tests: BrowserE2eTestResult[]) {
+  return tests.some(
+    (test) =>
+      path.basename(test.file) === "four-role-core-actions-rehearsal.spec.ts" &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      hasRequiredFourRoleCoreActionsAttachment(test),
+  );
+}
+
+function hasRequiredSixEntryCoreActionsFromTargetSpec(tests: BrowserE2eTestResult[]) {
+  return tests.some(
+    (test) =>
+      path.basename(test.file) === "entry-core-actions-rehearsal.spec.ts" &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      hasRequiredSixEntryCoreActionsAttachment(test),
+  );
+}
+
 function collectCompleteFourRoleCoreActionsFromTargetSpec(tests: BrowserE2eTestResult[]) {
   for (const test of tests) {
     if (
@@ -2205,7 +2344,7 @@ const requiredClinicalEntryCoreActionServiceOperations: Record<string, string[]>
 const requiredQualityManagementEntryCoreActionPaths: Record<string, string> = {
   "qc-dashboard": "/qc/dashboard",
   "qc-alerts": "/qc/alerts",
-  "qc-insurance": "/qc/insurance",
+  "insurance-audit": "/qc/insurance",
   "qc-eval-sets": "/qc/eval/sets",
 };
 const requiredQualityManagementEntryCoreActionMenuKeys = Object.keys(
@@ -2222,7 +2361,7 @@ const requiredQualityManagementEntryCoreActionServiceOperations: Record<string, 
     "/api/v1/engine/rectifications/{taskId}/submit",
     "/api/v1/engine/rectifications/{taskId}/review",
   ],
-  "qc-insurance": [
+  "insurance-audit": [
     "/api/v1/engine/quality/case-review",
     "/api/v1/engine/quality/drg-grouping",
     "/api/v1/engine/quality/insurance-audit",
@@ -3866,10 +4005,7 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
         parsed.scenarioCodes,
         requiredPharmacyReviewAntimicrobialFrontdeskScenarioCodes,
       ) ||
-      !arrayEquals(parsed.productLayers, [
-        "CLINICAL_EXECUTION",
-        "DATA_INTEROPERABILITY",
-      ]) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
       !arrayEquals(parsed.versionedAssets, [
         "TERMINOLOGY",
         "SAFETY",
@@ -3996,10 +4132,7 @@ function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: Browser
         parsed.scenarioCodes,
         requiredInfectionPublicHealthSafetyFrontdeskScenarioCodes,
       ) ||
-      !arrayEquals(parsed.productLayers, [
-        "CLINICAL_EXECUTION",
-        "DATA_INTEROPERABILITY",
-      ]) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
       !arrayEquals(parsed.versionedAssets, ["TERMINOLOGY", "RULE", "ACTION_CARD"]) ||
       !arrayEquals(parsed.deliveryShapes, ["API_EVENT"]) ||
       !arrayEquals(parsed.serviceCombinations, [
@@ -4110,10 +4243,7 @@ function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: Browse
         parsed.scenarioCodes,
         requiredSurgeryAnesthesiaTransfusionFrontdeskScenarioCodes,
       ) ||
-      !arrayEquals(parsed.productLayers, [
-        "CLINICAL_EXECUTION",
-        "DATA_INTEROPERABILITY",
-      ]) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"]) ||
       !arrayEquals(parsed.versionedAssets, [
         "TERMINOLOGY",
         "SAFETY",

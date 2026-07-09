@@ -4982,7 +4982,7 @@ const qualityManagementEntryCoreActionsEvidence = {
       auditVerified: true,
     },
     {
-      menuKey: "qc-insurance",
+      menuKey: "insurance-audit",
       role: "engine-operator",
       path: "/qc/insurance",
       frontdeskAction: "医疗引擎运营员前台选择真实病案快照并执行医保审核派整改",
@@ -5017,6 +5017,43 @@ const qualityManagementEntryCoreActionsEvidence = {
     },
   ],
 };
+
+const requiredMenuEntryCoreActionRows = [
+  "workbench",
+  "tenant-onboarding",
+  "admin-users",
+  "identity-bindings",
+  "admin-audit",
+  "security-baseline",
+  "implementation-guide",
+  "adapter-hub",
+  "system-providers",
+  "runtime-diagnostics",
+  "domestic-check",
+  "notifications",
+  "notification-settings",
+  "knowledge-governance",
+  "runtime-releases",
+  "institution-knowledge",
+  "diagnosis-knowledge",
+  "terminology-mapping",
+  "rule-definitions",
+  "pathway-templates",
+  "provenance",
+  "graph-explore",
+  "knowledge-production",
+  "ai-workflows",
+  "clinical-followup",
+  "sandbox",
+  "qc-dashboard",
+  "qc-alerts",
+  "insurance-audit",
+  "qc-eval-sets",
+  "mpi",
+  "patient-pathways",
+  "cdss-fatigue",
+  "workflow-todos",
+];
 
 const knowledgeOperationsAssetEntryCoreActionsEvidence = {
   matrixCode: "KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS",
@@ -5341,6 +5378,142 @@ function knowledgeOperationsAssetEntryCoreActionsEvidenceResult(body: Record<str
 function expectNoKnowledgeOperationsEntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions).toBeUndefined();
+}
+
+function allMenuEntryCoreActionsEvidenceResult(
+  options: {
+    roleBody?: Record<string, unknown>;
+    entryBody?: Record<string, unknown>;
+    platformAdminBody?: Record<string, unknown>;
+    platformAdminP1Body?: Record<string, unknown>;
+    implementationGuideBody?: Record<string, unknown>;
+    dashboardBody?: Record<string, unknown>;
+    clinicalBody?: Record<string, unknown>;
+    qualityBody?: Record<string, unknown>;
+    knowledgeBody?: Record<string, unknown>;
+  } = {},
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/product-role-journeys.spec.ts",
+        title: "desktop-1440 下全部角色工作台可完成主任务起步",
+        status: "passed",
+        attachments: [
+          {
+            name: "dashboard-workbench-core-actions-codes-desktop-1440",
+            contentType: "application/json",
+            body: JSON.stringify(options.dashboardBody ?? dashboardWorkbenchCoreActionsEvidence),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/four-role-core-actions-rehearsal.spec.ts",
+        title: "四职责主动作均完成真实前台操作与服务回读闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "four-role-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(options.roleBody ?? fourRoleCoreActionsEvidence),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/entry-core-actions-rehearsal.spec.ts",
+        title: "七个路由覆盖六类入口族完成真实前台核心动作代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(options.entryBody ?? sixEntryCoreActionsEvidence),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/platform-admin-entry-core-actions-rehearsal.spec.ts",
+        title: "平台管理员 P0 入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "platform-admin-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(
+              options.platformAdminBody ?? platformAdminEntryCoreActionsEvidence,
+            ),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/platform-admin-p1-entry-core-actions-rehearsal.spec.ts",
+        title: "平台管理员 P1 系统运维入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "platform-admin-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(
+              options.platformAdminP1Body ?? platformAdminP1EntryCoreActionsEvidence,
+            ),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/stakeholder-view-rehearsal.spec.ts",
+        title: "十二类业务视角均能通过四职责账号进入真实页面并看到对应业务能力",
+        status: "passed",
+        attachments: [
+          {
+            name: "implementation-guide-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(
+              options.implementationGuideBody ?? implementationGuideEntryCoreActionsEvidence,
+            ),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/clinical-entry-core-actions-rehearsal.spec.ts",
+        title: "临床协同入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "clinical-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(options.clinicalBody ?? clinicalEntryCoreActionsEvidence),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts",
+        title: "质量管理入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "quality-management-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(options.qualityBody ?? qualityManagementEntryCoreActionsEvidence),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts",
+        title: "知识运营资产入口族完成真实前台供给链代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "knowledge-operations-asset-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(
+              options.knowledgeBody ?? knowledgeOperationsAssetEntryCoreActionsEvidence,
+            ),
+          },
+        ],
+      },
+    ],
+  });
 }
 
 function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
@@ -10313,6 +10486,30 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares all 34 product menu entry core-action rows only from complete cross-family evidence", () => {
+    const evidence = allMenuEntryCoreActionsEvidenceResult();
+
+    expect(evidence.launchCoverage.menuEntryCoreActions?.map((item) => item.code)).toEqual([
+      "ALL_34_MENU_ENTRY_CORE_ACTIONS",
+    ]);
+    expect(evidence.launchCoverage.menuEntryCoreActionRows?.map((item) => item.code)).toEqual(
+      requiredMenuEntryCoreActionRows,
+    );
+  });
+
+  it("does not declare all 34 menu entry rows when one authority menu key is still missing", () => {
+    const body = {
+      ...qualityManagementEntryCoreActionsEvidence,
+      entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.filter(
+        (item) => item.menuKey !== "insurance-audit",
+      ),
+    };
+    const evidence = allMenuEntryCoreActionsEvidenceResult({ qualityBody: body });
+
+    expect(evidence.launchCoverage.menuEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.menuEntryCoreActionRows).toBeUndefined();
+  });
+
   it("does not declare compliance personal entry rows from only one proving spec", () => {
     const roleOnly = fourRoleCoreActionsEvidenceResult(fourRoleCoreActionsEvidence);
     const entryOnly = sixEntryCoreActionsEvidenceResult(sixEntryCoreActionsEvidence);
@@ -11247,7 +11444,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...qualityManagementEntryCoreActionsEvidence,
         entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
-          item.menuKey === "qc-insurance" ? { ...item, path: "/qc/alerts" } : item,
+          item.menuKey === "insurance-audit" ? { ...item, path: "/qc/alerts" } : item,
         ),
       },
     },
@@ -11274,7 +11471,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...qualityManagementEntryCoreActionsEvidence,
         entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
-          item.menuKey === "qc-insurance"
+          item.menuKey === "insurance-audit"
             ? { ...item, serviceOperation: "POST /api/v1/engine/quality/case-review" }
             : item,
         ),
