@@ -1938,7 +1938,11 @@ function collectVersionedAssetSupplyChainMatrixClaims(tests: BrowserE2eTestResul
   );
   const hasKnowledgeOperations =
     hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(tests);
-  if (!hasRuntimeRelease || !hasKnowledgeOperations) return [];
+  const hasVersionedAssetSupplyChainLedger =
+    hasCompleteVersionedAssetSupplyChainLedgerAttachment(tests);
+  if (!hasRuntimeRelease || !hasKnowledgeOperations || !hasVersionedAssetSupplyChainLedger) {
+    return [];
+  }
 
   const representativeAssets = new Set<string>();
   const knownGaps = new Set<string>();
@@ -3292,9 +3296,7 @@ function hasRequiredDashboardWorkbenchCoreActionsAttachment(tests: BrowserE2eTes
   return false;
 }
 
-function collectRoleScopeFrontdeskActionRepresentativeSliceClaims(
-  tests: BrowserE2eTestResult[],
-) {
+function collectRoleScopeFrontdeskActionRepresentativeSliceClaims(tests: BrowserE2eTestResult[]) {
   const dashboardTest = tests.find(
     (test) =>
       path.basename(test.file) === "product-role-journeys.spec.ts" &&
@@ -3310,9 +3312,7 @@ function collectRoleScopeFrontdeskActionRepresentativeSliceClaims(
   try {
     const parsed = recordValue(JSON.parse(attachment.body));
     return parsed &&
-      hasCompleteDashboardWorkbenchPermissionBoundaryEvidence(
-        parsed.permissionBoundaryEvidence,
-      ) &&
+      hasCompleteDashboardWorkbenchPermissionBoundaryEvidence(parsed.permissionBoundaryEvidence) &&
       hasCompleteDashboardWorkbenchSixStateEvidence(parsed.sixStateEvidence)
       ? roleScopeFrontdeskActionRepresentativeSliceClaims
       : [];
@@ -4010,6 +4010,92 @@ function hasRequiredKnowledgeSupplyChainEvidenceAttachment(tests: BrowserE2eTest
     }
   }
   return false;
+}
+
+function hasCompleteVersionedAssetSupplyChainLedgerAttachment(tests: BrowserE2eTestResult[]) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== knowledgeOperationsAssetEntryActionSpecFile ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    if (
+      !hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment([test]) ||
+      !hasRequiredKnowledgeSupplyChainEvidenceAttachment([test])
+    ) {
+      continue;
+    }
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "knowledge-operations-asset-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      try {
+        const parsed = recordValue(JSON.parse(attachment.body));
+        if (
+          parsed &&
+          hasVersionedAssetSupplyChainLedgerScopeBoundary(
+            parsed.versionedAssetSupplyChainRowScope,
+          ) &&
+          hasCompleteVersionedAssetSupplyChainRows(parsed.versionedAssetSupplyChainRows)
+        ) {
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+function hasVersionedAssetSupplyChainLedgerScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("13 类版本化资产逐类供给链代表子账") &&
+    hasNegatedScopeTerm(statement, "13 类医学资产全部生产闭环") &&
+    hasNegatedScopeTerm(statement, "所有医学知识和术语体系已收集完成") &&
+    hasNegatedScopeTerm(statement, "全知识供给链完整上线") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveKnowledgeOperationsAssetEntryCompleteScopeClaim(statement)
+  );
+}
+
+function hasCompleteVersionedAssetSupplyChainRows(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const rowsByAsset = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const row = recordValue(item);
+    const assetType = textValue(row?.assetType);
+    if (
+      !row ||
+      !assetType ||
+      !requiredRuntimeReleaseVersionedAssets.includes(assetType) ||
+      rowsByAsset.has(assetType) ||
+      !hasCompleteVersionedAssetSupplyChainRow(row)
+    ) {
+      return false;
+    }
+    rowsByAsset.set(assetType, row);
+  }
+  return requiredRuntimeReleaseVersionedAssets.every((asset) => rowsByAsset.has(asset));
+}
+
+function hasCompleteVersionedAssetSupplyChainRow(row: Record<string, unknown>) {
+  return (
+    textValue(row.sourceControlEvidencePath) === "knowledgeSupplyChainEvidence.sourceControl" &&
+    hasText(row.contentHash) &&
+    hasText(row.contentExcerpt) &&
+    row.humanReviewVerified === true &&
+    row.noDirectModelPublish === true &&
+    row.runtimeConsumerReadbackVerified === true &&
+    row.continuousIterationVerified === true &&
+    row.rollbackReadbackVerified === true &&
+    row.auditVerified === true &&
+    hasNonEmptyTextArray(row.evidence)
+  );
 }
 
 function hasRequiredLaunchReadinessStakeholderAttachment(tests: BrowserE2eTestResult[]) {

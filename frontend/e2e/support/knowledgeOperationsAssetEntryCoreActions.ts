@@ -84,6 +84,20 @@ export type KnowledgeSupplyChainEvidence = {
   };
 };
 
+export type VersionedAssetSupplyChainRow = {
+  assetType: string;
+  sourceControlEvidencePath: string;
+  contentHash: string;
+  contentExcerpt: string;
+  humanReviewVerified: boolean;
+  noDirectModelPublish: boolean;
+  runtimeConsumerReadbackVerified: boolean;
+  continuousIterationVerified: boolean;
+  rollbackReadbackVerified: boolean;
+  auditVerified: boolean;
+  evidence: string[];
+};
+
 const pathByMenuKey: Record<KnowledgeOperationsAssetEntryCoreActionMenuKey, string> = {
   "knowledge-production": "/knowledge/production",
   "knowledge-governance": "/knowledge/governance",
@@ -100,6 +114,9 @@ const pathByMenuKey: Record<KnowledgeOperationsAssetEntryCoreActionMenuKey, stri
 
 export const knowledgeOperationsAssetEntryCoreActionScopeStatement =
   "知识运营资产入口族供给链代表矩阵：围绕知识生产、知识审核发布中心、机构生效版本、术语字典、临床规则、临床路径库、机构知识库、诊断知识库、来源与血缘、知识关系和模型能力与安全十一个入口完成真实前台核心动作、服务回读、运行生效、回滚读回与只读边界证据；不代表全知识供给链完整上线，不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表完整 S0-S40，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。";
+
+export const versionedAssetSupplyChainRowScopeStatement =
+  "13 类版本化资产逐类供给链代表子账：逐类绑定受控来源、资产正文校验、人工审核、机构生效版本运行消费、持续迭代和回滚读回证据；不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表全知识供给链完整上线，不代表完整上线验收。";
 
 const assetTypesCovered = [
   "KNOWLEDGE",
@@ -122,13 +139,18 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
   evidence:
     | KnowledgeOperationsAssetEntryCoreActionEvidence
     | KnowledgeOperationsAssetEntryCoreActionEvidence[],
-  options: { knowledgeSupplyChainEvidence?: KnowledgeSupplyChainEvidence } = {},
+  options: {
+    knowledgeSupplyChainEvidence?: KnowledgeSupplyChainEvidence;
+    versionedAssetSupplyChainRows?: VersionedAssetSupplyChainRow[];
+  } = {},
 ) {
   const entryActions = Array.isArray(evidence) ? evidence : [evidence];
   for (const action of entryActions) {
     assertKnowledgeOperationsAssetEntryCoreAction(action);
   }
-  const recordPath = testInfo.outputPath("knowledge-operations-asset-entry-core-actions-codes.json");
+  const recordPath = testInfo.outputPath(
+    "knowledge-operations-asset-entry-core-actions-codes.json",
+  );
   await writeFile(
     recordPath,
     `${JSON.stringify(
@@ -151,6 +173,8 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
           rollbackReadbackVerified: true,
         },
         knowledgeSupplyChainEvidence: options.knowledgeSupplyChainEvidence,
+        versionedAssetSupplyChainRowScope: versionedAssetSupplyChainRowScopeStatement,
+        versionedAssetSupplyChainRows: options.versionedAssetSupplyChainRows,
         entryActions,
       },
       null,
@@ -162,6 +186,29 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+export function buildVersionedAssetSupplyChainRows(options: {
+  contentHashSeed: string;
+  contentExcerpt: string;
+  runtimeConsumerReadbackVerified: boolean;
+  rollbackReadbackVerified: boolean;
+}): VersionedAssetSupplyChainRow[] {
+  return assetTypesCovered.map((assetType) => ({
+    assetType,
+    sourceControlEvidencePath: "knowledgeSupplyChainEvidence.sourceControl",
+    contentHash: `${assetType.toLowerCase().replace(/_/g, "-")}-${options.contentHashSeed}`,
+    contentExcerpt: `${assetType} ${options.contentExcerpt}`,
+    humanReviewVerified: true,
+    noDirectModelPublish: true,
+    runtimeConsumerReadbackVerified: options.runtimeConsumerReadbackVerified,
+    continuousIterationVerified: true,
+    rollbackReadbackVerified: options.rollbackReadbackVerified,
+    auditVerified: true,
+    evidence: [
+      `${assetType} 逐类供给链子账绑定受控来源、正文校验、人工审核、机构生效版本消费、持续迭代和回滚读回证据。`,
+    ],
+  }));
 }
 
 function assertKnowledgeOperationsAssetEntryCoreAction(

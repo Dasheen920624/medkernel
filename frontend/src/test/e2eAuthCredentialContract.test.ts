@@ -1022,6 +1022,8 @@ describe("E2E credential contract", () => {
       "e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts",
       "utf8",
     );
+    const support = readFileSync("e2e/support/knowledgeOperationsAssetEntryCoreActions.ts", "utf8");
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
 
     expect(source).toContain("knowledge-operations-asset-entry-core-actions-codes");
     expect(source).toContain("KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS");
@@ -1032,6 +1034,24 @@ describe("E2E credential contract", () => {
     expect(source).toContain("rollbackReadbackVerified");
     expect(source).toContain("buildKnowledgeSupplyChainEvidence");
     expect(source).toContain("knowledgeSupplyChainEvidence");
+    expect(source).toContain("buildVersionedAssetSupplyChainRows");
+    expect(source).toContain("versionedAssetSupplyChainRows");
+    expect(source).toContain("contentHashSeed");
+    expect(source).toContain("runtime.runtimeConsumerReadbackVerified");
+    expect(source).toContain("runtime.rollbackReadbackVerified");
+    expect(support).toContain("versionedAssetSupplyChainRowScopeStatement");
+    expect(support).toContain("13 类版本化资产逐类供给链代表子账");
+    expect(support).toContain("buildVersionedAssetSupplyChainRows");
+    expect(support).toContain("sourceControlEvidencePath");
+    expect(support).toContain("noDirectModelPublish");
+    expect(support).toContain("continuousIterationVerified");
+    expect(coverageParser).toContain("hasCompleteVersionedAssetSupplyChainLedgerAttachment");
+    expect(coverageParser).toContain("hasCompleteVersionedAssetSupplyChainRows");
+    expect(coverageParser).toContain("hasVersionedAssetSupplyChainLedgerScopeBoundary");
+    expect(coverageParser).toContain("parsed.versionedAssetSupplyChainRows");
+    expect(coverageParser).toContain(
+      "!hasRuntimeRelease || !hasKnowledgeOperations || !hasVersionedAssetSupplyChainLedger",
+    );
     expect(source).toContain("sourceControl");
     expect(source).toContain("sourceVersionRegistered");
     expect(source).toContain("sourceFragmentRegistered");

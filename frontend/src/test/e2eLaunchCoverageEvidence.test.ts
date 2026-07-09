@@ -7196,6 +7196,36 @@ const knowledgeOperationsAssetEntryCoreActionsEvidence = {
   ],
 };
 
+const versionedAssetSupplyChainRowScope =
+  "13 类版本化资产逐类供给链代表子账：逐类绑定受控来源、资产正文校验、人工审核、机构生效版本运行消费、持续迭代和回滚读回证据；不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表全知识供给链完整上线，不代表完整上线验收。";
+
+function versionedAssetSupplyChainRows(assetTypes = runtimeReleaseVersionedAssets) {
+  return assetTypes.map((assetType) => ({
+    assetType,
+    sourceControlEvidencePath: "knowledgeSupplyChainEvidence.sourceControl",
+    contentHash: `${assetType.toLowerCase().replace(/_/g, "-")}-${"a".repeat(64)}`,
+    contentExcerpt: `${assetType} 受控资产正文片段已由真实前台链路生成并回读`,
+    humanReviewVerified: true,
+    noDirectModelPublish: true,
+    runtimeConsumerReadbackVerified: true,
+    continuousIterationVerified: true,
+    rollbackReadbackVerified: true,
+    auditVerified: true,
+    evidence: [`${assetType} 受控来源、正文校验、人工审核、机构生效版本消费和回滚读回证据齐备`],
+  }));
+}
+
+function knowledgeOperationsAssetEntryCoreActionsEvidenceWithSupplyChainRows(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+    versionedAssetSupplyChainRowScope,
+    versionedAssetSupplyChainRows: versionedAssetSupplyChainRows(),
+    ...overrides,
+  };
+}
+
 function platformAdminEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -7695,7 +7725,7 @@ function versionedAssetSupplyChainMatrixTests(
       file: "knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts",
       title: "知识运营资产入口族完成真实前台供给链代表矩阵",
       attachmentName: "knowledge-operations-asset-entry-core-actions-codes",
-      body: knowledgeOperationsAssetEntryCoreActionsEvidence,
+      body: knowledgeOperationsAssetEntryCoreActionsEvidenceWithSupplyChainRows(),
     },
     {
       file: "s2-s4-terminology-integration-rehearsal.spec.ts",
@@ -20602,6 +20632,97 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.versionedAssetKnownGaps?.map((item) => item.code)).toEqual([
       "EVALUATION",
     ]);
+  });
+
+  it("does not declare the 13 asset supply-chain matrix without explicit per-asset ledger evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts":
+            knowledgeOperationsAssetEntryCoreActionsEvidence,
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少一个资产类型",
+      overrides: {
+        versionedAssetSupplyChainRows: versionedAssetSupplyChainRows(
+          runtimeReleaseVersionedAssets.filter((asset) => asset !== "EVALUATION"),
+        ),
+      },
+    },
+    {
+      name: "逐类行含未知资产类型",
+      overrides: {
+        versionedAssetSupplyChainRows: [
+          ...versionedAssetSupplyChainRows(),
+          ...versionedAssetSupplyChainRows(["UNKNOWN_ASSET"]),
+        ],
+      },
+    },
+    {
+      name: "行缺正文校验哈希",
+      overrides: {
+        versionedAssetSupplyChainRows: versionedAssetSupplyChainRows().map((row) =>
+          row.assetType === "KNOWLEDGE" ? { ...row, contentHash: "" } : row,
+        ),
+      },
+    },
+    {
+      name: "运行消费者未回读",
+      overrides: {
+        versionedAssetSupplyChainRows: versionedAssetSupplyChainRows().map((row) =>
+          row.assetType === "TERMINOLOGY"
+            ? { ...row, runtimeConsumerReadbackVerified: false }
+            : row,
+        ),
+      },
+    },
+    {
+      name: "人工审核未成立",
+      overrides: {
+        versionedAssetSupplyChainRows: versionedAssetSupplyChainRows().map((row) =>
+          row.assetType === "RULE" ? { ...row, humanReviewVerified: false } : row,
+        ),
+      },
+    },
+    {
+      name: "允许模型直发",
+      overrides: {
+        versionedAssetSupplyChainRows: versionedAssetSupplyChainRows().map((row) =>
+          row.assetType === "PATHWAY" ? { ...row, noDirectModelPublish: false } : row,
+        ),
+      },
+    },
+    {
+      name: "scope 冒领完整上线",
+      overrides: {
+        versionedAssetSupplyChainRowScope:
+          "13 类版本化资产逐类供给链代表子账已经完整上线验收并完成 13 类医学资产全部生产闭环",
+      },
+    },
+  ])("does not declare the 13 asset supply-chain matrix when $name", ({ overrides }) => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts":
+            knowledgeOperationsAssetEntryCoreActionsEvidenceWithSupplyChainRows(overrides),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetSupplyChainMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetRepresentativeRows).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetKnownGaps).toBeUndefined();
   });
 
   it("does not declare the 13 asset supply-chain matrix without runtime release rollback evidence", () => {

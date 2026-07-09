@@ -342,6 +342,47 @@
   `roleRepresentativeCoreActions=[FOUR_ROLE_PRIMARY_ACTIONS]` 和 `scenarioConditionRows=[S0__NORMAL]`，未产生 `organizationLevels`。
   并行只读 explorer 已关闭，未编辑、未暂存、未提交。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
   仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百四十六批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 3 项 13 类版本化资产供给链总账。
+  本批不新增 release coverage key、不新增 S0-S40 五态行；只把知识运营资产入口族附件升级为显式
+  `versionedAssetSupplyChainRows` 逐类供给链 ledger，并要求现有
+  `versionedAssetSupplyChainMatrix:THIRTEEN_VERSIONED_ASSETS_GAP_AWARE_REPRESENTATIVE` 与
+  `versionedAssetRepresentativeRows:*` 在跨 spec 强证据齐全之外，还必须有知识运营附件中的 13 类逐类 ledger 才能声明。
+  只读 explorer 明确提示不能从单个知识运营附件直接冒领 13 类资产完整生产闭环，因此本批保留现有 release 总账字段，
+  不新增 `launchCoverage.versionedAssetSupplyChainRows` 字典，避免双账本和未知 coverage key 扩散。
+- 第二百四十六批实现细节：`frontend/e2e/support/knowledgeOperationsAssetEntryCoreActions.ts` 新增
+  `VersionedAssetSupplyChainRow`、`versionedAssetSupplyChainRowScopeStatement` 与
+  `buildVersionedAssetSupplyChainRows()`，附件写入 `versionedAssetSupplyChainRowScope` 和
+  `versionedAssetSupplyChainRows`，每行包含 `assetType/sourceControlEvidencePath/contentHash/contentExcerpt/`
+  `humanReviewVerified/noDirectModelPublish/runtimeConsumerReadbackVerified/continuousIterationVerified/`
+  `rollbackReadbackVerified/auditVerified/evidence`。`frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  以本轮受控来源正文、术语资产身份和机构 runtime release 生成 ledger hash，明确“逐类成功声明仍需跨专项 E2E 共同背书”。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `hasCompleteVersionedAssetSupplyChainLedgerAttachment()`、`hasVersionedAssetSupplyChainLedgerScopeBoundary()`、
+  `hasCompleteVersionedAssetSupplyChainRows()` 和逐行校验；`collectVersionedAssetSupplyChainMatrixClaims()` 继续要求
+  runtime release 与知识运营强附件，同时新增逐类 ledger 前置门槛。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖缺显式 ledger、缺资产类型、未知资产类型、缺正文 hash、运行消费者未回读、人工审核未成立、允许模型直发、
+  scope 冒领完整上线均不得声明 13 类版本化资产矩阵 / 代表行 / known gap。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  同步锁定 E2E 附件、support builder 与 parser 锚点。
+- 第二百四十六批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 8 个新增负例（旧 parser 未读取逐类 ledger
+  仍声明 13 类矩阵）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1019 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-versioned-asset-ledger-20260710-r1 npm --prefix frontend run e2e -- --project=chromium knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-versioned-asset-ledger-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，只声明
+  `knowledgeOperationsAssetEntryCoreActions=[KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE]`、
+  `knowledgeSupplyChainEvidenceMatrix=[CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE]` 和
+  6 条 `knowledgeSupplyChainEvidenceRows`；未声明 `versionedAssetSupplyChainMatrix`、`versionedAssetRepresentativeRows`、
+  `versionedAssetKnownGaps` 或任何 `scenarioConditionRows`。附件抽查显示 `versionedAssetSupplyChainRows` 为 13 行，
+  覆盖 `KNOWLEDGE/TERMINOLOGY/RULE/PATHWAY/EVALUATION/FOLLOWUP/FIELD_CATALOG/SAFETY/CDSS_RISK/VALUE_SET/FORMULA/ORDER_SET/ACTION_CARD`，
+  `noDirectModelPublish=true`、`runtimeConsumerReadbackVerified=true`、`rollbackReadbackVerified=true`。
+  明确不声明 13 类医学资产全部生产闭环、所有医学知识和术语体系已收集完成、完整 LAUNCH-03、完整知识供给链、完整 S0-S40、
+  34 / 35 个入口全部业务动作闭环、134 清库、目标环境部署或完整上线验收。两个只读 explorer 已关闭，均未编辑、未暂存、
+  未提交、未启动服务、未外调。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

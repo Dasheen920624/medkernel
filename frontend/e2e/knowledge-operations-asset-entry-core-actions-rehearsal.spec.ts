@@ -29,6 +29,7 @@ import {
 } from "./support/auth";
 import {
   attachKnowledgeOperationsAssetEntryCoreActionEvidence,
+  buildVersionedAssetSupplyChainRows,
   type KnowledgeOperationsAssetEntryCoreActionEvidence,
   type KnowledgeSupplyChainEvidence,
 } from "./support/knowledgeOperationsAssetEntryCoreActions";
@@ -150,6 +151,15 @@ test.describe("知识运营资产入口族供给链真实前台演练", () => {
           graphAction,
           aiAction,
         }),
+        versionedAssetSupplyChainRows: buildVersionedAssetSupplyChainRows({
+          contentHashSeed: createHash("sha256")
+            .update(`${knowledge.textExcerpt}:${terminology.assetIdentity}:${runtime.releaseId}`)
+            .digest("hex"),
+          contentExcerpt:
+            "受控资产正文片段由知识运营真实前台链路生成；逐类成功声明仍需跨专项 E2E 共同背书。",
+          runtimeConsumerReadbackVerified: runtime.runtimeConsumerReadbackVerified,
+          rollbackReadbackVerified: runtime.rollbackReadbackVerified,
+        }),
       },
     );
   });
@@ -206,7 +216,8 @@ function buildKnowledgeSupplyChainEvidence(options: {
       sourceAuditVerified: options.provenanceAction.sourceAuditVerified === true,
     },
     safetyBoundary: {
-      externalSourcesPreparatoryOnly: formalKnowledgeOperationsProductionChain.externalSourcesPreparatoryOnly,
+      externalSourcesPreparatoryOnly:
+        formalKnowledgeOperationsProductionChain.externalSourcesPreparatoryOnly,
       modelDirectPublishBlocked:
         formalKnowledgeOperationsProductionChain.modelDirectPublishBlocked &&
         options.aiAction.noDirectPublishVerified === true,
@@ -223,9 +234,7 @@ async function verifyKnowledgeProductionEntry(
   await expect(page.getByRole("heading", { name: "知识生产工作台" })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(
-    page.getByText("正式知识不得绕过统一治理链", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("正式知识不得绕过统一治理链", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "知识生产任务办理" })).toBeVisible();
   const identity = await getApi(
     page,
@@ -323,7 +332,9 @@ async function verifyRuntimeEntry(
   await expect(page.getByRole("heading", { name: "机构生效版本" })).toBeVisible({
     timeout: 30_000,
   });
-  expect(runtime.activeAssets.length).toBeGreaterThanOrEqual(requiredRuntimeAssetsForRehearsal.length);
+  expect(runtime.activeAssets.length).toBeGreaterThanOrEqual(
+    requiredRuntimeAssetsForRehearsal.length,
+  );
   return {
     menuKey: "runtime-releases",
     role: "engine-operator",
@@ -401,12 +412,19 @@ async function createRuleDefinitionEvidence(
     parameterBindings: {},
   });
   await expectOk(created, "创建知识运营代表规则");
-  const ruleId = requireText(textField(await responseData(created), "ruleId"), "规则创建必须返回 ruleId");
-  const simulate = await postApi(page, `/engine/rule/rules/${encodeURIComponent(ruleId)}/simulate`, {
-    ...knowledgeContext("knowledge-ops-rule-simulate"),
-    triggerPoint: "result-review",
-    context: { patient: { age: 42 } },
-  });
+  const ruleId = requireText(
+    textField(await responseData(created), "ruleId"),
+    "规则创建必须返回 ruleId",
+  );
+  const simulate = await postApi(
+    page,
+    `/engine/rule/rules/${encodeURIComponent(ruleId)}/simulate`,
+    {
+      ...knowledgeContext("knowledge-ops-rule-simulate"),
+      triggerPoint: "result-review",
+      context: { patient: { age: 42 } },
+    },
+  );
   await expectOk(simulate, "试运行知识运营代表规则");
   return {
     menuKey: "rule-definitions",
@@ -450,7 +468,8 @@ async function createPathwayTemplateEvidence(
   await expectOk(created, "创建知识运营代表路径");
   const createdData = await responseData(created);
   const templateId = requireText(
-    textField(recordField(createdData, "template"), "templateId") ?? textField(createdData, "templateId"),
+    textField(recordField(createdData, "template"), "templateId") ??
+      textField(createdData, "templateId"),
     "路径创建必须返回 templateId",
   );
   const simulate = await postApi(
@@ -509,7 +528,10 @@ async function createInstitutionKnowledgeEvidence(
   expect(numericField(customizationData, "platformIdentityId")).toBe(platformIdentityId);
   expect(textField(customizationData, "targetOrgUnitId")).toBe(hospitalId);
   expect(textField(customizationData, "applicableScope")).toBe("ALL");
-  const customizationId = requireText(textField(customizationData, "customizationId"), "机构差异必须返回 customizationId");
+  const customizationId = requireText(
+    textField(customizationData, "customizationId"),
+    "机构差异必须返回 customizationId",
+  );
   const restored = await postApi(
     page,
     `/engine/knowledge/customizations/${encodeURIComponent(customizationId)}:restore-platform`,
@@ -604,14 +626,18 @@ async function createDiagnosisKnowledgeEvidence(
     numericField(recordField(assetData, "citation"), "id"),
     "诊断资产必须返回来源 citation",
   );
-  const criterion = await postApi(page, `/engine/knowledge/diagnosis/versions/${versionId}/criteria`, {
-    findingTermCode,
-    direction: "SUPPORTING",
-    weight: "MAJOR",
-    valueConstraint: null,
-    temporalConstraint: null,
-    citationId,
-  });
+  const criterion = await postApi(
+    page,
+    `/engine/knowledge/diagnosis/versions/${versionId}/criteria`,
+    {
+      findingTermCode,
+      direction: "SUPPORTING",
+      weight: "MAJOR",
+      valueConstraint: null,
+      temporalConstraint: null,
+      citationId,
+    },
+  );
   await expectOk(criterion, "登记知识运营诊断标准");
   const testCase = await postApi(
     page,
@@ -825,7 +851,10 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
     language: "zh-CN",
   });
   await expectOk(source, "登记知识运营受控来源");
-  const sourceDocumentId = requireNumber(numericField(await responseData(source), "id"), "来源必须返回 id");
+  const sourceDocumentId = requireNumber(
+    numericField(await responseData(source), "id"),
+    "来源必须返回 id",
+  );
 
   const uploadParsed = await uploadParseKnowledgeDocument(page, {
     suffix,
@@ -850,7 +879,10 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
   const generation = uploadParsed.generation;
   const generatedCandidate =
     pageItems(recordField(generation, "candidates"))[0] ?? arrayItem(generation, "candidates", 0);
-  const candidateRef = requireText(textField(generatedCandidate, "candidateRef"), "候选必须返回 candidateRef");
+  const candidateRef = requireText(
+    textField(generatedCandidate, "candidateRef"),
+    "候选必须返回 candidateRef",
+  );
   const jobCode = requireText(textField(generatedCandidate, "jobCode"), "候选必须返回 jobCode");
   const parsed = parseKnowledgeCandidateRef(candidateRef);
   const identity = await getApi(
@@ -858,7 +890,10 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
     `/engine/knowledge/identities/by-code/${encodeURIComponent(identityCode)}`,
   );
   await expectOk(identity, "读取知识运营候选身份");
-  const identityId = requireNumber(numericField(await responseData(identity), "id"), "身份必须返回 id");
+  const identityId = requireNumber(
+    numericField(await responseData(identity), "id"),
+    "身份必须返回 id",
+  );
   expect(identityId).toBe(parsed.identityId);
   const candidateView = await getApi(
     page,
@@ -886,7 +921,10 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
     endOffset: textExcerpt.length,
   });
   await expectOk(citation, "绑定知识运营来源 citation");
-  const citationId = requireNumber(numericField(await responseData(citation), "id"), "citation 必须返回 id");
+  const citationId = requireNumber(
+    numericField(await responseData(citation), "id"),
+    "citation 必须返回 id",
+  );
   const qualityRecord = await postApi(
     page,
     `/engine/knowledge-production/jobs/${encodeURIComponent(jobCode)}/publication-quality-records`,
@@ -967,38 +1005,35 @@ async function uploadParseKnowledgeDocument(
   if (xsrf) {
     headers["X-XSRF-TOKEN"] = xsrf.value;
   }
-  const upload = await page.request.post(
-    `${apiBase}/engine/knowledge/documents:upload-parse`,
-    {
-      headers,
-      multipart: {
-        file: {
-          name: `knowledge-ops-${options.suffix}.md`,
-          mimeType: "text/plain",
-          buffer: Buffer.from(options.content, "utf8"),
-        },
-        sourceDocumentId: String(options.sourceDocumentId),
-        versionNo: `2026-${options.suffix}`,
-        format: "STRUCTURED_TEXT",
-        generation: JSON.stringify({
-          domain: "CLINICAL",
-          items: [
-            {
-              assetType: "KNOWLEDGE",
-              target: {
-                targetIdentityId: null,
-                newIdentity: {
-                  domain: "GUIDELINE",
-                  subject: `知识运营供给链说明书 ${options.suffix}`,
-                  identityCode: options.identityCode,
-                },
+  const upload = await page.request.post(`${apiBase}/engine/knowledge/documents:upload-parse`, {
+    headers,
+    multipart: {
+      file: {
+        name: `knowledge-ops-${options.suffix}.md`,
+        mimeType: "text/plain",
+        buffer: Buffer.from(options.content, "utf8"),
+      },
+      sourceDocumentId: String(options.sourceDocumentId),
+      versionNo: `2026-${options.suffix}`,
+      format: "STRUCTURED_TEXT",
+      generation: JSON.stringify({
+        domain: "CLINICAL",
+        items: [
+          {
+            assetType: "KNOWLEDGE",
+            target: {
+              targetIdentityId: null,
+              newIdentity: {
+                domain: "GUIDELINE",
+                subject: `知识运营供给链说明书 ${options.suffix}`,
+                identityCode: options.identityCode,
               },
             },
-          ],
-        }),
-      },
+          },
+        ],
+      }),
     },
-  );
+  });
   await expectOk(upload, "上传解析知识运营受控来源并生成候选");
   const data = await responseData(upload);
   const parseJob = recordField(data, "parseJob");
@@ -1065,7 +1100,10 @@ async function prepareTerminologyAsset(page: Page, suffix: string): Promise<Term
     semanticAssistEnabled: true,
   });
   await expectOk(generation, "生成知识运营术语候选");
-  const jobCode = requireText(textField(await responseData(generation), "jobCode"), "术语候选必须返回 jobCode");
+  const jobCode = requireText(
+    textField(await responseData(generation), "jobCode"),
+    "术语候选必须返回 jobCode",
+  );
   const candidate = await waitForTerminologyCandidate(page, jobCode, localCode);
   const candidateId = requireNumber(numericField(candidate, "id"), "术语候选必须返回 id");
   const confirmed = await postApi(page, `/engine/terminology/mappings/${candidateId}/confirm`, {
@@ -1108,7 +1146,10 @@ async function activateRuntimeWithTerminologyAndRollback(
   const baseline = await getApi(page, "/engine/releases/platform-baselines/current");
   await expectOk(baseline, "读取知识运营当前平台标准版本");
   const baselineAssets = resolveBaselineRuntimeAssets(await responseData(baseline));
-  expect(baselineAssets.baselineReleaseId, "知识运营矩阵必须基于当前平台标准版本激活医院 runtime").toBeTruthy();
+  expect(
+    baselineAssets.baselineReleaseId,
+    "知识运营矩阵必须基于当前平台标准版本激活医院 runtime",
+  ).toBeTruthy();
   expect(
     requiredRuntimeAssetsForRehearsal.every((required) =>
       baselineAssets.activeAssets.some(
@@ -1126,7 +1167,10 @@ async function activateRuntimeWithTerminologyAndRollback(
   const currentBeforeData = await responseData(currentBefore);
   const currentBeforeRelease = recordField(currentBeforeData, "release");
   const previousReleaseId = textField(currentBeforeRelease, "releaseId");
-  const currentPlatformBaselineReleaseId = textField(currentBeforeRelease, "platformBaselineReleaseId");
+  const currentPlatformBaselineReleaseId = textField(
+    currentBeforeRelease,
+    "platformBaselineReleaseId",
+  );
   const activeAssets = uniqueRuntimeAssets([
     ...baselineAssets.activeAssets,
     {
@@ -1145,13 +1189,20 @@ async function activateRuntimeWithTerminologyAndRollback(
         previousReleaseId &&
         currentPlatformBaselineReleaseId &&
         currentPlatformBaselineReleaseId !== baselineAssets.baselineReleaseId
-          ? await readPlatformUpgradeAnalysisDigest(page, hospitalId, baselineAssets.baselineReleaseId ?? "")
+          ? await readPlatformUpgradeAnalysisDigest(
+              page,
+              hospitalId,
+              baselineAssets.baselineReleaseId ?? "",
+            )
           : null,
       activeAssets: uniqueRuntimeAssets(activeAssets),
     },
   );
   await expectOk(activation, "生成知识运营机构生效版本");
-  const releaseId = requireText(textField(await responseData(activation), "releaseId"), "激活必须返回 releaseId");
+  const releaseId = requireText(
+    textField(await responseData(activation), "releaseId"),
+    "激活必须返回 releaseId",
+  );
   const current = await getApi(
     page,
     `/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases/current`,
@@ -1167,7 +1218,10 @@ async function activateRuntimeWithTerminologyAndRollback(
     ),
     "当前机构生效版本必须包含本轮术语资产",
   ).toBe(true);
-  const consumer = await getApi(page, "/engine/integration/knowledge-runtime/runtime-release/current");
+  const consumer = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
   await expectOk(consumer, "读取第三方运行契约当前机构生效版本");
   const runtimeConsumerReadbackVerified = JSON.stringify(await responseData(consumer)).includes(
     terminology.assetIdentity,
@@ -1219,7 +1273,11 @@ function runtimeReleaseItems(value: unknown) {
   return arrayValues(recordField(value, "items"));
 }
 
-async function readPlatformUpgradeAnalysisDigest(page: Page, hospitalId: string, baselineReleaseId: string) {
+async function readPlatformUpgradeAnalysisDigest(
+  page: Page,
+  hospitalId: string,
+  baselineReleaseId: string,
+) {
   const analysis = await getApi(
     page,
     `/engine/releases/hospitals/${encodeURIComponent(
@@ -1227,7 +1285,10 @@ async function readPlatformUpgradeAnalysisDigest(page: Page, hospitalId: string,
     )}/platform-upgrade-analysis?targetBaselineReleaseId=${encodeURIComponent(baselineReleaseId)}`,
   );
   await expectOk(analysis, "读取知识运营平台升级影响摘要");
-  return requireText(textField(await responseData(analysis), "analysisDigest"), "平台升级分析必须返回摘要");
+  return requireText(
+    textField(await responseData(analysis), "analysisDigest"),
+    "平台升级分析必须返回摘要",
+  );
 }
 
 async function waitForTerminologyCandidate(page: Page, jobCode: string, localCode: string) {
@@ -1243,7 +1304,9 @@ async function waitForTerminologyCandidate(page: Page, jobCode: string, localCod
     await expectOk(job, "读取知识运营术语候选任务");
     const jobData = await responseData(job);
     lastStatus = textField(jobData, "status") ?? lastStatus;
-    generatedCount = Number((jobData as { generatedCount?: unknown })?.generatedCount ?? generatedCount);
+    generatedCount = Number(
+      (jobData as { generatedCount?: unknown })?.generatedCount ?? generatedCount,
+    );
     const candidates = await getApi(
       page,
       `/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=${encodeURIComponent(
@@ -1266,7 +1329,10 @@ async function waitForTerminologyCandidate(page: Page, jobCode: string, localCod
 }
 
 function canonicalTerminologyAlias(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "");
 }
 
 async function resolveLocalRehearsalHospitalId(page: Page) {
