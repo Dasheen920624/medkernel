@@ -10,7 +10,7 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第一百九十二批已本地提交：`2bc75f1a4 test: 补上线总账与五方言迁移门禁`。
+- 第一百九十四批已本地提交：`5cec761bc test: 修复全角色前台报告待办回读`。
   提交后工作树仍只保留无关脏文件 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`，
   不要回滚、不要暂存、不要把 `/tmp` 或 Playwright 原始产物提交进仓库。
 - 用户已暂停“持续推进”并要求校准是否走偏。当前判断：方向仍是全角色真实前台、真实服务链路和上线门禁，
@@ -88,6 +88,51 @@
   `ALL_34_MENU_ENTRY_CORE_ACTIONS` 附件，随后按缺口入口族补六态、权限边界、异常/缺数/降级和服务端审计；同步推进第三方系统族、
   S0-S40 和知识资源生产链，不再把知识当成唯一主线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
   仍不要回滚、不要暂存。
+- 第一百九十四批本地推进：接用户再次纠偏“不是只有知识功能，是整套系统功能”，本批不扩知识单点，而是收口第一百九十三批后
+  `ALL_34_MENU_ENTRY_CORE_ACTIONS` 目标真实 E2E 红点。范围是非破坏、本地真实前台和服务链路修复：1）报告解读响应返回本轮
+  `recommendationCardIds`，三份核心 E2E 不再按同标题 / 同报告类型从历史待办里猜第一行，而是直接进入
+  `/workflow/todos?cardId=<本轮推荐卡>`，并按链接 `href` 精确定位、完成和回读本轮报告解读协同待办；2）`/mpi`
+  患者索引表格增加固定布局和内部横向滚动，移动端不再把根节点撑宽；3）四职责审计员前台动作改为验证审计详情抽屉的摘要、
+  成功结果、链签名和诊断链按钮，不再把脱敏列表摘要与原始详情摘要拼接文本误当成同一断言；4）已存在的机构知识库宽表移动端
+  收口改动一并格式化并验证，避免 `format:check` 阻塞本批提交。
+- 第一百九十四批后端实现细节：`RecommendationTriggerResponse` 新增不可变 `cardIds` 字段并保留旧构造兼容；
+  `RecommendationEngineService.trigger()` 收集实际落库推荐卡 `cardId` 返回；`ReportInterpretationResponse` 新增
+  `recommendationCardIds`；`ReportInterpretationService.interpret()` 在持久化报告解读推荐卡后把真实卡片身份带回前端。
+  `ReportInterpretationServiceTest` 默认 stub 推荐触发响应，专项断言报告解读返回 `rc-report-current`；
+  `RecommendationEngineServiceTest` 断言 trigger 响应包含真实保存的推荐卡身份。
+- 第一百九十四批前台 / E2E 实现细节：`frontend/src/shared/api/hooks.ts` 的 `ReportInterpretationResponse` 类型新增
+  `recommendationCardIds`；`four-role-core-actions-rehearsal.spec.ts`、`clinical-entry-core-actions-rehearsal.spec.ts`、
+  `stakeholder-view-rehearsal.spec.ts` 均要求报告解读响应返回本轮推荐卡来源，并在已完成筛选回读时同时校验
+  `todoId + sourceId + COMPLETED`，失败消息带 URL 和回读行摘要。`WorkflowTodos.test.tsx` 补“切换已完成时保留
+  cardId/sourceId”契约；`e2eAuthCredentialContract.test.ts` 锁定三份真实 E2E 必须使用 `recommendationCardIds?.[0]`
+  和 `waitForCompletedReportTodoReadback()`。`Mpi.tsx` 对患者表格增加 `tableLayout="fixed"` 与 `scroll={{ x: 920 }}`，
+  `.tableCard` 增加 `min-width: 0` 与 `overflow: hidden`；`Mpi.test.tsx` 锁定移动端不撑宽根节点。
+  `KnowledgeGovernance.tsx` 的机构知识相关表格保留 `tableLayout="fixed"` 与横向滚动，测试已格式化并验证。
+- 第一百九十四批真实 E2E 与验证证据：先用当前代码重新打包后端
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 通过，再临时启动后端 18102、前端 5175（均为本批启动，已停止；
+  复核 18102/5175 无监听，既有 18092/5174 未动）。首次目标组合
+  `/tmp/medkernel-e2e-menu-entry-ledger-fixes-20260709-r2` 失败 2 过 1 红，红点为四职责审计员详情断言把列表整行 / 脱敏摘要
+  与详情原文混比；修复后单跑
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-four-role-core-actions-20260709-r5 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium four-role-core-actions-rehearsal.spec.ts --grep "四职责主动作均完成真实前台操作与服务回读闭环"`
+  通过（`results.json` status=`PASSED`，expected=1，unexpected=0，flaky=0）。随后复跑目标组合：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-menu-entry-ledger-fixes-20260709-r3 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium four-role-core-actions-rehearsal.spec.ts stakeholder-view-rehearsal.spec.ts product-role-journeys.spec.ts --grep "四职责主动作均完成真实前台操作与服务回读闭环|十二类业务视角均能通过四职责账号进入真实页面并看到对应业务能力|mobile-390 下四职责授权路由直达可达性"`
+  通过（`results.json` status=`PASSED`，expected=3，unexpected=0，flaky=0）。
+- 第一百九十四批单测 / 构建 / 门禁证据：已复跑通过
+  `npm --prefix frontend run test -- Mpi e2eAuthCredentialContract WorkflowTodos -- --run`（103 tests）、
+  `mvn -f medkernel-backend/pom.xml -Dtest=RecommendationEngineServiceTest,ReportInterpretationServiceTest,WorkflowTodoRepositoryTest,WorkflowCollaborationServiceTest test`
+  （75 tests）、
+  `npm --prefix frontend run test -- KnowledgeGovernance e2eAuthCredentialContract -- --run`（105 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  CRLF 将被 LF 替换，无 whitespace error。
+- 第一百九十四批边界与下一步：本批修复了阻断 `ALL_34_MENU_ENTRY_CORE_ACTIONS` 目标真实 E2E 证据产出的报告解读待办定位、
+  MPI mobile-390 溢出和审计员详情断言脆弱点，但仍不是完整上线完成、不是 34 个入口每个完整业务流程完成、不是 S0-S40
+  全异常 / 缺数 / 高风险 / 降级矩阵完成、不是全部第三方系统族消费者完成、不是全医学知识资源实际生产完成，也不是 134
+  清库重部署复演。下一批应继续按 `PRODUCT_SCOPE.md` §15 的 15 项上线总账推进真实功能深度：优先读取最新
+  `launchCoverage.menuEntryCoreActionRows` 和目标 E2E 附件，补仍缺的入口级六态、权限边界、异常 / 缺数 / 降级与服务端审计；
+  同步推进采集接入、资产生产运行消费者、第三方断连补偿和 S0-S40 矩阵。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md`
+  与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 用户最新补充：知识生产不能只覆盖少量代表样例，必须面向整个系统运行所需的全部医疗知识与术语资源，
   包括但不限于字典、标准术语、指南、共识、法规、药品说明书、检验检查说明书、护理 / 药事 / 医技 / 质控 /
   医保 / 公卫 / 中医药等领域知识、值集、公式、安全红线、规则 / 路径依赖、医嘱套餐和动作卡。后续设计要支持
