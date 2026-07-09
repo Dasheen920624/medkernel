@@ -334,6 +334,15 @@ public class KnowledgeIdentityService {
         return resolveSourceEvidence(effective).items();
     }
 
+    public List<SourceFragment> listSourceVersionFragments(Long sourceVersionId) {
+        String tenantId = requireCurrentTenant();
+        sourceVersionRepository.findByTenantIdAndId(tenantId, sourceVersionId)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_KNOW_001, "来源文献版本不存在 id=" + sourceVersionId));
+        return sourceFragmentRepository.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc(
+            tenantId, sourceVersionId);
+    }
+
     private SourceEvidenceResolution resolveSourceEvidence(EffectiveKnowledgeIdentity effective) {
         Optional<KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion> activeOpt =
             findDefaultActiveVersion(effective);

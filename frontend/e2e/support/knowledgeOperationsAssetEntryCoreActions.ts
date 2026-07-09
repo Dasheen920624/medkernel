@@ -46,6 +46,10 @@ export type KnowledgeSupplyChainEvidence = {
     sourceRegistered: boolean;
     sourceVersionRegistered: boolean;
     sourceFragmentRegistered: boolean;
+    uploadParseJobSucceeded: boolean;
+    parseResultSourceVersionId: number;
+    parsedFragmentCount: number;
+    sourceFragmentIds: number[];
     citationBound: boolean;
     textExcerptVerified: boolean;
     qualityGateRecordCreated: boolean;

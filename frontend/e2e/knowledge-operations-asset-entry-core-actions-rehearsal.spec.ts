@@ -1,8 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   appPath,
+  apiBase,
   ensurePlatformRuntimeAssetApiSession,
   ensureReadySession,
   ensureRehearsalRuntimeAssetApiSession,
@@ -37,6 +42,7 @@ const formalKnowledgeOperationsProductionChain = {
   externalSourcesPreparatoryOnly: true,
   modelDirectPublishBlocked: true,
 } as const;
+const knowledgeMaterialRootConfigKey = "medkernel.knowledge.literature.material-root-uri";
 
 type RuntimeAssetSelection = {
   assetType: string;
@@ -54,6 +60,10 @@ type KnowledgeSeed = {
   qualityGateRecordId: number;
   sourceVersionId: number;
   sourceFragmentId: number;
+  uploadParseJobCode: string;
+  parseResultSourceVersionId: number;
+  parsedFragmentCount: number;
+  sourceFragmentIds: number[];
   citationId: number;
   textExcerpt: string;
 };
@@ -87,6 +97,8 @@ test.describe("知识运营资产入口族供给链真实前台演练", () => {
     await page.setViewportSize({ width: 1440, height: 960 });
     const suffix = Date.now().toString(36);
 
+    await ensureReadySession(page, "platform-admin");
+    await ensureKnowledgeMaterialRoot(page, suffix);
     await ensureReadySession(page, "engine-operator");
     const hospitalId = await resolveLocalRehearsalHospitalId(page);
     const knowledge = await prepareKnowledgeCandidate(page, suffix);
@@ -159,6 +171,10 @@ function buildKnowledgeSupplyChainEvidence(options: {
       sourceRegistered: options.knowledge.identityId > 0,
       sourceVersionRegistered: options.knowledge.sourceVersionId > 0,
       sourceFragmentRegistered: options.knowledge.sourceFragmentId > 0,
+      uploadParseJobSucceeded: Boolean(options.knowledge.uploadParseJobCode),
+      parseResultSourceVersionId: options.knowledge.parseResultSourceVersionId,
+      parsedFragmentCount: options.knowledge.parsedFragmentCount,
+      sourceFragmentIds: options.knowledge.sourceFragmentIds,
       citationBound: options.knowledge.citationId > 0,
       textExcerptVerified:
         options.knowledge.textExcerpt.length > 0 &&
@@ -791,8 +807,10 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
   const identityCode = `KNOWLEDGE.OPS.${suffix.toUpperCase()}`;
   const textExcerpt = `知识运营资产入口族代表矩阵 ${suffix}：外部资料仅作为受控准备，正式知识必须在 134 内生产、审核、发布和机构生效。`;
   const content = [
+    "# 知识运营供给链说明",
     textExcerpt,
     "本材料不包含诊断、处方、剂量或阈值，不自动开立医嘱。",
+    "## 模型安全边界",
     "模型候选不得绕过人工审核直接发布。",
   ].join("\n");
   const source = await postApi(page, "/engine/knowledge/sources", {
@@ -809,56 +827,29 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
   await expectOk(source, "登记知识运营受控来源");
   const sourceDocumentId = requireNumber(numericField(await responseData(source), "id"), "来源必须返回 id");
 
-  const sourceVersion = await postApi(
-    page,
-    `/engine/knowledge/sources/${sourceDocumentId}/versions`,
-    {
-      ...knowledgeContext("knowledge-ops-source-version"),
-      versionNo: `2026-${suffix}`,
-      publishedAt: "2026-07-09T00:00:00Z",
-      contentHash: sha256(content),
-      fileUri: `file:///srv/medkernel/platform-knowledge/knowledge-ops/${suffix}.md`,
-      language: "zh-CN",
-      content,
-    },
-  );
-  await expectOk(sourceVersion, "登记知识运营来源版本");
-  const sourceVersionData = await responseData(sourceVersion);
-  const sourceVersionId = requireNumber(numericField(sourceVersionData, "id"), "来源版本必须返回 id");
-
-  const fragment = await postApi(page, "/engine/knowledge/sources/fragments", {
-    sourceVersionId,
-    anchorPath: `knowledge-ops/${suffix}`,
-    anchorLabel: `知识运营来源锚点 ${suffix}`,
-    textExcerpt,
+  const uploadParsed = await uploadParseKnowledgeDocument(page, {
+    suffix,
+    sourceDocumentId,
+    content,
+    identityCode,
   });
-  await expectOk(fragment, "登记知识运营来源片段");
+  const sourceVersionId = uploadParsed.sourceVersionId;
+  const fragments = await readParsedSourceFragments(page, sourceVersionId);
+  expect(fragments.length, "上传解析必须生成可回读来源片段").toBeGreaterThanOrEqual(
+    uploadParsed.parsedFragmentCount,
+  );
+  const sourceFragment = fragments.find((item) => textField(item, "textExcerpt") === textExcerpt);
   const sourceFragmentId = requireNumber(
-    numericField(await responseData(fragment), "id"),
-    "来源片段必须返回 id",
+    numericField(sourceFragment, "id"),
+    "上传解析生成的本轮来源片段必须可回读 id",
+  );
+  const sourceFragmentIds = fragments.map((item) =>
+    requireNumber(numericField(item, "id"), "上传解析来源片段必须返回 id"),
   );
 
-  const generated = await postApi(page, "/engine/knowledge-production/generate", {
-    sourceVersionId,
-    targetPipeline: "TENANT_OVERLAY",
-    domain: "CLINICAL",
-    items: [
-      {
-        assetType: "KNOWLEDGE",
-        target: {
-          targetIdentityId: null,
-          newIdentity: {
-            domain: "GUIDELINE",
-            subject: `知识运营供给链说明书 ${suffix}`,
-            identityCode,
-          },
-        },
-      },
-    ],
-  });
-  await expectOk(generated, "生成知识运营候选");
-  const generation = await responseData(generated);
-  const generatedCandidate = pageItems(recordField(generation, "candidates"))[0] ?? arrayItem(generation, "candidates", 0);
+  const generation = uploadParsed.generation;
+  const generatedCandidate =
+    pageItems(recordField(generation, "candidates"))[0] ?? arrayItem(generation, "candidates", 0);
   const candidateRef = requireText(textField(generatedCandidate, "candidateRef"), "候选必须返回 candidateRef");
   const jobCode = requireText(textField(generatedCandidate, "jobCode"), "候选必须返回 jobCode");
   const parsed = parseKnowledgeCandidateRef(candidateRef);
@@ -916,9 +907,127 @@ async function prepareKnowledgeCandidate(page: Page, suffix: string): Promise<Kn
     qualityGateRecordId,
     sourceVersionId,
     sourceFragmentId,
+    uploadParseJobCode: uploadParsed.parseJobCode,
+    parseResultSourceVersionId: uploadParsed.sourceVersionId,
+    parsedFragmentCount: uploadParsed.parsedFragmentCount,
+    sourceFragmentIds,
     citationId,
     textExcerpt,
   };
+}
+
+async function ensureKnowledgeMaterialRoot(page: Page, suffix: string) {
+  const rootPath = path.join(
+    homedir(),
+    "medkernel-e2e-data",
+    "platform-knowledge",
+    "t-1",
+    "literature-materials",
+    `knowledge-ops-${suffix}`,
+  );
+  await mkdir(rootPath, { recursive: true });
+  const rootUri = `${pathToFileUri(rootPath)}/`;
+  const configs = await getApi(
+    page,
+    `/system/configs?prefix=${encodeURIComponent(knowledgeMaterialRootConfigKey)}`,
+  );
+  await expectOk(configs, "读取知识运营资料库根地址配置");
+  const config = arrayValues(await responseData(configs)).find(
+    (item) => textField(item, "key") === knowledgeMaterialRootConfigKey,
+  );
+  expect(config, "知识运营资料库根地址必须由配置中心登记").toBeTruthy();
+  if (textField(config, "value") === rootUri) return;
+  const version = requireNumber(numericField(config, "version"), "资料库根地址配置必须返回版本号");
+  const updated = await patchApi(
+    page,
+    `/system/configs/${encodeURIComponent(knowledgeMaterialRootConfigKey)}`,
+    {
+      value: rootUri,
+      reason: "知识运营资产入口族代表矩阵：上传解析需写入受管文献资料库。",
+      expectedVersion: version,
+      confirmedHighRisk: true,
+    },
+  );
+  await expectOk(updated, "配置知识运营受管文献资料库根地址");
+}
+
+async function uploadParseKnowledgeDocument(
+  page: Page,
+  options: {
+    suffix: string;
+    sourceDocumentId: number;
+    content: string;
+    identityCode: string;
+  },
+) {
+  const headers: Record<string, string> = { "X-Trace-Id": `e2e-upload-parse-${Date.now()}` };
+  const xsrf = (await page.context().cookies(apiBase)).find(
+    (cookie) => cookie.name === "XSRF-TOKEN",
+  );
+  if (xsrf) {
+    headers["X-XSRF-TOKEN"] = xsrf.value;
+  }
+  const upload = await page.request.post(
+    `${apiBase}/engine/knowledge/documents:upload-parse`,
+    {
+      headers,
+      multipart: {
+        file: {
+          name: `knowledge-ops-${options.suffix}.md`,
+          mimeType: "text/plain",
+          buffer: Buffer.from(options.content, "utf8"),
+        },
+        sourceDocumentId: String(options.sourceDocumentId),
+        versionNo: `2026-${options.suffix}`,
+        format: "STRUCTURED_TEXT",
+        generation: JSON.stringify({
+          domain: "CLINICAL",
+          items: [
+            {
+              assetType: "KNOWLEDGE",
+              target: {
+                targetIdentityId: null,
+                newIdentity: {
+                  domain: "GUIDELINE",
+                  subject: `知识运营供给链说明书 ${options.suffix}`,
+                  identityCode: options.identityCode,
+                },
+              },
+            },
+          ],
+        }),
+      },
+    },
+  );
+  await expectOk(upload, "上传解析知识运营受控来源并生成候选");
+  const data = await responseData(upload);
+  const parseJob = recordField(data, "parseJob");
+  expect(textField(parseJob, "status"), "上传解析 job 必须成功").toBe("SUCCEEDED");
+  const parseJobCode = requireText(textField(parseJob, "jobCode"), "上传解析 job 必须返回 jobCode");
+  const sourceVersionId = requireNumber(
+    numericField(parseJob, "resultSourceVersionId"),
+    "上传解析必须返回结果来源版本 id",
+  );
+  const parsedFragmentCount = requireNumber(
+    numericField(parseJob, "parsedFragmentCount"),
+    "上传解析必须返回片段数",
+  );
+  expect(parsedFragmentCount, "上传解析必须生成至少一个来源片段").toBeGreaterThan(0);
+  const generation = recordField(data, "generationSummary");
+  expect(arrayField(generation, "blocked"), "上传解析生成候选不得被安全门阻断").toHaveLength(0);
+  expect(arrayField(generation, "skipped"), "上传解析生成候选不得被分流跳过").toHaveLength(0);
+  expect(arrayField(generation, "candidates"), "上传解析必须生成知识候选").toHaveLength(1);
+  return { parseJobCode, sourceVersionId, parsedFragmentCount, generation };
+}
+
+async function readParsedSourceFragments(page: Page, sourceVersionId: number) {
+  const fragments = await getApi(
+    page,
+    `/engine/knowledge/sources/versions/${encodeURIComponent(sourceVersionId)}/fragments`,
+  );
+  await expectOk(fragments, "回读上传解析来源片段");
+  const data = await responseData(fragments);
+  return arrayValues(data);
 }
 
 async function prepareTerminologyAsset(page: Page, suffix: string): Promise<TerminologyAsset> {
@@ -1291,4 +1400,8 @@ function booleanField(value: unknown, field: string) {
 
 function sha256(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function pathToFileUri(value: string) {
+  return pathToFileURL(path.resolve(value)).toString();
 }

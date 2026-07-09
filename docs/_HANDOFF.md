@@ -23,6 +23,52 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第一百九十七批本地推进：接用户要求“能并行就并行、能子代理就子代理，但不要片面化”，本批使用 1 个只读子代理审阅
+  “知识运营供给链是否冒领上传解析证据”（已关闭，无挂起代理），主线程继续做非破坏、本地可验证的上线总账切片：
+  把知识运营资产入口族的受控来源证据从手工登记来源版本 / 手工登记 fragment / 直接调用候选生成，改为真实
+  `documents:upload-parse` 上传解析、解析片段回读、citation 绑定、质量门、人工审核、机构生效和运行消费的同一条链路。
+  该批映射 `PRODUCT_SCOPE.md` §15 中知识生产、13 类资产供给链和 34 入口真实动作相关验收项，但只证明代表切片，
+  不冒领完整全知识生产或完整上线。
+- 第一百九十七批实现细节：`frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  中 `prepareKnowledgeCandidate()` 不再调用 `/engine/knowledge/sources/{id}/versions`、
+  `/engine/knowledge/sources/fragments` 或 `/engine/knowledge-production/generate`；现在先登记受控来源，再通过
+  multipart `POST /engine/knowledge/documents:upload-parse` 上传结构化文本，读取 `parseJob.jobCode`、
+  `resultSourceVersionId`、`parsedFragmentCount` 与 `generationSummary.candidates`，再用新增只读接口
+  `GET /engine/knowledge/sources/versions/{sourceVersionId}/fragments` 回读真实解析片段，并把 citation 绑定到本轮
+  `sourceFragmentId`。上传解析需要的 `medkernel.knowledge.literature.material-root-uri` 由平台管理员会话先设置到仓库外
+  `~/medkernel-e2e-data/platform-knowledge/t-1/literature-materials/knowledge-ops-*`，随后切回医疗引擎运营员执行业务链；
+  file URI 生成改用 Node `pathToFileURL()`。后端 `KnowledgeIdentityController / KnowledgeIdentityService` 新增来源版本片段
+  只读 API，服务层先按当前租户校验来源版本归属，再按租户和版本查片段，避免跨租户片段回读。
+- 第一百九十七批证据门禁：`frontend/e2e/support/launchCoverageEvidence.ts` 的知识供给链 parser 现在要求
+  `uploadParseJobSucceeded=true`、`parseResultSourceVersionId`、`parsedFragmentCount`、`sourceFragmentIds`、
+  citation、质量门、人工审核、术语同步、runtime 回读、图谱血缘和安全边界同时成立；`sourceFragmentIds` 必须是正数、
+  去重且数量与 `parsedFragmentCount` 精确一致，防止“解析出 2 个片段但只提供 1 个片段 ID”的冒领。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 增加缺上传解析 job、缺解析版本、缺片段 ID、片段数与 ID 数不一致等负例；
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 锁定知识运营 E2E 必须走 upload-parse、只读 fragments route、平台管理员先配置资料库根地址、
+  再切回 engine-operator。
+- 第一百九十七批真实 E2E：临时启动后端 18102、前端 5175（均为本批启动，已停止；复核 18102/5175 无监听，既有 18092/5174 未动）。
+  首轮 `/tmp/medkernel-e2e-knowledge-upload-parse-chain-20260709-r1` 失败，根因为 `engine-operator` 读取 / 更新系统配置
+  `medkernel.knowledge.literature.material-root-uri` 被 `AccessDenied` 拒绝；修复为平台管理员设置配置后，复跑
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-knowledge-upload-parse-chain-20260709-r2 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  通过，`results.json` 为 `status=PASSED`、`expected=1`、`unexpected=0`、`flaky=0`。本轮附件抽查：
+  `matrixCode=KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS`、`uploadParseJobSucceeded=true`、
+  `parseResultSourceVersionId=2`、`parsedFragmentCount=3`、`sourceFragmentIds=[4,2,3]`、`citationBound=true`、
+  `runtimeConsumerReadbackVerified=true`；后端审计记录显示 `documents:upload-parse` 文档解析成功“章节 2 片段 3”并提交候选、审核和运行链。
+- 第一百九十七批验证证据：已按 TDD 先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在“解析片段数与回读片段 ID 不一致”负例，随后收紧 parser 并复跑通过。最终复跑通过
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence -- --run`（422 tests）、
+  `mvn -f medkernel-backend/pom.xml -Dtest=KnowledgeAssetApiContractTest,KnowledgeEngineTest test`（28 tests）、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，
+  无 whitespace error。
+- 第一百九十七批边界与下一步：本批不是完整上线完成、不是全医学知识 / 术语 / 指南 / 规则 / 路径 / 值集等全部资源生产完成、
+  不是 13 类版本化资产全部生产闭环完成、不是 34 入口全部业务深度完成、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成、
+  不是全部第三方系统族真实消费者完成，也不是 134 清库重部署、备份恢复或全功能全知识演练。下一批继续按“上线总账驱动”
+  全局推进：先读取最新 `launchCoverage` 与真实 E2E 附件，补 34 入口的六态、权限边界、异常 / 缺数 / 降级和服务端审计；
+  同步推进采集接入、第三方真实消费者、S0-S40 矩阵，以及全医学资源生产链的来源目录、许可分级、原文包索引、结构化解析、
+  资产映射、缺口队列、审核、运行消费者、持续更新、替换 / 撤回 / 回滚审计。134 destructive/external 动作执行前仍需用户再次确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第一百九十六批本地推进：接用户再次强调“不是只有知识的功能，是整套系统的功能”，本批不继续知识单点、
   不执行 134 破坏性动作，而是收口已开始的 `PRODUCT_SCOPE.md` §15 第 12 项缺口：把 13 类第三方系统族
   `NOT_CONNECTED`/误配/重试/死信/不健康等诚实断连降级行从“全部系统族登记”与“真实消费者代表切片”中独立拆出为

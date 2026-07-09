@@ -228,6 +228,33 @@ class KnowledgeEngineTest {
     }
 
     @Test
+    void listSourceVersionFragmentsRequiresTenantOwnedSourceVersionAndReturnsAnchoredFragments() {
+        SourceVersion version = new SourceVersion(
+            10L, "t-1", 1L, "v1.0", Instant.now(), sha256("来源版本原文"), "http", "zh-CN", Instant.now(), "system"
+        );
+        SourceFragment fragment = new SourceFragment(
+            100L, "t-1", 10L, "sec-1", "第一章", "关节置换核心条文", sha256("关节置换核心条文"), Instant.now()
+        );
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(version));
+        when(sourceFragRepo.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 10L))
+            .thenReturn(List.of(fragment));
+
+        List<SourceFragment> result = identityService.listSourceVersionFragments(10L);
+
+        assertThat(result).containsExactly(fragment);
+    }
+
+    @Test
+    void listSourceVersionFragmentsRejectsSourceVersionOutsideTenant() {
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> identityService.listSourceVersionFragments(10L))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_KNOW_001);
+    }
+
+    @Test
     void createFragmentReturnsExistingOnIdempotentMatch() {
         SourceFragment existing = new SourceFragment(
             100L, "t-1", 10L, "sec-1", "第一章", "关节置换核心条文", sha256("关节置换核心条文"), Instant.now()

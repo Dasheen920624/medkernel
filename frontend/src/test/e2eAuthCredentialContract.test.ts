@@ -929,6 +929,18 @@ describe("E2E credential contract", () => {
     expect(source).toContain("sourceControl");
     expect(source).toContain("sourceVersionRegistered");
     expect(source).toContain("sourceFragmentRegistered");
+    expect(source).toContain("uploadParseJobSucceeded");
+    expect(source).toContain("parseResultSourceVersionId");
+    expect(source).toContain("parsedFragmentCount");
+    expect(source).toContain("sourceFragmentIds");
+    expect(source).toContain("uploadParseKnowledgeDocument");
+    expect(source).toContain("documents:upload-parse");
+    expect(source).toContain("multipart:");
+    expect(source).toContain("readParsedSourceFragments");
+    expect(source).toContain(
+      "/engine/knowledge/sources/versions/${encodeURIComponent(sourceVersionId)}/fragments",
+    );
+    expect(source).toContain("ensureKnowledgeMaterialRoot");
     expect(source).toContain("citationBound");
     expect(source).toContain("textExcerptVerified");
     expect(source).toContain("options.knowledge.textExcerpt.length > 0");
@@ -970,6 +982,31 @@ describe("E2E credential contract", () => {
       'numericField(sourceVersionData, "materialId") ?? numericField(sourceVersionData, "id")',
     );
     expect(source).not.toContain("/engine/knowledge/materials/${seed.materialId}");
+    const scenarioBody = source.slice(
+      source.indexOf('test("知识生产、审核发布、术语、机构版本、规则路径和来源边界完成代表矩阵"'),
+      source.indexOf("function buildKnowledgeSupplyChainEvidence"),
+    );
+    expect(scenarioBody.indexOf('ensureReadySession(page, "platform-admin"')).toBeLessThan(
+      scenarioBody.indexOf("ensureKnowledgeMaterialRoot(page, suffix)"),
+    );
+    expect(scenarioBody.indexOf("ensureKnowledgeMaterialRoot(page, suffix)")).toBeLessThan(
+      scenarioBody.indexOf('ensureReadySession(page, "engine-operator"'),
+    );
+    const prepareKnowledgeBody = source.slice(
+      source.indexOf("async function prepareKnowledgeCandidate"),
+      source.indexOf("async function prepareTerminologyAsset"),
+    );
+    expect(prepareKnowledgeBody).toContain("uploadParseKnowledgeDocument");
+    expect(prepareKnowledgeBody).toContain("readParsedSourceFragments");
+    expect(prepareKnowledgeBody).not.toContain(
+      "/engine/knowledge/sources/${sourceDocumentId}/versions",
+    );
+    expect(prepareKnowledgeBody).not.toContain(
+      'postApi(page, "/engine/knowledge/sources/fragments"',
+    );
+    expect(prepareKnowledgeBody).not.toContain(
+      'postApi(page, "/engine/knowledge-production/generate"',
+    );
     const ruleEvidenceBody = source.slice(
       source.indexOf("async function createRuleDefinitionEvidence"),
       source.indexOf("async function createPathwayTemplateEvidence"),

@@ -3337,6 +3337,14 @@ function hasCompleteKnowledgeSupplyChainEvidence(value: unknown) {
     sourceControl?.sourceRegistered === true &&
     sourceControl.sourceVersionRegistered === true &&
     sourceControl.sourceFragmentRegistered === true &&
+    sourceControl.uploadParseJobSucceeded === true &&
+    isPositiveFiniteNumber(sourceControl.parseResultSourceVersionId) &&
+    isPositiveFiniteNumber(sourceControl.parsedFragmentCount) &&
+    hasPositiveFiniteNumberArray(sourceControl.sourceFragmentIds) &&
+    parsedFragmentCountCoversIds(
+      sourceControl.parsedFragmentCount,
+      sourceControl.sourceFragmentIds,
+    ) &&
     sourceControl.citationBound === true &&
     sourceControl.textExcerptVerified === true &&
     sourceControl.qualityGateRecordCreated === true &&
@@ -3359,6 +3367,28 @@ function hasCompleteKnowledgeSupplyChainEvidence(value: unknown) {
     safetyBoundary.modelDirectPublishBlocked === true &&
     safetyBoundary.noAutoClinicalAction === true
   );
+}
+
+function isPositiveFiniteNumber(value: unknown) {
+  const parsed = numberValue(value);
+  return typeof parsed === "number" && parsed > 0;
+}
+
+function hasPositiveFiniteNumberArray(value: unknown) {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => isPositiveFiniteNumber(item))
+  );
+}
+
+function parsedFragmentCountCoversIds(count: unknown, ids: unknown) {
+  const parsed = numberValue(count);
+  if (typeof parsed !== "number" || !Number.isInteger(parsed) || parsed <= 0 || !Array.isArray(ids)) {
+    return false;
+  }
+  const uniqueIds = new Set(ids.map((item) => numberValue(item)));
+  return uniqueIds.size === ids.length && uniqueIds.size === parsed;
 }
 
 function hasRequiredKnowledgeOperationsActionGateFlags(

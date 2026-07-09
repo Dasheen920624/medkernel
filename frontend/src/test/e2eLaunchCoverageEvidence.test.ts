@@ -5079,6 +5079,10 @@ const knowledgeOperationsAssetEntryCoreActionsEvidence = {
       sourceRegistered: true,
       sourceVersionRegistered: true,
       sourceFragmentRegistered: true,
+      uploadParseJobSucceeded: true,
+      parseResultSourceVersionId: 9001,
+      parsedFragmentCount: 2,
+      sourceFragmentIds: [1001, 1002],
       citationBound: true,
       textExcerptVerified: true,
       qualityGateRecordCreated: true,
@@ -11414,6 +11418,63 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it.each([
+    {
+      name: "缺少上传解析 job",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          sourceControl: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .sourceControl,
+            uploadParseJobSucceeded: false,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少解析来源版本",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          sourceControl: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .sourceControl,
+            parseResultSourceVersionId: null,
+          },
+        },
+      },
+    },
+    {
+      name: "缺少解析片段 ID",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          sourceControl: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .sourceControl,
+            sourceFragmentIds: [],
+          },
+        },
+      },
+    },
+    {
+      name: "解析片段数与回读片段 ID 不一致",
+      body: {
+        ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+        knowledgeSupplyChainEvidence: {
+          ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence,
+          sourceControl: {
+            ...knowledgeOperationsAssetEntryCoreActionsEvidence.knowledgeSupplyChainEvidence
+              .sourceControl,
+            parsedFragmentCount: 2,
+            sourceFragmentIds: [1001],
+          },
+        },
+      },
+    },
     {
       name: "缺少来源片段",
       body: {

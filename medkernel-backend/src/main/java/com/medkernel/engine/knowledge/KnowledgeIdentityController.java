@@ -118,6 +118,15 @@ public class KnowledgeIdentityController {
     }
 
     /**
+     * 按来源版本只读回溯已物化片段，供上传解析、候选生成和 citation 绑定串同一受控来源链。
+     */
+    @GetMapping("/sources/versions/{sourceVersionId}/fragments")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<java.util.List<SourceFragment>> getSourceVersionFragments(@PathVariable Long sourceVersionId) {
+        return ApiResult.ok(service.listSourceVersionFragments(sourceVersionId));
+    }
+
+    /**
      * 注册或返回已存在的来源文献。
      *
      * @param request 来源文献注册请求
