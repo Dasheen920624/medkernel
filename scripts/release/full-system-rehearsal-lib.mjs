@@ -408,6 +408,7 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "NURSING_ANESTHESIA_TRANSFUSION_ICU",
       "LIS_MONITORING_CRITICAL",
       "REGIONAL_REMOTE",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
     ],
   },
   thirdPartySystemFamilyDegradationRows: {

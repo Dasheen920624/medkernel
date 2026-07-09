@@ -65,6 +65,24 @@ export type MedicalRecordQualityIssueEvidence = {
   taskCount: number;
 };
 
+export type MedicalRecordInsurancePaymentConsumerSliceEvidence = {
+  systemFamilyCode: "MEDICAL_RECORD_INSURANCE_PAYMENT";
+  familyName: string;
+  canonicalResources: ["Claim"];
+  sourceSystems: ["MEDKERNEL_FRONTDESK"];
+  consumer: "INSURANCE_AUDIT";
+  consumerVerified: boolean;
+  standardResourceVerified: boolean;
+  evaluationRunVerified: boolean;
+  rectificationClosedVerified: boolean;
+  auditVerified: boolean;
+  noAutoPaymentDecision: boolean;
+  claimResourcePath: "clinicalContext.resources.claims[0]";
+  issueIdPath: "medicalRecordQualityIssueEvidence.issueId";
+  evaluationRunIdPath: "medicalRecordQualityIssueEvidence.evaluationRunId";
+  scopeStatement: string;
+};
+
 const pathByMenuKey: Record<QualityManagementEntryCoreActionMenuKey, string> = {
   "qc-dashboard": "/qc/dashboard",
   "qc-alerts": "/qc/alerts",
@@ -82,6 +100,8 @@ export async function attachQualityManagementEntryCoreActionEvidence(
     evaluationAssetSupplyChainEvidence: QualityManagementEvaluationAssetEvidence;
     rollbackNegativeEvidence: QualityManagementRollbackNegativeEvidence;
     medicalRecordQualityIssueEvidence?: MedicalRecordQualityIssueEvidence;
+    medicalRecordInsurancePaymentConsumerSlice?: MedicalRecordInsurancePaymentConsumerSliceEvidence;
+    clinicalContext?: unknown;
   },
 ) {
   const entryActions = Array.isArray(evidence) ? evidence : [evidence];

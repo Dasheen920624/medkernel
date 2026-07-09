@@ -6432,6 +6432,39 @@ const qualityManagementEntryCoreActionsEvidence = {
     findingCount: 1,
     taskCount: 1,
   },
+  medicalRecordInsurancePaymentConsumerSlice: {
+    systemFamilyCode: "MEDICAL_RECORD_INSURANCE_PAYMENT",
+    familyName: "病案、医保和支付",
+    canonicalResources: ["Claim"],
+    sourceSystems: ["MEDKERNEL_FRONTDESK"],
+    consumer: "INSURANCE_AUDIT",
+    consumerVerified: true,
+    standardResourceVerified: true,
+    evaluationRunVerified: true,
+    rectificationClosedVerified: true,
+    auditVerified: true,
+    noAutoPaymentDecision: true,
+    claimResourcePath: "clinicalContext.resources.claims[0]",
+    issueIdPath: "medicalRecordQualityIssueEvidence.issueId",
+    evaluationRunIdPath: "medicalRecordQualityIssueEvidence.evaluationRunId",
+    scopeStatement:
+      "病案医保支付代表消费者切片：质量管理真实前台用 Claim 标准患者资源驱动病案质控、DRG/DIP 分组、医保审核、评价运行、质量问题整改与审计回读；不代表完整病案医保支付系统族覆盖，不代表完整 DRG/DIP 或医保支付审核，不代表完整第三方系统族覆盖，不代表完整 S10，不代表完整上线验收。",
+  },
+  clinicalContext: {
+    resources: {
+      claims: [
+        {
+          claimId: "claim-qc-medical-record",
+          drgCode: "DRG-QC-A",
+          sourceRecordId: "issue-qc-medical-record",
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+          qualityStatus: "VALID",
+          evaluationRunId: "eval-qc-medical-record",
+          auditStatus: "ISSUE_FOUND",
+        },
+      ],
+    },
+  },
   entryActions: [
     {
       menuKey: "qc-eval-sets",
@@ -6885,6 +6918,13 @@ function qualityManagementEntryCoreActionsEvidenceResult(body: Record<string, un
 function expectNoQualityManagementEntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.qualityManagementEntryCoreActions).toBeUndefined();
+}
+
+function expectNoMedicalRecordInsurancePaymentConsumerSlice(body: Record<string, unknown>) {
+  const evidence = qualityManagementEntryCoreActionsEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("MEDICAL_RECORD_INSURANCE_PAYMENT");
 }
 
 function knowledgeOperationsAssetEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
@@ -17991,6 +18031,108 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares medical-record insurance payment representative consumer slice only from explicit quality-management Claim evidence", () => {
+    const evidence = qualityManagementEntryCoreActionsEvidenceResult(
+      qualityManagementEntryCoreActionsEvidence,
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["MEDICAL_RECORD_INSURANCE_PAYMENT"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少显式消费者切片附件",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordInsurancePaymentConsumerSlice: undefined,
+      },
+    },
+    {
+      name: "系统族代码错配",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordInsurancePaymentConsumerSlice: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordInsurancePaymentConsumerSlice,
+          systemFamilyCode: "PHARMACY_REVIEW",
+        },
+      },
+    },
+    {
+      name: "scope 冒领完整医保支付审核",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordInsurancePaymentConsumerSlice: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordInsurancePaymentConsumerSlice,
+          scopeStatement: "病案医保支付代表消费者切片，完整医保支付审核已完成。",
+        },
+      },
+    },
+    {
+      name: "Claim 标准资源缺失",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        clinicalContext: { resources: { claims: [] } },
+      },
+    },
+    {
+      name: "Claim 不是 MEDKERNEL_FRONTDESK 来源",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        clinicalContext: {
+          resources: {
+            claims: qualityManagementEntryCoreActionsEvidence.clinicalContext.resources.claims.map(
+              (claim) => ({ ...claim, sourceSystem: "OTHER_SYSTEM" }),
+            ),
+          },
+        },
+      },
+    },
+    {
+      name: "医保审核未产生评价运行",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordQualityIssueEvidence: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordQualityIssueEvidence,
+          evaluationRunId: "",
+        },
+      },
+    },
+    {
+      name: "医保审核入口不是完整服务回读",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "insurance-audit" ? { ...item, readbackVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "质量整改复核未审计",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.map((item) =>
+          item.menuKey === "qc-alerts" ? { ...item, auditVerified: false } : item,
+        ),
+      },
+    },
+    {
+      name: "病案质控没有整改任务",
+      body: {
+        ...qualityManagementEntryCoreActionsEvidence,
+        medicalRecordQualityIssueEvidence: {
+          ...qualityManagementEntryCoreActionsEvidence.medicalRecordQualityIssueEvidence,
+          taskCount: 0,
+        },
+      },
+    },
+  ])("does not declare medical-record insurance payment consumer slice when $name", ({ body }) => {
+    expectNoMedicalRecordInsurancePaymentConsumerSlice(body);
   });
 
   it("declares knowledge-operations asset entry coverage only from complete real frontdesk supply-chain matrix evidence", () => {

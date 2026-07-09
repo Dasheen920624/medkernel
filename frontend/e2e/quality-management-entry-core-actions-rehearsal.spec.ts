@@ -15,6 +15,7 @@ import {
 } from "./support/auth";
 import {
   attachQualityManagementEntryCoreActionEvidence,
+  type MedicalRecordInsurancePaymentConsumerSliceEvidence,
   type MedicalRecordQualityIssueEvidence,
   type QualityManagementEntryCoreActionEvidence,
   type QualityManagementEvaluationAssetEvidence,
@@ -32,6 +33,7 @@ type ContextSnapshotSummary = {
   patientId: string;
   encounterId: string | null;
   runtimeReleaseId: string;
+  resources: unknown;
 };
 
 type ClaimIndicatorSummary = {
@@ -123,6 +125,15 @@ test.describe("质量管理入口核心动作真实前台演练", () => {
         medicalRecordQualityIssueEvidence: buildMedicalRecordQualityIssueEvidence(
           insuranceAudit.payload,
         ),
+        medicalRecordInsurancePaymentConsumerSlice:
+          buildMedicalRecordInsurancePaymentConsumerSliceEvidence(),
+        clinicalContext: {
+          snapshotId: snapshot.snapshotId,
+          patientId: snapshot.patientId,
+          encounterId: snapshot.encounterId,
+          runtimeReleaseId: snapshot.runtimeReleaseId,
+          resources: snapshot.resources,
+        },
       },
     );
   });
@@ -217,6 +228,7 @@ async function preparePatientSnapshotFromUi(
     patientId: patient.patientId,
     encounterId: contextPayload.data?.resources?.encounters?.[0]?.encounterId ?? null,
     runtimeReleaseId,
+    resources: contextPayload.data?.resources ?? {},
   };
 }
 
@@ -478,6 +490,27 @@ function buildMedicalRecordQualityIssueEvidence(
     findingId: audit.findingId,
     findingCount: audit.findingCount,
     taskCount: audit.taskCount,
+  };
+}
+
+function buildMedicalRecordInsurancePaymentConsumerSliceEvidence(): MedicalRecordInsurancePaymentConsumerSliceEvidence {
+  return {
+    systemFamilyCode: "MEDICAL_RECORD_INSURANCE_PAYMENT",
+    familyName: "病案、医保和支付",
+    canonicalResources: ["Claim"],
+    sourceSystems: ["MEDKERNEL_FRONTDESK"],
+    consumer: "INSURANCE_AUDIT",
+    consumerVerified: true,
+    standardResourceVerified: true,
+    evaluationRunVerified: true,
+    rectificationClosedVerified: true,
+    auditVerified: true,
+    noAutoPaymentDecision: true,
+    claimResourcePath: "clinicalContext.resources.claims[0]",
+    issueIdPath: "medicalRecordQualityIssueEvidence.issueId",
+    evaluationRunIdPath: "medicalRecordQualityIssueEvidence.evaluationRunId",
+    scopeStatement:
+      "病案医保支付代表消费者切片：质量管理真实前台用 Claim 标准患者资源驱动病案质控、DRG/DIP 分组、医保审核、评价运行、质量问题整改与审计回读；不代表完整病案医保支付系统族覆盖，不代表完整 DRG/DIP 或医保支付审核，不代表完整第三方系统族覆盖，不代表完整 S10，不代表完整上线验收。",
   };
 }
 

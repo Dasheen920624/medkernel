@@ -23,6 +23,43 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十五批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行，也不重复第一百八十批已完成的 `EVALUATION` 代表供给链 / 回滚负证据；只把质量管理真实前台链路中
+  “Claim 标准患者资源 → 病案质控 → DRG/DIP 分组 → 医保审核 → 评价运行 → 质量问题整改 / 审计回读”的强链路升级为
+  `thirdPartySystemFamilyConsumerSlices:MEDICAL_RECORD_INSURANCE_PAYMENT` 代表消费者切片。明确不声明完整病案医保支付系统族、
+  完整 DRG/DIP 或医保支付审核、完整第三方系统族、完整 S10、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百三十五批实现细节：`frontend/e2e/quality-management-entry-core-actions-rehearsal.spec.ts` 在既有质量管理四入口真实前台矩阵、
+  `EVALUATION` 运行消费和回滚负证据之外，附件新增 `medicalRecordInsurancePaymentConsumerSlice` 与 `clinicalContext.resources`；
+  slice 固定 `systemFamilyCode=MEDICAL_RECORD_INSURANCE_PAYMENT`、`canonicalResources=[Claim]`、
+  `sourceSystems=[MEDKERNEL_FRONTDESK]`、`consumer=INSURANCE_AUDIT`、`consumerVerified/standardResourceVerified/`
+  `evaluationRunVerified/rectificationClosedVerified/auditVerified=true`、`noAutoPaymentDecision=true`，并要求 scope 明确否定完整医保支付、
+  完整第三方系统族、完整 S10 和完整上线。`frontend/e2e/support/launchCoverageEvidence.ts` 新增严格 collector，只接受
+  `quality-management-entry-core-actions-rehearsal.spec.ts` 的 `quality-management-entry-core-actions-codes` 附件，且必须同时满足完整质量管理入口矩阵、
+  显式消费者切片、Claim 标准资源形状、病案质控 ISSUE_FOUND / 评价运行 / 质量问题 / 整改任务、医保审核入口服务回读和整改复核审计。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式 slice、系统族错配、scope 冒领完整医保支付、
+  Claim 缺失 / 来源错配、医保审核缺评价运行、医保审核入口缺回读、整改复核缺审计、病案质控无整改任务，均不声明该消费者切片。
+  `scripts/release/full-system-rehearsal-lib.mjs` 与 `scripts/release/launch-coverage-audit.test.mjs` 同步把
+  `MEDICAL_RECORD_INSURANCE_PAYMENT` 纳入第三方系统族真实消费者代表切片门禁；`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  锁定源码契约，防止该 slice 退化为隐式或过度宣称。
+- 第二百三十五批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-medical-record-insurance-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium quality-management-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-medical-record-insurance-consumer-slice-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.thirdPartySystemFamilyConsumerSlices=[MEDICAL_RECORD_INSURANCE_PAYMENT]`，
+  且保留既有 `scenarioConditionRows=[S9__ABNORMAL,S10__NORMAL,S11__NORMAL]`。附件抽查：
+  `medicalRecordInsurancePaymentConsumerSlice.consumer=INSURANCE_AUDIT`、`noAutoPaymentDecision=true`、
+  `medicalRecordQualityIssueEvidence.auditStatus=ISSUE_FOUND`、`evaluationRunId` / `findingId` 非空、`findingCount=1`、`taskCount=1`，
+  Claim 标准资源 `sourceSystem=MEDKERNEL_FRONTDESK`、`qualityStatus=VALID`、`drgCode=DRG-QC-A`，四个质量管理入口动作均为 2xx 且回读 / 审计为真。
+- 第二百三十五批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增医保病案支付消费者切片正例缺
+  `MEDICAL_RECORD_INSURANCE_PAYMENT`；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（798 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（66 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（864 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）和真实 E2E。
+  提交前仍需跑 `git diff --check`。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百三十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
   本批只把上一批已落地的特殊人群患者事实入口，接入真实药事安全高风险推荐消费链路，升级为显式
   `S28__HIGH_RISK` 条件行。`medication-safety-frontdesk.spec.ts` 在既有药物过敏红线链路之外，同步创建

@@ -624,6 +624,9 @@ const clinicalEntryCoreActionsClaims = [
 const qualityManagementEntryCoreActionsClaims = [
   "qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE",
 ];
+const medicalRecordInsurancePaymentConsumerSliceClaims = [
+  "thirdPartySystemFamilyConsumerSlices:MEDICAL_RECORD_INSURANCE_PAYMENT",
+];
 const knowledgeOperationsAssetEntryCoreActionsClaims = [
   "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
 ];
@@ -1617,6 +1620,13 @@ export function buildBrowserE2eLaunchEvidence(input: {
   }
   if (hasRequiredQualityManagementEntryCoreActionsAttachment(input.tests)) {
     mergeClaims(evidence.launchCoverage, qualityManagementEntryCoreActionsClaims, generatedAt);
+  }
+  if (hasRequiredMedicalRecordInsurancePaymentConsumerSliceAttachment(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      medicalRecordInsurancePaymentConsumerSliceClaims,
+      generatedAt,
+    );
   }
   if (hasRequiredKnowledgeOperationsAssetEntryCoreActionsAttachment(input.tests)) {
     mergeClaims(
@@ -3384,6 +3394,102 @@ function hasCompleteEvaluationAssetEvidence(value: unknown) {
     numberValue(runtimeReadback?.revisionNo) === numberValue(runtimeConsumer?.revisionNo) &&
     textValue(runtimeReadback?.manifestSha256) === textValue(runtimeConsumer?.manifestSha256)
   );
+}
+
+function hasRequiredMedicalRecordInsurancePaymentConsumerSliceAttachment(
+  tests: BrowserE2eTestResult[],
+) {
+  return qualityManagementEntryCoreActionAttachmentBodies(tests).some(
+    (body) =>
+      hasCompleteQualityManagementEntryCoreActionMatrix(body) &&
+      hasCompleteMedicalRecordInsurancePaymentConsumerSlice(body),
+  );
+}
+
+function hasCompleteMedicalRecordInsurancePaymentConsumerSlice(body: Record<string, unknown>) {
+  const slice = recordValue(body.medicalRecordInsurancePaymentConsumerSlice);
+  const issue = recordValue(body.medicalRecordQualityIssueEvidence);
+  const context = recordValue(body.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const claims = Array.isArray(resources?.claims) ? resources.claims.map(recordValue) : [];
+  const claim = claims.find((item) => {
+    if (!item) return false;
+    return (
+      item.sourceSystem === "MEDKERNEL_FRONTDESK" &&
+      item.qualityStatus === "VALID" &&
+      hasText(item.claimId) &&
+      resourceHasStandardPatientResourceShape(item, "Claim")
+    );
+  });
+  return (
+    slice !== null &&
+    issue !== null &&
+    context !== null &&
+    claim !== undefined &&
+    slice.systemFamilyCode === "MEDICAL_RECORD_INSURANCE_PAYMENT" &&
+    hasText(slice.familyName) &&
+    String(slice.familyName).includes("医保") &&
+    arrayEquals(slice.canonicalResources, ["Claim"]) &&
+    arrayEquals(slice.sourceSystems, ["MEDKERNEL_FRONTDESK"]) &&
+    slice.consumer === "INSURANCE_AUDIT" &&
+    slice.consumerVerified === true &&
+    slice.standardResourceVerified === true &&
+    slice.evaluationRunVerified === true &&
+    slice.rectificationClosedVerified === true &&
+    slice.auditVerified === true &&
+    slice.noAutoPaymentDecision === true &&
+    slice.claimResourcePath === "clinicalContext.resources.claims[0]" &&
+    slice.issueIdPath === "medicalRecordQualityIssueEvidence.issueId" &&
+    slice.evaluationRunIdPath === "medicalRecordQualityIssueEvidence.evaluationRunId" &&
+    hasMedicalRecordInsurancePaymentConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompleteMedicalRecordQualityIssueEvidence(issue) &&
+    evidencePathsResolve(body, [
+      slice.claimResourcePath,
+      slice.issueIdPath,
+      slice.evaluationRunIdPath,
+    ]) &&
+    hasCompleteQualityManagementEntryCoreActionForBody(body, "insurance-audit") &&
+    hasCompleteQualityManagementEntryCoreActionForBody(body, "qc-alerts")
+  );
+}
+
+function hasCompleteQualityManagementEntryCoreActionForBody(
+  body: Record<string, unknown>,
+  menuKey: string,
+) {
+  if (!Array.isArray(body.entryActions)) return false;
+  return body.entryActions.some((action) =>
+    hasCompleteQualityManagementEntryCoreAction(action, menuKey),
+  );
+}
+
+function hasMedicalRecordInsurancePaymentConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表消费者切片") &&
+    !hasUnnegatedMedicalRecordInsurancePaymentConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整病案医保支付系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 DRG/DIP") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S10") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedMedicalRecordInsurancePaymentConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整病案医保支付系统族覆盖",
+    "完整 DRG/DIP",
+    "完整DRG/DIP",
+    "完整医保支付审核",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整 S10",
+    "完整S10",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasRuntimeReadbackCandidate(

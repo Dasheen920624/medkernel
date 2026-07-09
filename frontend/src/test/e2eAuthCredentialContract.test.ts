@@ -581,6 +581,32 @@ describe("E2E credential contract", () => {
     expect(criticalSource).not.toContain("完整 ICU 系统已上线");
   });
 
+  it("requires medical-record insurance payment consumer slice to stay explicit and bounded", () => {
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    const fullSystemGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
+    const auditGate = readFileSync("../scripts/release/launch-coverage-audit.test.mjs", "utf8");
+    const qualitySource = readFileSync(
+      "e2e/quality-management-entry-core-actions-rehearsal.spec.ts",
+      "utf8",
+    );
+    const qualitySupport = readFileSync("e2e/support/qualityManagementEntryCoreActions.ts", "utf8");
+
+    expect(coverageParser).toContain(
+      "thirdPartySystemFamilyConsumerSlices:MEDICAL_RECORD_INSURANCE_PAYMENT",
+    );
+    expect(coverageParser).toContain("hasCompleteMedicalRecordInsurancePaymentConsumerSlice");
+    expect(fullSystemGate).toContain('"MEDICAL_RECORD_INSURANCE_PAYMENT"');
+    expect(auditGate).toContain(
+      "thirdPartySystemFamilyConsumerSlices:MEDICAL_RECORD_INSURANCE_PAYMENT",
+    );
+    expect(qualitySource).toContain("buildMedicalRecordInsurancePaymentConsumerSliceEvidence");
+    expect(qualitySource).toContain('"MEDICAL_RECORD_INSURANCE_PAYMENT"');
+    expect(qualitySource).toContain("clinicalContext");
+    expect(qualitySupport).toContain("medicalRecordInsurancePaymentConsumerSlice");
+    expect(qualitySource).toContain("不代表完整病案医保支付系统族覆盖");
+    expect(qualitySource).not.toContain("完整病案医保支付系统族已上线");
+  });
+
   it("keeps third-party family evidence API readback on the real backend API base", () => {
     const source = readFileSync("e2e/third-party-system-families-rehearsal.spec.ts", "utf8");
 
