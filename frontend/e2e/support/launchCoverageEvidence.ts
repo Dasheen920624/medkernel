@@ -455,6 +455,12 @@ const platformAdminP1EntryCoreActionsClaims = [
 const launchReadinessStakeholderMatrixClaims = [
   "launchReadinessStakeholderMatrix:IT_IMPLEMENTATION_EXECUTIVE_READINESS_REPRESENTATIVE",
 ];
+const implementationGuideEntryCoreActionsClaims = [
+  "implementationGuideEntryCoreActions:IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+];
+const implementationGuideEntryCoreActionRowClaims = [
+  "implementationGuideEntryCoreActionRows:IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
+];
 const requiredLaunchReadinessStakeholders = [
   {
     row: "IT_MANAGER_RUNTIME_DIAGNOSTICS",
@@ -1046,6 +1052,16 @@ export function buildBrowserE2eLaunchEvidence(input: {
         ...requiredLaunchReadinessStakeholders.map(
           (stakeholder) => `launchReadinessStakeholderRows:${stakeholder.row}`,
         ),
+      ],
+      generatedAt,
+    );
+  }
+  if (hasRequiredImplementationGuideEntryCoreActionsAttachment(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...implementationGuideEntryCoreActionsClaims,
+        ...implementationGuideEntryCoreActionRowClaims,
       ],
       generatedAt,
     );
@@ -2325,6 +2341,99 @@ function hasPlatformAdminP1EntryCoreActionScopeBoundary(value: unknown) {
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositivePlatformAdminEntryCompleteScopeClaim(statement)
   );
+}
+
+function hasRequiredImplementationGuideEntryCoreActionsAttachment(
+  tests: BrowserE2eTestResult[],
+) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "stakeholder-view-rehearsal.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments)
+    ) {
+      continue;
+    }
+    for (const attachment of test.attachments) {
+      if (attachment.name !== "implementation-guide-entry-core-actions-codes") continue;
+      if (!attachment.body || attachment.contentType !== "application/json") return false;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attachment.body);
+      } catch {
+        return false;
+      }
+      const body = recordValue(parsed);
+      if (!body || body.matrixCode !== "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS") {
+        continue;
+      }
+      if (!hasImplementationGuideEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+      if (!Array.isArray(body.entryActions) || body.entryActions.length !== 1) return false;
+      return hasCompleteImplementationGuideEntryCoreAction(body.entryActions[0]);
+    }
+  }
+  return false;
+}
+
+function hasImplementationGuideEntryCoreActionScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("实施与验收入口代表动作矩阵") &&
+    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "第三方系统族全部真实消费者完成") &&
+    hasNegatedScopeTerm(statement, "134 清库重部署") &&
+    hasNegatedScopeTerm(statement, "完整交付验收") &&
+    !hasPositiveImplementationGuideCompleteScopeClaim(statement)
+  );
+}
+
+function hasPositiveImplementationGuideCompleteScopeClaim(statement: string) {
+  return [
+    "34 个入口全部业务动作闭环",
+    "第三方系统族全部真实消费者完成",
+    "134 清库重部署",
+    "134清库重部署",
+    "完整交付验收",
+    "交付验收完成",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCompleteImplementationGuideEntryCoreAction(value: unknown) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  const serviceOperation = textValue(action.serviceOperation);
+  return (
+    action.menuKey === "implementation-guide" &&
+    action.role === "platform-admin" &&
+    action.path === "/onboarding/guide" &&
+    hasText(action.frontdeskAction) &&
+    hasExpectedImplementationGuideEntryCoreActionServiceOperation(serviceOperation) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true &&
+    action.implementationStepsReadbackVerified === true &&
+    action.onboardingReadinessReadbackVerified === true &&
+    action.dataQualityReportVerified === true
+  );
+}
+
+function hasExpectedImplementationGuideEntryCoreActionServiceOperation(
+  serviceOperation: string | null,
+) {
+  if (!serviceOperation) return false;
+  return [
+    "GET /api/v1/engine/tenant/implementation-steps",
+    "GET /api/v1/engine/tenant/onboarding-readiness",
+    "POST /api/v1/engine/integration/data-quality/reports",
+  ].every((expected) => serviceOperation.includes(expected));
 }
 
 function hasRequiredClinicalEntryCoreActionsAttachment(tests: BrowserE2eTestResult[]) {

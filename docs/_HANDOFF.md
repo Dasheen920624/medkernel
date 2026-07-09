@@ -10,6 +10,58 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十八批本地推进：接第一百八十七批和用户“前台演练需要按全角色真实操作、不要片面优化”的要求，
+  本批继续做非破坏、可本地验证且能收紧上线门禁的一刀：把 `/onboarding/guide` 实施与验收入口从三视角中文摘要推进到
+  结构化服务强证据矩阵，并修复真实 E2E 暴露的报告解读运行资产闭包问题。范围仍是实施工程师代表入口和报告解读 runtime
+  闭包自愈，不冒领完整上线、34 入口全部闭环、第三方系统族全部消费者、134 清库重部署或全知识资料生产完成。
+- 第一百八十八批实现细节：`frontend/e2e/stakeholder-view-rehearsal.spec.ts` 为实施工程师视角补
+  `implementation-guide-entry-core-actions-codes` 附件，矩阵码
+  `IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS`，行码
+  `IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY`。真实前台先进入 `/onboarding/guide`，再通过真实服务链路读取
+  `GET /api/v1/engine/tenant/implementation-steps`、`GET /api/v1/engine/tenant/onboarding-readiness`，
+  并生成 `POST /api/v1/engine/integration/data-quality/reports`；附件逐项写出
+  `serviceOperation/serviceStatus/readbackVerified/auditVerified/implementationStepsReadbackVerified/
+  onboardingReadinessReadbackVerified/dataQualityReportVerified`。`dataQualityReportAuditExists` 使用审计员账号从
+  `/large-lists/audit-events/list?resourceType=data_quality_report` 回读本轮报告审计，避免只靠页面文案或请求 2xx
+  冒领服务闭环。`frontend/e2e/support/launchCoverageEvidence.ts`、`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`、
+  `scripts/release/full-system-rehearsal-lib.mjs` 和 `scripts/release/launch-coverage-audit.test.mjs` 将该矩阵纳入完整覆盖审计，
+  并增加缺边界声明、缺实施步骤 / 开通就绪 / 数据质量报告 / 审计 / 2xx / 目标 spec 的拒绝用例。
+- 第一百八十八批后端审计补强：`medkernel-backend/src/main/java/com/medkernel/engine/integration/service/IntegrationService.java`
+  在 `generateDataQualityReport` 保存报告后通过 `AuditRecorder` 记录
+  `AuditAction.EXECUTE resource_type=data_quality_report resource_id=<reportId>`，使前台实施入口能够从审计列表回读真实证据。
+  `IntegrationServiceTest#dataQualityReportUsesTenantFactsAndPersistsHonestGapSnapshot` 改为隔离租户数据、带
+  `RequestContext` 调用并断言 audit_event 落库，继续证明数据质量报告使用当前租户真实事实、保留诚实缺口快照。
+- 第一百八十八批运行资产闭包修复：真实 E2E 曾在报告解读链路红于
+  `ENG-ASSET-002`，根因为本地演练平台标准版本只准备了通用 `ACTION_CARD.LOCAL.REHEARSAL.BASELINE`，没有准备
+  `ReportInterpretationService` 硬要求的 `ACTION_CARD.REPORT.CRITICAL_VALUE`。本批将
+  `frontend/e2e/support/auth.ts` 的 `requiredRuntimeAssetsForRehearsal` 扩为 13 类 + 额外报告解读 ACTION_CARD 的精确闭包；
+  自愈逻辑从“只按 assetType 缺失”改为“按 assetType + assetIdentity 缺失”创建，避免同类历史资产误满足；
+  `ensurePlatformActionCardCandidates` 显式接收 `page` 上下文，修复一次真实复跑暴露的调用签名错误；报告解读提示卡内容使用后端
+  `RuleActionCode` 支持的 `REMIND`，保留医师确认、不改写报告、不自动开嘱的安全语义。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  增至 63 个契约测试，锁定报告解读 ACTION_CARD 必须在共享 runtime 闭包内、ACTION_CARD 自愈必须传入 `page`、提示卡不得使用
+  不受后端支持的自造 actionCode。
+- 第一百八十八批真实 E2E 与验证证据：先复现并修复两次真实红点：`/tmp/medkernel-e2e-implementation-guide-entry-core-actions-20260709-r3`
+  失败于 `REPORT_CRITICAL_VALUE_REVIEW` 不受后端校验支持；改为 `REMIND` 后复跑
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-implementation-guide-entry-core-actions-20260709-r4 npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-implementation-guide-entry-core-actions-20260709-r4/report/results.json` 为 `PASSED`
+  （expected=1，unexpected=0，flaky=0，skipped=0，duration≈89.9s），顶层 `launchCoverage` 声明
+  `implementationGuideEntryCoreActions.IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS` 与
+  `implementationGuideEntryCoreActionRows.IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY`；原始附件确认实施步骤回读、
+  开通就绪回读、数据质量报告、审计回读均为 true。最终复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（339 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（63 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）、
+  `mvn -f medkernel-backend/pom.xml -Dtest=IntegrationServiceTest#dataQualityReportUsesTenantFactsAndPersistsHonestGapSnapshot test`、
+  `mvn -f medkernel-backend/pom.xml -DskipTests package`、`git diff --check`（仅提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 和两个脚本文件 CRLF 将被 LF 替换，无 whitespace error）。
+- 第一百八十八批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是 34 入口全部业务动作闭环、
+  不是 13 类第三方系统族真实消费者全部完成、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成，也不是全部医学知识、
+  术语、值集、公式、安全红线或标准包收集 / 生产完成。下一批建议继续按全局上线门禁推进：1）继续补 `/dashboard`
+  工作台真实业务动作和 34 入口剩余动作，不能停在菜单 / 路由；2）继续扩第三方系统族真实消费者与断连降级补偿矩阵；
+  3）把知识资料准备继续落回 134 标准包导入、院内字典同步、原文 / 原包留存、结构校验、覆盖矩阵、持续更新、影响分析和回滚审计；
+  4）目标库迁移 smoke、公网模型 Provider 真实证据、真实第三方回调、134 清库 / 重部署仍按 destructive / external 规则，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十七批本地推进：接第一百八十六批和用户“前台演练需按全角色真实操作、知识只是一个点、要全局考虑”的要求，
   先提交 `6c2f953a5 test: 补合规工作台入口强证据门禁` 固化上一批；随后继续走非破坏、可本地验证且全局提速的一刀：
   不新增业务流程、不改真实 E2E 行为，只把既有强校验专业 Webhook 代表切片纳入完整覆盖审计的

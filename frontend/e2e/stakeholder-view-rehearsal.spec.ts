@@ -12,6 +12,25 @@ import {
   type RoleAccount,
 } from "./support/auth";
 
+type ImplementationGuideEntryCoreActionEvidence = {
+  menuKey: "implementation-guide";
+  role: "platform-admin";
+  path: "/onboarding/guide";
+  frontdeskAction: string;
+  serviceOperation: string;
+  serviceStatus: number;
+  readbackVerified: boolean;
+  auditVerified: true;
+  implementationStepsReadbackVerified: boolean;
+  onboardingReadinessReadbackVerified: boolean;
+  dataQualityReportVerified: boolean;
+};
+
+type StakeholderActionResult = {
+  actions: string[];
+  implementationGuideEvidence?: ImplementationGuideEntryCoreActionEvidence;
+};
+
 type StakeholderView = {
   code: string;
   label: string;
@@ -44,6 +63,7 @@ type RuntimeRecord = {
   browserErrors: string[];
   serverErrors: string[];
   networkFailures: string[];
+  implementationGuideEvidence?: ImplementationGuideEntryCoreActionEvidence;
 };
 
 type RecommendationContextOptions = {
@@ -253,7 +273,8 @@ async function assertStakeholderView(
   }
 
   const entryUrl = page.url();
-  const actions = await performStakeholderAction(page, view);
+  const actionResult = await performStakeholderAction(page, view);
+  const { actions } = actionResult;
   if (view.action) {
     expect(actions.length, `${view.label} 视角应记录至少一个真实前台动作`).toBeGreaterThan(0);
   }
@@ -271,6 +292,9 @@ async function assertStakeholderView(
     browserErrors: [...runtime.browserErrors],
     serverErrors: [...runtime.serverErrors],
     networkFailures: [...runtime.networkFailures],
+    ...(actionResult.implementationGuideEvidence
+      ? { implementationGuideEvidence: actionResult.implementationGuideEvidence }
+      : {}),
   };
   records.push(record);
   expect(record.browserErrors, `${view.label} 视角不应产生浏览器错误`).toEqual([]);
@@ -287,46 +311,54 @@ async function assertStakeholderView(
 
 async function performStakeholderAction(page: Page, view: StakeholderView) {
   if (view.action === "PHYSICIAN_FEEDBACK") {
-    return performPhysicianFeedbackAction(page, view);
+    return actionResult(await performPhysicianFeedbackAction(page, view));
   }
   if (view.action === "QUALITY_DRILLDOWN") {
-    return performQualityDrilldownAction(page, view);
+    return actionResult(await performQualityDrilldownAction(page, view));
   }
   if (view.action === "AUDIT_EXPORT_VERIFY") {
-    return performAuditExportVerifyAction(page, view);
+    return actionResult(await performAuditExportVerifyAction(page, view));
   }
   if (view.action === "ADAPTER_QUALITY_REPORT") {
     return performAdapterQualityReportAction(page, view);
   }
   if (view.action === "REPORT_INTERPRETATION") {
-    return performReportInterpretationAction(page, view);
+    return actionResult(await performReportInterpretationAction(page, view));
   }
   if (view.action === "FOLLOWUP_NURSE_HANDOFF") {
-    return performFollowupPlanAction(page, view, {
-      source: "护士代填",
-      questionnaire: "护士代填记录：患者反馈夜间咳嗽增加，已提醒遵医嘱复诊；未写入患者明文身份。",
-      abnormal: true,
-    });
+    return actionResult(
+      await performFollowupPlanAction(page, view, {
+        source: "护士代填",
+        questionnaire: "护士代填记录：患者反馈夜间咳嗽增加，已提醒遵医嘱复诊；未写入患者明文身份。",
+        abnormal: true,
+      }),
+    );
   }
   if (view.action === "PHARMACIST_REVIEW") {
-    return performPharmacistReviewAction(page, view);
+    return actionResult(await performPharmacistReviewAction(page, view));
   }
   if (view.action === "PATIENT_PROXY_QUESTIONNAIRE") {
-    return performFollowupPlanAction(page, view, {
-      source: "患者自填",
-      questionnaire:
-        "患者代理回收：患者自述活动后气促较前增加，已知晓回院提醒；不填写电话、住址或证件号。",
-      abnormal: false,
-    });
+    return actionResult(
+      await performFollowupPlanAction(page, view, {
+        source: "患者自填",
+        questionnaire:
+          "患者代理回收：患者自述活动后气促较前增加，已知晓回院提醒；不填写电话、住址或证件号。",
+        abnormal: false,
+      }),
+    );
   }
   if (view.action === "PLATFORM_ADMIN_PERSONNEL") {
-    return performPlatformAdminPersonnelAction(page, view);
+    return actionResult(await performPlatformAdminPersonnelAction(page, view));
   }
   if (view.action === "ENGINE_OPERATOR_PROVIDER_GOVERNANCE") {
-    return performEngineOperatorProviderGovernanceAction(page, view);
+    return actionResult(await performEngineOperatorProviderGovernanceAction(page, view));
   }
 
-  return [];
+  return actionResult([]);
+}
+
+function actionResult(actions: string[]): StakeholderActionResult {
+  return { actions };
 }
 
 async function performPhysicianFeedbackAction(page: Page, view: StakeholderView) {
@@ -470,6 +502,26 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
 }
 
 async function performAdapterQualityReportAction(page: Page, view: StakeholderView) {
+  let implementationEvidence: ImplementationGuideEntryCoreActionEvidence | undefined;
+  const implementationStepResponse =
+    view.path === "/onboarding/guide"
+      ? await getApi(page, "/engine/tenant/implementation-steps")
+      : null;
+  const onboardingReadinessResponse =
+    view.path === "/onboarding/guide"
+      ? await getApi(page, "/engine/tenant/onboarding-readiness")
+      : null;
+  if (implementationStepResponse && onboardingReadinessResponse) {
+    await expectOk(implementationStepResponse, "实施工程师回读实施步骤");
+    await expectOk(onboardingReadinessResponse, "实施工程师回读开通就绪状态");
+  }
+  const implementationStepsReadback = implementationStepResponse
+    ? await responseData(implementationStepResponse)
+    : null;
+  const onboardingReadinessReadback = onboardingReadinessResponse
+    ? await responseData(onboardingReadinessResponse)
+    : null;
+
   if (view.path === "/system/runtime-diagnostics") {
     await page.getByRole("tab", { name: "扩展能力" }).click();
     await expect(
@@ -506,6 +558,11 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
     reportResponse.ok(),
     `${view.label} 生成系统接入数据质量报告应返回成功 status=${reportResponse.status()} body=${reportText}`,
   ).toBe(true);
+  const report = JSON.parse(reportText) as {
+    data?: { reportId?: string; traceId?: string; gapSummary?: string };
+  };
+  expect(report.data?.reportId, `${view.label} 数据质量报告应返回报告编号`).toBeTruthy();
+  expect(report.data?.traceId, `${view.label} 数据质量报告应返回追踪编号`).toBeTruthy();
 
   const reportCard = page.locator(".ant-card").filter({ hasText: "数据质量报告" }).last();
   await expect(reportCard).toBeVisible({ timeout: 30_000 });
@@ -519,11 +576,39 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
     reportCard.getByText(/NOT_CONNECTED/),
     `${view.label} 数据质量报告默认摘要不应展示原始枚举`,
   ).toHaveCount(0);
-  return [
+  const actions = [
     view.path === "/system/runtime-diagnostics"
       ? "查看运行诊断扩展能力授权边界并生成系统接入数据质量报告"
       : "生成系统接入数据质量报告",
   ];
+  if (view.path === "/onboarding/guide" && implementationStepResponse && onboardingReadinessResponse) {
+    const auditVerified = await dataQualityReportAuditExists(page, report.data?.reportId ?? "");
+    expect(auditVerified, `${view.label} 数据质量报告必须能从审计列表回读`).toBe(true);
+    implementationEvidence = {
+      menuKey: "implementation-guide",
+      role: "platform-admin",
+      path: "/onboarding/guide",
+      frontdeskAction: "实施工程师前台读取当前机构实施步骤、开通就绪状态并生成系统接入数据质量报告",
+      serviceOperation:
+        "GET /api/v1/engine/tenant/implementation-steps + GET /api/v1/engine/tenant/onboarding-readiness + POST /api/v1/engine/integration/data-quality/reports",
+      serviceStatus: minSuccessfulStatus(
+        implementationStepResponse.status(),
+        onboardingReadinessResponse.status(),
+        reportResponse.status(),
+      ),
+      readbackVerified:
+        Array.isArray(implementationStepsReadback) &&
+        Boolean(onboardingReadinessReadback && report.data?.reportId),
+      auditVerified: true,
+      implementationStepsReadbackVerified: Array.isArray(implementationStepsReadback),
+      onboardingReadinessReadbackVerified: Boolean(onboardingReadinessReadback),
+      dataQualityReportVerified: Boolean(report.data?.reportId && report.data?.gapSummary),
+    };
+  }
+  return {
+    actions,
+    ...(implementationEvidence ? { implementationGuideEvidence: implementationEvidence } : {}),
+  };
 }
 
 async function performPlatformAdminPersonnelAction(page: Page, view: StakeholderView) {
@@ -1409,6 +1494,27 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
     path: recordPath,
     contentType: "application/json",
   });
+  const implementationGuideEvidence = records.find(
+    (record) => record.code === "IMPLEMENTATION_ENGINEER",
+  )?.implementationGuideEvidence;
+  if (implementationGuideEvidence) {
+    await testInfo.attach("implementation-guide-entry-core-actions-codes", {
+      contentType: "application/json",
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            matrixCode: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+            scopeStatement:
+              "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表 34 个入口全部业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
+            entryActions: [implementationGuideEvidence],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      ),
+    });
+  }
 }
 
 function waitForGet(page: Page, path: string) {
@@ -1430,6 +1536,38 @@ function waitForPut(page: Page, path: string) {
     (response) => response.request().method() === "PUT" && response.url().includes(path),
     { timeout: 60_000 },
   );
+}
+
+async function dataQualityReportAuditExists(page: Page, reportId: string) {
+  if (!reportId) return false;
+  await ensureReadySession(page, "auditor");
+  await expect
+    .poll(
+      async () => {
+        const response = await getApi(
+          page,
+          `/large-lists/audit-events/list?resourceType=${encodeURIComponent(
+            "data_quality_report",
+          )}&size=50`,
+        );
+        if (!response.ok()) {
+          return false;
+        }
+        const items = pageItems(await responseData(response));
+        return items.some((item) => textField(item, "resourceId") === reportId);
+      },
+      {
+        message: `数据质量报告 ${reportId} 应写入可回读审计事件`,
+        timeout: 20_000,
+      },
+    )
+    .toBe(true);
+  return true;
+}
+
+function minSuccessfulStatus(...statuses: number[]) {
+  const failed = statuses.find((status) => status < 200 || status >= 300);
+  return failed ?? Math.min(...statuses);
 }
 
 function formatClinicalDateTimeForE2e(value: string | null | undefined) {

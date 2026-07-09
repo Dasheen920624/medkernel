@@ -36,6 +36,17 @@ const runtimeAssetIdentities = {
   ORDER_SET: "ORDER_SET.LOCAL.REHEARSAL.BASELINE",
   ACTION_CARD: "ACTION_CARD.LOCAL.REHEARSAL.BASELINE",
 } as const satisfies Record<(typeof runtimeAssetTypes)[number], string>;
+const reportInterpretationActionCardIdentity = "ACTION_CARD.REPORT.CRITICAL_VALUE";
+const runtimeAssetClosure = [
+  ...runtimeAssetTypes.map((assetType) => ({
+    assetType,
+    assetIdentity: runtimeAssetIdentities[assetType],
+  })),
+  {
+    assetType: "ACTION_CARD",
+    assetIdentity: reportInterpretationActionCardIdentity,
+  },
+] as const;
 
 const envSnapshot = {
   E2E_API_BASE_URL: process.env.E2E_API_BASE_URL,
@@ -180,10 +191,10 @@ describe("E2E credential contract", () => {
       contentHash: string;
       entryState: string;
     }> = [
-      ...runtimeAssetTypes.map((assetType, index) => ({
-        assetType,
-        assetIdentity: runtimeAssetIdentities[assetType],
-        versionId: `${assetType.toLowerCase()}-v1`,
+      ...runtimeAssetClosure.map((asset, index) => ({
+        assetType: asset.assetType,
+        assetIdentity: asset.assetIdentity,
+        versionId: runtimeAssetVersionId(asset.assetIdentity),
         versionNo: `V${index + 1}`,
         contentHash: String(index + 1)
           .repeat(64)
@@ -206,15 +217,15 @@ describe("E2E credential contract", () => {
 
     expect(baseline).toEqual({
       baselineReleaseId: "baseline-1",
-      activeAssets: runtimeAssetTypes.map((assetType) => ({
-        assetType,
-        assetIdentity: runtimeAssetIdentities[assetType],
+      activeAssets: runtimeAssetClosure.map((asset) => ({
+        assetType: asset.assetType,
+        assetIdentity: asset.assetIdentity,
         versionId: null,
       })),
-      activeAssetVersions: runtimeAssetTypes.map((assetType, index) => ({
-        assetType,
-        assetIdentity: runtimeAssetIdentities[assetType],
-        versionId: `${assetType.toLowerCase()}-v1`,
+      activeAssetVersions: runtimeAssetClosure.map((asset, index) => ({
+        assetType: asset.assetType,
+        assetIdentity: asset.assetIdentity,
+        versionId: runtimeAssetVersionId(asset.assetIdentity),
         versionNo: `V${index + 1}`,
         contentHash: String(index + 1)
           .repeat(64)
@@ -288,10 +299,10 @@ describe("E2E credential contract", () => {
     expect(
       auth.hospitalRuntimeCoversRequiredAssets({
         release: { releaseId: "hospital-release-ready" },
-        items: runtimeAssetTypes.map((assetType) => ({
-          assetType,
-          assetIdentity: runtimeAssetIdentities[assetType],
-          versionId: `${assetType.toLowerCase()}-v1`,
+        items: runtimeAssetClosure.map((asset) => ({
+          assetType: asset.assetType,
+          assetIdentity: asset.assetIdentity,
+          versionId: runtimeAssetVersionId(asset.assetIdentity),
           entryState: "ACTIVE",
         })),
       }),
@@ -330,6 +341,58 @@ describe("E2E credential contract", () => {
       platformBaselineReleaseId: null,
       ready: false,
     });
+  });
+
+  it("requires the report interpretation action card in the shared local runtime rehearsal closure", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const baselineOnlyCard = runtimeAssetTypes.map((assetType) => ({
+      assetType,
+      assetIdentity: runtimeAssetIdentities[assetType],
+      versionId: `${assetType.toLowerCase()}-v1`,
+      entryState: "ACTIVE",
+    }));
+    const reportInterpretationActionCard = {
+      assetType: "ACTION_CARD" as const,
+      assetIdentity: reportInterpretationActionCardIdentity,
+      versionId: "action-card-report-critical-v1",
+    };
+
+    expect(auth.missingRuntimeCandidateTypes(baselineOnlyCard)).toEqual(["ACTION_CARD"]);
+    expect(auth.runtimeAssetsCoverRequiredTypes(baselineOnlyCard)).toBe(false);
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-without-report-card" },
+        items: baselineOnlyCard,
+      }),
+    ).toEqual({
+      releaseId: "hospital-release-without-report-card",
+      platformBaselineReleaseId: null,
+      ready: false,
+    });
+
+    expect(
+      auth.runtimeAssetsCoverRequiredTypes([...baselineOnlyCard, reportInterpretationActionCard]),
+    ).toBe(true);
+  });
+
+  it("requires local runtime self-heal to pass the page context when creating action-card candidates", () => {
+    const source = readFileSync("e2e/support/auth.ts", "utf8");
+
+    expect(source).toContain("async function ensurePlatformActionCardCandidates(page: Page");
+    expect(source).toContain("await ensurePlatformActionCardCandidates(\n      page,");
+  });
+
+  it("requires the report interpretation action card bootstrap to use a backend-supported action code", () => {
+    const source = readFileSync("e2e/support/auth.ts", "utf8");
+    const reportCardContent = source.slice(
+      source.indexOf("function platformReportInterpretationActionCardContent()"),
+      source.indexOf("async function ensurePlatformPathwayCandidate"),
+    );
+
+    expect(reportCardContent).toContain('actionCode: "REMIND"');
+    expect(reportCardContent).not.toContain("REPORT_CRITICAL_VALUE_REVIEW");
   });
 
   it("requires report interpretation E2E to prove runtime knowledge consumption through the frontdesk chain", () => {
@@ -382,6 +445,34 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain("IT_MANAGER_RUNTIME_DIAGNOSTICS");
     expect(coverageParser).toContain("IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE");
     expect(coverageParser).toContain("HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW");
+  });
+
+  it("requires stakeholder-view rehearsal to attach implementation guide service evidence", () => {
+    const source = readFileSync("e2e/stakeholder-view-rehearsal.spec.ts", "utf8");
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    const auditGate = readFileSync("../scripts/release/launch-coverage-audit.test.mjs", "utf8");
+
+    expect(source).toContain("implementation-guide-entry-core-actions-codes");
+    expect(source).toContain("IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS");
+    expect(source).toContain("GET /api/v1/engine/tenant/implementation-steps");
+    expect(source).toContain("GET /api/v1/engine/tenant/onboarding-readiness");
+    expect(source).toContain("POST /api/v1/engine/integration/data-quality/reports");
+    expect(source).toContain("implementationStepsReadbackVerified");
+    expect(source).toContain("onboardingReadinessReadbackVerified");
+    expect(source).toContain("dataQualityReportVerified");
+    expect(source).toContain("auditVerified: true");
+
+    expect(coverageParser).toContain("implementationGuideEntryCoreActions");
+    expect(coverageParser).toContain("implementationGuideEntryCoreActionRows");
+    expect(coverageParser).toContain("hasRequiredImplementationGuideEntryCoreActionsAttachment");
+    expect(coverageParser).toContain("IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY");
+
+    expect(auditGate).toContain(
+      "implementationGuideEntryCoreActions:IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+    );
+    expect(auditGate).toContain(
+      "implementationGuideEntryCoreActionRows:IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
+    );
   });
 
   it("requires diagnostic critical-value E2E to use backend FHIR R4 compensation message ids", () => {
@@ -678,10 +769,10 @@ describe("E2E credential contract", () => {
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
 
     const candidates = [
-      ...runtimeAssetTypes.map((assetType) => ({
-        assetType,
-        assetIdentity: runtimeAssetIdentities[assetType],
-        versionId: `${assetType.toLowerCase()}-v1`,
+      ...runtimeAssetClosure.map((asset) => ({
+        assetType: asset.assetType,
+        assetIdentity: asset.assetIdentity,
+        versionId: runtimeAssetVersionId(asset.assetIdentity),
         status: "DRAFT",
       })),
       {
@@ -695,7 +786,7 @@ describe("E2E credential contract", () => {
     expect(auth.missingRuntimeCandidateTypes(candidates)).toEqual([]);
     expect(auth.runtimeCandidatesCoverRequiredTypes(candidates)).toBe(true);
     expect(auth.versionIdsForRequiredRuntimeCandidates(candidates)).toEqual(
-      runtimeAssetTypes.map((assetType) => `${assetType.toLowerCase()}-v1`),
+      runtimeAssetClosure.map((asset) => runtimeAssetVersionId(asset.assetIdentity)),
     );
   });
 
@@ -2440,6 +2531,10 @@ function account(role: string, tenantId: string, prefix: string) {
     role,
     password: `secret-${prefix}-${role}`,
   };
+}
+
+function runtimeAssetVersionId(assetIdentity: string) {
+  return `${assetIdentity.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-v1`;
 }
 
 function restoreEnv(name: string, value: string | undefined) {

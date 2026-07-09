@@ -4650,6 +4650,56 @@ function stakeholderReadinessEvidence(records = launchReadinessStakeholderRecord
   });
 }
 
+const implementationGuideEntryCoreActionsEvidence = {
+  matrixCode: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+  scopeStatement:
+    "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表 34 个入口全部业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
+  entryActions: [
+    {
+      menuKey: "implementation-guide",
+      role: "platform-admin",
+      path: "/onboarding/guide",
+      frontdeskAction: "实施工程师前台读取当前机构实施步骤、开通就绪状态并生成系统接入数据质量报告",
+      serviceOperation:
+        "GET /api/v1/engine/tenant/implementation-steps + GET /api/v1/engine/tenant/onboarding-readiness + POST /api/v1/engine/integration/data-quality/reports",
+      serviceStatus: 200,
+      readbackVerified: true,
+      auditVerified: true,
+      implementationStepsReadbackVerified: true,
+      onboardingReadinessReadbackVerified: true,
+      dataQualityReportVerified: true,
+    },
+  ],
+};
+
+function implementationGuideEntryCoreActionsEvidenceResult(
+  body: Record<string, unknown> = implementationGuideEntryCoreActionsEvidence,
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/stakeholder-view-rehearsal.spec.ts",
+        title: "十二类业务视角均能通过四职责账号进入真实页面并看到对应业务能力",
+        status: "passed",
+        attachments: [
+          {
+            name: "implementation-guide-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoImplementationGuideEntryCoreActionsCoverage(body: Record<string, unknown>) {
+  const evidence = implementationGuideEntryCoreActionsEvidenceResult(body);
+  expect(evidence.launchCoverage.implementationGuideEntryCoreActions).toBeUndefined();
+  expect(evidence.launchCoverage.implementationGuideEntryCoreActionRows).toBeUndefined();
+}
+
 const platformAdminP1EntryCoreActionsEvidence = {
   matrixCode: "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS",
   scopeStatement:
@@ -5781,6 +5831,120 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.launchReadinessStakeholderMatrix).toBeUndefined();
     expect(evidence.launchCoverage.launchReadinessStakeholderRows).toBeUndefined();
+  });
+
+  it("declares implementation guide entry core actions only from structured service evidence", () => {
+    const evidence = implementationGuideEntryCoreActionsEvidenceResult();
+
+    expect(
+      evidence.launchCoverage.implementationGuideEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS"]);
+    expect(
+      evidence.launchCoverage.implementationGuideEntryCoreActionRows?.map((item) => item.code),
+    ).toEqual(["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"]);
+  });
+
+  it.each([
+    {
+      name: "没有边界声明",
+      body: { ...implementationGuideEntryCoreActionsEvidence, scopeStatement: "实施与验收完成" },
+    },
+    {
+      name: "缺少实施步骤回读",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          implementationStepsReadbackVerified: false,
+        })),
+      },
+    },
+    {
+      name: "缺少开通就绪回读",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          onboardingReadinessReadbackVerified: false,
+        })),
+      },
+    },
+    {
+      name: "缺少数据质量报告",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          dataQualityReportVerified: false,
+        })),
+      },
+    },
+    {
+      name: "服务操作缺少实施步骤接口",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          serviceOperation:
+            "GET /api/v1/engine/tenant/onboarding-readiness + POST /api/v1/engine/integration/data-quality/reports",
+        })),
+      },
+    },
+    {
+      name: "服务状态不是 2xx",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          serviceStatus: 500,
+        })),
+      },
+    },
+    {
+      name: "没有审计或服务证据",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          auditVerified: false,
+        })),
+      },
+    },
+    {
+      name: "角色不是平台管理员",
+      body: {
+        ...implementationGuideEntryCoreActionsEvidence,
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...action,
+          role: "engine-operator",
+        })),
+      },
+    },
+  ])("does not declare implementation guide entry core actions when $name", ({ body }) => {
+    expectNoImplementationGuideEntryCoreActionsCoverage(body);
+  });
+
+  it("does not declare implementation guide entry core actions from a non-target spec", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-onboarding-guide.spec.ts",
+          title: "实施与验收附件不能由非目标 spec 冒领",
+          status: "passed",
+          attachments: [
+            {
+              name: "implementation-guide-entry-core-actions-codes",
+              contentType: "application/json",
+              body: JSON.stringify(implementationGuideEntryCoreActionsEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.implementationGuideEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.implementationGuideEntryCoreActionRows).toBeUndefined();
   });
 
   it("declares release governance and runtime asset coverage only when the real runtime release spec passes", () => {

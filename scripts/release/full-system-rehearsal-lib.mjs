@@ -94,6 +94,14 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
     ],
   },
+  implementationGuideEntryCoreActions: {
+    label: "实施与验收入口代表动作矩阵",
+    codes: ["IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS"],
+  },
+  implementationGuideEntryCoreActionRows: {
+    label: "实施与验收入口代表动作行",
+    codes: ["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"],
+  },
   knowledgeDomains: {
     label: "11 个知识内容分类",
     codes: [...FULL_KNOWLEDGE_DOMAINS],

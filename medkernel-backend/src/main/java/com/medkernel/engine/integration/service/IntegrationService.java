@@ -42,6 +42,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -107,6 +109,7 @@ public class IntegrationService {
     private final ObjectProvider<InboundClinicalEventPort> inboundClinicalEvents;
     private final InboundTerminologyMappingPort inboundTerminologyMappings;
     private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
+    private final AuditRecorder auditRecorder;
 
     /**
      * 构造器注入适配器、Webhook 订阅及流日志的持久化存储库。
@@ -124,7 +127,8 @@ public class IntegrationService {
                               ApplicationEventPublisher applicationEvents,
                               ObjectProvider<InboundClinicalEventPort> inboundClinicalEvents,
                               InboundTerminologyMappingPort inboundTerminologyMappings,
-                              CurrentClinicalRuntimeReleaseResolver runtimeReleases) {
+                              CurrentClinicalRuntimeReleaseResolver runtimeReleases,
+                              AuditRecorder auditRecorder) {
         this.adapterRepository = adapterRepository;
         this.webhookRepository = webhookRepository;
         this.logRepository = logRepository;
@@ -139,6 +143,7 @@ public class IntegrationService {
         this.inboundClinicalEvents = inboundClinicalEvents;
         this.inboundTerminologyMappings = inboundTerminologyMappings;
         this.runtimeReleases = runtimeReleases;
+        this.auditRecorder = auditRecorder;
     }
 
     // ==========================================
@@ -535,7 +540,14 @@ public class IntegrationService {
             RequestContext.currentUserId().orElse("system"),
             RequestContext.currentTraceId()
         );
-        return dataQualityReportRepository.save(report);
+        DataQualityReport saved = dataQualityReportRepository.save(report);
+        auditRecorder.record(
+            AuditAction.EXECUTE,
+            "data_quality_report",
+            saved.reportId(),
+            "生成系统接入数据质量报告 " + saved.reportId()
+        );
+        return saved;
     }
 
     // ==========================================

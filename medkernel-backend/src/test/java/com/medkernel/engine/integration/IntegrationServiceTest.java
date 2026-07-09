@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.context.ClinicalEvent;
@@ -208,31 +209,45 @@ class IntegrationServiceTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void dataQualityReportUsesTenantFactsAndPersistsHonestGapSnapshot() {
+        String qualityTenantId = "tenant-quality-" + UUID.randomUUID();
         mpiPatientRepository.save(new MpiPatient(
-            null, "mpi-quality-ok", tenantId, "张*三", "M", 35, "1234", 0, "ACTIVE",
+            null, "mpi-quality-ok", qualityTenantId, "张*三", "M", 35, "1234", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
         mpiPatientRepository.save(new MpiPatient(
-            null, "mpi-quality-gap", tenantId, "", "F", 0, "", 0, "ACTIVE",
+            null, "mpi-quality-gap", qualityTenantId, "", "F", 0, "", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
         mpiPatientRepository.save(new MpiPatient(
             null, "mpi-quality-other", "tenant-002", "", "M", 0, "", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
-        service.createAdapter(tenantId, new AdapterCreateDto("his-quality", "HIS 质量接入", "Webhook", """
+        service.createAdapter(qualityTenantId, new AdapterCreateDto("his-quality", "HIS 质量接入", "Webhook", """
             {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
             """));
-        service.createAdapter(tenantId, new AdapterCreateDto("lis-quality", "LIS 未映射", "Webhook", "{}"));
+        service.createAdapter(qualityTenantId, new AdapterCreateDto("lis-quality", "LIS 未映射", "Webhook", "{}"));
         service.createAdapter("tenant-002", new AdapterCreateDto("his-quality-other", "其他租户 HIS", "Webhook", "{}"));
-        service.checkAdapterHealth(tenantId, "his-quality");
+        service.checkAdapterHealth(qualityTenantId, "his-quality");
 
-        DataQualityReport report = service.generateDataQualityReport(tenantId);
-        AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
+        DataQualityReport report;
+        try {
+            report = RequestContext.callWith(
+                new RequestContext.Snapshot(
+                    "trace-data-quality-report",
+                    OrgScope.tenant(qualityTenantId),
+                    "implementation-engineer"
+                ),
+                () -> service.generateDataQualityReport(qualityTenantId)
+            );
+        } catch (Exception ex) {
+            throw new AssertionError("生成数据质量报告不应因请求上下文失败", ex);
+        }
+        AdapterHubStatus status = service.getAdapterHubStatus(qualityTenantId);
 
         assertNotNull(report.reportId());
-        assertEquals(tenantId, report.tenantId());
+        assertEquals(qualityTenantId, report.tenantId());
         assertEquals(8, report.requiredFieldTotal());
         assertEquals(5, report.requiredFieldPresent());
         assertEquals(62.5, report.requiredFieldRate(), 0.01);
@@ -244,6 +259,7 @@ class IntegrationServiceTest {
         assertTrue(report.gapSummary().contains("必填字段缺口"));
         assertTrue(report.gapSummary().contains("未配置字段映射"));
         assertTrue(dataQualityReportRepository.findById(report.reportId()).isPresent());
+        assertDataQualityReportAuditRecorded(qualityTenantId, report.reportId());
 
         assertEquals(2, status.totalAdapters());
         assertEquals(1, status.mappedAdapters());
@@ -1871,5 +1887,24 @@ class IntegrationServiceTest {
         assertEquals("NOT_CONNECTED", replayLog.status());
         assertEquals(0, replayLog.retryCount());
         assertTrue(replayLog.payloadSummary().contains("死信人工重放"));
+    }
+
+    private void assertDataQualityReportAuditRecorded(String tenantId, String reportId) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        Integer auditCount;
+        do {
+            auditCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_event WHERE tenant_id = ? AND resource_type = ? AND resource_id = ?",
+                Integer.class,
+                tenantId,
+                "data_quality_report",
+                reportId
+            );
+            if (auditCount != null && auditCount == 1) {
+                return;
+            }
+            Thread.onSpinWait();
+        } while (System.nanoTime() < deadline);
+        assertEquals(1, auditCount, "生成数据质量报告必须写入可回读审计事件");
     }
 }

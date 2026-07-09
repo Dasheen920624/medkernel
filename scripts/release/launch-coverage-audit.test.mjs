@@ -157,6 +157,23 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
     ],
   );
+  assert.deepEqual(evidence.coverage.implementationGuideEntryCoreActions, [
+    {
+      code: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.implementationGuideEntryCoreActions.IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+      observedCode: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    evidence.coverage.implementationGuideEntryCoreActionRows.map((item) => item.code),
+    ["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"],
+  );
   assert.deepEqual(evidence.coverage.complianceWorkbenchPersonalEntryMatrix, [
     {
       code: "COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
@@ -391,6 +408,22 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
         readJson: readKnownEvidence(missingCompliancePersonal),
       }),
     /合规安全与工作台个人入口强证据行.*NOTIFICATION_SETTINGS_SAVE.*缺少前置阶段证据/u,
+  );
+
+  const missingImplementationGuide = completeStageEvidence();
+  missingImplementationGuide[
+    "browser-e2e"
+  ].launchCoverage.implementationGuideEntryCoreActionRows = missingImplementationGuide[
+    "browser-e2e"
+  ].launchCoverage.implementationGuideEntryCoreActionRows.filter(
+    (item) => item.code !== "IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingImplementationGuide),
+      }),
+    /实施与验收入口代表动作行.*IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY.*缺少前置阶段证据/u,
   );
 });
 
@@ -631,6 +664,8 @@ function completeStageEvidence(options = {}) {
     "launchReadinessStakeholderRows:IT_MANAGER_RUNTIME_DIAGNOSTICS",
     "launchReadinessStakeholderRows:IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
     "launchReadinessStakeholderRows:HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    "implementationGuideEntryCoreActions:IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
+    "implementationGuideEntryCoreActionRows:IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY",
     "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
     "complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE",
     "complianceWorkbenchPersonalEntryRows:AUDIT_EVIDENCE_EXPORT_VERIFY",

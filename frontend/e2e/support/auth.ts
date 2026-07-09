@@ -31,6 +31,8 @@ export const roleAccounts = ROLE_ACCOUNT_CODES;
 const defaultCredentialScope: RoleCredentialScope = "rehearsal";
 export const platformDiagnosticItemKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
 const platformEvaluationIndicatorIdentity = "EVAL.LOCAL.REHEARSAL.BASELINE";
+export const platformReportInterpretationActionCardIdentity =
+  "ACTION_CARD.REPORT.CRITICAL_VALUE";
 export const requiredRuntimeAssetsForRehearsal = [
   { assetType: "KNOWLEDGE", assetIdentity: platformDiagnosticItemKnowledgeIdentity },
   { assetType: "TERMINOLOGY", assetIdentity: "TERMINOLOGY.LOCAL.REHEARSAL.BASELINE" },
@@ -45,6 +47,7 @@ export const requiredRuntimeAssetsForRehearsal = [
   { assetType: "FORMULA", assetIdentity: "FORMULA.LOCAL.REHEARSAL.BASELINE" },
   { assetType: "ORDER_SET", assetIdentity: "ORDER_SET.LOCAL.REHEARSAL.BASELINE" },
   { assetType: "ACTION_CARD", assetIdentity: "ACTION_CARD.LOCAL.REHEARSAL.BASELINE" },
+  { assetType: "ACTION_CARD", assetIdentity: platformReportInterpretationActionCardIdentity },
 ] as const;
 const requiredRuntimeAssets = requiredRuntimeAssetsForRehearsal;
 
@@ -494,7 +497,7 @@ async function ensurePlatformBaseline(page: Page): Promise<BaselineRuntimeAssets
   await expectOk(candidatesResponse, "读取平台标准版本候选资产");
   let candidates = resolveRuntimeAssetCandidates(await responseData(candidatesResponse));
   if (!runtimeCandidatesCoverRequiredTypes(candidates)) {
-    await ensurePlatformRuntimeAssetCandidates(page, missingRuntimeCandidateTypes(candidates));
+    await ensurePlatformRuntimeAssetCandidates(page, missingRuntimeAssetRequirements(candidates));
     const refreshedCandidatesResponse = await getApi(
       page,
       "/engine/releases/platform-baselines/candidates?page=1&size=100",
@@ -551,7 +554,13 @@ async function platformEvaluationProjectionReady(page: Page) {
   return ready;
 }
 
-async function ensurePlatformRuntimeAssetCandidates(page: Page, missingTypes: string[]) {
+async function ensurePlatformRuntimeAssetCandidates(
+  page: Page,
+  missingRequirements: Array<(typeof requiredRuntimeAssets)[number]>,
+) {
+  const missingTypes = uniqueRuntimeAssetTypes(
+    missingRequirements.map((requirement) => requirement.assetType),
+  );
   if (missingTypes.includes("VALUE_SET")) {
     await ensurePlatformDeclarativeRuntimeAsset(page, "VALUE_SET");
   }
@@ -562,7 +571,12 @@ async function ensurePlatformRuntimeAssetCandidates(page: Page, missingTypes: st
     await ensurePlatformDeclarativeRuntimeAsset(page, "ORDER_SET");
   }
   if (missingTypes.includes("ACTION_CARD")) {
-    await ensurePlatformDeclarativeRuntimeAsset(page, "ACTION_CARD");
+    await ensurePlatformActionCardCandidates(
+      page,
+      missingRequirements
+        .filter((requirement) => requirement.assetType === "ACTION_CARD")
+        .map((requirement) => requirement.assetIdentity),
+    );
   }
   if (missingTypes.includes("FIELD_CATALOG")) {
     const fieldCatalog = await postApi(page, "/engine/context/field-catalog/drafts", {});
@@ -605,13 +619,36 @@ async function ensurePlatformDeclarativeRuntimeAsset(page: Page, assetType: stri
   await expectOk(response, `创建本地上线演练 ${assetType} 声明式资产`);
 }
 
-function platformDeclarativeAssetRequest(assetType: string) {
+async function ensurePlatformActionCardCandidates(page: Page, missingIdentities: string[]) {
+  if (missingIdentities.includes("ACTION_CARD.LOCAL.REHEARSAL.BASELINE")) {
+    await ensurePlatformDeclarativeRuntimeAsset(page, "ACTION_CARD");
+  }
+  if (missingIdentities.includes(platformReportInterpretationActionCardIdentity)) {
+    const response = await postApi(
+      page,
+      "/engine/authoring/declarative-assets",
+      platformDeclarativeAssetRequest("ACTION_CARD", {
+        assetIdentity: platformReportInterpretationActionCardIdentity,
+        content: platformReportInterpretationActionCardContent(),
+      }),
+    );
+    await expectOk(response, "创建本地上线演练报告解读危急值提示卡资产");
+  }
+}
+
+function platformDeclarativeAssetRequest(
+  assetType: string,
+  overrides: {
+    assetIdentity?: string;
+    content?: Record<string, unknown>;
+  } = {},
+) {
   return {
     assetType,
-    assetIdentity: `${assetType}.LOCAL.REHEARSAL.BASELINE`,
+    assetIdentity: overrides.assetIdentity ?? `${assetType}.LOCAL.REHEARSAL.BASELINE`,
     applicableScope: "ALL",
     sourceRef: "local-e2e:platform-baseline-runtime-assets",
-    content: platformDeclarativeAssetContent(assetType),
+    content: overrides.content ?? platformDeclarativeAssetContent(assetType),
   };
 }
 
@@ -669,6 +706,26 @@ function platformDeclarativeAssetContent(assetType: string) {
     default:
       throw new Error(`不支持的本地上线演练声明式资产类型：${assetType}`);
   }
+}
+
+function platformReportInterpretationActionCardContent() {
+  return {
+    schemaVersion: "1.0",
+    title: "血钾危急值报告解读提示卡",
+    actionCode: "REMIND",
+    atSeverity: "HIGH",
+    indicator: "warning",
+    summary: "血钾等医技报告出现危急值时提示医师人工复核",
+    detail:
+      "用于本地上线演练验证报告解读服务必须消费当前机构生效版本中的危急值提示卡；系统不改写已签发报告，不自动开立医嘱。",
+    source: { label: "MedKernel 本地上线演练" },
+    suggestions: [
+      { label: "查看报告原文", actionType: "OPEN_FORM", payload: { target: "diagnostic-report" } },
+      { label: "登记人工复核", actionType: "OPEN_FORM", payload: { target: "workflow-todo" } },
+    ],
+    overrideReasons: ["已人工复核", "与临床症状不符", "重复报告"],
+    requiresPhysicianConfirmation: true,
+  };
 }
 
 async function ensurePlatformPathwayCandidate(page: Page) {
@@ -1446,12 +1503,9 @@ export function runtimeAssetsCoverRequiredTypes(assets: RuntimeAssetSelection[])
 }
 
 export function missingRuntimeCandidateTypes(candidates: unknown[]) {
-  return requiredRuntimeAssets
-    .filter(
-      (required) =>
-        !candidates.some((candidate) => runtimeAssetMatchesRequired(candidate, required)),
-    )
-    .map((required) => required.assetType);
+  return uniqueRuntimeAssetTypes(
+    missingRuntimeAssetRequirements(candidates).map((required) => required.assetType),
+  );
 }
 
 export function runtimeCandidatesCoverRequiredTypes(candidates: unknown[]) {
@@ -1485,6 +1539,12 @@ function runtimeAssetMatchesRequired(
   }
   return (
     !("assetIdentity" in required) || textField(value, "assetIdentity") === required.assetIdentity
+  );
+}
+
+function missingRuntimeAssetRequirements(candidates: unknown[]) {
+  return requiredRuntimeAssets.filter(
+    (required) => !candidates.some((candidate) => runtimeAssetMatchesRequired(candidate, required)),
   );
 }
 
@@ -1583,6 +1643,10 @@ function uniqueRuntimeAssetVersions(assets: RuntimeAssetVersion[]) {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueRuntimeAssetTypes(assetTypes: string[]) {
+  return [...new Set(assetTypes)];
 }
 
 function localRoleDisplayName(role: RoleAccount) {
