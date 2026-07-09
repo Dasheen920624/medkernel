@@ -490,6 +490,44 @@
   从剩余强链路中选择能被真实前台、真实服务回读、审计 / 六态 / 权限 / 安全边界完整背书的最小五态行；
   不得把普通 `scenarioEvidence`、代表切片、菜单、路由或文案自动升级为完整上线。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十五批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口临床嵌入运行 S8 的嵌入宿主降级代表切片，新增 1 条显式背书行：`S8__DEGRADATION`
+  （独立业务系统宿主通过真实 iframe 启动地址加载 MedKernel 嵌入端，嵌入端兑换一次性启动凭证、读取当前就诊上下文和推荐卡，
+  医师在嵌入端采纳反馈；外部回调未配置时后端诚实返回 `NOT_CONNECTED`，但本地 iframe/postMessage 主链路继续把医师动作回传给宿主）。
+  不声明 `S8__NORMAL/ABNORMAL/MISSING_DATA/HIGH_RISK`，不把 iframe 可见、普通嵌入场景覆盖或宿主页静态 HTML 冒领为完整 S8、
+  完整嵌入生态、完整临床运行或完整上线。
+- 第二百一十五批实现细节：`frontend/e2e/embed-business-host.spec.ts` 的
+  `embed-business-host-launch-codes` 附件从普通上下文字段升级为结构化证据：`apiResponses`、`clinicalContext`、
+  `launchToken`、`recommendation`、`feedback`、`hostMessage`、`runtimeSafety` 和 `scenarioConditionEvidence`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S8 条件行白名单和 collector，必须先通过完整
+  `hasRequiredEmbedBusinessHostAttachment()`，再严格校验 `code/scenarioCode/condition/source/evidence`，并绑定
+  三个真实 embed API 2xx、`IFRAME/patient-view` 启动凭证、同一推荐卡读取与医师 `ADOPT/ACCEPTED` 反馈、
+  `callbackStatus=NOT_CONNECTED/callbackDelivered=false`、宿主 postMessage 回传同一患者 / 就诊 / 卡片，以及浏览器 /
+  服务端 / 网络错误均为空。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、
+  未知行、来源错配、空证据、嵌入凭证未兑换、推荐卡读取非 2xx、医师未采纳、回调不是诚实断连、宿主未收到 postMessage、
+  浏览器存在错误，均不声明 `S8__DEGRADATION`。
+- 第二百一十五批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175，并使用 Playwright webServer 启动
+  独立嵌入宿主 4174。首轮
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s8-embed-degradation-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium embed-business-host.spec.ts`
+  失败于 iframe 内找不到“MedKernel 临床建议已连接”；根因是 4174 已有旧宿主进程复用，启动时没有本轮
+  `E2E_BASE_URL=http://localhost:5175`，HTML 仍把 iframe 指向 `http://localhost:5173/embed/launch`。停止旧 4174 后复跑
+  `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s8-embed-degradation-row-20260709-r2` 通过；`results.json` 读回
+  `status=PASSED`、`expected=1`、`unexpected=0`、`flaky=0`、`launchCoverage.scenarioConditionRows=[S8__DEGRADATION]`、
+  `launchCoverage.scenarios=[S8]`、`productLayers=[DELIVERY_FEEDBACK]`、`deliveryShapes=[EMBEDDED_COMPONENT]`。
+  附件抽查 `feedback.status=200`、`recommendationStatus=ACCEPTED`、`callbackStatus=NOT_CONNECTED`、
+  `callbackDelivered=false`、`hostMessage.received=true`、三条 embed API 均为 200，且 runtimeSafety 三类错误为空。
+  本批服务已停止并复核 18102/5175/4174 均无监听。
+- 第二百一十五批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S8__DEGRADATION`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（550 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十五批边界与下一步：本批只是把 S8 嵌入宿主外部回调断连但本地反馈继续的降级强链路接入 1 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是完整 S8 临床嵌入运行完成、不是 34 入口全部业务深度完成、
+  不是全医学知识生产完成、不是 134 清库重部署。下一批继续按 `LAUNCH-06` 或 `LAUNCH-13` 挑选剩余强链路；
+  不得把普通 `scenarioEvidence`、代表切片、菜单、路由、静态宿主页面或文案自动升级为完整上线。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

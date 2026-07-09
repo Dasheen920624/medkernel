@@ -26,6 +26,12 @@ type EmbedApiEvidence = {
   hostMessageReceived: boolean;
 };
 
+type EmbedRuntimeSafetyEvidence = {
+  browserErrors: string[];
+  serverErrors: string[];
+  networkFailures: string[];
+};
+
 type ContextSnapshotSummary = {
   patientId: string;
   snapshotId: string;
@@ -138,18 +144,29 @@ test("独立业务系统宿主通过真实嵌入凭证完成 iframe 启动并接
   expect(browserErrors, "真实嵌入链路不应产生浏览器错误").toEqual([]);
   expect(networkFailures, "真实嵌入链路不应产生网络失败").toEqual([]);
 
-  await attachEmbedBusinessHostScenarioEvidence(testInfo, observedStages, apiEvidence, {
-    patientId: snapshot.patientId,
-    encounterId: snapshot.encounterId,
-    triggerPoint: "patient-view",
-    hook: token.hook ?? "patient-view",
-    hookInstance: token.hookInstance ?? null,
-    cardId: card.cardId,
-    recommendationTraceId: card.traceId,
-    feedbackTraceId: feedback.data?.traceId ?? null,
-    callbackStatus: feedback.data?.callbackStatus ?? null,
-    degradationReason: feedback.data?.degradationReason ?? null,
-  });
+  await attachEmbedBusinessHostScenarioEvidence(
+    testInfo,
+    observedStages,
+    apiEvidence,
+    apiResponses,
+    {
+      patientId: snapshot.patientId,
+      snapshotId: snapshot.snapshotId,
+      encounterId: snapshot.encounterId,
+      triggerPoint: "patient-view",
+    },
+    token,
+    card,
+    feedback.data ?? {},
+    {
+      received: true,
+      actionType: "ADOPT",
+      cardId: card.cardId,
+      patientId: snapshot.patientId,
+      encounterId: snapshot.encounterId,
+    },
+    { browserErrors, serverErrors, networkFailures },
+  );
 });
 
 async function createClinicalContextFromFrontdesk(page: Page): Promise<ContextSnapshotSummary> {
@@ -318,7 +335,13 @@ async function attachEmbedBusinessHostScenarioEvidence(
   testInfo: TestInfo,
   observedStageSet: Set<string>,
   apiEvidence: EmbedApiEvidence,
-  context: Record<string, unknown>,
+  apiResponses: string[],
+  clinicalContext: Record<string, unknown>,
+  launchToken: EmbedLaunchTokenPayload,
+  recommendation: { cardId: string; traceId: string },
+  feedback: EmbedFeedbackPayload,
+  hostMessage: Record<string, unknown>,
+  runtimeSafety: EmbedRuntimeSafetyEvidence,
 ) {
   const scenarioEvidence = requiredEmbedBusinessHostScenarioEvidence.map((scenario) => ({
     code: scenario.code,
@@ -339,7 +362,64 @@ async function attachEmbedBusinessHostScenarioEvidence(
         productLayers: ["DELIVERY_FEEDBACK"],
         deliveryShapes: ["EMBEDDED_COMPONENT"],
         apiEvidence,
-        context,
+        apiResponses,
+        clinicalContext,
+        launchToken: {
+          operation: "ISSUE_AND_EXCHANGE",
+          status: 200,
+          integrationMode: launchToken.integrationMode ?? null,
+          hook: launchToken.hook ?? null,
+          hookInstance: launchToken.hookInstance ?? null,
+          embedUrlIncludesLaunchToken: String(launchToken.embedUrl ?? "").includes(
+            "/embed/launch?token=",
+          ),
+          parentOrigin: hostOrigin,
+        },
+        recommendation: {
+          operation: "READ_EMBEDDED_RECOMMENDATIONS",
+          status: 200,
+          cardId: recommendation.cardId,
+          title: "检验危急值需人工确认",
+          traceId: recommendation.traceId,
+          visibleCardCount: 1,
+          suppressedCardCount: 0,
+          sourceSummary: "嵌入宿主真实服务链路演练：检验危急值管理制度",
+        },
+        feedback: {
+          operation: "SUBMIT_DOCTOR_FEEDBACK",
+          status: 200,
+          cardId: feedback.cardId ?? null,
+          actionType: feedback.actionType ?? null,
+          recommendationStatus: feedback.recommendationStatus ?? null,
+          callbackStatus: feedback.callbackStatus ?? null,
+          callbackDelivered: feedback.callbackDelivered ?? null,
+          degradationReason: feedback.degradationReason ?? null,
+          traceId: feedback.traceId ?? null,
+        },
+        hostMessage,
+        runtimeSafety,
+        context: {
+          ...clinicalContext,
+          hook: launchToken.hook ?? "patient-view",
+          hookInstance: launchToken.hookInstance ?? null,
+          cardId: recommendation.cardId,
+          recommendationTraceId: recommendation.traceId,
+          feedbackTraceId: feedback.traceId ?? null,
+          callbackStatus: feedback.callbackStatus ?? null,
+          degradationReason: feedback.degradationReason ?? null,
+        },
+        scenarioConditionEvidence: [
+          {
+            code: "S8__DEGRADATION",
+            scenarioCode: "S8",
+            condition: "DEGRADATION",
+            source: "EMBEDDED_HOST_CALLBACK_NOT_CONNECTED_LOCAL_FEEDBACK_CONTINUES",
+            evidence: [
+              "独立业务系统宿主通过真实 iframe 启动地址完成嵌入建议读取和医师采纳反馈",
+              "外部回调缺配置时反馈状态为 NOT_CONNECTED，但本地 postMessage 主链路继续回传医师动作",
+            ],
+          },
+        ],
         scenarioEvidence,
       },
       null,

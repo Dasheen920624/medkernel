@@ -12737,8 +12737,99 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.semanticFamilies).toBeUndefined();
   });
 
-  it("declares embedded business host coverage only when the passed spec attaches complete real service evidence", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
+  const embedBusinessHostEvidence = {
+    scenarioCodes: ["S8"],
+    productLayers: ["DELIVERY_FEEDBACK"],
+    deliveryShapes: ["EMBEDDED_COMPONENT"],
+    apiEvidence: {
+      launchTokenIssued: true,
+      launchExchanged: true,
+      recommendationsRead: true,
+      feedbackSubmitted: true,
+      hostMessageReceived: true,
+    },
+    apiResponses: [
+      "POST /medkernel/api/v1/engine/embed/launch 200",
+      "POST /medkernel/api/v1/engine/embed/recommendations 200",
+      "POST /medkernel/api/v1/engine/embed/feedback 200",
+    ],
+    clinicalContext: {
+      patientId: "mpi-embed-s8",
+      snapshotId: "ctx-embed-s8",
+      encounterId: "enc-embed-s8",
+      triggerPoint: "patient-view",
+    },
+    launchToken: {
+      operation: "ISSUE_AND_EXCHANGE",
+      status: 200,
+      integrationMode: "IFRAME",
+      hook: "patient-view",
+      hookInstance: "embed-host-card-s8",
+      embedUrlIncludesLaunchToken: true,
+      parentOrigin: "http://127.0.0.1:4174",
+    },
+    recommendation: {
+      operation: "READ_EMBEDDED_RECOMMENDATIONS",
+      status: 200,
+      cardId: "card-embed-s8",
+      title: "检验危急值需人工确认",
+      traceId: "trace-recommendation-s8",
+      visibleCardCount: 1,
+      suppressedCardCount: 0,
+      sourceSummary: "嵌入宿主真实服务链路演练：检验危急值管理制度",
+    },
+    feedback: {
+      operation: "SUBMIT_DOCTOR_FEEDBACK",
+      status: 200,
+      cardId: "card-embed-s8",
+      actionType: "ADOPT",
+      recommendationStatus: "ACCEPTED",
+      callbackStatus: "NOT_CONNECTED",
+      callbackDelivered: false,
+      degradationReason: "EMBED_CALLBACK_NOT_CONFIGURED",
+      traceId: "trace-feedback-s8",
+    },
+    hostMessage: {
+      received: true,
+      actionType: "ADOPT",
+      cardId: "card-embed-s8",
+      patientId: "mpi-embed-s8",
+      encounterId: "enc-embed-s8",
+    },
+    runtimeSafety: {
+      browserErrors: [],
+      serverErrors: [],
+      networkFailures: [],
+    },
+    scenarioConditionEvidence: [
+      {
+        code: "S8__DEGRADATION",
+        scenarioCode: "S8",
+        condition: "DEGRADATION",
+        source: "EMBEDDED_HOST_CALLBACK_NOT_CONNECTED_LOCAL_FEEDBACK_CONTINUES",
+        evidence: [
+          "独立业务系统宿主通过真实 iframe 启动地址完成嵌入建议读取和医师采纳反馈",
+          "外部回调缺配置时反馈状态为 NOT_CONNECTED，但本地 postMessage 主链路继续回传医师动作",
+        ],
+      },
+    ],
+    scenarioEvidence: [
+      {
+        code: "S8",
+        observedStages: [
+          "真实签发一次性嵌入启动凭证",
+          "独立业务系统宿主加载真实 iframe 启动地址",
+          "嵌入终端真实兑换启动凭证并读取当前就诊上下文",
+          "嵌入终端真实读取当前就诊推荐卡",
+          "医师在嵌入终端提交采纳反馈",
+          "独立业务系统宿主收到医师反馈 postMessage",
+        ],
+      },
+    ],
+  };
+
+  function embedBusinessHostEvidenceResult(body: Record<string, unknown>) {
+    return buildBrowserE2eLaunchEvidence({
       stats: passedStats,
       tests: [
         {
@@ -12749,36 +12840,23 @@ describe("browser E2E launch coverage evidence", () => {
             {
               name: "embed-business-host-launch-codes",
               contentType: "application/json",
-              body: JSON.stringify({
-                scenarioCodes: ["S8"],
-                productLayers: ["DELIVERY_FEEDBACK"],
-                deliveryShapes: ["EMBEDDED_COMPONENT"],
-                apiEvidence: {
-                  launchTokenIssued: true,
-                  launchExchanged: true,
-                  recommendationsRead: true,
-                  feedbackSubmitted: true,
-                  hostMessageReceived: true,
-                },
-                scenarioEvidence: [
-                  {
-                    code: "S8",
-                    observedStages: [
-                      "真实签发一次性嵌入启动凭证",
-                      "独立业务系统宿主加载真实 iframe 启动地址",
-                      "嵌入终端真实兑换启动凭证并读取当前就诊上下文",
-                      "嵌入终端真实读取当前就诊推荐卡",
-                      "医师在嵌入终端提交采纳反馈",
-                      "独立业务系统宿主收到医师反馈 postMessage",
-                    ],
-                  },
-                ],
-              }),
+              body: JSON.stringify(body),
             },
           ],
         },
       ],
     });
+  }
+
+  function expectNoEmbedBusinessHostScenarioConditionCoverage(body: Record<string, unknown>) {
+    const evidence = embedBusinessHostEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S8__DEGRADATION");
+  }
+
+  it("declares embedded business host coverage only when the passed spec attaches complete real service evidence", () => {
+    const evidence = embedBusinessHostEvidenceResult(embedBusinessHostEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S8"]);
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
@@ -12788,6 +12866,133 @@ describe("browser E2E launch coverage evidence", () => {
       "EMBEDDED_COMPONENT",
     ]);
     expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
+  it("declares S8 degradation condition row only from callback NOT_CONNECTED with local embedded feedback continuity", () => {
+    const evidence = embedBusinessHostEvidenceResult(embedBusinessHostEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S8__DEGRADATION",
+    ]);
+  });
+
+  it("does not declare S8 degradation condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = embedBusinessHostEvidence;
+    const evidence = embedBusinessHostEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S8"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S8__NORMAL",
+            scenarioCode: "S8",
+            condition: "NORMAL",
+            source: "EMBEDDED_HOST_CALLBACK_NOT_CONNECTED_LOCAL_FEEDBACK_CONTINUES",
+            evidence: ["外部回调 NOT_CONNECTED 不能冒领正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S8__DEGRADATION",
+            scenarioCode: "S8",
+            condition: "DEGRADATION",
+            source: "EMBEDDED_IFRAME_VISIBLE_ONLY",
+            evidence: ["不能只靠 iframe 可见冒领降级态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S8__DEGRADATION",
+            scenarioCode: "S8",
+            condition: "DEGRADATION",
+            source: "EMBEDDED_HOST_CALLBACK_NOT_CONNECTED_LOCAL_FEEDBACK_CONTINUES",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "嵌入启动凭证未兑换",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        apiEvidence: {
+          ...structuredClone(embedBusinessHostEvidence.apiEvidence),
+          launchExchanged: false,
+        },
+      },
+    },
+    {
+      name: "推荐卡读取不是 2xx",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        recommendation: {
+          ...structuredClone(embedBusinessHostEvidence.recommendation),
+          status: 503,
+        },
+      },
+    },
+    {
+      name: "医师反馈未采纳",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        feedback: {
+          ...structuredClone(embedBusinessHostEvidence.feedback),
+          recommendationStatus: "PENDING",
+        },
+      },
+    },
+    {
+      name: "回调不是诚实断连",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        feedback: {
+          ...structuredClone(embedBusinessHostEvidence.feedback),
+          callbackStatus: "DELIVERED",
+          callbackDelivered: true,
+        },
+      },
+    },
+    {
+      name: "宿主 postMessage 未收到反馈",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        hostMessage: {
+          ...structuredClone(embedBusinessHostEvidence.hostMessage),
+          received: false,
+        },
+      },
+    },
+    {
+      name: "浏览器存在错误",
+      body: {
+        ...structuredClone(embedBusinessHostEvidence),
+        runtimeSafety: {
+          ...structuredClone(embedBusinessHostEvidence.runtimeSafety),
+          browserErrors: ["iframe crashed"],
+        },
+      },
+    },
+  ])("does not declare S8 degradation condition row when $name", ({ body }) => {
+    expectNoEmbedBusinessHostScenarioConditionCoverage(body);
   });
 
   it("declares S6 pathway lifecycle evidence slice without packaging milestone config as ten-stage runtime coverage", () => {

@@ -640,6 +640,14 @@ const sourceLineageScenarioConditionRows = [
     source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
   },
 ] as const;
+const embedBusinessHostScenarioConditionRows = [
+  {
+    code: "S8__DEGRADATION",
+    scenarioCode: "S8",
+    condition: "DEGRADATION",
+    source: "EMBEDDED_HOST_CALLBACK_NOT_CONNECTED_LOCAL_FEEDBACK_CONTINUES",
+  },
+] as const;
 const pathwayLifecycleScenarioConditionRows = [
   {
     code: "S6__NORMAL",
@@ -3985,6 +3993,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectSourceLineageScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectEmbedBusinessHostScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectPathwayLifecycleScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4209,6 +4220,49 @@ function sourceLineageScenarioConditionBackedByEvidence(
   switch (code) {
     case "S7__NORMAL":
       return hasCompleteSourceLineageStructuredEvidence(parsed);
+    default:
+      return false;
+  }
+}
+
+function collectEmbedBusinessHostScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "embed-business-host.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "embed-business-host-launch-codes",
+  );
+  if (!attachment?.body || !hasRequiredEmbedBusinessHostAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      embedBusinessHostScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return embedBusinessHostScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          embedBusinessHostScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function embedBusinessHostScenarioConditionBackedByEvidence(
+  code: (typeof embedBusinessHostScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S8__DEGRADATION":
+      return hasCompleteEmbedBusinessHostDegradationEvidence(parsed);
     default:
       return false;
   }
@@ -12518,6 +12572,80 @@ function hasCompleteEmbedApiEvidence(value: unknown) {
     "feedbackSubmitted",
     "hostMessageReceived",
   ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteEmbedBusinessHostDegradationEvidence(parsed: Record<string, unknown>) {
+  if (!hasCompleteEmbedApiEvidence(parsed.apiEvidence)) return false;
+  const apiResponses = Array.isArray(parsed.apiResponses) ? parsed.apiResponses : [];
+  const clinicalContext = recordValue(parsed.clinicalContext);
+  const launchToken = recordValue(parsed.launchToken);
+  const recommendation = recordValue(parsed.recommendation);
+  const feedback = recordValue(parsed.feedback);
+  const hostMessage = recordValue(parsed.hostMessage);
+  const runtimeSafety = recordValue(parsed.runtimeSafety);
+  if (!clinicalContext || !launchToken || !recommendation || !feedback || !hostMessage) {
+    return false;
+  }
+
+  const patientId = textValue(clinicalContext.patientId);
+  const encounterId = textValue(clinicalContext.encounterId);
+  const cardId = textValue(recommendation.cardId);
+  const feedbackCardId = textValue(feedback.cardId);
+  if (!patientId || !encounterId || !cardId || feedbackCardId !== cardId) return false;
+
+  const requiredResponses = [
+    "POST /medkernel/api/v1/engine/embed/launch 200",
+    "POST /medkernel/api/v1/engine/embed/recommendations 200",
+    "POST /medkernel/api/v1/engine/embed/feedback 200",
+  ];
+  if (
+    !requiredResponses.every((expected) =>
+      apiResponses.some((item) => typeof item === "string" && item.includes(expected)),
+    )
+  ) {
+    return false;
+  }
+
+  const runtimeErrorsEmpty =
+    runtimeSafety === null ||
+    (Array.isArray(runtimeSafety.browserErrors) &&
+      runtimeSafety.browserErrors.length === 0 &&
+      Array.isArray(runtimeSafety.serverErrors) &&
+      runtimeSafety.serverErrors.length === 0 &&
+      Array.isArray(runtimeSafety.networkFailures) &&
+      runtimeSafety.networkFailures.length === 0);
+
+  return (
+    clinicalContext.triggerPoint === "patient-view" &&
+    launchToken.operation === "ISSUE_AND_EXCHANGE" &&
+    is2xxStatus(launchToken.status) &&
+    launchToken.integrationMode === "IFRAME" &&
+    launchToken.hook === "patient-view" &&
+    hasText(launchToken.hookInstance) &&
+    launchToken.embedUrlIncludesLaunchToken === true &&
+    hasText(launchToken.parentOrigin) &&
+    recommendation.operation === "READ_EMBEDDED_RECOMMENDATIONS" &&
+    is2xxStatus(recommendation.status) &&
+    recommendation.title === "检验危急值需人工确认" &&
+    hasText(recommendation.traceId) &&
+    recommendation.visibleCardCount === 1 &&
+    recommendation.suppressedCardCount === 0 &&
+    String(recommendation.sourceSummary ?? "").includes("嵌入宿主真实服务链路演练") &&
+    feedback.operation === "SUBMIT_DOCTOR_FEEDBACK" &&
+    is2xxStatus(feedback.status) &&
+    feedback.actionType === "ADOPT" &&
+    feedback.recommendationStatus === "ACCEPTED" &&
+    feedback.callbackStatus === "NOT_CONNECTED" &&
+    feedback.callbackDelivered === false &&
+    hasText(feedback.degradationReason) &&
+    hasText(feedback.traceId) &&
+    hostMessage.received === true &&
+    hostMessage.actionType === "ADOPT" &&
+    hostMessage.cardId === cardId &&
+    hostMessage.patientId === patientId &&
+    hostMessage.encounterId === encounterId &&
+    runtimeErrorsEmpty
+  );
 }
 
 function hasCompleteSourceLineageApiEvidence(value: unknown) {
