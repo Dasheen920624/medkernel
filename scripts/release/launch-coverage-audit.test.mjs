@@ -95,6 +95,23 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       "HOSPITAL_EXECUTIVE",
     ],
   );
+  assert.deepEqual(evidence.coverage.versionedAssetDedicatedReleaseContractMatrix, [
+    {
+      code: "TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.versionedAssetDedicatedReleaseContractMatrix.TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+      observedCode: "TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    evidence.coverage.versionedAssetDedicatedReleaseContractRows.map((item) => item.code),
+    ["TERMINOLOGY", "FIELD_CATALOG", "PATHWAY"],
+  );
 });
 
 test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", () => {
@@ -399,6 +416,10 @@ function completeStageEvidence(options = {}) {
     "productLayers:RELEASE_GOVERNANCE",
     "productLayers:CLINICAL_EXECUTION",
     "productLayers:DELIVERY_FEEDBACK",
+    "versionedAssetDedicatedReleaseContractMatrix:TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+    "versionedAssetDedicatedReleaseContractRows:TERMINOLOGY",
+    "versionedAssetDedicatedReleaseContractRows:FIELD_CATALOG",
+    "versionedAssetDedicatedReleaseContractRows:PATHWAY",
     "semanticFamilies:DISEASE_DIAGNOSIS",
     "semanticFamilies:SYMPTOM_RISK",
     "semanticFamilies:DIAGNOSTIC_REPORT",

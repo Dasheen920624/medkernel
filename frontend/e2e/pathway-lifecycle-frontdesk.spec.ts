@@ -1405,17 +1405,34 @@ async function attachPathwayLifecycleScenarioEvidence(
       return requiredStages.every((stage) => scenario.observedStages.includes(stage));
     })
     .map((scenario) => scenario.code);
+  const removedPathwayAsset = context.rollbackNegativeEvidence.removedAssets.find(
+    (asset) => asset.assetType === "PATHWAY",
+  );
   await testInfo.attach("pathway-lifecycle-scenario-codes", {
     body: JSON.stringify(
       {
         scenarioCodes: completedScenarioCodes,
         productLayers: ["CLINICAL_EXECUTION"],
-        versionedAssets: ["ORDER_SET"],
+        versionedAssets: ["PATHWAY", "ORDER_SET"],
         serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
         specialDiseaseStages,
         apiEvidence,
         orderSetRuntimeConsumer: context.orderSetRuntimeConsumer,
         rollbackNegativeEvidence: context.rollbackNegativeEvidence,
+        dedicatedReleaseContractEvidence: {
+          assetType: "PATHWAY",
+          assetIdentity: String(context.templateCode),
+          versionId: String(removedPathwayAsset?.versionId ?? ""),
+          productionRoute: "SPECIAL_DISEASE_PATHWAY_TEMPLATE_LIFECYCLE",
+          releaseContract: "SPECIAL_DISEASE_PATHWAY_ENTRY_AND_ADVANCE_CONTRACT",
+          templateLifecycleVerified: true,
+          activationVerified: true,
+          runtimeConsumerReadbackVerified: true,
+          pathwayEntryVerified: true,
+          pathwayAdvanceVerified: true,
+          orderSetConsumerVerified: true,
+          consumer: "SPECIAL_DISEASE_PATHWAY",
+        },
         context,
         scenarioEvidence,
       },

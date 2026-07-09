@@ -212,6 +212,16 @@ const versionedAssetRollbackRepresentativeMatrixClaims = [
   "versionedAssetRollbackRepresentativeMatrix:GAP_AWARE_RUNTIME_CONSUMER_NEGATIVE_REPRESENTATIVE",
 ];
 
+const versionedAssetDedicatedReleaseContractMatrixClaims = [
+  "versionedAssetDedicatedReleaseContractMatrix:TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS",
+];
+
+const requiredVersionedAssetDedicatedReleaseContractAssets = [
+  "TERMINOLOGY",
+  "FIELD_CATALOG",
+  "PATHWAY",
+];
+
 const requiredVersionedAssetRollbackRepresentativeAssets = [
   "SAFETY",
   "CDSS_RISK",
@@ -968,6 +978,11 @@ export function buildBrowserE2eLaunchEvidence(input: {
   if (versionedAssetRollbackClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, versionedAssetRollbackClaims, generatedAt);
   }
+  const versionedAssetDedicatedReleaseContractClaims =
+    collectVersionedAssetDedicatedReleaseContractClaims(input.tests);
+  if (versionedAssetDedicatedReleaseContractClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, versionedAssetDedicatedReleaseContractClaims, generatedAt);
+  }
   return evidence;
 }
 
@@ -1225,6 +1240,239 @@ function collectVersionedAssetRollbackRepresentativeClaims(tests: BrowserE2eTest
       (asset) => `versionedAssetRollbackRepresentativeRows:${asset}`,
     ),
   ];
+}
+
+function collectVersionedAssetDedicatedReleaseContractClaims(tests: BrowserE2eTestResult[]) {
+  const representativeAssets = new Set<string>();
+  collectDedicatedReleaseContractAssetsFromAttachment(
+    tests,
+    "s2-s4-terminology-integration-rehearsal.spec.ts",
+    "s2-s4-runtime-mapping-codes",
+    hasRequiredS2S4RuntimeMappingAttachment,
+  )
+    .filter((asset) => asset === "TERMINOLOGY")
+    .forEach((asset) => representativeAssets.add(asset));
+  collectDedicatedReleaseContractAssetsFromAttachment(
+    tests,
+    "diagnostic-critical-value-frontdesk.spec.ts",
+    "diagnostic-critical-value-frontdesk-codes",
+    hasRequiredDiagnosticCriticalValueFrontdeskAttachment,
+  )
+    .filter((asset) => asset === "FIELD_CATALOG")
+    .forEach((asset) => representativeAssets.add(asset));
+  collectDedicatedReleaseContractAssetsFromAttachment(
+    tests,
+    "pathway-lifecycle-frontdesk.spec.ts",
+    "pathway-lifecycle-scenario-codes",
+    hasRequiredPathwayLifecycleAttachment,
+  )
+    .filter((asset) => asset === "PATHWAY")
+    .forEach((asset) => representativeAssets.add(asset));
+  if (
+    !requiredVersionedAssetDedicatedReleaseContractAssets.every((asset) =>
+      representativeAssets.has(asset),
+    )
+  ) {
+    return [];
+  }
+  return [
+    ...versionedAssetDedicatedReleaseContractMatrixClaims,
+    ...requiredVersionedAssetDedicatedReleaseContractAssets.map(
+      (asset) => `versionedAssetDedicatedReleaseContractRows:${asset}`,
+    ),
+  ];
+}
+
+function collectDedicatedReleaseContractAssetsFromAttachment(
+  tests: BrowserE2eTestResult[],
+  fileName: string,
+  attachmentName: string,
+  attachmentValidator: (test: BrowserE2eTestResult) => boolean,
+) {
+  const assets = new Set<string>();
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== fileName ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !Array.isArray(test.attachments) ||
+      !attachmentValidator(test)
+    ) {
+      continue;
+    }
+    const attachment = test.attachments.find((item) => item.name === attachmentName);
+    if (!attachment?.body) continue;
+    try {
+      const parsed = JSON.parse(attachment.body);
+      const evidence = parseDedicatedReleaseContractEvidence(parsed);
+      if (evidence) assets.add(evidence.assetType);
+    } catch {
+      continue;
+    }
+  }
+  return Array.from(assets);
+}
+
+function parseDedicatedReleaseContractEvidence(parsed: unknown) {
+  const body = recordValue(parsed);
+  const evidence = recordValue(body?.dedicatedReleaseContractEvidence);
+  if (
+    !body ||
+    !evidence ||
+    !hasText(evidence.assetType) ||
+    !hasText(evidence.assetIdentity) ||
+    !hasText(evidence.versionId) ||
+    !hasText(evidence.productionRoute) ||
+    !hasText(evidence.releaseContract) ||
+    !hasText(evidence.consumer) ||
+    evidence.runtimeConsumerReadbackVerified !== true
+  ) {
+    return null;
+  }
+  const asset = {
+    assetType: String(evidence.assetType),
+    assetIdentity: String(evidence.assetIdentity),
+    versionId: String(evidence.versionId),
+  };
+  if (!requiredVersionedAssetDedicatedReleaseContractAssets.includes(asset.assetType)) return null;
+  if (
+    asset.assetType === "TERMINOLOGY" &&
+    hasCompleteTerminologyDedicatedReleaseContract(body, evidence, asset)
+  ) {
+    return asset;
+  }
+  if (
+    asset.assetType === "FIELD_CATALOG" &&
+    hasCompleteFieldCatalogDedicatedReleaseContract(body, evidence, asset)
+  ) {
+    return asset;
+  }
+  if (
+    asset.assetType === "PATHWAY" &&
+    hasCompletePathwayDedicatedReleaseContract(body, evidence, asset)
+  ) {
+    return asset;
+  }
+  return null;
+}
+
+function hasCompleteTerminologyDedicatedReleaseContract(
+  body: Record<string, unknown>,
+  evidence: Record<string, unknown>,
+  asset: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  const terminology = recordValue(body.terminology);
+  const inboundResult = recordValue(body.inboundResult);
+  return (
+    evidence.productionRoute === "STANDARD_AND_LOCAL_TERMINOLOGY_MAPPING" &&
+    evidence.releaseContract === "S2_S4_TERMINOLOGY_MAPPING_RUNTIME_CONTRACT" &&
+    evidence.producerVerified === true &&
+    evidence.reviewerVerified === true &&
+    evidence.activationVerified === true &&
+    evidence.inboundNormalizationVerified === true &&
+    arrayEquals(evidence.sourceSystems, ["LIS"]) &&
+    evidence.consumer === "SIGNED_WEBHOOK_INBOUND_NORMALIZATION" &&
+    terminology?.assetType === asset.assetType &&
+    terminology.assetIdentity === asset.assetIdentity &&
+    terminology.versionId === asset.versionId &&
+    runtimeReleasePayloadContainsCandidate(body.activationRequest, "activeAssets", asset) &&
+    runtimeReleasePayloadContainsCandidate(body.runtime, "assets", asset, {
+      requireActive: true,
+    }) &&
+    runtimeReleasePayloadContainsCandidate(body.runtimeConsumerReadback, "assets", asset, {
+      requireActive: true,
+    }) &&
+    inboundResult?.status === "SUCCESS" &&
+    inboundResult.normalizedCodeCount === 1 &&
+    String(
+      valueAtEvidencePath(body, "inboundResult.mappedPayload.observations[0].runtimeReleaseId") ??
+        "",
+    ) === textValue(recordValue(body.runtime)?.releaseId) &&
+    valueAtEvidencePath(body, "inboundResult.mappedPayload.observations[0].mappingId") ===
+      terminology.mappingId
+  );
+}
+
+function hasCompleteFieldCatalogDedicatedReleaseContract(
+  body: Record<string, unknown>,
+  evidence: Record<string, unknown>,
+  asset: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  const runtime = recordValue(body.runtime);
+  const fieldCatalogAsset = recordValue(runtime?.fieldCatalogAsset);
+  return (
+    evidence.productionRoute === "DIAGNOSTIC_FIELD_CATALOG_RUNTIME_BASELINE" &&
+    evidence.releaseContract === "DIAGNOSTIC_REPORT_INTERPRETATION_FIELD_CONTRACT" &&
+    evidence.platformBaselineVerified === true &&
+    evidence.activationVerified === true &&
+    evidence.reportInterpretationVerified === true &&
+    evidence.consumer === "REPORT_INTERPRETATION" &&
+    evidencePathsResolve(body, evidence.fieldEvidencePaths) &&
+    fieldCatalogAsset?.assetType === asset.assetType &&
+    fieldCatalogAsset.assetIdentity === asset.assetIdentity &&
+    fieldCatalogAsset.versionId === asset.versionId &&
+    runtimeReleasePayloadContainsPlatformSelection(body.activationRequest, "activeAssets", asset) &&
+    runtimeReleasePayloadContainsCandidate(runtime, "assets", asset, { requireActive: true }) &&
+    diagnosticCriticalValueRuntimeAssetEvidenceMatches(
+      Array.isArray(valueAtEvidencePath(body, "recommendation.explanation.runtimeAssetEvidence"))
+        ? (valueAtEvidencePath(
+            body,
+            "recommendation.explanation.runtimeAssetEvidence",
+          ) as unknown[])
+        : [],
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: asset.assetIdentity,
+        versionId: asset.versionId,
+        versionNo: String(fieldCatalogAsset.versionNo),
+        contentHash: String(fieldCatalogAsset.contentHash),
+        sourceLayer: "PLATFORM",
+      },
+    )
+  );
+}
+
+function hasCompletePathwayDedicatedReleaseContract(
+  body: Record<string, unknown>,
+  evidence: Record<string, unknown>,
+  asset: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  const context = recordValue(body.context);
+  const orderSetConsumer = recordValue(body.orderSetRuntimeConsumer);
+  const rollbackEvidence = recordValue(body.rollbackNegativeEvidence);
+  const removedAssets = Array.isArray(rollbackEvidence?.removedAssets)
+    ? rollbackEvidence.removedAssets
+    : [];
+  const removedPathwayAsset = removedAssets
+    .map((item) => parseRuntimeReleaseCandidate(item))
+    .find((item) => item?.assetType === "PATHWAY");
+  const rollbackAssets = parseRollbackNegativeEvidence(body.rollbackNegativeEvidence);
+  return (
+    evidence.productionRoute === "SPECIAL_DISEASE_PATHWAY_TEMPLATE_LIFECYCLE" &&
+    evidence.releaseContract === "SPECIAL_DISEASE_PATHWAY_ENTRY_AND_ADVANCE_CONTRACT" &&
+    evidence.templateLifecycleVerified === true &&
+    evidence.activationVerified === true &&
+    evidence.pathwayEntryVerified === true &&
+    evidence.pathwayAdvanceVerified === true &&
+    evidence.orderSetConsumerVerified === true &&
+    evidence.consumer === "SPECIAL_DISEASE_PATHWAY" &&
+    context?.templateCode === asset.assetIdentity &&
+    hasText(context.patientPathwayId) &&
+    rollbackAssets.includes("PATHWAY") &&
+    removedPathwayAsset?.assetIdentity === asset.assetIdentity &&
+    removedPathwayAsset.versionId === asset.versionId &&
+    orderSetConsumer !== null &&
+    hasText(recordValue(orderSetConsumer.asset)?.assetIdentity) &&
+    hasText(recordValue(orderSetConsumer.asset)?.versionId) &&
+    recordValue(orderSetConsumer.patientPathway)?.patientPathwayId === context.patientPathwayId &&
+    recordValue(orderSetConsumer.patientPathway)?.runtimeReleaseId ===
+      recordValue(orderSetConsumer.runtimeRelease)?.releaseId &&
+    recordValue(orderSetConsumer.runtimeRelease)?.assetPresent === true &&
+    recordValue(orderSetConsumer.advanceResponse)?.status === "NODE_EXECUTING" &&
+    recordValue(recordValue(orderSetConsumer.advanceResponse)?.decisionEvidence)?.[
+      "pathway.orderSetRequiresPhysicianConfirmation"
+    ] === true
+  );
 }
 
 function collectRollbackNegativeAssetsFromAttachment(
@@ -1949,9 +2197,7 @@ function qualityManagementEntryCoreActionAttachmentBodies(tests: BrowserE2eTestR
   return bodies;
 }
 
-function hasCompleteQualityManagementEntryCoreActionMatrix(
-  body: Record<string, unknown>,
-) {
+function hasCompleteQualityManagementEntryCoreActionMatrix(body: Record<string, unknown>) {
   const actionsByMenuKey = new Map<string, Record<string, unknown>>();
   if (!hasQualityManagementEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
   if (!Array.isArray(body.entryActions)) return false;
@@ -9110,7 +9356,7 @@ function hasRequiredPathwayLifecycleAttachment(test: BrowserE2eTestResult) {
     if (
       !arrayEquals(parsed.scenarioCodes, requiredPathwayLifecycleScenarioCodes) ||
       !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
-      !arrayEquals(parsed.versionedAssets, ["ORDER_SET"]) ||
+      !arrayEquals(parsed.versionedAssets, ["PATHWAY", "ORDER_SET"]) ||
       !arrayEquals(parsed.serviceCombinations, ["SPECIAL_DISEASE_PATHWAY"]) ||
       !arrayEquals(parsed.specialDiseaseStages, requiredPathwayMilestoneStages) ||
       !hasCompletePathwayLifecycleApiEvidence(parsed.apiEvidence) ||

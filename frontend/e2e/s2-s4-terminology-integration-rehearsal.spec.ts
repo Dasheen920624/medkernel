@@ -286,9 +286,12 @@ async function createWebhookFromFrontdesk(
   );
   const secret = created.data?.sharedSecret;
   expect(secret, "创建回调通道必须只返回一次共享密钥供第三方签名").toBeTruthy();
-  await page.getByRole("dialog", { name: "保存共享密钥" }).getByRole("button", {
-    name: "我已安全保存",
-  }).click();
+  await page
+    .getByRole("dialog", { name: "保存共享密钥" })
+    .getByRole("button", {
+      name: "我已安全保存",
+    })
+    .click();
   await expect(page.getByRole("dialog", { name: "保存共享密钥" })).toBeHidden({
     timeout: 20_000,
   });
@@ -521,10 +524,7 @@ async function generateAndConfirmCandidateFromFrontdesk(
   await buildDialog.getByLabel("稳定术语资产身份").fill(options.assetIdentity);
   await buildDialog.getByLabel("名称").fill(`S2S4 检验术语资产 ${options.suffix}`);
   await selectFirstOption(page, buildDialog, "生效范围");
-  const draftResponsePromise = waitForPost(
-    page,
-    "/api/v1/engine/terminology/assets/drafts",
-  );
+  const draftResponsePromise = waitForPost(page, "/api/v1/engine/terminology/assets/drafts");
   await buildDialog.getByRole("button", { name: "生成草稿版本" }).click();
   const draftResponse = await draftResponsePromise;
   const draft = await expectBrowserResponseOk<{
@@ -612,9 +612,9 @@ async function activateRuntimeWithTerminologyAssetFromFrontdesk(
       `前台生成机构生效版本请求必须沿用平台资产 ${platformSelection.assetType} ${platformSelection.assetIdentity}`,
     ).toBe(true);
   }
-  await expect(
-    page.getByText(`当前机构生效版本 第 ${activated.data?.revisionNo} 版`),
-  ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(`当前机构生效版本 第 ${activated.data?.revisionNo} 版`)).toBeVisible({
+    timeout: 20_000,
+  });
   const current = await readCurrentHospitalRuntime(page, options.hospitalId, "术语资产激活后");
   const releaseId = textField(current.release, "releaseId");
   const revisionNo = Number((current.release as { revisionNo?: unknown }).revisionNo ?? 0);
@@ -728,7 +728,10 @@ async function expectInboundWebhookRejectedWithInvalidSignature(options: {
 }
 
 async function readRuntimeConsumerContract(page: Page) {
-  const response = await getApi(page, "/engine/integration/knowledge-runtime/runtime-release/current");
+  const response = await getApi(
+    page,
+    "/engine/integration/knowledge-runtime/runtime-release/current",
+  );
   await expectOk(response, "读取第三方运行契约当前机构生效版本");
   return responseData(response);
 }
@@ -813,9 +816,7 @@ async function selectHospitalRuntimeCandidate(page: Page, terminology: Terminolo
     await enableCheckbox.check();
   }
   await expect(enableCheckbox, "本轮术语资产必须已选入机构生效版本").toBeChecked();
-  await expect(candidateRow, "本轮术语资产行必须展示版本").toContainText(
-    terminology.versionNo,
-  );
+  await expect(candidateRow, "本轮术语资产行必须展示版本").toContainText(terminology.versionNo);
 }
 
 async function assessReleaseImpact(page: Page) {
@@ -845,10 +846,7 @@ function runtimeAssetListContainsTerminology(
   return runtimeAssetListContainsSelection(assets, terminology);
 }
 
-function runtimeAssetListContainsSelection(
-  assets: RuntimeAsset[],
-  selection: RuntimeAsset,
-) {
+function runtimeAssetListContainsSelection(assets: RuntimeAsset[], selection: RuntimeAsset) {
   return assets.some(
     (item) =>
       item.assetType === selection.assetType &&
@@ -929,7 +927,9 @@ async function waitForTerminologyCandidate(
     await expectOk(job, "读取 S2/S4 术语候选任务");
     const jobData = await responseData(job);
     lastStatus = textField(jobData, "status") ?? lastStatus;
-    generatedCount = Number((jobData as { generatedCount?: unknown })?.generatedCount ?? generatedCount);
+    generatedCount = Number(
+      (jobData as { generatedCount?: unknown })?.generatedCount ?? generatedCount,
+    );
     const candidates = await getApi(
       page,
       `/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=${encodeURIComponent(
@@ -965,7 +965,7 @@ function assertRuntimeContractMatchesTerminology(
   expect(textField(readback, "manifestSha256")).toBe(runtime.manifestSha256);
   const assets = pageItems(readback);
   const directAssets = Array.isArray((readback as { assets?: unknown })?.assets)
-    ? ((readback as { assets: unknown[] }).assets)
+    ? (readback as { assets: unknown[] }).assets
     : [];
   const runtimeAssets = assets.length > 0 ? assets : directAssets;
   expect(
@@ -1001,9 +1001,7 @@ async function attachS2S4CoverageEvidence(
   const scenarioCodes = scenarioEvidence
     .filter((scenario) => {
       const required = requiredS2S4ScenarioEvidence.find((item) => item.code === scenario.code);
-      return required?.observedStages.every((stage) =>
-        scenario.observedStages.includes(stage),
-      );
+      return required?.observedStages.every((stage) => scenario.observedStages.includes(stage));
     })
     .map((scenario) => scenario.code);
   await testInfo.attach("s2-s4-runtime-mapping-codes", {
@@ -1042,6 +1040,20 @@ async function attachS2S4CoverageEvidence(
         activationRequest: input.activationRequest,
         inboundResult: input.inboundResult,
         runtimeConsumerReadback: input.runtimeConsumerReadback,
+        dedicatedReleaseContractEvidence: {
+          assetType: input.terminology.assetType,
+          assetIdentity: input.terminology.assetIdentity,
+          versionId: input.terminology.versionId,
+          productionRoute: "STANDARD_AND_LOCAL_TERMINOLOGY_MAPPING",
+          releaseContract: "S2_S4_TERMINOLOGY_MAPPING_RUNTIME_CONTRACT",
+          producerVerified: true,
+          reviewerVerified: true,
+          activationVerified: true,
+          runtimeConsumerReadbackVerified: true,
+          inboundNormalizationVerified: true,
+          sourceSystems: [input.terminology.sourceSystem],
+          consumer: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
+        },
         scenarioEvidence,
       },
       null,
@@ -1078,7 +1090,10 @@ function currentEpochSeconds() {
 }
 
 function canonicalTerminologyAlias(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "");
 }
 
 function signHmacSha256(secret: string, timestamp: string, payload: unknown) {
@@ -1125,19 +1140,13 @@ async function waitForPost(page: Page, path: string, secondPath?: string) {
   );
 }
 
-async function expectBrowserResponseOk<T = unknown>(
-  response: Response,
-  label: string,
-): Promise<T> {
+async function expectBrowserResponseOk<T = unknown>(response: Response, label: string): Promise<T> {
   const body = await response.text();
   expect(response.ok(), `${label} 应返回成功 status=${response.status()} body=${body}`).toBe(true);
   return JSON.parse(body) as T;
 }
 
-async function expectApiResponseOk<T = unknown>(
-  response: APIResponse,
-  label: string,
-): Promise<T> {
+async function expectApiResponseOk<T = unknown>(response: APIResponse, label: string): Promise<T> {
   const body = await response.text();
   expect(response.ok(), `${label} 应返回成功 status=${response.status()} body=${body}`).toBe(true);
   return JSON.parse(body) as T;
@@ -1194,7 +1203,9 @@ async function selectFirstOption(page: Page, scope: Locator, fieldLabel: string)
   );
   await select.click();
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
-  const option = dropdown.locator(".ant-select-item-option:not(.ant-select-item-option-disabled)").first();
+  const option = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .first();
   await expect(option, `${fieldLabel} 下拉应至少存在一个选项`).toBeVisible({ timeout: 10_000 });
   await clickVisibleAntOption(page, option, `${fieldLabel} 首个选项`);
 }
@@ -1211,7 +1222,12 @@ async function chooseFieldMappingCategory(
     .locator(
       "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
     );
-  await selectAntOptionFromSelect(page, categorySelect, optionText, `第 ${mappingIndex + 1} 条术语分类`);
+  await selectAntOptionFromSelect(
+    page,
+    categorySelect,
+    optionText,
+    `第 ${mappingIndex + 1} 条术语分类`,
+  );
 }
 
 async function clickVisibleAntOption(page: Page, option: Locator, label: string) {
@@ -1246,11 +1262,7 @@ async function readRequestJson(request: Request) {
   return JSON.parse(postData ?? "{}") as Record<string, unknown>;
 }
 
-async function postExternalSignedApi(
-  path: string,
-  data: unknown,
-  headers: Record<string, string>,
-) {
+async function postExternalSignedApi(path: string, data: unknown, headers: Record<string, string>) {
   const context = await playwrightRequest.newContext();
   try {
     const response = await context.post(`${apiBase}${path}`, {

@@ -43,6 +43,7 @@ const fullVersionedAssetRollbackRepresentativeRows = [
   ...versionedAssetRollbackRepresentativeRows,
   "EVALUATION",
 ];
+const dedicatedReleaseContractRows = ["TERMINOLOGY", "FIELD_CATALOG", "PATHWAY"];
 
 function rollbackNegativeEvidence(
   removedAssets: Array<{ assetType: string; assetIdentity: string; versionId: string }>,
@@ -450,6 +451,20 @@ function s2s4RuntimeMappingEvidence(overrides: Record<string, unknown> = {}) {
           entryState: "ACTIVE",
         },
       ],
+    },
+    dedicatedReleaseContractEvidence: {
+      assetType: "TERMINOLOGY",
+      assetIdentity: "TERM.LAB.S2S4",
+      versionId: "term-lab-v1",
+      productionRoute: "STANDARD_AND_LOCAL_TERMINOLOGY_MAPPING",
+      releaseContract: "S2_S4_TERMINOLOGY_MAPPING_RUNTIME_CONTRACT",
+      producerVerified: true,
+      reviewerVerified: true,
+      activationVerified: true,
+      runtimeConsumerReadbackVerified: true,
+      inboundNormalizationVerified: true,
+      sourceSystems: ["LIS"],
+      consumer: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
     },
     scenarioEvidence: [
       {
@@ -1370,6 +1385,23 @@ const diagnosticCriticalValueEvidence = {
         },
       ],
     },
+  },
+  dedicatedReleaseContractEvidence: {
+    assetType: "FIELD_CATALOG",
+    assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+    versionId: "fc-critical-report",
+    productionRoute: "DIAGNOSTIC_FIELD_CATALOG_RUNTIME_BASELINE",
+    releaseContract: "DIAGNOSTIC_REPORT_INTERPRETATION_FIELD_CONTRACT",
+    platformBaselineVerified: true,
+    activationVerified: true,
+    runtimeConsumerReadbackVerified: true,
+    reportInterpretationVerified: true,
+    fieldEvidencePaths: [
+      "recommendation.explanation.runtimeAssetEvidence[0].fields",
+      "clinicalContext.resources.observations[0].criticalFlag",
+      "clinicalContext.resources.diagnosticReports[0].conclusion",
+    ],
+    consumer: "REPORT_INTERPRETATION",
   },
   workflowTodo: {
     todoId: "todo-critical-report",
@@ -4955,7 +4987,7 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
   return {
     scenarioCodes: ["S6"],
     productLayers: ["CLINICAL_EXECUTION"],
-    versionedAssets: ["ORDER_SET"],
+    versionedAssets: ["PATHWAY", "ORDER_SET"],
     serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
     specialDiseaseStages: [
       "SCREENING_TRIAGE",
@@ -5004,6 +5036,7 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
         ],
       },
       patientPathway: {
+        patientPathwayId: "pp-s6-copd",
         runtimeReleaseId: "runtime-s6",
       },
       advanceResponse: {
@@ -5029,8 +5062,37 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
         },
       },
     },
+    context: {
+      templateCode: "PATHWAY.S6.COPD",
+      patientPathwayId: "pp-s6-copd",
+      orderSetRuntimeConsumer: {
+        patientPathway: {
+          patientPathwayId: "pp-s6-copd",
+          runtimeReleaseId: "runtime-s6",
+        },
+      },
+    },
+    dedicatedReleaseContractEvidence: {
+      assetType: "PATHWAY",
+      assetIdentity: "PATHWAY.S6.COPD",
+      versionId: "av-pathway-s6",
+      productionRoute: "SPECIAL_DISEASE_PATHWAY_TEMPLATE_LIFECYCLE",
+      releaseContract: "SPECIAL_DISEASE_PATHWAY_ENTRY_AND_ADVANCE_CONTRACT",
+      templateLifecycleVerified: true,
+      activationVerified: true,
+      runtimeConsumerReadbackVerified: true,
+      pathwayEntryVerified: true,
+      pathwayAdvanceVerified: true,
+      orderSetConsumerVerified: true,
+      consumer: "SPECIAL_DISEASE_PATHWAY",
+    },
     rollbackNegativeEvidence: rollbackNegativeEvidence(
       [
+        {
+          assetType: "PATHWAY",
+          assetIdentity: "PATHWAY.S6.COPD",
+          versionId: "av-pathway-s6",
+        },
         {
           assetType: "ORDER_SET",
           assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
@@ -9158,7 +9220,7 @@ describe("browser E2E launch coverage evidence", () => {
               body: JSON.stringify({
                 scenarioCodes: ["S6"],
                 productLayers: ["CLINICAL_EXECUTION"],
-                versionedAssets: ["ORDER_SET"],
+                versionedAssets: ["PATHWAY", "ORDER_SET"],
                 serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
                 specialDiseaseStages: [
                   "SCREENING_TRIAGE",
@@ -9666,6 +9728,171 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.versionedAssetRollbackRepresentativeRows?.map((item) => item.code),
     ).toEqual(fullVersionedAssetRollbackRepresentativeRows);
+  });
+
+  it("declares dedicated release-contract rows only from terminology, field catalog and pathway specific evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests(),
+    });
+
+    expect(
+      evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix?.map(
+        (item) => item.code,
+      ),
+    ).toEqual(["TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS"]);
+    expect(
+      evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows?.map((item) => item.code),
+    ).toEqual(dedicatedReleaseContractRows);
+  });
+
+  it("does not declare dedicated release-contract rows without TERMINOLOGY specific contract evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "s2-s4-terminology-integration-rehearsal.spec.ts": s2s4RuntimeMappingEvidence({
+            dedicatedReleaseContractEvidence: undefined,
+          }),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
+  });
+
+  it("does not declare dedicated release-contract rows without FIELD_CATALOG specific contract evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "diagnostic-critical-value-frontdesk.spec.ts": {
+            ...diagnosticCriticalValueEvidence,
+            dedicatedReleaseContractEvidence: undefined,
+          },
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
+  });
+
+  it("does not declare dedicated release-contract rows without PATHWAY specific contract evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "pathway-lifecycle-frontdesk.spec.ts": pathwayLifecycleEvidence({
+            dedicatedReleaseContractEvidence: undefined,
+          }),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
+  });
+
+  it("does not splice dedicated release-contract evidence across different tests in one spec file", () => {
+    const tests = versionedAssetSupplyChainMatrixTests({
+      bodyOverrides: {
+        "s2-s4-terminology-integration-rehearsal.spec.ts": s2s4RuntimeMappingEvidence({
+          dedicatedReleaseContractEvidence: undefined,
+        }),
+      },
+    });
+    tests.push({
+      file: "/repo/frontend/e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      title: "同文件额外测试只带术语专用契约但缺少完整 S2/S4 强证据",
+      status: "passed",
+      attachments: [
+        {
+          name: "s2-s4-runtime-mapping-codes",
+          contentType: "application/json",
+          body: JSON.stringify(
+            s2s4RuntimeMappingEvidence({
+              scenarioCodes: ["S2"],
+            }),
+          ),
+        },
+      ],
+    });
+
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests,
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
+  });
+
+  it("does not declare dedicated release-contract rows when terminology mapping readback is mismatched", () => {
+    const badTerminology = s2s4RuntimeMappingEvidence();
+    badTerminology.inboundResult.mappedPayload.observations[0].mappingId = 999;
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "s2-s4-terminology-integration-rehearsal.spec.ts": badTerminology,
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
+  });
+
+  it("does not declare dedicated release-contract rows when field catalog evidence paths are empty", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "diagnostic-critical-value-frontdesk.spec.ts": {
+            ...diagnosticCriticalValueEvidence,
+            dedicatedReleaseContractEvidence: {
+              ...diagnosticCriticalValueEvidence.dedicatedReleaseContractEvidence,
+              fieldEvidencePaths: ["recommendation.explanation.missingRuntimeAssetEvidence"],
+            },
+          },
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
+  });
+
+  it("does not declare dedicated release-contract rows when pathway rollback removed asset is mismatched", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: versionedAssetSupplyChainMatrixTests({
+        bodyOverrides: {
+          "pathway-lifecycle-frontdesk.spec.ts": pathwayLifecycleEvidence({
+            rollbackNegativeEvidence: rollbackNegativeEvidence(
+              [
+                {
+                  assetType: "PATHWAY",
+                  assetIdentity: "PATHWAY.S6.OTHER",
+                  versionId: "av-pathway-s6",
+                },
+                {
+                  assetType: "ORDER_SET",
+                  assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
+                  versionId: "av-order-set-s6",
+                },
+              ],
+              "SPECIAL_DISEASE_PATHWAY_ORDER_SET",
+            ),
+          }),
+        },
+      }),
+    });
+
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.versionedAssetDedicatedReleaseContractRows).toBeUndefined();
   });
 
   it("does not declare rollback-negative representative matrix from generic runtime release rollback alone", () => {

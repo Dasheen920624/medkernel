@@ -1054,6 +1054,23 @@ async function attachDiagnosticCriticalValueEvidence(
         clinicalContext: evidence.clinicalContext,
         interpretation: evidence.interpretation,
         recommendation: evidence.recommendation,
+        dedicatedReleaseContractEvidence: {
+          assetType: "FIELD_CATALOG",
+          assetIdentity: evidence.runtime.fieldCatalogAsset.assetIdentity,
+          versionId: evidence.runtime.fieldCatalogAsset.versionId,
+          productionRoute: "DIAGNOSTIC_FIELD_CATALOG_RUNTIME_BASELINE",
+          releaseContract: "DIAGNOSTIC_REPORT_INTERPRETATION_FIELD_CONTRACT",
+          platformBaselineVerified: true,
+          activationVerified: true,
+          runtimeConsumerReadbackVerified: true,
+          reportInterpretationVerified: true,
+          fieldEvidencePaths: [
+            "recommendation.explanation.runtimeAssetEvidence[0].fields",
+            "clinicalContext.resources.observations[0].criticalFlag",
+            "clinicalContext.resources.diagnosticReports[0].conclusion",
+          ],
+          consumer: "REPORT_INTERPRETATION",
+        },
         workflowTodo: evidence.workflowTodo,
         scenarioEvidence: [
           {

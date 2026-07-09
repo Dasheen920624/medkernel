@@ -1337,8 +1337,38 @@ describe("E2E credential contract", () => {
     expect(medicationSource).toContain("SAFETY");
     expect(medicationSource).toContain("CDSS_RISK");
     expect(criticalSource).toContain("PATHWAY");
+    expect(pathwaySource).toContain("PATHWAY");
     expect(pathwaySource).toContain("ORDER_SET");
     expect(qualitySource).toContain("EVALUATION");
+  });
+
+  it("requires terminology, field catalog and pathway rehearsals to attach dedicated release-contract evidence", () => {
+    const terminologySource = readFileSync(
+      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      "utf8",
+    );
+    const diagnosticSource = readFileSync(
+      "e2e/diagnostic-critical-value-frontdesk.spec.ts",
+      "utf8",
+    );
+    const pathwaySource = readFileSync("e2e/pathway-lifecycle-frontdesk.spec.ts", "utf8");
+
+    for (const source of [terminologySource, diagnosticSource, pathwaySource]) {
+      expect(source).toContain("dedicatedReleaseContractEvidence");
+      expect(source).toContain("productionRoute");
+      expect(source).toContain("releaseContract");
+      expect(source).toContain("runtimeConsumerReadbackVerified");
+    }
+    expect(terminologySource).toContain("S2_S4_TERMINOLOGY_MAPPING_RUNTIME_CONTRACT");
+    expect(terminologySource).toContain("producerVerified");
+    expect(terminologySource).toContain("reviewerVerified");
+    expect(terminologySource).toContain("SIGNED_WEBHOOK_INBOUND_NORMALIZATION");
+    expect(diagnosticSource).toContain("DIAGNOSTIC_REPORT_INTERPRETATION_FIELD_CONTRACT");
+    expect(diagnosticSource).toContain("FIELD_CATALOG");
+    expect(diagnosticSource).toContain("platformBaselineVerified");
+    expect(pathwaySource).toContain("SPECIAL_DISEASE_PATHWAY_ENTRY_AND_ADVANCE_CONTRACT");
+    expect(pathwaySource).toContain("templateLifecycleVerified");
+    expect(pathwaySource).toContain('"PATHWAY", "ORDER_SET"');
   });
 
   it("requires quality management rehearsal to prove EVALUATION runtime consumer supply chain before closing the known gap", () => {

@@ -10,6 +10,52 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十一批本地推进：接第一百八十批，按用户强调“知识只是全局一点、不要片面优化、可用子代理但质量优先”，
+  先用只读子代理复核参考会话 `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 与本批代码风险。参考会话结论只作为背景输入：
+  134 已有受控来源、原文保存、解析、候选生成、术语模块和部分声明式资产 / runtime 消费骨架，但不是完整全医学资产自增长；
+  系统外资料只能做权威来源、原文、许可、版本、hash、覆盖矩阵和缺口台账等受控准备，正式医学知识、术语、值集、公式、
+  规则、路径、安全红线、医嘱套餐、动作卡等生产 / 审核 / 发布 / 机构生效 / 运行消费必须回到 134，不能形成第二套知识系统。
+- 第一百八十一批实现细节：在 `frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `versionedAssetDedicatedReleaseContractMatrix:TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS`
+  与 `versionedAssetDedicatedReleaseContractRows:TERMINOLOGY/FIELD_CATALOG/PATHWAY` 收窄门禁。矩阵只有在同一浏览器 E2E
+  报告中三条专项真实 E2E 的同一个 passed 测试附件同时满足既有强校验和 `dedicatedReleaseContractEvidence` 时才声明，
+  避免跨测试拼接证据：`s2-s4-terminology-integration-rehearsal.spec.ts` 证明术语映射生产 / 审核 / 激活、当前 runtime、
+  第三方 runtime consumer 与签名入站归一 mappingId / runtimeReleaseId 一致；`diagnostic-critical-value-frontdesk.spec.ts`
+  证明平台 baseline `FIELD_CATALOG` 作为字段目录契约被机构 runtime 激活并由报告解读消费，明确用
+  `platformBaselineVerified`，不冒充专项生产闭环；`pathway-lifecycle-frontdesk.spec.ts` 将 `versionedAssets`
+  从 `ORDER_SET` 扩为 `PATHWAY + ORDER_SET`，以 `templateLifecycleVerified`、机构 runtime 激活、入径推进、医嘱套餐消费和
+  回滚后 removed PATHWAY 资产一致性证明路径专项契约，不再用泛化 `producer/reviewer` 冒领未单独存在的审核动作。
+- 第一百八十一批全系统覆盖门禁：只读审查指出新增 `launchCoverage` key 若不注册会被完整覆盖审计判为未知矩阵。本批按 TDD
+  先在 `scripts/release/launch-coverage-audit.test.mjs` 增加浏览器阶段声明三类专项契约矩阵的红灯，确认失败为
+  `browser-e2e 阶段声明了未知覆盖矩阵 versionedAssetDedicatedReleaseContractMatrix`，再在
+  `scripts/release/full-system-rehearsal-lib.mjs` 注册矩阵和三行资产。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  增至 299 tests，新增缺 TERM / FIELD / PATHWAY 专用证据、同文件跨测试拼接、术语 mappingId 错配、字段目录 evidence path
+  空壳、PATHWAY 回滚 removed asset 错配等负向；`frontend/src/test/e2eAuthCredentialContract.test.ts` 增至 55 tests，
+  锁定三条真实 E2E 必须写出专用契约字段和收窄语义。
+- 第一百八十一批真实 E2E 与验证证据：复用本地 18092 后端和 5174 前端。三条目标真实 E2E 先分别通过后，又用同一个报告联合复跑：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-dedicated-release-contract-matrix-20260709-r2 npm --prefix frontend run e2e -- --project=chromium s2-s4-terminology-integration-rehearsal.spec.ts diagnostic-critical-value-frontdesk.spec.ts pathway-lifecycle-frontdesk.spec.ts`
+  通过，`/tmp/medkernel-e2e-dedicated-release-contract-matrix-20260709-r2/report/results.json` 为 `PASSED`
+  （expected=3，unexpected=0，flaky=0，skipped=0，duration=55902ms），顶层 `launchCoverage` 声明
+  `TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS`，rows 为
+  `TERMINOLOGY`、`FIELD_CATALOG`、`PATHWAY`。附件确认 FIELD_CATALOG 使用 `platformBaselineVerified=true`，
+  PATHWAY 使用 `templateLifecycleVerified=true`，TERMINOLOGY 保留 `producerVerified/reviewerVerified` 与入站归一证据。
+- 第一百八十一批收尾门禁：最终复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（299 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（55 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）。
+  `git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 以及本批触碰的两个脚本文件工作树 CRLF 将被 LF
+  替换，没有 whitespace error。
+- 第一百八十一批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是完整全知识供给链上线验收、
+  不是 13 类医学资产逐类全部生产 / 审核 / 发布 / 机构生效 / 运行消费 / 回滚负向闭环，也不是完整 S0-S40 或
+  34 个入口全部业务动作闭环。下一步继续按全局上线门禁推进：1）把知识供给链与全角色真实前台演练绑定，每补一类资产都由真实角色、
+  真实入口、真实 runtime consumer、权限 / 审计 / 六态 / 分页筛选证明；2）补标准包导入、院内字典持续同步、来源原文 /
+  原包留存、结构校验、覆盖矩阵、持续更新和回滚审计，资料准备只能作为 134 fresh deploy 输入，不作上线证据；
+  3）继续患者、医生、护士、药师、医技、质控、信息科长、实施工程师、院长等剩余入口真实体验下钻；
+  4）目标库迁移 smoke、公网模型 Provider 真实证据、真实第三方回调、134 清库 / 重部署仍按 deferred / destructive
+  规则推进，执行前必须再次取得用户明确确认。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、
+  不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十批本地推进：接第一百七十九批和只读全局 P0 盘点，选择非破坏、可本地验证的上线门禁缺口：
   收口 13 类版本化资产矩阵中 `EVALUATION` known gap。134 清库 / 目标环境重部署、真实备份恢复、公网模型 Provider
   和真实第三方回调仍属于需要再次确认或外部凭据 / 外部系统的事项，本批未擅自执行。

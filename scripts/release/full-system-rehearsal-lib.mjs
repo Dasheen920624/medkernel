@@ -59,6 +59,14 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "ACTION_CARD",
     ],
   },
+  versionedAssetDedicatedReleaseContractMatrix: {
+    label: "术语、字段目录与路径专项发布契约矩阵",
+    codes: ["TERMINOLOGY_FIELD_CATALOG_PATHWAY_DEDICATED_RELEASE_CONTRACTS"],
+  },
+  versionedAssetDedicatedReleaseContractRows: {
+    label: "术语、字段目录与路径专项发布契约资产行",
+    codes: ["TERMINOLOGY", "FIELD_CATALOG", "PATHWAY"],
+  },
   knowledgeDomains: {
     label: "11 个知识内容分类",
     codes: [...FULL_KNOWLEDGE_DOMAINS],
