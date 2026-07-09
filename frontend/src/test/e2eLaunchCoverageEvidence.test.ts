@@ -2918,6 +2918,61 @@ function expectNoRegionalRemoteConsumerSliceCoverage(body: Record<string, unknow
   ).not.toContain("REGIONAL_REMOTE");
 }
 
+function regionalRemoteConsumerSliceEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...structuredClone(regionalDiagnosticMutualRecognitionEvidence),
+    regionalRemoteConsumerSlice: regionalRemoteConsumerSlice(),
+    ...overrides,
+  };
+}
+
+function regionalRemoteConsumerSlice(): Record<string, unknown> {
+  return {
+    systemFamilyCode: "REGIONAL_REMOTE",
+    familyName: "区域远程医疗与跨机构互认系统族",
+    consumer: "REGIONAL_DIAGNOSTIC_REPORT_MUTUAL_RECOGNITION",
+    canonicalResources: ["Patient", "Encounter", "DiagnosticReport"],
+    sourceSystems: ["REGIONAL_REMOTE", "FHIR_R4", "MEDKERNEL_FRONTDESK"],
+    onboardingVerified: true,
+    trustedSourceVerified: true,
+    standardResourceVerified: true,
+    inboundDiagnosticReportVerified: true,
+    degradationVerified: true,
+    runtimeConsumerVerified: true,
+    interpretationVerified: true,
+    recommendationVerified: true,
+    humanTodoClosureVerified: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoRecognition: true,
+    noReportRewrite: true,
+    noExternalSuccessClaim: true,
+    aiGenerated: false,
+    onboardingId: "onboarding-s40-regional-fhir",
+    sourceId: "regional-source-s40",
+    fhirId: "dr-regional-chest-ct",
+    patientId: "mpi-regional-report",
+    contextSnapshotId: "ctx-regional-report",
+    runtimeReleaseId: "runtime-regional-report",
+    recommendationCardId: "card-regional-report",
+    todoId: "todo-regional-report",
+    compensationMessageId: "fhir-diagnosticreport-dr-regional-chest-ct",
+    onboardingPath: "fhirOnboarding",
+    sourcePath: "regionalSource",
+    inboundPath: "inboundDiagnosticReport",
+    contextPath: "clinicalContext",
+    recommendationPath: "recommendation",
+    workflowTodoPath: "workflowTodo",
+    scopeStatement:
+      "REGIONAL_REMOTE 区域远程互认真实消费者代表切片：真实前台用 DiagnosticReport 标准资源驱动区域来源可信分级、FHIR 入站、当前机构生效版本报告解读、人工互认和协同待办闭环；不代表完整区域平台，不代表完整远程医疗，不代表完整 PACS/RIS/病理/内镜/心电系统族覆盖，不代表真实外部区域平台成功联通，不代表自动互认，不代表自动开嘱，不代表改写报告，不代表完整 S40，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+  };
+}
+
 function expectNoRegionalDiagnosticMutualRecognitionScenarioConditionCoverage(
   body: Record<string, unknown>,
 ) {
@@ -12210,12 +12265,177 @@ describe("browser E2E launch coverage evidence", () => {
       "PROFESSIONAL_COLLABORATION",
     ]);
     expect(
-      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
-    ).toEqual(["REGIONAL_REMOTE"]);
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+    ).not.toContain("REGIONAL_REMOTE");
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S40__DEGRADATION",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares REGIONAL_REMOTE consumer slice only from explicit bounded regional evidence", () => {
+    const evidence = regionalDiagnosticMutualRecognitionEvidenceResult(
+      regionalRemoteConsumerSliceEvidence(),
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["REGIONAL_REMOTE"]);
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S40"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S40__DEGRADATION",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺显式消费者切片",
+      body: regionalDiagnosticMutualRecognitionEvidence,
+    },
+    {
+      name: "系统族错配",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          systemFamilyCode: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整区域平台和完整上线",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          scopeStatement: "完整区域平台、完整 S40 和完整上线验收已完成。",
+        },
+      }),
+    },
+    {
+      name: "缺 DiagnosticReport 标准资源",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          canonicalResources: ["Patient", "Encounter"],
+        },
+      }),
+    },
+    {
+      name: "区域接入不是 REGIONAL_REMOTE",
+      body: regionalRemoteConsumerSliceEvidence({
+        fhirOnboarding: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.fhirOnboarding),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "接入健康状态伪造成外部成功",
+      body: regionalRemoteConsumerSliceEvidence({
+        fhirOnboarding: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.fhirOnboarding),
+          healthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "入站报告伪造成外部成功",
+      body: regionalRemoteConsumerSliceEvidence({
+        inboundDiagnosticReport: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.inboundDiagnosticReport),
+          integrationStatus: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+      }),
+    },
+    {
+      name: "区域来源低可信",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalSource: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.regionalSource),
+          trustLevel: "LOW",
+        },
+      }),
+    },
+    {
+      name: "上下文缺 DiagnosticReport 回读",
+      body: regionalRemoteConsumerSliceEvidence({
+        clinicalContext: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(
+              regionalDiagnosticMutualRecognitionEvidence.clinicalContext.resources,
+            ),
+            diagnosticReports: [],
+          },
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: regionalRemoteConsumerSliceEvidence({
+        recommendation: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "推荐卡由 AI 自动生成",
+      body: regionalRemoteConsumerSliceEvidence({
+        recommendation: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.recommendation),
+          aiGenerated: true,
+        },
+      }),
+    },
+    {
+      name: "协同待办未完成",
+      body: regionalRemoteConsumerSliceEvidence({
+        workflowTodo: {
+          ...structuredClone(regionalDiagnosticMutualRecognitionEvidence.workflowTodo),
+          status: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "协同待办允许自动互认",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          noAutoRecognition: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: regionalRemoteConsumerSliceEvidence({
+        regionalRemoteConsumerSlice: {
+          ...regionalRemoteConsumerSlice(),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+  ])("does not declare REGIONAL_REMOTE consumer slice when $name", ({ body }) => {
+    expectNoRegionalRemoteConsumerSliceCoverage(body);
   });
 
   it("does not declare S40 degradation row without explicit condition evidence", () => {

@@ -63,6 +63,7 @@ type CoverageProof = {
   requiresDiagnosticReportFamilyMatrixAttachment?: boolean;
   requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment?: boolean;
+  requiresRegionalRemoteConsumerSliceAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
   requiresPharmacyReviewConsumerSliceAttachment?: boolean;
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
@@ -333,8 +334,9 @@ const regionalDiagnosticMutualRecognitionFrontdeskClaims = [
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
-  "thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE",
 ];
+
+const regionalRemoteConsumerSliceClaims = ["thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE"];
 
 const nursingContinuityFrontdeskClaims = [
   "scenarios:S20",
@@ -1443,6 +1445,13 @@ const coverageProofs: CoverageProof[] = [
     requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment: true,
   },
   {
+    file: "regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
+    titleIncludes: "临床用户与平台管理员完成区域医技报告互认代表闭环",
+    claims: regionalRemoteConsumerSliceClaims,
+    requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment: true,
+    requiresRegionalRemoteConsumerSliceAttachment: true,
+  },
+  {
     file: "nursing-continuity-frontdesk.spec.ts",
     titleIncludes: "临床用户围绕护理高风险评估完成随访计划、异常回院与结果回流闭环",
     claims: nursingContinuityFrontdeskClaims,
@@ -1797,6 +1806,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredDiagnosticReportFamilyMatrixAttachment(test)) &&
       (!proof.requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment ||
         hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(test)) &&
+      (!proof.requiresRegionalRemoteConsumerSliceAttachment ||
+        hasRequiredRegionalRemoteConsumerSliceAttachment(test)) &&
       (!proof.requiresNursingContinuityFrontdeskAttachment ||
         hasRequiredNursingContinuityFrontdeskAttachment(test)) &&
       (!proof.requiresPharmacyReviewAntimicrobialFrontdeskAttachment ||
@@ -7196,6 +7207,19 @@ function hasRequiredRegionalDiagnosticMutualRecognitionFrontdeskAttachment(
   }
 }
 
+function hasRequiredRegionalRemoteConsumerSliceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "regional-diagnostic-mutual-recognition-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed !== null && hasCompleteRegionalRemoteConsumerSlice(parsed);
+  } catch {
+    return false;
+  }
+}
+
 function hasRequiredNursingContinuityFrontdeskAttachment(test: BrowserE2eTestResult) {
   const attachment = test.attachments?.find(
     (item) => item.name === "nursing-continuity-frontdesk-codes",
@@ -10751,6 +10775,144 @@ function hasUnnegatedRegionalDiagnosticMutualRecognitionScopeClaim(statement: st
     "完整 S0-S40",
     "完整上线",
     "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCompleteRegionalRemoteConsumerSlice(body: Record<string, unknown>) {
+  const runtime = parseRegionalDiagnosticMutualRecognitionRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const slice = recordValue(body.regionalRemoteConsumerSlice);
+  const onboarding = recordValue(body.fhirOnboarding);
+  const source = recordValue(body.regionalSource);
+  const report = recordValue(body.inboundDiagnosticReport);
+  const context = recordValue(body.clinicalContext);
+  const recommendation = recordValue(body.recommendation);
+  const todo = recordValue(body.workflowTodo);
+  return (
+    slice !== null &&
+    onboarding !== null &&
+    source !== null &&
+    report !== null &&
+    context !== null &&
+    recommendation !== null &&
+    todo !== null &&
+    slice.systemFamilyCode === "REGIONAL_REMOTE" &&
+    hasText(slice.familyName) &&
+    (String(slice.familyName).includes("区域") || String(slice.familyName).includes("远程")) &&
+    slice.consumer === "REGIONAL_DIAGNOSTIC_REPORT_MUTUAL_RECOGNITION" &&
+    arrayEquals(slice.canonicalResources, ["Patient", "Encounter", "DiagnosticReport"]) &&
+    arrayEquals(slice.sourceSystems, ["REGIONAL_REMOTE", "FHIR_R4", "MEDKERNEL_FRONTDESK"]) &&
+    slice.onboardingVerified === true &&
+    slice.trustedSourceVerified === true &&
+    slice.standardResourceVerified === true &&
+    slice.inboundDiagnosticReportVerified === true &&
+    slice.degradationVerified === true &&
+    (slice.runtimeConsumerVerified === true || slice.recommendationConsumerVerified === true) &&
+    slice.interpretationVerified === true &&
+    slice.recommendationVerified === true &&
+    slice.humanTodoClosureVerified === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    slice.requiresPhysicianConfirmation === true &&
+    slice.noAutoOrder === true &&
+    slice.noAutoRecognition === true &&
+    slice.noReportRewrite === true &&
+    slice.noExternalSuccessClaim === true &&
+    slice.aiGenerated !== true &&
+    slice.onboardingId === onboarding.onboardingId &&
+    slice.sourceId === source.sourceId &&
+    slice.fhirId === report.fhirId &&
+    slice.patientId === context.patientId &&
+    slice.contextSnapshotId === context.contextSnapshotId &&
+    slice.runtimeReleaseId === runtime.releaseId &&
+    slice.recommendationCardId === recommendation.cardId &&
+    slice.todoId === todo.todoId &&
+    slice.compensationMessageId === report.compensationMessageId &&
+    slice.onboardingPath === "fhirOnboarding" &&
+    slice.sourcePath === "regionalSource" &&
+    slice.inboundPath === "inboundDiagnosticReport" &&
+    slice.contextPath === "clinicalContext" &&
+    slice.recommendationPath === "recommendation" &&
+    slice.workflowTodoPath === "workflowTodo" &&
+    hasRegionalRemoteConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionApiEvidence(body.apiEvidence) &&
+    hasRegionalDiagnosticMutualRecognitionNotConnectedOnboarding(body.fhirOnboarding) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionSource(body.regionalSource, body.fhirOnboarding) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(body.activationRequest, runtime) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionInboundReport(
+      body.inboundDiagnosticReport,
+      runtime.releaseId,
+      body.regionalSource,
+    ) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionClinicalContext(
+      body.clinicalContext,
+      runtime.releaseId,
+      body.inboundDiagnosticReport,
+    ) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionInterpretation(
+      body.interpretation,
+      runtime,
+      body.inboundDiagnosticReport,
+    ) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionRecommendation(
+      body.recommendation,
+      runtime,
+      body.inboundDiagnosticReport,
+    ) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionWorkflowTodo(
+      body.workflowTodo,
+      body.recommendation,
+    ) &&
+    evidencePathsResolve(body, [
+      slice.onboardingPath,
+      slice.sourcePath,
+      slice.inboundPath,
+      slice.contextPath,
+      slice.recommendationPath,
+      slice.workflowTodoPath,
+    ])
+  );
+}
+
+function hasRegionalRemoteConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedRegionalRemoteConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整区域平台") &&
+    hasNegatedScopeTerm(statement, "完整远程医疗") &&
+    hasNegatedScopeTerm(statement, "完整 PACS/RIS/病理/内镜/心电系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "真实外部区域平台成功联通") &&
+    hasNegatedScopeTerm(statement, "自动互认") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "改写报告") &&
+    hasNegatedScopeTerm(statement, "完整 S40") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedRegionalRemoteConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整区域平台",
+    "完整远程医疗",
+    "完整 PACS/RIS/病理/内镜/心电系统族覆盖",
+    "完整PACS/RIS/病理/内镜/心电系统族覆盖",
+    "真实外部区域平台成功联通",
+    "自动互认",
+    "自动开嘱",
+    "改写报告",
+    "完整 S40",
+    "完整S40",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
   ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 

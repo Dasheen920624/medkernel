@@ -133,6 +133,56 @@
   只能声明区域远程互认代表消费者切片，不能声明完整区域平台、完整远程医疗、真实外部区域平台成功联通、完整 S40、
   完整第三方系统族或完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百四十一批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有区域医技报告互认真实前台链路从旧式
+  `thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE` 隐式 claim 升级为显式 `regionalRemoteConsumerSlice`
+  代表消费者切片。证据固定来源于 `regional-diagnostic-mutual-recognition-frontdesk.spec.ts` 的
+  `regional-diagnostic-mutual-recognition-frontdesk-codes` 附件：真实前台登记 REGIONAL_REMOTE FHIR 接入申请并保持
+  `NOT_CONNECTED` 诚实状态、登记区域来源可信分级、签名入站已签发 DiagnosticReport 并落标准资源、当前机构生效版本消费
+  KNOWLEDGE / FIELD_CATALOG / ACTION_CARD、临床用户触发区域报告互认解读、推荐卡证明互认理由和重复检查提示、医生人工完成协同待办。
+  明确不声明完整区域平台、完整远程医疗、完整 PACS/RIS/病理/内镜/心电系统族覆盖、真实外部区域平台成功联通、
+  自动互认、自动开嘱、改写报告、完整 S40、完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百四十一批实现细节：`frontend/e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts` 的附件新增
+  `regionalRemoteConsumerSlice`，固定 `systemFamilyCode=REGIONAL_REMOTE`、
+  `consumer=REGIONAL_DIAGNOSTIC_REPORT_MUTUAL_RECOGNITION`、
+  `canonicalResources=[Patient,Encounter,DiagnosticReport]`、
+  `sourceSystems=[REGIONAL_REMOTE,FHIR_R4,MEDKERNEL_FRONTDESK]`，并绑定本轮
+  `onboardingId/sourceId/fhirId/patientId/contextSnapshotId/runtimeReleaseId/recommendationCardId/todoId/compensationMessageId`。
+  切片显式要求接入申请、区域可信来源、标准资源、入站 DiagnosticReport、断连降级、当前 runtime 消费、报告解读、推荐卡、
+  人工待办关闭、审计 / 权限 / 六态边界成立，且 `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、
+  `noAutoRecognition=true`、`noReportRewrite=true`、`noExternalSuccessClaim=true`、`aiGenerated=false`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增单独 proof 和严格 `hasCompleteRegionalRemoteConsumerSlice()`：
+  S40 基础 proof 仍只声明 S40、产品层、资产、服务组合和既有 `S40__DEGRADATION` 条件行；`REGIONAL_REMOTE` 消费者切片必须有显式
+  `regionalRemoteConsumerSlice` 才会声明。collector 复用区域互认 API、runtime、接入申请、可信来源、入站报告、上下文、
+  解读、推荐和待办强校验，并额外要求 FHIR 接入健康状态仍为 `NOT_CONNECTED`、入站报告收敛到 `RETRYING/NOT_CONNECTED` 补偿、
+  slice scope 明确否定完整区域平台 / 远程医疗 / PACS/RIS/病理/内镜/心电系统族 / 真实外部成功 / 自动互认 / 自动开嘱 /
+  改写报告 / 完整 S40 / S0-S40 / 上线验收。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  基础 S40 proof 不再声明消费者切片，显式 slice 才声明；缺显式 slice、系统族错配、scope 冒领、缺 DiagnosticReport 标准资源、
+  接入不是 REGIONAL_REMOTE、接入或入站伪造成外部成功、区域来源低可信、上下文缺报告回读、推荐未绑定当前 runtime、
+  推荐由 AI 自动生成、协同待办未完成、允许自动互认、缺审计 / 权限 / 六态边界，均不声明 `REGIONAL_REMOTE`。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定显式 slice 源码契约；release audit 已有缺
+  `REGIONAL_REMOTE` 终态 coverage 负例，本批无需新增 raw 附件负例。
+- 第二百四十一批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-regional-remote-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium regional-diagnostic-mutual-recognition-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-regional-remote-consumer-slice-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.thirdPartySystemFamilyConsumerSlices=[REGIONAL_REMOTE]`，且只保留既有
+  `scenarioConditionRows=[S40__DEGRADATION]`，未新增 S40 其他四态或任何新 S0-S40 行。附件抽查：
+  `regionalRemoteConsumerSlice.consumer=REGIONAL_DIAGNOSTIC_REPORT_MUTUAL_RECOGNITION`、
+  `canonicalResources=[Patient,Encounter,DiagnosticReport]`、`sourceSystems=[REGIONAL_REMOTE,FHIR_R4,MEDKERNEL_FRONTDESK]`、
+  `noAutoRecognition=true`、`noReportRewrite=true`、`noExternalSuccessClaim=true`，并绑定本轮
+  `onboardingId/sourceId/fhirId/contextSnapshotId/runtimeReleaseId/recommendationCardId/todoId/compensationMessageId`。
+- 第二百四十一批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在旧基础 S40 proof 仍声明 `REGIONAL_REMOTE`
+  和显式消费者切片负例仍被声明；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（911 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `node --test scripts/release/launch-coverage-audit.test.mjs`（7 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（978 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
+  和真实 E2E。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`
