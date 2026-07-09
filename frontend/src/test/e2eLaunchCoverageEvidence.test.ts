@@ -15,7 +15,7 @@ const passedStats = {
 
 const serviceOrganizationEvidence = {
   scenarioCodes: ["S1", "S14"],
-  organizationLevels: ["HOSPITAL", "DEPARTMENT"],
+  organizationLevels: ["HOSPITAL", "CAMPUS_OR_MEMBER", "DEPARTMENT", "WARD"],
   serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
   onboardingEvidence: {
     serviceOperation: "POST /api/v1/admin/tenants",
@@ -42,16 +42,34 @@ const serviceOrganizationEvidence = {
       name: "上线演练医院S1",
       status: "ACTIVE",
     },
+    campus: {
+      id: "campus-s1",
+      tenantId: "t-e2e-org-s1",
+      parentId: "facility-s1",
+      level: "CAMPUS",
+      name: "上线演练院区S1",
+      status: "ACTIVE",
+    },
     department: {
       id: "department-s1",
       tenantId: "t-e2e-org-s1",
-      parentId: "facility-s1",
+      parentId: "campus-s1",
       level: "DEPARTMENT",
       name: "上线演练科室S1",
       status: "ACTIVE",
     },
+    ward: {
+      id: "ward-s1",
+      tenantId: "t-e2e-org-s1",
+      parentId: "department-s1",
+      level: "WARD",
+      name: "上线演练病区S1",
+      status: "ACTIVE",
+    },
     facilityReadbackVerified: true,
+    campusReadbackVerified: true,
     departmentReadbackVerified: true,
+    wardReadbackVerified: true,
   },
   scenarioConditionEvidence: [
     {
@@ -62,7 +80,7 @@ const serviceOrganizationEvidence = {
       evidence: [
         "前台开通服务机构接口返回 2xx 且一次性临时密码仅记录签发与展示状态",
         "机构管理员首次登录要求改密并完成自助改密进入工作台",
-        "医疗机构与科室按同一 tenant 回读为 ACTIVE 且科室父级绑定医疗机构",
+        "医疗机构、院区、科室和病区按同一 tenant 回读为 ACTIVE 且父子关系连续",
       ],
     },
   ],
@@ -72,7 +90,7 @@ const serviceOrganizationEvidence = {
       observedStages: [
         "前台开通服务机构",
         "机构管理员首次登录并改密",
-        "前台创建医疗机构与科室",
+        "前台创建医疗机构、院区、科室与病区",
         "前台回读服务机构组织树",
       ],
     },
@@ -16498,7 +16516,9 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S1", "S14"]);
     expect(evidence.launchCoverage.organizationLevels?.map((item) => item.code)).toEqual([
       "HOSPITAL",
+      "CAMPUS_OR_MEMBER",
       "DEPARTMENT",
+      "WARD",
     ]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "ONBOARDING_INTEGRATION",
@@ -16618,6 +16638,32 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
+      name: "院区不是 CAMPUS",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          campus: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.campus),
+            level: "FACILITY",
+          },
+        },
+      },
+    },
+    {
+      name: "院区父级未绑定本轮医疗机构",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          campus: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.campus),
+            parentId: "facility-other",
+          },
+        },
+      },
+    },
+    {
       name: "科室不是 DEPARTMENT",
       body: {
         ...structuredClone(serviceOrganizationEvidence),
@@ -16638,7 +16684,33 @@ describe("browser E2E launch coverage evidence", () => {
           ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
           department: {
             ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.department),
-            parentId: "facility-other",
+            parentId: "campus-other",
+          },
+        },
+      },
+    },
+    {
+      name: "病区不是 WARD",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          ward: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.ward),
+            level: "DEPARTMENT",
+          },
+        },
+      },
+    },
+    {
+      name: "病区父级未绑定本轮科室",
+      body: {
+        ...structuredClone(serviceOrganizationEvidence),
+        orgTreeEvidence: {
+          ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence),
+          ward: {
+            ...structuredClone(serviceOrganizationEvidence.orgTreeEvidence.ward),
+            parentId: "department-other",
           },
         },
       },

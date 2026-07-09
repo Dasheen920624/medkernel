@@ -236,6 +236,43 @@
   `adapterId/onboardingId/webhookId/inboundMessageId/clinicalEventId/recommendationCardId/feedbackId/todoId`。尚待
   `git diff --check` 和本地提交。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百四十三批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 13 项集团 / 多机构组织与职责范围总账。
+  本批不新增 S0-S40 五态行；只把既有服务机构真实前台链路的组织树证据从 `HOSPITAL/DEPARTMENT` 两层升级为
+  `HOSPITAL/CAMPUS_OR_MEMBER/DEPARTMENT/WARD` 四层连续父子链代表证据。证据固定来源于
+  `service-organization-frontdesk.spec.ts` 的 `service-organization-scenario-codes` 附件：真实前台开通服务机构、
+  机构管理员首次登录改密、前台创建医疗机构 / 院区 / 科室 / 病区、API 回读四层组织均为同一 tenant 且 ACTIVE，
+  科室挂院区、病区挂科室，人员主任职同时绑定所属病区，但 S14 职责范围仍只沿用既有科室范围验证。明确不声明完整
+  LAUNCH-13、完整九层组织、集团 / 平台 / 照护团队 / 专科中心 / 共享中心、跨机构任职、完整组织权限模型、
+  完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百四十三批实现细节：`frontend/e2e/service-organization-frontdesk.spec.ts` 将
+  `createFacilityAndDepartmentFromUi()` 升级为 `createFacilityCampusDepartmentAndWardFromUi()`，按真实前台依次创建
+  FACILITY、CAMPUS、DEPARTMENT、WARD，并用服务端回读确认四层 `id/tenantId/parentId/level/name/status`。新增人员时填写
+  `所属病区` 并断言 `primaryAppointment.wardId` 等于本轮病区；额外角色范围仍通过抽屉追加 DEPARTMENT 级
+  `clinical-user`，避免把病区主任职冒领成完整病区职责范围。`frontend/e2e/support/launchCoverageEvidence.ts`
+  将服务机构 `organizationLevels` claim 和必备附件收紧为四层，并要求 `orgTreeEvidence` 显式包含
+  `campus/ward`、`campusReadbackVerified/wardReadbackVerified`、四层 ACTIVE 与连续父子关系；`S1__NORMAL`
+  仍必须来自 `SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK` 显式条件证据。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例与负例：缺显式条件、服务状态非 2xx、缺管理员改密 / 仪表盘、院区非 CAMPUS、院区父级错配、
+  科室父级未绑定本轮院区、病区非 WARD、病区父级未绑定本轮科室、缺四层 attachment，均不得声明 S1 正常行或组织层级。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定四层创建、病区主任职、四层附件和回读标记源码契约。
+- 第二百四十三批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在旧 parser 只接受
+  `HOSPITAL/DEPARTMENT`，随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（934 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1001 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  首次真实 E2E 失败于测试 traceId 把中文层级名写入 `X-Trace-Id` header；根因定位后改为 ASCII traceCode，未改产品逻辑。
+  复跑真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-service-org-campus-ward-20260710-r2 npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-service-org-campus-ward-20260710-r2/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.organizationLevels=[HOSPITAL,CAMPUS_OR_MEMBER,DEPARTMENT,WARD]`、
+  `launchCoverage.scenarios=[S1,S14]`、`launchCoverage.scenarioConditionRows=[S1__NORMAL]`，未新增 S1 其他四态、
+  未新增 S14 条件行或任何新 S0-S40 行。并行只读 explorer 建议下一批优先评估 `runtime-release-coverage-codes`
+  的多医院隔离子账，其次 `dashboard-workbench-core-actions-codes-*` / `four-role-core-actions-codes` 的四职责范围子账；
+  当前仍缺可安全声明 `PLATFORM/GROUP/CARE_TEAM/SPECIALTY_CENTER/SHARED_CENTER` 的真实前台强附件。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

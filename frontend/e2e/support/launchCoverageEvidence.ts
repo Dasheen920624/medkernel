@@ -438,7 +438,9 @@ const serviceOrganizationClaims = [
   "scenarios:S1",
   "scenarios:S14",
   "organizationLevels:HOSPITAL",
+  "organizationLevels:CAMPUS_OR_MEMBER",
   "organizationLevels:DEPARTMENT",
+  "organizationLevels:WARD",
   "serviceCombinations:ONBOARDING_INTEGRATION",
   "serviceCombinations:COMPLIANCE_OPERATIONS",
 ];
@@ -1187,7 +1189,7 @@ const requiredServiceOrganizationScenarioEvidence: Record<string, string[]> = {
   S1: [
     "前台开通服务机构",
     "机构管理员首次登录并改密",
-    "前台创建医疗机构与科室",
+    "前台创建医疗机构、院区、科室与病区",
     "前台回读服务机构组织树",
   ],
   S14: ["前台创建临床账号并绑定科室职责范围", "临床账号首次登录后读取权限画像", "前台停用演练账号"],
@@ -7911,7 +7913,12 @@ function hasRequiredServiceOrganizationScenarioAttachment(test: BrowserE2eTestRe
     };
     if (
       !arrayEquals(parsed.scenarioCodes, requiredServiceOrganizationScenarioCodes) ||
-      !arrayEquals(parsed.organizationLevels, ["HOSPITAL", "DEPARTMENT"]) ||
+      !arrayEquals(parsed.organizationLevels, [
+        "HOSPITAL",
+        "CAMPUS_OR_MEMBER",
+        "DEPARTMENT",
+        "WARD",
+      ]) ||
       !arrayEquals(parsed.serviceCombinations, [
         "ONBOARDING_INTEGRATION",
         "COMPLIANCE_OPERATIONS",
@@ -7977,25 +7984,43 @@ function hasCompleteServiceOrganizationOrgTreeEvidence(value: unknown, onboardin
   const orgTree = recordValue(value);
   const onboarding = recordValue(onboardingValue);
   const facility = recordValue(orgTree?.facility);
+  const campus = recordValue(orgTree?.campus);
   const department = recordValue(orgTree?.department);
+  const ward = recordValue(orgTree?.ward);
   return (
     orgTree !== null &&
     onboarding !== null &&
     facility !== null &&
+    campus !== null &&
     department !== null &&
+    ward !== null &&
     orgTree.facilityReadbackVerified === true &&
+    orgTree.campusReadbackVerified === true &&
     orgTree.departmentReadbackVerified === true &&
+    orgTree.wardReadbackVerified === true &&
     hasText(facility.id) &&
     facility.tenantId === onboarding.tenantId &&
     facility.level === "FACILITY" &&
     hasText(facility.name) &&
     facility.status === "ACTIVE" &&
+    hasText(campus.id) &&
+    campus.tenantId === onboarding.tenantId &&
+    campus.parentId === facility.id &&
+    campus.level === "CAMPUS" &&
+    hasText(campus.name) &&
+    campus.status === "ACTIVE" &&
     hasText(department.id) &&
     department.tenantId === onboarding.tenantId &&
-    department.parentId === facility.id &&
+    department.parentId === campus.id &&
     department.level === "DEPARTMENT" &&
     hasText(department.name) &&
-    department.status === "ACTIVE"
+    department.status === "ACTIVE" &&
+    hasText(ward.id) &&
+    ward.tenantId === onboarding.tenantId &&
+    ward.parentId === department.id &&
+    ward.level === "WARD" &&
+    hasText(ward.name) &&
+    ward.status === "ACTIVE"
   );
 }
 
@@ -10864,8 +10889,14 @@ function hasCompleteRegionalRemoteConsumerSlice(body: Record<string, unknown>) {
     hasRegionalRemoteConsumerSliceScopeBoundary(slice.scopeStatement) &&
     hasCompleteRegionalDiagnosticMutualRecognitionApiEvidence(body.apiEvidence) &&
     hasRegionalDiagnosticMutualRecognitionNotConnectedOnboarding(body.fhirOnboarding) &&
-    hasCompleteRegionalDiagnosticMutualRecognitionSource(body.regionalSource, body.fhirOnboarding) &&
-    hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(body.activationRequest, runtime) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionSource(
+      body.regionalSource,
+      body.fhirOnboarding,
+    ) &&
+    hasCompleteRegionalDiagnosticMutualRecognitionActivationRequest(
+      body.activationRequest,
+      runtime,
+    ) &&
     hasCompleteRegionalDiagnosticMutualRecognitionInboundReport(
       body.inboundDiagnosticReport,
       runtime.releaseId,
@@ -12164,9 +12195,7 @@ function hasCompleteInfectionPublicHealthApiEvidence(value: unknown) {
   ].every((field) => evidence?.[field] === true);
 }
 
-function hasCompletePublicHealthInfectionRegulatoryConsumerSlice(
-  body: Record<string, unknown>,
-) {
+function hasCompletePublicHealthInfectionRegulatoryConsumerSlice(body: Record<string, unknown>) {
   const runtime = parseInfectionPublicHealthRuntimeEvidence(body.runtime);
   if (!runtime) return false;
   const slice = recordValue(body.publicHealthInfectionRegulatoryConsumerSlice);
@@ -13525,8 +13554,7 @@ function hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice(body: Record<st
     (String(slice.familyName).includes("护理") ||
       String(slice.familyName).includes("围手术期") ||
       String(slice.familyName).includes("麻醉")) &&
-    slice.consumer ===
-      "SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION" &&
+    slice.consumer === "SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION" &&
     arrayEquals(slice.canonicalResources, [
       "Patient",
       "Encounter",
@@ -13592,7 +13620,10 @@ function hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice(body: Record<st
     hasCompleteSurgeryAnesthesiaTransfusionActionCard(body.actionCard) &&
     hasCompleteSurgeryAnesthesiaTransfusionRuleAsset(body.ruleAsset) &&
     hasCompleteSurgeryAnesthesiaTransfusionActivationRequest(body.activationRequest, runtime) &&
-    hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(
+      body.clinicalContext,
+      runtime.releaseId,
+    ) &&
     hasCompleteSurgeryAnesthesiaTransfusionOutbound(
       body.outboundChecklist,
       body.adapter,
@@ -14333,10 +14364,7 @@ function hasCompleteLisMonitoringCriticalConsumerSlice(body: Record<string, unkn
     hasCompleteCriticalEmergencyIcuApiEvidence(body.apiEvidence) &&
     hasCompleteCriticalEmergencyIcuAdapterEvidence(body.monitoringAdapter) &&
     hasCompleteCriticalEmergencyIcuOnboarding(body.emergencyOnboarding, body.monitoringAdapter) &&
-    hasCompleteCriticalEmergencyIcuWebhookEvidence(
-      body.webhookSignature,
-      body.monitoringAdapter,
-    ) &&
+    hasCompleteCriticalEmergencyIcuWebhookEvidence(body.webhookSignature, body.monitoringAdapter) &&
     hasCompleteCriticalEmergencyIcuTerminologyGate(body.terminologyGate) &&
     hasCompleteCriticalEmergencyIcuRiskMatrix(body.riskMatrix) &&
     hasCompleteCriticalEmergencyIcuActionCard(body.actionCard) &&

@@ -32,7 +32,9 @@ type ProvisionedOrganization = {
 
 type ProvisionedOrgTree = {
   facility: Required<Pick<OrgUnit, "id" | "name" | "level">> & OrgUnit;
+  campus: Required<Pick<OrgUnit, "id" | "parentId" | "name" | "level">> & OrgUnit;
   department: Required<Pick<OrgUnit, "id" | "parentId" | "name" | "level">> & OrgUnit;
+  ward: Required<Pick<OrgUnit, "id" | "parentId" | "name" | "level">> & OrgUnit;
 };
 
 type ClinicalUserCredential = {
@@ -62,9 +64,13 @@ type ServiceOrganizationEvidence = {
   } | null;
   orgTreeEvidence: {
     facility: OrgUnit;
+    campus: OrgUnit;
     department: OrgUnit;
+    ward: OrgUnit;
     facilityReadbackVerified: boolean;
+    campusReadbackVerified: boolean;
     departmentReadbackVerified: boolean;
+    wardReadbackVerified: boolean;
   } | null;
 };
 
@@ -74,7 +80,7 @@ const requiredServiceOrganizationScenarioEvidence = [
     observedStages: [
       "前台开通服务机构",
       "机构管理员首次登录并改密",
-      "前台创建医疗机构与科室",
+      "前台创建医疗机构、院区、科室与病区",
       "前台回读服务机构组织树",
     ],
   },
@@ -151,12 +157,13 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
         adminBootstrap.password,
       );
 
-      const orgTree = await createFacilityAndDepartmentFromUi(page, suffix);
-      recordServiceOrganizationStage(observedStages, "前台创建医疗机构与科室");
+      const orgTree = await createFacilityCampusDepartmentAndWardFromUi(page, suffix);
+      recordServiceOrganizationStage(observedStages, "前台创建医疗机构、院区、科室与病区");
       clinicalUser = await createClinicalUserWithDepartmentScopeFromUi(page, {
         suffix,
         facility: orgTree.facility,
         department: orgTree.department,
+        ward: orgTree.ward,
       });
       recordServiceOrganizationStage(observedStages, "前台创建临床账号并绑定科室职责范围");
 
@@ -178,7 +185,9 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
       await assertProvisionedOrgTree(page, {
         tenantId: provisioned.tenantId,
         facility: orgTree.facility,
+        campus: orgTree.campus,
         department: orgTree.department,
+        ward: orgTree.ward,
       });
       evidence.orgTreeEvidence = {
         facility: {
@@ -186,6 +195,14 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
           tenantId: provisioned.tenantId,
           level: orgTree.facility.level,
           name: orgTree.facility.name,
+          status: "ACTIVE",
+        },
+        campus: {
+          id: orgTree.campus.id,
+          tenantId: provisioned.tenantId,
+          parentId: orgTree.campus.parentId,
+          level: orgTree.campus.level,
+          name: orgTree.campus.name,
           status: "ACTIVE",
         },
         department: {
@@ -196,8 +213,18 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
           name: orgTree.department.name,
           status: "ACTIVE",
         },
+        ward: {
+          id: orgTree.ward.id,
+          tenantId: provisioned.tenantId,
+          parentId: orgTree.ward.parentId,
+          level: orgTree.ward.level,
+          name: orgTree.ward.name,
+          status: "ACTIVE",
+        },
         facilityReadbackVerified: true,
+        campusReadbackVerified: true,
         departmentReadbackVerified: true,
+        wardReadbackVerified: true,
       };
       recordServiceOrganizationStage(observedStages, "前台回读服务机构组织树");
 
@@ -339,7 +366,7 @@ async function completeTenantAdminFirstLoginFromUi(
   };
 }
 
-async function createFacilityAndDepartmentFromUi(
+async function createFacilityCampusDepartmentAndWardFromUi(
   page: Page,
   suffix: string,
 ): Promise<ProvisionedOrgTree> {
@@ -358,21 +385,47 @@ async function createFacilityAndDepartmentFromUi(
   expect(facility.level).toBe("FACILITY");
   expect(facility.name).toBe(facilityName);
 
+  const campusCode = `ORG-CAMP-${suffix.toUpperCase()}`;
+  const campusName = `上线演练院区${suffix.slice(-4)}`;
+  const campus = await createOrgUnitFromUi(page, {
+    levelLabel: "院区",
+    parentName: facilityName,
+    code: campusCode,
+    name: campusName,
+  });
+  expect(campus.level).toBe("CAMPUS");
+  expect(campus.parentId).toBe(facility.id);
+  expect(campus.name).toBe(campusName);
+
   const departmentCode = `ORG-DEPT-${suffix.toUpperCase()}`;
   const departmentName = `上线演练科室${suffix.slice(-4)}`;
   const department = await createOrgUnitFromUi(page, {
     levelLabel: "科室",
-    parentName: facilityName,
+    parentName: campusName,
     code: departmentCode,
     name: departmentName,
   });
   expect(department.level).toBe("DEPARTMENT");
-  expect(department.parentId).toBe(facility.id);
+  expect(department.parentId).toBe(campus.id);
   expect(department.name).toBe(departmentName);
+
+  const wardCode = `ORG-WARD-${suffix.toUpperCase()}`;
+  const wardName = `上线演练病区${suffix.slice(-4)}`;
+  const ward = await createOrgUnitFromUi(page, {
+    levelLabel: "病区/护理单元",
+    parentName: departmentName,
+    code: wardCode,
+    name: wardName,
+  });
+  expect(ward.level).toBe("WARD");
+  expect(ward.parentId).toBe(department.id);
+  expect(ward.name).toBe(wardName);
 
   return {
     facility: requireOrgUnit(facility, "前台创建医疗机构"),
+    campus: requireDepartmentOrgUnit(campus, "前台创建院区"),
     department: requireDepartmentOrgUnit(department, "前台创建科室"),
+    ward: requireDepartmentOrgUnit(ward, "前台创建病区"),
   };
 }
 
@@ -382,6 +435,7 @@ async function createClinicalUserWithDepartmentScopeFromUi(
     suffix: string;
     facility: ProvisionedOrgTree["facility"];
     department: ProvisionedOrgTree["department"];
+    ward: ProvisionedOrgTree["ward"];
   },
 ): Promise<ClinicalUserCredential> {
   const employeeNo = `CLIN-${options.suffix.toUpperCase()}`;
@@ -398,6 +452,7 @@ async function createClinicalUserWithDepartmentScopeFromUi(
   await chooseDialogOption(page, dialog, "人员类型", "本机构员工");
   await chooseRemoteOrgOption(page, dialog, "所属机构", options.facility.name);
   await chooseRemoteOrgOption(page, dialog, "所属科室", options.department.name);
+  await chooseRemoteOrgOption(page, dialog, "所属病区", options.ward.name);
   await dialog.getByLabel("岗位或职务").fill("上线演练主治医师");
   await expect(dialog.getByRole("checkbox", { name: "同时开通登录账号" })).toBeChecked();
   await dialog.getByLabel("登录名").fill(username);
@@ -414,7 +469,7 @@ async function createClinicalUserWithDepartmentScopeFromUi(
   const created = JSON.parse(createText) as {
     data?: {
       person?: { personId?: string; employeeNo?: string };
-      primaryAppointment?: { organizationId?: string; departmentId?: string };
+      primaryAppointment?: { organizationId?: string; departmentId?: string; wardId?: string };
       account?: { userId?: string; username?: string };
       oneTimeActivation?: { username?: string; temporaryPassword?: string };
     };
@@ -422,6 +477,7 @@ async function createClinicalUserWithDepartmentScopeFromUi(
   expect(created.data?.person?.employeeNo).toBe(employeeNo);
   expect(created.data?.primaryAppointment?.organizationId).toBe(options.facility.id);
   expect(created.data?.primaryAppointment?.departmentId).toBe(options.department.id);
+  expect(created.data?.primaryAppointment?.wardId).toBe(options.ward.id);
   expect(created.data?.account?.username).toBe(username);
   expect(created.data?.oneTimeActivation?.username).toBe(username);
   expect(created.data?.oneTimeActivation?.temporaryPassword).toBeTruthy();
@@ -499,36 +555,63 @@ async function completeClinicalUserFirstLoginFromUi(
 
 async function assertProvisionedOrgTree(
   page: Page,
-  expected: { tenantId: string; facility: OrgUnit; department: OrgUnit },
+  expected: {
+    tenantId: string;
+    facility: OrgUnit;
+    campus: OrgUnit;
+    department: OrgUnit;
+    ward: OrgUnit;
+  },
 ) {
-  const response = await page.request.get(
-    `${apiBase}/engine/org/org-units?keyword=${encodeURIComponent(
-      expected.facility.name ?? "",
-    )}&page=1&size=20`,
-    { headers: { "X-Trace-Id": `e2e-org-tree-${Date.now()}` } },
-  );
-  await expectOk(response, "回读新服务机构组织树");
-  const payload = (await response.json()) as { data?: { items?: OrgUnit[] } };
-  const facility = (payload.data?.items ?? []).find(
-    (item) => item.id === expected.facility.id && item.tenantId === expected.tenantId,
-  );
+  const facility = await readBackOrgUnit(page, expected.tenantId, expected.facility, {
+    traceCode: "facility",
+    label: "医疗机构",
+  });
   expect(facility?.level).toBe("FACILITY");
   expect(facility?.status).toBe("ACTIVE");
 
-  const departmentResponse = await page.request.get(
-    `${apiBase}/engine/org/org-units?keyword=${encodeURIComponent(
-      expected.department.name ?? "",
-    )}&page=1&size=20`,
-    { headers: { "X-Trace-Id": `e2e-org-tree-dept-${Date.now()}` } },
-  );
-  await expectOk(departmentResponse, "回读新服务机构科室");
-  const departmentPayload = (await departmentResponse.json()) as { data?: { items?: OrgUnit[] } };
-  const department = (departmentPayload.data?.items ?? []).find(
-    (item) => item.id === expected.department.id && item.tenantId === expected.tenantId,
-  );
+  const campus = await readBackOrgUnit(page, expected.tenantId, expected.campus, {
+    traceCode: "campus",
+    label: "院区",
+  });
+  expect(campus?.level).toBe("CAMPUS");
+  expect(campus?.parentId).toBe(expected.facility.id);
+  expect(campus?.status).toBe("ACTIVE");
+
+  const department = await readBackOrgUnit(page, expected.tenantId, expected.department, {
+    traceCode: "department",
+    label: "科室",
+  });
   expect(department?.level).toBe("DEPARTMENT");
-  expect(department?.parentId).toBe(expected.facility.id);
+  expect(department?.parentId).toBe(expected.campus.id);
   expect(department?.status).toBe("ACTIVE");
+
+  const ward = await readBackOrgUnit(page, expected.tenantId, expected.ward, {
+    traceCode: "ward",
+    label: "病区",
+  });
+  expect(ward?.level).toBe("WARD");
+  expect(ward?.parentId).toBe(expected.department.id);
+  expect(ward?.status).toBe("ACTIVE");
+}
+
+async function readBackOrgUnit(
+  page: Page,
+  tenantId: string,
+  expected: OrgUnit,
+  readback: { traceCode: string; label: string },
+) {
+  const response = await page.request.get(
+    `${apiBase}/engine/org/org-units?keyword=${encodeURIComponent(
+      expected.name ?? "",
+    )}&page=1&size=20`,
+    { headers: { "X-Trace-Id": `e2e-org-tree-${readback.traceCode}-${Date.now()}` } },
+  );
+  await expectOk(response, `回读新服务机构${readback.label}`);
+  const payload = (await response.json()) as { data?: { items?: OrgUnit[] } };
+  return (payload.data?.items ?? []).find(
+    (item) => item.id === expected.id && item.tenantId === tenantId,
+  );
 }
 
 async function assertClinicalUserSecurityScope(
@@ -745,9 +828,9 @@ async function attachServiceOrganizationScenarioEvidence(
   }));
   const completedScenarioCodes = scenarioEvidence
     .filter((scenario) => {
-      const requiredStages = requiredServiceOrganizationScenarioEvidence.find(
-        (item) => item.code === scenario.code,
-      )?.observedStages ?? [];
+      const requiredStages =
+        requiredServiceOrganizationScenarioEvidence.find((item) => item.code === scenario.code)
+          ?.observedStages ?? [];
       return requiredStages.every((stage) => scenario.observedStages.includes(stage));
     })
     .map((scenario) => scenario.code);
@@ -755,7 +838,7 @@ async function attachServiceOrganizationScenarioEvidence(
     body: JSON.stringify(
       {
         scenarioCodes: completedScenarioCodes,
-        organizationLevels: ["HOSPITAL", "DEPARTMENT"],
+        organizationLevels: ["HOSPITAL", "CAMPUS_OR_MEMBER", "DEPARTMENT", "WARD"],
         serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
         onboardingEvidence: evidence.onboardingEvidence,
         adminBootstrapEvidence: evidence.adminBootstrapEvidence,
@@ -774,7 +857,7 @@ async function attachServiceOrganizationScenarioEvidence(
                   evidence: [
                     "前台开通服务机构接口返回 2xx 且一次性临时密码仅记录签发与展示状态",
                     "机构管理员首次登录要求改密并完成自助改密进入工作台",
-                    "医疗机构与科室按同一 tenant 回读为 ACTIVE 且科室父级绑定医疗机构",
+                    "医疗机构、院区、科室和病区按同一 tenant 回读为 ACTIVE 且父子关系连续",
                   ],
                 },
               ]

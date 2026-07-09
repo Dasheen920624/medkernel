@@ -1293,7 +1293,7 @@ describe("E2E credential contract", () => {
 
     expect(source).toContain("provisionServiceOrganizationFromUi");
     expect(source).toContain("completeTenantAdminFirstLoginFromUi");
-    expect(source).toContain("createFacilityAndDepartmentFromUi");
+    expect(source).toContain("createFacilityCampusDepartmentAndWardFromUi");
     expect(source).toContain("createClinicalUserWithDepartmentScopeFromUi");
     expect(source).toContain("disableProvisionedAccountsFromAdminSession");
     expect(source).toContain("adminUserId");
@@ -1311,8 +1311,22 @@ describe("E2E credential contract", () => {
     expect(source).toContain('code: "S14"');
     expect(source).toContain("前台开通服务机构");
     expect(source).toContain("机构管理员首次登录并改密");
-    expect(source).toContain("前台创建医疗机构与科室");
+    expect(source).toContain("前台创建医疗机构、院区、科室与病区");
     expect(source).toContain("前台回读服务机构组织树");
+    expect(source).toContain(
+      'organizationLevels: ["HOSPITAL", "CAMPUS_OR_MEMBER", "DEPARTMENT", "WARD"]',
+    );
+    expect(source).toContain("campusReadbackVerified");
+    expect(source).toContain("wardReadbackVerified");
+    expect(source).toContain('levelLabel: "院区"');
+    expect(source).toContain('levelLabel: "病区/护理单元"');
+    expect(source).toContain('"所属病区"');
+    expect(source).toContain(
+      "primaryAppointment?: { organizationId?: string; departmentId?: string; wardId?: string }",
+    );
+    expect(source).toContain(
+      "expect(created.data?.primaryAppointment?.wardId).toBe(options.ward.id)",
+    );
     expect(source).toContain("前台创建临床账号并绑定科室职责范围");
     expect(source).toContain("临床账号首次登录后读取权限画像");
     expect(source).toContain("前台停用演练账号");
