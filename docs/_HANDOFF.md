@@ -528,6 +528,53 @@
   不是全医学知识生产完成、不是 134 清库重部署。下一批继续按 `LAUNCH-06` 或 `LAUNCH-13` 挑选剩余强链路；
   不得把普通 `scenarioEvidence`、代表切片、菜单、路由、静态宿主页面或文案自动升级为完整上线。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十六批本地推进：接用户要求“在保证质量的前提下，加快进度，能用子代理或者并行执行的都用上”，
+  本批使用 2 个只读 explorer 并行审计下一批候选，均已完成且未编辑、未暂存、未提交、未启动服务。主线程继续按
+  “上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口，本批只收口真实前台综合演练中的
+  随访协同 S12 正常主链路，新增 1 条显式背书行：`S12__NORMAL`
+  （前台创建并发布 FOLLOWUP 随访方案，纳入当前机构生效版本；临床用户基于同一当前就诊上下文生成随访计划，
+  提交患者自填问卷并登记高风险异常回院，系统保留人工处置边界且不自动开嘱）。不声明
+  `S12__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不把普通 `real-frontdesk-scenario-codes` 阶段文本、
+  随访页面可见、通知文案或代表切片冒领为完整随访系统、完整患者服务、完整 S12 或完整上线。
+- 第二百一十六批实现细节：`frontend/e2e/real-frontdesk-rehearsal.spec.ts` 的 `real-frontdesk-scenario-codes`
+  附件在原有 S10/S11/S12 场景阶段基础上新增结构化 S12 证据：`followupTemplate`、`followupRuntime`、
+  `followupPlan`、`questionnaire`、`abnormalReturn` 和显式 `scenarioConditionEvidence`。这些字段来自真实前台
+  API 响应和回读：随访方案创建 / 发布 2xx、FOLLOWUP 候选和当前机构生效版本 ACTIVE 回读、计划生成 2xx 且绑定同一
+  `patientId/encounterId/contextSnapshotId/runtimeReleaseId`、问卷提交 2xx 并返回 `questionnaireId/taskId`、异常回院登记
+  2xx 并返回 `eventId/returnTaskId/notificationEventId`。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增 S12 条件行白名单和 collector，必须先通过完整 `hasRequiredRealFrontdeskScenarioAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并绑定 FOLLOWUP 模板、机构生效版本、计划、问卷和异常回院五段结构化证据。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、未知 row、来源错配、
+  空 evidence、模板创建非 2xx、模板未发布、当前机构生效版本未包含 FOLLOWUP、计划 runtime 不匹配、计划无任务、
+  问卷提交非 2xx、异常回院风险非高、异常回院允许自动开嘱、计划患者与上下文不一致，均不声明 `S12__NORMAL`。
+- 第二百一十六批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s12-followup-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s12-followup-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `launchCoverage.scenarioConditionRows=[S12__NORMAL]`、`launchCoverage.scenarios=[S10,S11,S12]`。附件抽查显示：
+  `followupTemplate.createStatus=200/publishStatus=200/assetStatus=PUBLISHED`，`followupRuntime.currentRuntimeContainsAsset=true`
+  且 `runtimeReadbackStatus=200`，`followupPlan.status=200/taskCount=2` 且绑定同一患者、就诊、上下文和 runtime，
+  `questionnaire.status=200/submitted=true/questionnaireId` 非空，`abnormalReturn.status=200/riskLevel=HIGH/noAutoOrder=true`
+  且 `eventId/returnTaskId/notificationEventId` 非空。
+- 第二百一十六批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例缺 `S12__NORMAL`，
+  随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（564 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`（仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，无 whitespace error）。
+- 第二百一十六批并行只读审计结论：`LAUNCH-06` 下一批候选优先可选 `S13__NORMAL`（`runtime-release-frontdesk.spec.ts`
+  的激活 / 回滚 / 第三方运行契约回读，但必须新增显式条件附件，且不冒领 S13 其他四态、离线交付或 13 类资产全生命周期）、
+  `S5__NORMAL`（`cdss-runtime-declarative-assets.spec.ts` 的 VALUE_SET / FORMULA / ACTION_CARD 正常运行消费，但不得覆盖已由药事红线证明的
+  `S5__HIGH_RISK`）、或 `S14__HIGH_RISK`（`mfa-login-frontdesk.spec.ts` 需先升级 MFA 结构化证据并证明恢复配置与停用临时账号）。
+  `LAUNCH-13` 审计确认当前组织层级只能诚实证明 `HOSPITAL/DEPARTMENT`；若转组织九层，最小可落地切片应扩
+  `service-organization-frontdesk.spec.ts` 到 `CAMPUS_OR_MEMBER/WARD` 前台创建、回读、四职责范围绑定、登录画像和审计，
+  不能用平台管理员角色、菜单、路由、`specialtyId`、资产 `sourceLayer` 或区域互认切片冒领九层组织。
+- 第二百一十六批边界与下一步：本批只是把随访协同 S12 正常主链路接入 1 条五态总账行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是完整 S12 / 患者服务 / 随访系统完成、不是 34 入口全部业务深度完成、
+  不是全医学知识生产完成、不是 `LAUNCH-13` 九层组织完成、不是 134 清库重部署。下一批建议继续按 `LAUNCH-06`
+  优先做 `S13__NORMAL` 或 `S5__NORMAL`，也可转 `LAUNCH-13` 做 `CAMPUS_OR_MEMBER/WARD` 真实组织证据模型；
+  仍需显式条件附件、强字段背书和负例，不能把普通 `scenarioEvidence`、代表切片、菜单、路由或文案自动升级为完整上线。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

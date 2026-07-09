@@ -713,6 +713,14 @@ const clinicalEntryScenarioConditionRows = [
     source: "CLINICAL_WORKFLOW_TODO_COMPLETION",
   },
 ] as const;
+const realFrontdeskScenarioConditionRows = [
+  {
+    code: "S12__NORMAL",
+    scenarioCode: "S12",
+    condition: "NORMAL",
+    source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+  },
+] as const;
 const diagnosticCriticalValueScenarioConditionRows = [
   {
     code: "S36__HIGH_RISK",
@@ -4008,6 +4016,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectClinicalEntryScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectRealFrontdeskScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectDiagnosticCriticalValueScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4466,6 +4477,48 @@ function clinicalEntryScenarioConditionBackedByEvidence(
       return entryActions.some((action) =>
         hasCompleteClinicalEntryCoreAction(action, "workflow-todos"),
       );
+    default:
+      return false;
+  }
+}
+
+function collectRealFrontdeskScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "real-frontdesk-rehearsal.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find((item) => item.name === "real-frontdesk-scenario-codes");
+  if (!attachment?.body || !hasRequiredRealFrontdeskScenarioAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    if (!parsed) return [];
+    const rows = collectStrictScenarioConditionRows(
+      parsed.scenarioConditionEvidence,
+      realFrontdeskScenarioConditionRows,
+    );
+    if (rows === null) return [];
+    return realFrontdeskScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          realFrontdeskScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function realFrontdeskScenarioConditionBackedByEvidence(
+  code: (typeof realFrontdeskScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S12__NORMAL":
+      return hasCompleteFollowupS12NormalEvidence(parsed);
     default:
       return false;
   }
@@ -12766,6 +12819,83 @@ function hasCompleteSourceLineageStructuredEvidence(parsed: Record<string, unkno
     graph.traceEvidenceVisible === true &&
     Array.isArray(graph.browserErrors) &&
     graph.browserErrors.length === 0
+  );
+}
+
+function hasCompleteFollowupS12NormalEvidence(parsed: Record<string, unknown>) {
+  const clinicalContext = recordValue(parsed.clinicalContext);
+  const template = recordValue(parsed.followupTemplate);
+  const runtime = recordValue(parsed.followupRuntime);
+  const plan = recordValue(parsed.followupPlan);
+  const questionnaire = recordValue(parsed.questionnaire);
+  const abnormal = recordValue(parsed.abnormalReturn);
+  if (!clinicalContext || !template || !runtime || !plan || !questionnaire || !abnormal) {
+    return false;
+  }
+
+  const patientId = textValue(clinicalContext.patientId);
+  const encounterId = textValue(clinicalContext.encounterId);
+  const contextSnapshotId = textValue(clinicalContext.contextSnapshotId);
+  const templateId = textValue(template.templateId);
+  const templateCode = textValue(template.templateCode);
+  const runtimeVersionId = textValue(runtime.versionId);
+  const runtimeReleaseId = textValue(runtime.runtimeReleaseId);
+  const planId = textValue(plan.planId);
+  if (
+    !patientId ||
+    !encounterId ||
+    !contextSnapshotId ||
+    !templateId ||
+    !templateCode ||
+    !runtimeVersionId ||
+    !runtimeReleaseId ||
+    !planId
+  ) {
+    return false;
+  }
+
+  return (
+    template.operation === "CREATE_AND_PUBLISH_FOLLOWUP_TEMPLATE" &&
+    is2xxStatus(template.createStatus) &&
+    is2xxStatus(template.publishStatus) &&
+    template.assetStatus === "PUBLISHED" &&
+    template.scope === "HOSPITAL" &&
+    runtime.operation === "ACTIVATE_HOSPITAL_RUNTIME_WITH_FOLLOWUP" &&
+    is2xxStatus(runtime.candidateStatus) &&
+    is2xxStatus(runtime.activationStatus) &&
+    is2xxStatus(runtime.runtimeReadbackStatus) &&
+    runtime.assetType === "FOLLOWUP" &&
+    runtime.assetIdentity === templateCode &&
+    runtime.sourceLayer === "HOSPITAL" &&
+    runtime.entryState === "ACTIVE" &&
+    runtime.currentRuntimeContainsAsset === true &&
+    plan.operation === "GENERATE_FOLLOWUP_PLAN_FROM_CONTEXT" &&
+    is2xxStatus(plan.status) &&
+    plan.templateId === templateId &&
+    plan.templateCode === templateCode &&
+    plan.runtimeReleaseId === runtimeReleaseId &&
+    plan.patientId === patientId &&
+    plan.encounterId === encounterId &&
+    plan.contextSnapshotId === contextSnapshotId &&
+    positiveNumber(plan.taskCount) !== null &&
+    questionnaire.operation === "SUBMIT_FOLLOWUP_QUESTIONNAIRE" &&
+    is2xxStatus(questionnaire.status) &&
+    questionnaire.planId === planId &&
+    questionnaire.patientId === patientId &&
+    questionnaire.source === "PATIENT_SELF_REPORT" &&
+    questionnaire.submitted === true &&
+    hasText(questionnaire.questionnaireId) &&
+    hasText(questionnaire.taskId) &&
+    abnormal.operation === "REGISTER_ABNORMAL_RETURN" &&
+    is2xxStatus(abnormal.status) &&
+    abnormal.planId === planId &&
+    abnormal.patientId === patientId &&
+    abnormal.riskLevel === "HIGH" &&
+    abnormal.registered === true &&
+    abnormal.noAutoOrder === true &&
+    hasText(abnormal.eventId) &&
+    hasText(abnormal.returnTaskId) &&
+    hasText(abnormal.notificationEventId)
   );
 }
 

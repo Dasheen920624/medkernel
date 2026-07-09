@@ -11704,8 +11704,102 @@ describe("browser E2E launch coverage evidence", () => {
     expectNoCriticalEmergencyIcuCoverage(body);
   });
 
-  it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
+  const realFrontdeskScenarioEvidence = {
+    scenarioCodes: ["S10", "S11", "S12"],
+    clinicalContext: {
+      patientId: "mpi-real-frontdesk-s12",
+      encounterId: "enc-real-frontdesk-s12",
+      contextSnapshotId: "ctx-real-frontdesk-s12",
+    },
+    followupTemplate: {
+      operation: "CREATE_AND_PUBLISH_FOLLOWUP_TEMPLATE",
+      createStatus: 201,
+      publishStatus: 200,
+      templateId: "fup-template-s12",
+      templateCode: "FUP.REAL.FRONTDESK.S12",
+      assetStatus: "PUBLISHED",
+      scope: "HOSPITAL",
+    },
+    followupRuntime: {
+      operation: "ACTIVATE_HOSPITAL_RUNTIME_WITH_FOLLOWUP",
+      candidateStatus: 200,
+      activationStatus: 200,
+      runtimeReadbackStatus: 200,
+      runtimeReleaseId: "runtime-followup-s12",
+      assetType: "FOLLOWUP",
+      assetIdentity: "FUP.REAL.FRONTDESK.S12",
+      versionId: "av-followup-s12",
+      sourceLayer: "HOSPITAL",
+      entryState: "ACTIVE",
+      currentRuntimeContainsAsset: true,
+    },
+    followupPlan: {
+      operation: "GENERATE_FOLLOWUP_PLAN_FROM_CONTEXT",
+      status: 200,
+      planId: "followup-plan-s12",
+      templateId: "fup-template-s12",
+      templateCode: "FUP.REAL.FRONTDESK.S12",
+      runtimeReleaseId: "runtime-followup-s12",
+      patientId: "mpi-real-frontdesk-s12",
+      encounterId: "enc-real-frontdesk-s12",
+      contextSnapshotId: "ctx-real-frontdesk-s12",
+      taskCount: 1,
+      riskLevel: "MEDIUM",
+    },
+    questionnaire: {
+      operation: "SUBMIT_FOLLOWUP_QUESTIONNAIRE",
+      status: 200,
+      planId: "followup-plan-s12",
+      patientId: "mpi-real-frontdesk-s12",
+      taskId: "followup-task-questionnaire-s12",
+      questionnaireId: "followup-questionnaire-s12",
+      responseStatus: "COMPLETED",
+      source: "PATIENT_SELF_REPORT",
+      submitted: true,
+    },
+    abnormalReturn: {
+      operation: "REGISTER_ABNORMAL_RETURN",
+      status: 200,
+      planId: "followup-plan-s12",
+      patientId: "mpi-real-frontdesk-s12",
+      eventId: "followup-abnormal-event-s12",
+      returnTaskId: "followup-return-task-s12",
+      notificationEventId: "followup-notification-s12",
+      riskLevel: "HIGH",
+      registered: true,
+      noAutoOrder: true,
+    },
+    scenarioConditionEvidence: [
+      {
+        code: "S12__NORMAL",
+        scenarioCode: "S12",
+        condition: "NORMAL",
+        source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+        evidence: [
+          "前台创建并发布 FOLLOWUP 随访方案后纳入当前机构生效版本",
+          "临床用户基于当前上下文生成随访计划并完成问卷与异常回院登记",
+        ],
+      },
+    ],
+    scenarioEvidence: [
+      { code: "S10", observedStages: ["前台执行医保审核并联动质量整改"] },
+      {
+        code: "S11",
+        observedStages: ["前台创建发布并激活 CLAIM 评价指标", "前台提交并复核关闭质量整改任务"],
+      },
+      {
+        code: "S12",
+        observedStages: [
+          "前台创建随访方案",
+          "前台发布随访方案",
+          "前台生成随访计划并完成问卷与异常回院登记",
+        ],
+      },
+    ],
+  };
+
+  function realFrontdeskScenarioEvidenceResult(body: Record<string, unknown>) {
+    return buildBrowserE2eLaunchEvidence({
       stats: passedStats,
       tests: [
         {
@@ -11717,32 +11811,23 @@ describe("browser E2E launch coverage evidence", () => {
             {
               name: "real-frontdesk-scenario-codes",
               contentType: "application/json",
-              body: JSON.stringify({
-                scenarioCodes: ["S10", "S11", "S12"],
-                scenarioEvidence: [
-                  { code: "S10", observedStages: ["前台执行医保审核并联动质量整改"] },
-                  {
-                    code: "S11",
-                    observedStages: [
-                      "前台创建发布并激活 CLAIM 评价指标",
-                      "前台提交并复核关闭质量整改任务",
-                    ],
-                  },
-                  {
-                    code: "S12",
-                    observedStages: [
-                      "前台创建随访方案",
-                      "前台发布随访方案",
-                      "前台生成随访计划并完成问卷与异常回院登记",
-                    ],
-                  },
-                ],
-              }),
+              body: JSON.stringify(body),
             },
           ],
         },
       ],
     });
+  }
+
+  function expectNoRealFrontdeskScenarioConditionCoverage(body: Record<string, unknown>) {
+    const evidence = realFrontdeskScenarioEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S12__NORMAL");
+  }
+
+  it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {
+    const evidence = realFrontdeskScenarioEvidenceResult(realFrontdeskScenarioEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual([
       "S10",
@@ -11750,6 +11835,166 @@ describe("browser E2E launch coverage evidence", () => {
       "S12",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S12 normal condition row only from complete followup template, plan, questionnaire and abnormal-return evidence", () => {
+    const evidence = realFrontdeskScenarioEvidenceResult(realFrontdeskScenarioEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S12__NORMAL",
+    ]);
+  });
+
+  it("does not declare S12 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = realFrontdeskScenarioEvidence;
+    const evidence = realFrontdeskScenarioEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual([
+      "S10",
+      "S11",
+      "S12",
+    ]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S12__ABNORMAL",
+            scenarioCode: "S12",
+            condition: "ABNORMAL",
+            source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+            evidence: ["正常随访主链路不能冒领异常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S12__NORMAL",
+            scenarioCode: "S12",
+            condition: "NORMAL",
+            source: "FOLLOWUP_PAGE_VISIBLE_ONLY",
+            evidence: ["不能只靠随访页面可见冒领正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S12__NORMAL",
+            scenarioCode: "S12",
+            condition: "NORMAL",
+            source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "随访方案创建不是 2xx",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        followupTemplate: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupTemplate),
+          createStatus: 409,
+        },
+      },
+    },
+    {
+      name: "随访方案未发布",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        followupTemplate: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupTemplate),
+          assetStatus: "DRAFT",
+        },
+      },
+    },
+    {
+      name: "机构生效版本未包含 FOLLOWUP",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        followupRuntime: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupRuntime),
+          currentRuntimeContainsAsset: false,
+        },
+      },
+    },
+    {
+      name: "计划生成机构版本不匹配",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        followupPlan: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupPlan),
+          runtimeReleaseId: "runtime-other-followup",
+        },
+      },
+    },
+    {
+      name: "计划没有任务",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        followupPlan: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupPlan),
+          taskCount: 0,
+        },
+      },
+    },
+    {
+      name: "问卷提交不是 2xx",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        questionnaire: {
+          ...structuredClone(realFrontdeskScenarioEvidence.questionnaire),
+          status: 503,
+        },
+      },
+    },
+    {
+      name: "异常回院风险不是高风险",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          riskLevel: "LOW",
+        },
+      },
+    },
+    {
+      name: "异常回院允许自动开嘱",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          noAutoOrder: false,
+        },
+      },
+    },
+    {
+      name: "计划患者与上下文不一致",
+      body: {
+        ...structuredClone(realFrontdeskScenarioEvidence),
+        followupPlan: {
+          ...structuredClone(realFrontdeskScenarioEvidence.followupPlan),
+          patientId: "mpi-other",
+        },
+      },
+    },
+  ])("does not declare S12 normal condition row when $name", ({ body }) => {
+    expectNoRealFrontdeskScenarioConditionCoverage(body);
   });
 
   it("declares service organization coverage only when the passed spec attaches complete frontdesk evidence", () => {

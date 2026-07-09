@@ -122,6 +122,77 @@ type QualityRectificationSummary = {
   taskStatus: string;
 };
 
+type FollowupTemplateEvidence = {
+  operation: "CREATE_AND_PUBLISH_FOLLOWUP_TEMPLATE";
+  createStatus: number;
+  publishStatus: number;
+  templateId: string;
+  templateCode: string;
+  assetStatus?: string;
+  scope?: string;
+};
+
+type FollowupRuntimeEvidence = {
+  operation: "ACTIVATE_HOSPITAL_RUNTIME_WITH_FOLLOWUP";
+  candidateStatus: number;
+  activationStatus: number;
+  runtimeReadbackStatus: number;
+  runtimeReleaseId?: string | null;
+  assetType: string;
+  assetIdentity: string;
+  versionId: string;
+  sourceLayer?: string;
+  entryState?: string;
+  currentRuntimeContainsAsset: boolean;
+};
+
+type FollowupPlanEvidence = {
+  operation: "GENERATE_FOLLOWUP_PLAN_FROM_CONTEXT";
+  status: number;
+  planId: string;
+  templateId?: string | null;
+  templateCode?: string | null;
+  runtimeReleaseId?: string | null;
+  patientId?: string | null;
+  encounterId?: string | null;
+  contextSnapshotId: string;
+  taskCount: number;
+  riskLevel?: string | null;
+};
+
+type FollowupQuestionnaireEvidence = {
+  operation: "SUBMIT_FOLLOWUP_QUESTIONNAIRE";
+  status: number;
+  planId: string;
+  patientId: string;
+  taskId?: string | null;
+  questionnaireId?: string | null;
+  responseStatus?: string | null;
+  source: "PATIENT_SELF_REPORT";
+  submitted: boolean;
+};
+
+type FollowupAbnormalReturnEvidence = {
+  operation: "REGISTER_ABNORMAL_RETURN";
+  status: number;
+  planId: string;
+  patientId: string;
+  eventId?: string | null;
+  returnTaskId?: string | null;
+  notificationEventId?: string | null;
+  riskLevel: "HIGH";
+  registered: boolean;
+  noAutoOrder: boolean;
+};
+
+type FollowupS12Evidence = {
+  template: FollowupTemplateEvidence;
+  runtime: FollowupRuntimeEvidence;
+  plan: FollowupPlanEvidence;
+  questionnaire: FollowupQuestionnaireEvidence;
+  abnormalReturn: FollowupAbnormalReturnEvidence;
+};
+
 type QualityAlertPayload = {
   alertId?: string;
   sourceType?: string;
@@ -182,6 +253,7 @@ test.describe("全前台真实操作演练", () => {
     let snapshot: ContextSnapshotSummary | null = null;
     let insuranceAudit: InsuranceAuditSummary | null = null;
     let qualityRectification: QualityRectificationSummary | null = null;
+    let followupS12: FollowupS12Evidence | null = null;
 
     try {
       await page.setViewportSize({ width: 1440, height: 960 });
@@ -197,7 +269,13 @@ test.describe("全前台真实操作演练", () => {
         records,
         suffix,
       );
-      await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
+      const followupTemplatePublish = await publishFollowupTemplateFromUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        followupTemplate,
+      );
       const claimIndicator = await createActiveClaimEvaluationIndicatorFromUi(
         page,
         testInfo,
@@ -205,7 +283,7 @@ test.describe("全前台真实操作演练", () => {
         records,
         suffix,
       );
-      await activateHospitalRuntimeWithClaimIndicatorFromUi(
+      const followupRuntime = await activateHospitalRuntimeWithClaimIndicatorFromUi(
         page,
         testInfo,
         runtime,
@@ -231,7 +309,7 @@ test.describe("全前台真实操作演练", () => {
         insuranceAudit,
       );
       await runCdssRecommendationFromUi(page, testInfo, runtime, records, snapshot);
-      await generateFollowupPlanAndHandlePatientFeedbackFromUi(
+      const followupExecution = await generateFollowupPlanAndHandlePatientFeedbackFromUi(
         page,
         testInfo,
         runtime,
@@ -239,11 +317,25 @@ test.describe("全前台真实操作演练", () => {
         followupTemplate,
         snapshot,
       );
+      followupS12 = {
+        template: {
+          operation: "CREATE_AND_PUBLISH_FOLLOWUP_TEMPLATE",
+          createStatus: followupTemplate.createStatus,
+          publishStatus: followupTemplatePublish.publishStatus,
+          templateId: followupTemplate.templateId,
+          templateCode: followupTemplate.templateCode,
+          assetStatus: followupTemplatePublish.assetStatus,
+          scope: followupTemplate.organizationScope,
+        },
+        runtime: followupRuntime,
+        ...followupExecution,
+      };
     } finally {
       await attachScenarioEvidence(testInfo, records, {
         snapshot,
         insuranceAudit,
         qualityRectification,
+        followupS12,
       });
       await attachRuntimeRecords(testInfo, records);
     }
@@ -828,7 +920,7 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
   records: RuntimeRecord[],
   claimIndicator: ClaimEvaluationIndicatorSummary,
   followupTemplate: { templateCode: string },
-) {
+): Promise<FollowupRuntimeEvidence> {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
   await page.goto("/config/releases", { waitUntil: "networkidle" });
@@ -884,8 +976,27 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
   const activated = JSON.parse(activateText) as { data?: { revisionNo?: number } };
   expect(activated.data?.revisionNo, "机构生效版本响应应返回修订号").toBeGreaterThan(0);
   await assertCurrentRuntimeContainsClaimIndicator(page, hospital.id ?? "", claimIndicator);
+  const followupRuntime = await assertCurrentRuntimeContainsFollowupTemplate(
+    page,
+    hospital.id ?? "",
+    followupTemplate,
+    followupCandidate,
+  );
   await captureEvidence(page, testInfo, "real-frontdesk-runtime-claim-evaluation-active");
   recordCleanRuntime(page, "前台生成包含 CLAIM 评价指标的机构生效版本", runtime, records);
+  return {
+    operation: "ACTIVATE_HOSPITAL_RUNTIME_WITH_FOLLOWUP",
+    candidateStatus: 200,
+    activationStatus: activateResponse.status(),
+    runtimeReadbackStatus: followupRuntime.status,
+    runtimeReleaseId: followupRuntime.releaseId,
+    assetType: followupCandidate.assetType,
+    assetIdentity: followupCandidate.assetIdentity,
+    versionId: followupCandidate.versionId,
+    sourceLayer: followupCandidate.sourceLayer,
+    entryState: followupRuntime.entryState,
+    currentRuntimeContainsAsset: true,
+  };
 }
 
 async function assertHospitalRuntimeCandidateContainsClaimIndicator(
@@ -1322,6 +1433,38 @@ async function assertCurrentRuntimeContainsClaimIndicator(
     ),
     `当前机构生效版本必须启用本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
   ).toBe(true);
+}
+
+async function assertCurrentRuntimeContainsFollowupTemplate(
+  page: Page,
+  hospitalId: string,
+  followupTemplate: { templateCode: string },
+  followupCandidate: LocalRuntimeCandidateSummary,
+) {
+  expect(hospitalId, "本地上线演练医院必须可解析组织 ID").toBeTruthy();
+  const response = await page.request.get(
+    `/medkernel/api/v1/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/runtime-releases/current`,
+    { headers: { "X-Trace-Id": `e2e-runtime-followup-${Date.now()}` } },
+  );
+  const text = await response.text();
+  expect(response.ok(), `应能读取当前机构生效版本 status=${response.status()} body=${text}`).toBe(
+    true,
+  );
+  const current = JSON.parse(text) as RuntimeReleaseDetailPayload;
+  const item = current.data?.items?.find(
+    (candidate) =>
+      candidate.assetType === "FOLLOWUP" &&
+      candidate.assetIdentity === followupTemplate.templateCode &&
+      candidate.entryState === "ACTIVE" &&
+      candidate.versionId === followupCandidate.versionId,
+  );
+  expect(
+    item,
+    `当前机构生效版本必须启用本轮 FOLLOWUP 随访方案 ${followupTemplate.templateCode}`,
+  ).toBeTruthy();
+  return { entryState: item?.entryState, releaseId: current.data?.release?.releaseId, status: response.status() };
 }
 
 function assertCurrentRuntimeContainsRequiredBaselineAssets(current: RuntimeReleaseDetailPayload) {
@@ -1765,6 +1908,8 @@ async function createFollowupTemplateFromUi(
     name: result.data?.name ?? templateName,
     displayName: templateDisplayName,
     defaultName: templateDefaultName,
+    createStatus: response.status(),
+    organizationScope: "HOSPITAL",
   };
 }
 
@@ -1780,7 +1925,7 @@ async function publishFollowupTemplateFromUi(
     displayName: string;
     defaultName: string;
   },
-) {
+): Promise<{ publishStatus: number; assetStatus?: string }> {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
   await page.goto("/clinical/followup", { waitUntil: "networkidle" });
@@ -1817,6 +1962,7 @@ async function publishFollowupTemplateFromUi(
   await expect(publishedRow).toBeVisible({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-followup-template-published");
   recordCleanRuntime(page, "前台发布随访方案", runtime, records);
+  return { publishStatus: response.status(), assetStatus: result.data?.assetStatus };
 }
 
 async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
@@ -1824,9 +1970,15 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
-  template: { templateId: string; name: string; displayName: string; defaultName: string },
+  template: {
+    templateId: string;
+    templateCode: string;
+    name: string;
+    displayName: string;
+    defaultName: string;
+  },
   snapshot: ContextSnapshotSummary,
-) {
+): Promise<Pick<FollowupS12Evidence, "plan" | "questionnaire" | "abnormalReturn">> {
   await ensureReadySession(page, "clinical-user");
   clearRuntime(runtime);
   await page.goto("/clinical/followup", { waitUntil: "networkidle" });
@@ -1851,7 +2003,18 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
   const response = await responsePromise;
   expect(response.ok(), "前台生成随访计划应返回成功").toBe(true);
-  const result = (await response.json()) as { data?: { planId?: string; tasks?: Array<unknown> } };
+  const result = (await response.json()) as {
+    data?: {
+      planId?: string;
+      patientId?: string;
+      encounterId?: string;
+      templateId?: string | null;
+      templateCode?: string | null;
+      runtimeReleaseId?: string;
+      riskLevel?: string;
+      tasks?: Array<{ taskId?: string; questionnaireTemplateId?: string }>;
+    };
+  };
   expect(result.data?.planId, "随访计划生成响应应返回计划身份").toBeTruthy();
   expect(result.data?.tasks?.length ?? 0, "随访计划应生成可办理任务").toBeGreaterThan(0);
   await expect(dialog).toBeHidden({ timeout: 20_000 });
@@ -1885,6 +2048,15 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   await page.getByRole("button", { name: "提交问卷" }).click();
   const questionnaireResponse = await questionnaireResponsePromise;
   expect(questionnaireResponse.ok(), "前台提交随访问卷应返回成功").toBe(true);
+  const questionnaire = (await questionnaireResponse.json()) as {
+    data?: {
+      questionnaireId?: string;
+      taskId?: string;
+      status?: string;
+      traceId?: string;
+    };
+  };
+  expect(questionnaire.data?.questionnaireId, "随访问卷响应应返回问卷记录").toBeTruthy();
   await expect(page.getByText("请选择一个待办随访任务后提交问卷回收内容")).toBeVisible({
     timeout: 20_000,
   });
@@ -1903,9 +2075,56 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   await page.getByRole("button", { name: "登记异常回院" }).click();
   const abnormalResponse = await abnormalResponsePromise;
   expect(abnormalResponse.ok(), "前台登记异常回院应返回成功").toBe(true);
+  const abnormal = (await abnormalResponse.json()) as {
+    data?: {
+      eventId?: string;
+      returnTaskId?: string;
+      notificationEventId?: string;
+      traceId?: string;
+    };
+  };
+  expect(abnormal.data?.eventId, "异常回院响应应返回事件身份").toBeTruthy();
   await expect(page.getByText("异常回院证据已登记")).toBeVisible({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-followup-plan-questionnaire-abnormal");
   recordCleanRuntime(page, "前台生成随访计划并完成问卷与异常回院登记", runtime, records);
+  return {
+    plan: {
+      operation: "GENERATE_FOLLOWUP_PLAN_FROM_CONTEXT",
+      status: response.status(),
+      planId: result.data?.planId ?? "",
+      templateId: result.data?.templateId ?? template.templateId,
+      templateCode: result.data?.templateCode ?? template.templateCode,
+      runtimeReleaseId: result.data?.runtimeReleaseId ?? null,
+      patientId: result.data?.patientId ?? snapshot.patientId,
+      encounterId: result.data?.encounterId ?? snapshot.encounterId,
+      contextSnapshotId: snapshot.snapshotId,
+      taskCount: result.data?.tasks?.length ?? 0,
+      riskLevel: result.data?.riskLevel ?? "MEDIUM",
+    },
+    questionnaire: {
+      operation: "SUBMIT_FOLLOWUP_QUESTIONNAIRE",
+      status: questionnaireResponse.status(),
+      planId: result.data?.planId ?? "",
+      patientId: result.data?.patientId ?? snapshot.patientId,
+      taskId: questionnaire.data?.taskId ?? result.data?.tasks?.[0]?.taskId ?? null,
+      questionnaireId: questionnaire.data?.questionnaireId ?? null,
+      responseStatus: questionnaire.data?.status ?? null,
+      source: "PATIENT_SELF_REPORT",
+      submitted: true,
+    },
+    abnormalReturn: {
+      operation: "REGISTER_ABNORMAL_RETURN",
+      status: abnormalResponse.status(),
+      planId: result.data?.planId ?? "",
+      patientId: result.data?.patientId ?? snapshot.patientId,
+      eventId: abnormal.data?.eventId ?? null,
+      returnTaskId: abnormal.data?.returnTaskId ?? null,
+      notificationEventId: abnormal.data?.notificationEventId ?? null,
+      riskLevel: "HIGH",
+      registered: true,
+      noAutoOrder: true,
+    },
+  };
 }
 
 async function chooseDialogOption(
@@ -2464,6 +2683,7 @@ async function attachScenarioEvidence(
     snapshot: ContextSnapshotSummary | null;
     insuranceAudit: InsuranceAuditSummary | null;
     qualityRectification: QualityRectificationSummary | null;
+    followupS12: FollowupS12Evidence | null;
   },
 ) {
   const observedStageSet = new Set(records.map((record) => record.stage));
@@ -2498,6 +2718,25 @@ async function attachScenarioEvidence(
                 },
                 insuranceAudit: resourceEvidence.insuranceAudit,
                 qualityRectification: resourceEvidence.qualityRectification,
+                followupTemplate: resourceEvidence.followupS12?.template,
+                followupRuntime: resourceEvidence.followupS12?.runtime,
+                followupPlan: resourceEvidence.followupS12?.plan,
+                questionnaire: resourceEvidence.followupS12?.questionnaire,
+                abnormalReturn: resourceEvidence.followupS12?.abnormalReturn,
+                scenarioConditionEvidence: resourceEvidence.followupS12
+                  ? [
+                      {
+                        code: "S12__NORMAL",
+                        scenarioCode: "S12",
+                        condition: "NORMAL",
+                        source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+                        evidence: [
+                          "前台创建并发布 FOLLOWUP 随访方案后纳入当前机构生效版本",
+                          "临床用户基于当前上下文生成随访计划并完成问卷与异常回院登记",
+                        ],
+                      },
+                    ]
+                  : [],
                 standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
                   {
                     resourceType: "Claim",
