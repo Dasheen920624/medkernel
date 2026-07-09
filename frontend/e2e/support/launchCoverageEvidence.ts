@@ -713,6 +713,20 @@ const requiredKnowledgeSupplyChainEvidenceRows = [
   "SAFETY_BOUNDARY",
 ];
 
+const requiredKnowledgeDomainSupplyChainDomains = [
+  "GUIDELINE",
+  "DRUG",
+  "PATHWAY_KNOWLEDGE",
+  "NURSING",
+  "DIAGNOSTIC_ITEM",
+  "TCM",
+  "PROTOCOL",
+  "POLICY",
+  "LITERATURE",
+  "OTHER",
+  "DIAGNOSIS",
+];
+
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
@@ -4001,7 +4015,14 @@ function hasRequiredKnowledgeSupplyChainEvidenceAttachment(tests: BrowserE2eTest
       if (!attachment.body || attachment.contentType !== "application/json") return false;
       try {
         const parsed = recordValue(JSON.parse(attachment.body));
-        if (hasCompleteKnowledgeSupplyChainEvidence(parsed?.knowledgeSupplyChainEvidence)) {
+        if (
+          parsed &&
+          hasCompleteKnowledgeSupplyChainEvidence(parsed.knowledgeSupplyChainEvidence) &&
+          hasKnowledgeDomainSupplyChainLedgerScopeBoundary(
+            parsed.knowledgeDomainSupplyChainRowScope,
+          ) &&
+          hasCompleteKnowledgeDomainSupplyChainRows(parsed.knowledgeDomainSupplyChainRows)
+        ) {
           return true;
         }
       } catch {
@@ -4010,6 +4031,77 @@ function hasRequiredKnowledgeSupplyChainEvidenceAttachment(tests: BrowserE2eTest
     }
   }
   return false;
+}
+
+function hasKnowledgeDomainSupplyChainLedgerScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("11 个知识内容分类逐类生产治理代表子账") &&
+    hasNegatedScopeTerm(statement, "所有医学知识内容已收集完成") &&
+    hasNegatedScopeTerm(statement, "11 类知识内容全部生产完成") &&
+    hasNegatedScopeTerm(statement, "全知识供给链完整上线") &&
+    hasNegatedScopeTerm(statement, "完整上线验收") &&
+    !hasPositiveKnowledgeDomainSupplyChainCompleteScopeClaim(statement) &&
+    !hasPositiveKnowledgeOperationsAssetEntryCompleteScopeClaim(statement)
+  );
+}
+
+function hasPositiveKnowledgeDomainSupplyChainCompleteScopeClaim(statement: string) {
+  return [
+    "所有医学知识内容已收集完成",
+    "全部医学知识内容已收集完成",
+    "11 类知识内容全部生产完成",
+    "十一类知识内容全部生产完成",
+    "11 个知识内容分类完整上线",
+    "11个知识内容分类完整上线",
+    "全知识供给链完整上线",
+    "完整上线",
+    "完整上线验收",
+    "上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCompleteKnowledgeDomainSupplyChainRows(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const rowsByDomain = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const row = recordValue(item);
+    const domain = textValue(row?.domain);
+    if (
+      !row ||
+      !domain ||
+      !requiredKnowledgeDomainSupplyChainDomains.includes(domain) ||
+      rowsByDomain.has(domain) ||
+      !hasCompleteKnowledgeDomainSupplyChainRow(row)
+    ) {
+      return false;
+    }
+    rowsByDomain.set(domain, row);
+  }
+  return requiredKnowledgeDomainSupplyChainDomains.every((domain) => rowsByDomain.has(domain));
+}
+
+function hasCompleteKnowledgeDomainSupplyChainRow(row: Record<string, unknown>) {
+  return (
+    textValue(row.sourceControlEvidencePath) === "knowledgeSupplyChainEvidence.sourceControl" &&
+    textValue(row.productionEvidencePath) === "knowledgeSupplyChainEvidence.humanGovernance" &&
+    textValue(row.reviewEvidencePath) === "knowledgeSupplyChainEvidence.humanGovernance" &&
+    textValue(row.publishEvidencePath) === "knowledgeSupplyChainEvidence.runtimeLifecycle" &&
+    textValue(row.replaceEvidencePath) === "knowledgeSupplyChainEvidence.runtimeLifecycle" &&
+    textValue(row.rollbackEvidencePath) === "knowledgeSupplyChainEvidence.runtimeLifecycle" &&
+    hasText(row.contentHash) &&
+    hasText(row.contentExcerpt) &&
+    row.sourceRegistered === true &&
+    row.productionVerified === true &&
+    row.humanReviewVerified === true &&
+    row.publishedToRuntime === true &&
+    row.replacementVerified === true &&
+    row.rollbackReadbackVerified === true &&
+    row.auditVerified === true &&
+    row.noDirectModelPublish === true &&
+    hasNonEmptyTextArray(row.evidence)
+  );
 }
 
 function hasCompleteVersionedAssetSupplyChainLedgerAttachment(tests: BrowserE2eTestResult[]) {

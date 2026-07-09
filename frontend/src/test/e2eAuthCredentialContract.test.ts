@@ -1034,6 +1034,8 @@ describe("E2E credential contract", () => {
     expect(source).toContain("rollbackReadbackVerified");
     expect(source).toContain("buildKnowledgeSupplyChainEvidence");
     expect(source).toContain("knowledgeSupplyChainEvidence");
+    expect(source).toContain("buildKnowledgeDomainSupplyChainRows");
+    expect(source).toContain("knowledgeDomainSupplyChainRows");
     expect(source).toContain("buildVersionedAssetSupplyChainRows");
     expect(source).toContain("versionedAssetSupplyChainRows");
     expect(source).toContain("contentHashSeed");
@@ -1041,10 +1043,18 @@ describe("E2E credential contract", () => {
     expect(source).toContain("runtime.rollbackReadbackVerified");
     expect(support).toContain("versionedAssetSupplyChainRowScopeStatement");
     expect(support).toContain("13 类版本化资产逐类供给链代表子账");
+    expect(support).toContain("knowledgeDomainSupplyChainRowScopeStatement");
+    expect(support).toContain("11 个知识内容分类逐类生产治理代表子账");
+    expect(support).toContain("buildKnowledgeDomainSupplyChainRows");
+    expect(support).toContain("publishedToRuntime");
+    expect(support).toContain("replacementVerified");
     expect(support).toContain("buildVersionedAssetSupplyChainRows");
     expect(support).toContain("sourceControlEvidencePath");
     expect(support).toContain("noDirectModelPublish");
     expect(support).toContain("continuousIterationVerified");
+    expect(coverageParser).toContain("hasKnowledgeDomainSupplyChainLedgerScopeBoundary");
+    expect(coverageParser).toContain("hasCompleteKnowledgeDomainSupplyChainRows");
+    expect(coverageParser).toContain("parsed.knowledgeDomainSupplyChainRows");
     expect(coverageParser).toContain("hasCompleteVersionedAssetSupplyChainLedgerAttachment");
     expect(coverageParser).toContain("hasCompleteVersionedAssetSupplyChainRows");
     expect(coverageParser).toContain("hasVersionedAssetSupplyChainLedgerScopeBoundary");

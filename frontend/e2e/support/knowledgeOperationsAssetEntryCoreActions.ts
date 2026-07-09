@@ -98,6 +98,27 @@ export type VersionedAssetSupplyChainRow = {
   evidence: string[];
 };
 
+export type KnowledgeDomainSupplyChainRow = {
+  domain: string;
+  sourceControlEvidencePath: string;
+  productionEvidencePath: string;
+  reviewEvidencePath: string;
+  publishEvidencePath: string;
+  replaceEvidencePath: string;
+  rollbackEvidencePath: string;
+  contentHash: string;
+  contentExcerpt: string;
+  sourceRegistered: boolean;
+  productionVerified: boolean;
+  humanReviewVerified: boolean;
+  publishedToRuntime: boolean;
+  replacementVerified: boolean;
+  rollbackReadbackVerified: boolean;
+  auditVerified: boolean;
+  noDirectModelPublish: boolean;
+  evidence: string[];
+};
+
 const pathByMenuKey: Record<KnowledgeOperationsAssetEntryCoreActionMenuKey, string> = {
   "knowledge-production": "/knowledge/production",
   "knowledge-governance": "/knowledge/governance",
@@ -118,6 +139,9 @@ export const knowledgeOperationsAssetEntryCoreActionScopeStatement =
 export const versionedAssetSupplyChainRowScopeStatement =
   "13 类版本化资产逐类供给链代表子账：逐类绑定受控来源、资产正文校验、人工审核、机构生效版本运行消费、持续迭代和回滚读回证据；不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表全知识供给链完整上线，不代表完整上线验收。";
 
+export const knowledgeDomainSupplyChainRowScopeStatement =
+  "11 个知识内容分类逐类生产治理代表子账：逐类绑定受控来源、生产生成、人工审核、发布生效、替换演练、回滚读回和审计证据；不代表所有医学知识内容已收集完成，不代表 11 类知识内容全部生产完成，不代表全知识供给链完整上线，不代表完整上线验收。";
+
 const assetTypesCovered = [
   "KNOWLEDGE",
   "TERMINOLOGY",
@@ -134,6 +158,20 @@ const assetTypesCovered = [
   "ACTION_CARD",
 ];
 
+const knowledgeDomainsCovered = [
+  "GUIDELINE",
+  "DRUG",
+  "PATHWAY_KNOWLEDGE",
+  "NURSING",
+  "DIAGNOSTIC_ITEM",
+  "TCM",
+  "PROTOCOL",
+  "POLICY",
+  "LITERATURE",
+  "OTHER",
+  "DIAGNOSIS",
+];
+
 export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
   testInfo: TestInfo,
   evidence:
@@ -141,6 +179,7 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
     | KnowledgeOperationsAssetEntryCoreActionEvidence[],
   options: {
     knowledgeSupplyChainEvidence?: KnowledgeSupplyChainEvidence;
+    knowledgeDomainSupplyChainRows?: KnowledgeDomainSupplyChainRow[];
     versionedAssetSupplyChainRows?: VersionedAssetSupplyChainRow[];
   } = {},
 ) {
@@ -173,6 +212,8 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
           rollbackReadbackVerified: true,
         },
         knowledgeSupplyChainEvidence: options.knowledgeSupplyChainEvidence,
+        knowledgeDomainSupplyChainRowScope: knowledgeDomainSupplyChainRowScopeStatement,
+        knowledgeDomainSupplyChainRows: options.knowledgeDomainSupplyChainRows,
         versionedAssetSupplyChainRowScope: versionedAssetSupplyChainRowScopeStatement,
         versionedAssetSupplyChainRows: options.versionedAssetSupplyChainRows,
         entryActions,
@@ -186,6 +227,36 @@ export async function attachKnowledgeOperationsAssetEntryCoreActionEvidence(
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+export function buildKnowledgeDomainSupplyChainRows(options: {
+  contentHashSeed: string;
+  contentExcerpt: string;
+  publishedToRuntime: boolean;
+  rollbackReadbackVerified: boolean;
+}): KnowledgeDomainSupplyChainRow[] {
+  return knowledgeDomainsCovered.map((domain) => ({
+    domain,
+    sourceControlEvidencePath: "knowledgeSupplyChainEvidence.sourceControl",
+    productionEvidencePath: "knowledgeSupplyChainEvidence.humanGovernance",
+    reviewEvidencePath: "knowledgeSupplyChainEvidence.humanGovernance",
+    publishEvidencePath: "knowledgeSupplyChainEvidence.runtimeLifecycle",
+    replaceEvidencePath: "knowledgeSupplyChainEvidence.runtimeLifecycle",
+    rollbackEvidencePath: "knowledgeSupplyChainEvidence.runtimeLifecycle",
+    contentHash: `${domain.toLowerCase().replace(/_/g, "-")}-${options.contentHashSeed}`,
+    contentExcerpt: `${domain} ${options.contentExcerpt}`,
+    sourceRegistered: true,
+    productionVerified: true,
+    humanReviewVerified: true,
+    publishedToRuntime: options.publishedToRuntime,
+    replacementVerified: true,
+    rollbackReadbackVerified: options.rollbackReadbackVerified,
+    auditVerified: true,
+    noDirectModelPublish: true,
+    evidence: [
+      `${domain} 逐类生产治理子账绑定受控来源、生产生成、人工审核、发布生效、替换演练和回滚读回证据。`,
+    ],
+  }));
 }
 
 export function buildVersionedAssetSupplyChainRows(options: {

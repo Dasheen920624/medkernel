@@ -717,6 +717,20 @@ const runtimeReleaseVersionedAssets = [
   "ACTION_CARD",
 ];
 
+const fullKnowledgeDomains = [
+  "GUIDELINE",
+  "DRUG",
+  "PATHWAY_KNOWLEDGE",
+  "NURSING",
+  "DIAGNOSTIC_ITEM",
+  "TCM",
+  "PROTOCOL",
+  "POLICY",
+  "LITERATURE",
+  "OTHER",
+  "DIAGNOSIS",
+];
+
 const versionedAssetRepresentativeRows = runtimeReleaseVersionedAssets.filter(
   (asset) => asset !== "EVALUATION",
 );
@@ -7199,6 +7213,32 @@ const knowledgeOperationsAssetEntryCoreActionsEvidence = {
 const versionedAssetSupplyChainRowScope =
   "13 类版本化资产逐类供给链代表子账：逐类绑定受控来源、资产正文校验、人工审核、机构生效版本运行消费、持续迭代和回滚读回证据；不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表全知识供给链完整上线，不代表完整上线验收。";
 
+const knowledgeDomainSupplyChainRowScope =
+  "11 个知识内容分类逐类生产治理代表子账：逐类绑定受控来源、生产生成、人工审核、发布生效、替换演练、回滚读回和审计证据；不代表所有医学知识内容已收集完成，不代表 11 类知识内容全部生产完成，不代表全知识供给链完整上线，不代表完整上线验收。";
+
+function knowledgeDomainSupplyChainRows(domains = fullKnowledgeDomains) {
+  return domains.map((domain) => ({
+    domain,
+    sourceControlEvidencePath: "knowledgeSupplyChainEvidence.sourceControl",
+    productionEvidencePath: "knowledgeSupplyChainEvidence.humanGovernance",
+    reviewEvidencePath: "knowledgeSupplyChainEvidence.humanGovernance",
+    publishEvidencePath: "knowledgeSupplyChainEvidence.runtimeLifecycle",
+    replaceEvidencePath: "knowledgeSupplyChainEvidence.runtimeLifecycle",
+    rollbackEvidencePath: "knowledgeSupplyChainEvidence.runtimeLifecycle",
+    contentHash: `${domain.toLowerCase().replace(/_/g, "-")}-${"b".repeat(64)}`,
+    contentExcerpt: `${domain} 受控知识内容片段已由真实前台链路生成并回读`,
+    sourceRegistered: true,
+    productionVerified: true,
+    humanReviewVerified: true,
+    publishedToRuntime: true,
+    replacementVerified: true,
+    rollbackReadbackVerified: true,
+    auditVerified: true,
+    noDirectModelPublish: true,
+    evidence: [`${domain} 生产、审核、发布、替换和回滚代表证据齐备`],
+  }));
+}
+
 function versionedAssetSupplyChainRows(assetTypes = runtimeReleaseVersionedAssets) {
   return assetTypes.map((assetType) => ({
     assetType,
@@ -7220,6 +7260,8 @@ function knowledgeOperationsAssetEntryCoreActionsEvidenceWithSupplyChainRows(
 ) {
   return {
     ...knowledgeOperationsAssetEntryCoreActionsEvidence,
+    knowledgeDomainSupplyChainRowScope,
+    knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows(),
     versionedAssetSupplyChainRowScope,
     versionedAssetSupplyChainRows: versionedAssetSupplyChainRows(),
     ...overrides,
@@ -20266,7 +20308,7 @@ describe("browser E2E launch coverage evidence", () => {
 
   it("declares knowledge-operations asset entry coverage only from complete real frontdesk supply-chain matrix evidence", () => {
     const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(
-      knowledgeOperationsAssetEntryCoreActionsEvidence,
+      knowledgeOperationsAssetEntryCoreActionsEvidenceWithSupplyChainRows(),
     );
 
     expect(
@@ -20292,6 +20334,95 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare knowledge supply-chain matrix without explicit per-domain production lifecycle ledger", () => {
+    const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(
+      knowledgeOperationsAssetEntryCoreActionsEvidence,
+    );
+
+    expect(
+      evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.knowledgeSupplyChainEvidenceMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.knowledgeSupplyChainEvidenceRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少一个知识内容分类",
+      overrides: {
+        knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows(
+          fullKnowledgeDomains.filter((domain) => domain !== "TCM"),
+        ),
+      },
+    },
+    {
+      name: "逐类行含未知知识分类",
+      overrides: {
+        knowledgeDomainSupplyChainRows: [
+          ...knowledgeDomainSupplyChainRows(),
+          ...knowledgeDomainSupplyChainRows(["UNKNOWN_DOMAIN"]),
+        ],
+      },
+    },
+    {
+      name: "行缺正文校验哈希",
+      overrides: {
+        knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows().map((row) =>
+          row.domain === "GUIDELINE" ? { ...row, contentHash: "" } : row,
+        ),
+      },
+    },
+    {
+      name: "分类未发布到运行版本",
+      overrides: {
+        knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows().map((row) =>
+          row.domain === "DRUG" ? { ...row, publishedToRuntime: false } : row,
+        ),
+      },
+    },
+    {
+      name: "分类缺少替换演练",
+      overrides: {
+        knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows().map((row) =>
+          row.domain === "PATHWAY_KNOWLEDGE" ? { ...row, replacementVerified: false } : row,
+        ),
+      },
+    },
+    {
+      name: "分类缺少回滚读回",
+      overrides: {
+        knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows().map((row) =>
+          row.domain === "DIAGNOSIS" ? { ...row, rollbackReadbackVerified: false } : row,
+        ),
+      },
+    },
+    {
+      name: "允许模型直发",
+      overrides: {
+        knowledgeDomainSupplyChainRows: knowledgeDomainSupplyChainRows().map((row) =>
+          row.domain === "NURSING" ? { ...row, noDirectModelPublish: false } : row,
+        ),
+      },
+    },
+    {
+      name: "scope 冒领 11 类知识内容全部生产完成",
+      overrides: {
+        knowledgeDomainSupplyChainRowScope:
+          "11 个知识内容分类逐类生产治理代表子账已经完成 11 类知识内容全部生产完成并完整上线验收",
+      },
+    },
+  ])("does not declare knowledge supply-chain matrix when $name", ({ overrides }) => {
+    const evidence = knowledgeOperationsAssetEntryCoreActionsEvidenceResult(
+      knowledgeOperationsAssetEntryCoreActionsEvidenceWithSupplyChainRows(overrides),
+    );
+
+    expect(
+      evidence.launchCoverage.knowledgeOperationsAssetEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.knowledgeSupplyChainEvidenceMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.knowledgeSupplyChainEvidenceRows).toBeUndefined();
   });
 
   it("declares a gap-aware 13 asset supply-chain matrix only from cross-spec real evidence", () => {

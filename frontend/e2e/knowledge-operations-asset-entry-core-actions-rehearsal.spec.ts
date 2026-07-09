@@ -29,6 +29,7 @@ import {
 } from "./support/auth";
 import {
   attachKnowledgeOperationsAssetEntryCoreActionEvidence,
+  buildKnowledgeDomainSupplyChainRows,
   buildVersionedAssetSupplyChainRows,
   type KnowledgeOperationsAssetEntryCoreActionEvidence,
   type KnowledgeSupplyChainEvidence,
@@ -150,6 +151,15 @@ test.describe("知识运营资产入口族供给链真实前台演练", () => {
           provenanceAction,
           graphAction,
           aiAction,
+        }),
+        knowledgeDomainSupplyChainRows: buildKnowledgeDomainSupplyChainRows({
+          contentHashSeed: createHash("sha256")
+            .update(`${knowledge.textExcerpt}:${knowledge.identityId}:${runtime.releaseId}`)
+            .digest("hex"),
+          contentExcerpt:
+            "受控知识内容片段由知识运营真实前台链路生成；逐类完整生产声明仍需全域专项 E2E 共同背书。",
+          publishedToRuntime: runtime.runtimeConsumerReadbackVerified,
+          rollbackReadbackVerified: runtime.rollbackReadbackVerified,
         }),
         versionedAssetSupplyChainRows: buildVersionedAssetSupplyChainRows({
           contentHashSeed: createHash("sha256")

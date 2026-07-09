@@ -383,6 +383,51 @@
   34 / 35 个入口全部业务动作闭环、134 清库、目标环境部署或完整上线验收。两个只读 explorer 已关闭，均未编辑、未暂存、
   未提交、未启动服务、未外调。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百四十七批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 4 项 11 个知识内容分类生产治理总账。
+  本批不新增 release coverage key、不新增 S0-S40 五态行；只把知识运营资产入口族附件升级为显式
+  `knowledgeDomainSupplyChainRows` 逐类生产治理 ledger，并要求现有
+  `knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE` 与
+  6 条 `knowledgeSupplyChainEvidenceRows` 必须在知识运营强附件之外，同时具备 11 类知识内容分类逐类子账才会声明。
+  两个只读 explorer 均建议不新增 `launchCoverage.knowledgeDomainSupplyChainRows` 字典，而是收紧现有 LAUNCH-04 三项语义；
+  不能把 `knowledgeDomains` 静态清单、六个横向总门或单个知识运营代表链冒领为 11 类知识内容完整生产闭环。
+- 第二百四十七批实现细节：`frontend/e2e/support/knowledgeOperationsAssetEntryCoreActions.ts` 新增
+  `KnowledgeDomainSupplyChainRow`、`knowledgeDomainSupplyChainRowScopeStatement` 与
+  `buildKnowledgeDomainSupplyChainRows()`，附件写入 `knowledgeDomainSupplyChainRowScope` 和
+  `knowledgeDomainSupplyChainRows`。每行包含
+  `domain/sourceControlEvidencePath/productionEvidencePath/reviewEvidencePath/publishEvidencePath/replaceEvidencePath/`
+  `rollbackEvidencePath/contentHash/contentExcerpt/sourceRegistered/productionVerified/humanReviewVerified/publishedToRuntime/`
+  `replacementVerified/rollbackReadbackVerified/auditVerified/noDirectModelPublish/evidence`，覆盖
+  `GUIDELINE/DRUG/PATHWAY_KNOWLEDGE/NURSING/DIAGNOSTIC_ITEM/TCM/PROTOCOL/POLICY/LITERATURE/OTHER/DIAGNOSIS`。
+  `frontend/e2e/knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts` 以本轮受控来源正文、知识身份和机构
+  runtime release 生成 11 域 ledger hash，明确“逐类完整生产声明仍需全域专项 E2E 共同背书”。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增 `hasKnowledgeDomainSupplyChainLedgerScopeBoundary()`、`hasCompleteKnowledgeDomainSupplyChainRows()` 和逐行校验；
+  `hasRequiredKnowledgeSupplyChainEvidenceAttachment()` 现在必须同时满足六阶段 `knowledgeSupplyChainEvidence`、
+  逐域 scope 否定边界和 11 域逐行 ledger。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：
+  缺显式逐域 ledger、缺任一知识域、未知知识域、缺正文 hash、未发布到运行版本、缺替换演练、缺回滚读回、允许模型直发、
+  scope 冒领 11 类知识内容全部生产完成，均不得声明知识供给链矩阵 / 六行。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  同步锁定 E2E 附件、support builder 和 parser 锚点。
+- 第二百四十七批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 9 个新增负例（旧 parser 仍凭六个总门声明
+  `CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（961 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1028 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-knowledge-domain-ledger-20260710-r1 npm --prefix frontend run e2e -- --project=chromium knowledge-operations-asset-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-knowledge-domain-ledger-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，只声明
+  `knowledgeOperationsAssetEntryCoreActions=[KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE]`、
+  `knowledgeSupplyChainEvidenceMatrix=[CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE]` 和
+  6 条 `knowledgeSupplyChainEvidenceRows`；未声明 `scenarioConditionRows`、`versionedAssetSupplyChainMatrix`、
+  `versionedAssetRepresentativeRows` 或 `versionedAssetKnownGaps`。附件抽查显示 `knowledgeDomainSupplyChainRows` 为 11 行，
+  覆盖全部 11 类知识内容分类，`publishedToRuntime=true`、`replacementVerified=true`、
+  `rollbackReadbackVerified=true`、`noDirectModelPublish=true`；同时保留 13 条 `versionedAssetSupplyChainRows`，但本批不声明
+  13 类资产矩阵。明确不声明 11 类知识内容全部生产完成、所有医学知识内容已收集完成、完整 LAUNCH-04、完整全知识供给链、
+  完整 S0-S40、34 / 35 个入口全部业务动作闭环、134 清库、目标环境部署或完整上线验收。两个只读 explorer 已关闭，
+  均未编辑、未暂存、未提交、未启动服务、未外调。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`
