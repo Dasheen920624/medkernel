@@ -728,6 +728,20 @@ function collectSystemProvidersScenarioConditionEvidence(
     });
   }
   if (
+    evidence.apiEvidence.backupReadinessObserved === true &&
+    evidence.apiEvidence.evidenceDetailsObserved === true &&
+    evidence.backup?.drillEvidence?.status === "NOT_AVAILABLE" &&
+    evidence.backup.drillEvidence.detail?.includes("尚未提供隔离恢复演练证据")
+  ) {
+    rows.push({
+      code: "S15__MISSING_DATA",
+      scenarioCode: "S15",
+      condition: "MISSING_DATA",
+      source: "SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE",
+      evidence: ["服务运行保障快照和前台证据详情均诚实展示尚未提供隔离恢复演练证据"],
+    });
+  }
+  if (
     evidence.apiEvidence.clinicalForbidden === true &&
     evidence.accessEvidence?.clinicalOperationsStatus === 403 &&
     evidence.accessEvidence.clinicalPageForbidden === true &&

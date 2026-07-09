@@ -686,6 +686,44 @@
   已有强链路能否逐字段背书，不得把菜单、路由、普通 `scenarioEvidence` 或代表切片冒领为五态行；若评估
   `S15__NORMAL`，dev/H2 备份恢复仍为 `NOT_AVAILABLE` 时不可声明正常态。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百二十批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵缺口，
+  本批只收口系统运行保障 S15 的本地缺数态，新增 1 条显式背书行：`S15__MISSING_DATA`
+  （dev/H2 真实 `/system/operations` 快照返回备份恢复隔离演练证据 `NOT_AVAILABLE`，前台备份恢复卡和证据详情诚实展示
+  “尚未提供隔离恢复演练证据”，且未进入恢复后 current runtime、第三方 runtime consumer 或临床主链路冒烟）。不声明
+  `S15__NORMAL`、完整 S15、目标环境备份恢复完成、134 清库重部署或完整上线；保留既有 `S15__DEGRADATION`
+  和 `S14__ABNORMAL` 证据边界。
+- 第二百二十批实现细节：`frontend/e2e/system-providers-frontdesk.spec.ts` 的
+  `system-providers-operations-codes` 附件在真实 `backup.drillEvidence.status=NOT_AVAILABLE` 且详情包含
+  “尚未提供隔离恢复演练证据”时新增显式 `scenarioConditionEvidence`，来源固定为
+  `SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE`。`frontend/e2e/support/launchCoverageEvidence.ts`
+  新增 S15 缺数行白名单和 backing helper：必须同时满足 `operationsSnapshotRead/backupReadinessObserved/evidenceDetailsObserved`
+  为真，`runtimeReadbackObserved/runtimeConsumerReadbackObserved/clinicalSmokeAfterRestore` 为假，
+  `runtimeContinuityEvidence` 缺席，备份恢复 RPO/RTO/脚本/SHA-256 策略存在，`drillEvidence.status=NOT_AVAILABLE`，
+  `completedAt/migrationCount/evidenceReference/checksumEvidence/drillDatabaseIsIsolated/rpo/rto` 均为空，且详情非空并包含
+  “尚未提供隔离恢复演练证据”。完整 `hasRequiredSystemProvidersAttachment()` 仍只接受 `SUCCESS` 隔离恢复证据，
+  所以本地缺数态不会冒领普通系统运维 coverage、`deliveryShapes` 或 `serviceCombinations`。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：本地 `NOT_AVAILABLE` 形态现在只产出
+  `S15__MISSING_DATA/S15__DEGRADATION/S14__ABNORMAL`，不产出 `S15__NORMAL`；状态非 `NOT_AVAILABLE`、缺详情、
+  缺数态夹带成功校验摘要、来源错配均不声明 `S15__MISSING_DATA`。
+- 第二百二十批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s15-missing-data-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s15-missing-data-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=2`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S15__DEGRADATION,S15__MISSING_DATA,S14__ABNORMAL]`，`deliveryShapes/serviceCombinations` 为空；附件抽查显示
+  `backup.enabled=false`、`drillEvidence.status=NOT_AVAILABLE`、详情为“尚未提供隔离恢复演练证据”，且没有
+  `runtimeContinuityEvidence`。
+- 第二百二十批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S15__MISSING_DATA`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（623 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百二十批边界与下一步：本批只是把系统运行保障本地缺失备份恢复演练证据接入 1 条五态总账行，
+  仍不是完整上线完成、不是完整 205 行五态矩阵完成、不是完整 S15 目标环境恢复演练完成、不是 134 清库重部署。
+  下一批继续沿 `LAUNCH-06` 时优先只读预审尚未具备条件行的真实强链路，不能用 `NOT_AVAILABLE` 冒领正常态；
+  也可转向 `LAUNCH-13` 九层组织真实证据模型。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

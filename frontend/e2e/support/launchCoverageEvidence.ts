@@ -1179,6 +1179,12 @@ const systemProvidersScenarioConditionRows = [
     source: "SYSTEM_DEPENDENCY_HONEST_DEGRADATION",
   },
   {
+    code: "S15__MISSING_DATA",
+    scenarioCode: "S15",
+    condition: "MISSING_DATA",
+    source: "SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE",
+  },
+  {
     code: "S14__ABNORMAL",
     scenarioCode: "S14",
     condition: "ABNORMAL",
@@ -5370,6 +5376,7 @@ function collectSystemProvidersScenarioConditionClaimsFromTest(test: BrowserE2eT
       apiEvidence?: unknown;
       dependencyEvidence?: unknown;
       accessEvidence?: unknown;
+      backup?: unknown;
       runtimeContinuityEvidence?: unknown;
       scenarioConditionEvidence?: unknown;
     };
@@ -5391,6 +5398,7 @@ function collectSystemProvidersScenarioConditionClaimsFromTest(test: BrowserE2eT
             apiEvidence,
             dependencyEvidence,
             accessEvidence,
+            parsed.backup,
             parsed.runtimeContinuityEvidence,
           ),
       )
@@ -5405,6 +5413,7 @@ function systemProvidersScenarioConditionBackedByEvidence(
   apiEvidence: Record<string, unknown>,
   dependencyEvidence: Record<string, unknown>,
   accessEvidence: Record<string, unknown>,
+  backup: unknown,
   runtimeContinuityEvidence: unknown,
 ) {
   switch (code) {
@@ -5423,6 +5432,17 @@ function systemProvidersScenarioConditionBackedByEvidence(
         apiEvidence.operationsSnapshotRead === true &&
         apiEvidence.honestDegradationObserved === true &&
         hasCompleteSystemProvidersDependencyEvidence(dependencyEvidence)
+      );
+    case "S15__MISSING_DATA":
+      return (
+        apiEvidence.operationsSnapshotRead === true &&
+        apiEvidence.backupReadinessObserved === true &&
+        apiEvidence.evidenceDetailsObserved === true &&
+        apiEvidence.runtimeReadbackObserved === false &&
+        apiEvidence.runtimeConsumerReadbackObserved === false &&
+        apiEvidence.clinicalSmokeAfterRestore === false &&
+        runtimeContinuityEvidence === undefined &&
+        hasSystemProvidersMissingBackupDrillEvidence(backup)
       );
     case "S14__ABNORMAL":
       return (
@@ -12813,6 +12833,33 @@ function hasCompleteSystemProvidersBackupEvidence(value: unknown) {
     drill.drillDatabaseIsIsolated === true &&
     hasText(drill.rpo) &&
     hasText(drill.rto)
+  );
+}
+
+function hasSystemProvidersMissingBackupDrillEvidence(value: unknown) {
+  const backup = recordValue(value);
+  const drill = recordValue(backup?.drillEvidence);
+  return (
+    backup !== null &&
+    drill !== null &&
+    hasText(backup.rpo) &&
+    hasText(backup.rto) &&
+    typeof backup.checksumPolicy === "string" &&
+    backup.checksumPolicy.includes("SHA-256") &&
+    typeof backup.backupScript === "string" &&
+    backup.backupScript.includes("backup.sh") &&
+    typeof backup.restoreScript === "string" &&
+    backup.restoreScript.includes("restore.sh") &&
+    drill.status === "NOT_AVAILABLE" &&
+    drill.completedAt == null &&
+    drill.migrationCount == null &&
+    drill.evidenceReference == null &&
+    drill.checksumEvidence == null &&
+    drill.drillDatabaseIsIsolated == null &&
+    drill.rpo == null &&
+    drill.rto == null &&
+    hasText(drill.detail) &&
+    String(drill.detail).includes("尚未提供隔离恢复演练证据")
   );
 }
 

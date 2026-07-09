@@ -8122,6 +8122,13 @@ describe("browser E2E launch coverage evidence", () => {
       runtimeContinuityEvidence: undefined,
       scenarioConditionEvidence: [
         {
+          code: "S15__MISSING_DATA",
+          scenarioCode: "S15",
+          condition: "MISSING_DATA",
+          source: "SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE",
+          evidence: ["服务运行保障快照和前台证据详情均诚实展示尚未提供隔离恢复演练证据"],
+        },
+        {
           code: "S15__DEGRADATION",
           scenarioCode: "S15",
           condition: "DEGRADATION",
@@ -8155,10 +8162,9 @@ describe("browser E2E launch coverage evidence", () => {
       ],
     });
 
-    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
-      "S15__DEGRADATION",
-      "S14__ABNORMAL",
-    ]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code).sort()).toEqual(
+      ["S14__ABNORMAL", "S15__MISSING_DATA", "S15__DEGRADATION"].sort(),
+    );
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).not.toContain(
       "S15__NORMAL",
     );
@@ -8206,6 +8212,119 @@ describe("browser E2E launch coverage evidence", () => {
           ...systemProvidersEvidence.dependencyEvidence,
           honestDegradationText: "",
         },
+      },
+    },
+    {
+      name: "备份恢复缺证状态不是 NOT_AVAILABLE",
+      missingCode: "S15__MISSING_DATA",
+      body: {
+        ...systemProvidersEvidence,
+        backup: {
+          ...systemProvidersEvidence.backup,
+          drillEvidence: {
+            ...systemProvidersEvidence.backup.drillEvidence,
+            status: "SUCCESS",
+          },
+        },
+        scenarioConditionEvidence: [
+          {
+            code: "S15__MISSING_DATA",
+            scenarioCode: "S15",
+            condition: "MISSING_DATA",
+            source: "SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE",
+            evidence: ["不能把成功演练冒领为缺数态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "备份恢复缺证详情为空",
+      missingCode: "S15__MISSING_DATA",
+      body: {
+        ...systemProvidersEvidence,
+        backup: {
+          ...systemProvidersEvidence.backup,
+          drillEvidence: {
+            status: "NOT_AVAILABLE",
+            completedAt: null,
+            migrationCount: null,
+            evidenceReference: null,
+            checksumEvidence: null,
+            drillDatabaseIsIsolated: null,
+            rpo: null,
+            rto: null,
+            detail: "",
+          },
+        },
+        scenarioConditionEvidence: [
+          {
+            code: "S15__MISSING_DATA",
+            scenarioCode: "S15",
+            condition: "MISSING_DATA",
+            source: "SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE",
+            evidence: ["缺少前台诚实缺证详情不能声明缺数态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "备份恢复缺证同时夹带成功校验摘要",
+      missingCode: "S15__MISSING_DATA",
+      body: {
+        ...systemProvidersEvidence,
+        backup: {
+          ...systemProvidersEvidence.backup,
+          drillEvidence: {
+            status: "NOT_AVAILABLE",
+            completedAt: null,
+            migrationCount: null,
+            evidenceReference: null,
+            checksumEvidence: "sha256:abc",
+            drillDatabaseIsIsolated: null,
+            rpo: null,
+            rto: null,
+            detail: "尚未提供隔离恢复演练证据",
+          },
+        },
+        scenarioConditionEvidence: [
+          {
+            code: "S15__MISSING_DATA",
+            scenarioCode: "S15",
+            condition: "MISSING_DATA",
+            source: "SYSTEM_BACKUP_RESTORE_DRILL_EVIDENCE_NOT_AVAILABLE",
+            evidence: ["缺数态不能夹带成功校验摘要"],
+          },
+        ],
+      },
+    },
+    {
+      name: "备份恢复缺证来源错配",
+      missingCode: "S15__MISSING_DATA",
+      body: {
+        ...systemProvidersEvidence,
+        backup: {
+          ...systemProvidersEvidence.backup,
+          drillEvidence: {
+            status: "NOT_AVAILABLE",
+            completedAt: null,
+            migrationCount: null,
+            evidenceReference: null,
+            checksumEvidence: null,
+            drillDatabaseIsIsolated: null,
+            rpo: null,
+            rto: null,
+            detail: "尚未提供隔离恢复演练证据",
+          },
+        },
+        scenarioConditionEvidence: [
+          {
+            code: "S15__MISSING_DATA",
+            scenarioCode: "S15",
+            condition: "MISSING_DATA",
+            source: "SYSTEM_DEPENDENCY_HONEST_DEGRADATION",
+            evidence: ["降级来源不能冒领备份恢复缺数态"],
+          },
+        ],
       },
     },
     {
