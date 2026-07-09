@@ -2031,6 +2031,55 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("34 个入口全部业务动作已闭环");
   });
 
+  it("requires compliance and personal entry coverage to aggregate only the two real action evidence specs", () => {
+    const fourRoleSource = readFileSync("e2e/four-role-core-actions-rehearsal.spec.ts", "utf8");
+    const entrySource = readFileSync("e2e/entry-core-actions-rehearsal.spec.ts", "utf8");
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    const fullSystemGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
+
+    expect(fourRoleSource).toContain("four-role-core-actions-codes");
+    expect(fourRoleSource).toContain('path: "/admin/audit"');
+    expect(fourRoleSource).toContain(
+      'serviceOperation: "POST /api/v1/compliance/evidence/snapshots/{evidenceId}/verify"',
+    );
+    expect(entrySource).toContain("entry-core-actions-codes");
+    expect(entrySource).toContain('path: "/security/baseline"');
+    expect(entrySource).toContain('serviceOperation: "PATCH /api/v1/system/configs/{key}"');
+    expect(entrySource).toContain('path: "/notifications"');
+    expect(entrySource).toContain(
+      'serviceOperation: "POST /api/v1/engine/notifications/{notificationId}/read"',
+    );
+    expect(entrySource).toContain('path: "/notifications/settings"');
+    expect(entrySource).toContain('serviceOperation: "PUT /api/v1/engine/notifications/settings"');
+    expect(entrySource).toContain('path: "/advanced/provenance"');
+    expect(entrySource).toContain(
+      'serviceOperation: "GET /api/v1/engine/knowledge/identities/{id}/provenance"',
+    );
+    expect(entrySource).not.toContain(
+      'serviceOperation: "PATCH /api/v1/system/config-items/{key}"',
+    );
+    expect(entrySource).not.toContain(
+      'serviceOperation: "POST /api/v1/notifications/{notificationId}/read"',
+    );
+    expect(entrySource).not.toContain(
+      'serviceOperation: "GET /api/v1/provenance/knowledge-identities"',
+    );
+    expect(coverageParser).toContain(
+      "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
+    );
+    expect(coverageParser).toContain("SECURITY_BASELINE_CONFIG_CHANGE");
+    expect(coverageParser).toContain("AUDIT_EVIDENCE_EXPORT_VERIFY");
+    expect(coverageParser).toContain("NOTIFICATION_READBACK");
+    expect(coverageParser).toContain("NOTIFICATION_SETTINGS_SAVE");
+    expect(coverageParser).toContain("SOURCE_LINEAGE_PROVENANCE_READBACK");
+    expect(coverageParser).toContain("collectCompleteFourRoleCoreActionsFromTargetSpec");
+    expect(coverageParser).toContain("collectCompleteSixEntryCoreActionsFromTargetSpec");
+    expect(coverageParser).toContain('"four-role-core-actions-rehearsal.spec.ts"');
+    expect(coverageParser).toContain('"entry-core-actions-rehearsal.spec.ts"');
+    expect(fullSystemGate).toContain("complianceWorkbenchPersonalEntryMatrix");
+    expect(fullSystemGate).toContain("complianceWorkbenchPersonalEntryRows");
+  });
+
   it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
     const e2eSource = readFileSync(
       "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",

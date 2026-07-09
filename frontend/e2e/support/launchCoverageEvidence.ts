@@ -402,6 +402,46 @@ const fourRoleCoreActionsClaims = ["roleRepresentativeCoreActions:FOUR_ROLE_PRIM
 const sixEntryCoreActionsClaims = [
   "entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
 ];
+const complianceWorkbenchPersonalEntryMatrixClaims = [
+  "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
+];
+const requiredComplianceWorkbenchPersonalEntryRows = [
+  {
+    row: "SECURITY_BASELINE_CONFIG_CHANGE",
+    source: "entry",
+    role: "platform-admin",
+    path: "/security/baseline",
+    serviceOperation: "PATCH /api/v1/system/configs/{key}",
+  },
+  {
+    row: "AUDIT_EVIDENCE_EXPORT_VERIFY",
+    source: "role",
+    role: "auditor",
+    path: "/admin/audit",
+    serviceOperation: "POST /api/v1/compliance/evidence/snapshots/{evidenceId}/verify",
+  },
+  {
+    row: "NOTIFICATION_READBACK",
+    source: "entry",
+    role: "clinical-user",
+    path: "/notifications",
+    serviceOperation: "POST /api/v1/engine/notifications/{notificationId}/read",
+  },
+  {
+    row: "NOTIFICATION_SETTINGS_SAVE",
+    source: "entry",
+    role: "clinical-user",
+    path: "/notifications/settings",
+    serviceOperation: "PUT /api/v1/engine/notifications/settings",
+  },
+  {
+    row: "SOURCE_LINEAGE_PROVENANCE_READBACK",
+    source: "entry",
+    role: "auditor",
+    path: "/advanced/provenance",
+    serviceOperation: "GET /api/v1/engine/knowledge/identities/{id}/provenance",
+  },
+] as const;
 const platformAdminEntryCoreActionsClaims = [
   "platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS",
 ];
@@ -1001,6 +1041,18 @@ export function buildBrowserE2eLaunchEvidence(input: {
         ...launchReadinessStakeholderMatrixClaims,
         ...requiredLaunchReadinessStakeholders.map(
           (stakeholder) => `launchReadinessStakeholderRows:${stakeholder.row}`,
+        ),
+      ],
+      generatedAt,
+    );
+  }
+  if (hasRequiredComplianceWorkbenchPersonalEntryEvidence(input.tests)) {
+    mergeClaims(
+      evidence.launchCoverage,
+      [
+        ...complianceWorkbenchPersonalEntryMatrixClaims,
+        ...requiredComplianceWorkbenchPersonalEntryRows.map(
+          (entry) => `complianceWorkbenchPersonalEntryRows:${entry.row}`,
         ),
       ],
       generatedAt,
@@ -1927,6 +1979,80 @@ function hasCompleteSixEntryCoreAction(value: unknown) {
     hasText(action.path) &&
     hasText(action.frontdeskAction) &&
     hasText(action.serviceOperation) &&
+    typeof serviceStatus === "number" &&
+    serviceStatus >= 200 &&
+    serviceStatus < 300 &&
+    action.readbackVerified === true &&
+    action.auditVerified === true
+  );
+}
+
+function hasRequiredComplianceWorkbenchPersonalEntryEvidence(tests: BrowserE2eTestResult[]) {
+  const roleActions = collectCompleteFourRoleCoreActionsFromTargetSpec(tests);
+  const entryActions = collectCompleteSixEntryCoreActionsFromTargetSpec(tests);
+  if (!roleActions || !entryActions) return false;
+  return requiredComplianceWorkbenchPersonalEntryRows.every((entry) => {
+    const actions = entry.source === "role" ? roleActions : entryActions;
+    return actions.some((action) => hasCompleteComplianceWorkbenchPersonalEntryAction(action, entry));
+  });
+}
+
+function collectCompleteFourRoleCoreActionsFromTargetSpec(tests: BrowserE2eTestResult[]) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "four-role-core-actions-rehearsal.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !hasRequiredFourRoleCoreActionsAttachment(test)
+    ) {
+      continue;
+    }
+    const parsed = parseJsonAttachment(test, "four-role-core-actions-codes");
+    const roleActions = recordValue(parsed)?.roleActions;
+    if (Array.isArray(roleActions)) return roleActions;
+  }
+  return null;
+}
+
+function collectCompleteSixEntryCoreActionsFromTargetSpec(tests: BrowserE2eTestResult[]) {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "entry-core-actions-rehearsal.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected" ||
+      !hasRequiredSixEntryCoreActionsAttachment(test)
+    ) {
+      continue;
+    }
+    const parsed = parseJsonAttachment(test, "entry-core-actions-codes");
+    const entryActions = recordValue(parsed)?.entryActions;
+    if (Array.isArray(entryActions)) return entryActions;
+  }
+  return null;
+}
+
+function parseJsonAttachment(test: BrowserE2eTestResult, attachmentName: string) {
+  const attachment = test.attachments?.find((item) => item.name === attachmentName);
+  if (!attachment?.body) return undefined;
+  try {
+    return JSON.parse(attachment.body) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function hasCompleteComplianceWorkbenchPersonalEntryAction(
+  value: unknown,
+  expected: (typeof requiredComplianceWorkbenchPersonalEntryRows)[number],
+) {
+  const action = recordValue(value);
+  if (!action) return false;
+  const serviceStatus = action.serviceStatus;
+  return (
+    action.role === expected.role &&
+    action.path === expected.path &&
+    action.serviceOperation === expected.serviceOperation &&
+    hasText(action.frontdeskAction) &&
     typeof serviceStatus === "number" &&
     serviceStatus >= 200 &&
     serviceStatus < 300 &&

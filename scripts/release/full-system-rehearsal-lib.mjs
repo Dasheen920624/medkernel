@@ -208,6 +208,20 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     label: "五类医技报告族真实消费者矩阵",
     codes: ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG"],
   },
+  complianceWorkbenchPersonalEntryMatrix: {
+    label: "合规安全与工作台个人入口强证据矩阵",
+    codes: ["COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS"],
+  },
+  complianceWorkbenchPersonalEntryRows: {
+    label: "合规安全与工作台个人入口强证据行",
+    codes: [
+      "SECURITY_BASELINE_CONFIG_CHANGE",
+      "AUDIT_EVIDENCE_EXPORT_VERIFY",
+      "NOTIFICATION_READBACK",
+      "NOTIFICATION_SETTINGS_SAVE",
+      "SOURCE_LINEAGE_PROVENANCE_READBACK",
+    ],
+  },
   organizationLevels: {
     label: "集团组织层级",
     codes: [

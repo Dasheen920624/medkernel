@@ -890,7 +890,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("知识身份已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("来源证据已记录").length).toBeGreaterThan(0);
     expect(screen.getByText("VTE 防治指南")).toBeInTheDocument();
-    expect(screen.getByText("待审 VTE 指南 2026.06")).toBeInTheDocument();
+    expect(screen.getAllByText("待审 VTE 指南 2026.06").length).toBeGreaterThan(0);
     expect(
       screen.getByText("同一 identity 下来源版本更新，GRADE 强度与现行版冲突"),
     ).toBeInTheDocument();
@@ -1838,7 +1838,7 @@ describe("KnowledgeGovernance", () => {
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
-    expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(2002);
+    expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(9001);
     expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
     expect(screen.getByText("现行 VTE 指南")).toBeInTheDocument();
     expect(screen.getByText("现行摘要")).toBeInTheDocument();
@@ -1858,6 +1858,47 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("candidate-real-hash").length).toBeGreaterThan(0);
     expect(screen.getByText("source-fragment-candidate")).toBeInTheDocument();
     expect(screen.getByText("候选与现行权威版本存在高危条款冲突。")).toBeInTheDocument();
+  });
+
+  it("does not use the candidate version id as the diff endpoint id while classification is missing", async () => {
+    const user = userEvent.setup();
+    mockUseKnowledgeCandidates.mockReturnValue({
+      data: {
+        identityId: 42,
+        candidates: pageResponse([candidateVersion], 21),
+        classifications: [],
+        available: true,
+        reasonCode: "CONFLICT",
+        message: "存在冲突候选，需人工审核。",
+      },
+      refetch: refetchCandidates,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseKnowledgeCandidateDiff.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+
+    expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(undefined);
+    expect(mockUseKnowledgeCandidateDiff).not.toHaveBeenCalledWith(2002);
+    expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
+    expect(screen.getAllByText("待审 VTE 指南 2026.06").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "缺少审核分类记录时不得提交。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).not.toHaveBeenCalled();
+      expect(screen.getByText("未找到候选分类审核记录")).toBeInTheDocument();
+    });
   });
 
   it("shows AI production provenance in hospital language without exposing technical tokens by default", async () => {

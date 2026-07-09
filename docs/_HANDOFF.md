@@ -10,6 +10,61 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百八十六批本地推进：接第一百八十五批和用户“全角色真实前台验证、知识只是一个点、要全局考虑”的要求，本批选择非破坏、
+  可本地验证且能继续收紧上线门禁的一刀：把合规安全、审计、消息通知、个人通知偏好和来源血缘五个真实入口从四职责 /
+  六入口代表矩阵中拆出为强证据矩阵；同时修复真实前台 E2E 暴露的知识审核对照 404 根因。参考会话
+  `019f3cb1-0ed2-7fd3-9a39-83beb256dfc5` 已读，只作为背景输入：134 需要扩建全类型医学资产生产链，术语 /
+  值集 / 公式 / 安全红线等数据来源应走标准包导入、院内系统同步、原文结构化和声明式维护；外部资料只做受控准备，
+  正式资产仍必须回到 134 生产、审核、发布、机构生效、运行消费和回滚，不另起旁路知识系统。
+- 第一百八十六批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS` 与
+  `complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE/AUDIT_EVIDENCE_EXPORT_VERIFY/NOTIFICATION_READBACK/NOTIFICATION_SETTINGS_SAVE/SOURCE_LINEAGE_PROVENANCE_READBACK`。
+  新矩阵必须同时读取 `four-role-core-actions-rehearsal.spec.ts` 的 `four-role-core-actions-codes` 和
+  `entry-core-actions-rehearsal.spec.ts` 的 `entry-core-actions-codes`，且只接受 passed/expected 的目标 spec；逐行强校验
+  `role/path/serviceOperation/serviceStatus/readbackVerified/auditVerified`，其中 `/admin/audit` 来自四职责附件，必须是
+  `auditor + POST /api/v1/compliance/evidence/snapshots/{evidenceId}/verify`；`/security/baseline`、`/notifications`、
+  `/notifications/settings`、`/advanced/provenance` 来自六入口附件，必须分别匹配
+  `PATCH /api/v1/system/configs/{key}`、`POST /api/v1/engine/notifications/{notificationId}/read`、
+  `PUT /api/v1/engine/notifications/settings`、`GET /api/v1/engine/knowledge/identities/{id}/provenance`。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 增加正向和缺目标 path、旧端点、错角色、非 2xx、缺回读 /
+  缺审计、非目标 spec、单附件冒领等负向；`scripts/release/full-system-rehearsal-lib.mjs` 注册新矩阵和五行，
+  `scripts/release/launch-coverage-audit.test.mjs` 增加完整覆盖审计正向输出和缺项拒绝。
+- 第一百八十六批真实 E2E 根因修复：目标 E2E 初次红点出在
+  `entry-core-actions-rehearsal.spec.ts` 的知识审核发布中心动作，页面点击“查看审核对照”后请求
+  `GET /api/v1/engine/knowledge/candidates/36/diff` 返回 404（`知识候选 id=36 不存在`）。经前后端追踪确认：
+  后端 `/engine/knowledge/candidates/{candidateId}/diff` 与 `/review` 路径参数实际是 `CandidateClassification.id`，
+  不是候选版本 id；`KnowledgeGovernance.tsx` 原先把 `selectedCandidateId`（候选版本 id）传给
+  `useKnowledgeCandidateDiff`，真实数据下会错读 diff。现改为先用候选版本 id 匹配列表里的
+  `CandidateClassification`，再把 `selectedClassification.id` 传给 diff；抽屉展示仍用候选版本 id 匹配候选版本，
+  审核提交继续使用 classification id。`KnowledgeGovernance.test.tsx` 将 diff 调用锁定为 9001，并补“分类暂缺时不把候选版本
+  id=2002 当作 diff endpoint id、抽屉仍展示候选、审核提交被‘未找到候选分类审核记录’保护”的负向。
+- 第一百八十六批真实 E2E 与验证证据：目标真实 E2E 第一次复跑失败，证据目录
+  `/tmp/medkernel-e2e-compliance-workbench-personal-entry-20260709-r1`，`results.json` 为 `FAILED`
+  （expected=5，unexpected=1，flaky=0），错误为知识候选 diff 404；修复后第二次复跑：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5174 E2E_API_BASE_URL=http://localhost:18092/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18092 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-compliance-workbench-personal-entry-20260709-r2 npm --prefix frontend run e2e -- --project=chromium four-role-core-actions-rehearsal.spec.ts entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-compliance-workbench-personal-entry-20260709-r2/report/results.json` 为 `PASSED`
+  （expected=6，unexpected=0，flaky=0，skipped=0，duration≈184.8s），顶层 `launchCoverage` 同时声明
+  `roleRepresentativeCoreActions.FOUR_ROLE_PRIMARY_ACTIONS`、`entryRepresentativeCoreActions.SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE`、
+  `complianceWorkbenchPersonalEntryMatrix.COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS` 和五条
+  `complianceWorkbenchPersonalEntryRows`。注意：本地 Playwright 项目因既有依赖一并跑出 6 个测试和若干历史附件，但目标两条
+  `four-role-core-actions-rehearsal.spec.ts`、`entry-core-actions-rehearsal.spec.ts` 均 passed，矩阵声明来自这两个目标附件。
+- 第一百八十六批收尾门禁：最终复跑通过：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（329 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（58 tests）、
+  `npm --prefix frontend run test -- KnowledgeGovernance -- --run`（39 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）。
+  `git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 以及两个脚本文件工作树 CRLF 将被 LF
+  替换，没有 whitespace error。只读审查子代理复核本批 diff，未发现 Critical / Important / Minor 问题。
+- 第一百八十六批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是 34 个入口全部业务动作闭环、
+  不是 13 类第三方系统族真实消费者全部完成、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成，也不是所有医学知识、
+  术语、值集、公式、安全红线或标准包已收集 / 生产完成。下一批建议继续按全局上线门禁推进：1）继续补药事审方 Webhook /
+  NOT_CONNECTED 补偿矩阵、公卫院感 / 手麻输血 ICU 断连降级行和更多第三方系统族真实消费者；2）推进 34 入口剩余真实业务动作，
+  不能停在菜单点击、路由 2xx 或代表矩阵；3）把参考会话的知识资料准备结论落回 134：标准包导入、院内字典持续同步、原文 /
+  原包留存、结构校验、覆盖矩阵、持续更新、影响分析和回滚审计；4）目标库迁移 smoke、公网模型 Provider 真实证据、真实第三方
+  回调、134 清库 / 重部署仍按 deferred / destructive 规则推进，执行前必须再次取得用户明确确认。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十五批本地推进：接第一百八十四批和用户“知识只是一个点，要全局考虑、可用子代理提效”的要求，先提交
   `1d00456dd test: 补上线保障三视角门禁` 固化上一批；随后用只读子代理并行盘点全角色入口、第三方系统族和 134
   知识主链缺口。本批选择非破坏、证据已成熟且能推进全局上线门禁的一刀：把既有 S36 医技报告真实消费者证据纳入完整覆盖审计，

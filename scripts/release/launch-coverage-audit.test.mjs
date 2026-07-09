@@ -157,6 +157,29 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       "HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
     ],
   );
+  assert.deepEqual(evidence.coverage.complianceWorkbenchPersonalEntryMatrix, [
+    {
+      code: "COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.complianceWorkbenchPersonalEntryMatrix.COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
+      observedCode: "COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    evidence.coverage.complianceWorkbenchPersonalEntryRows.map((item) => item.code),
+    [
+      "SECURITY_BASELINE_CONFIG_CHANGE",
+      "AUDIT_EVIDENCE_EXPORT_VERIFY",
+      "NOTIFICATION_READBACK",
+      "NOTIFICATION_SETTINGS_SAVE",
+      "SOURCE_LINEAGE_PROVENANCE_READBACK",
+    ],
+  );
   assert.deepEqual(evidence.coverage.thirdPartySystemFamilyConsumerSlices, [
     {
       code: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
@@ -294,6 +317,22 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
         readJson: readKnownEvidence(missingDiagnosticMatrix),
       }),
     /五类医技报告族真实消费者矩阵.*PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG.*缺少前置阶段证据/u,
+  );
+
+  const missingCompliancePersonal = completeStageEvidence();
+  missingCompliancePersonal[
+    "browser-e2e"
+  ].launchCoverage.complianceWorkbenchPersonalEntryRows = missingCompliancePersonal[
+    "browser-e2e"
+  ].launchCoverage.complianceWorkbenchPersonalEntryRows.filter(
+    (item) => item.code !== "NOTIFICATION_SETTINGS_SAVE",
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingCompliancePersonal),
+      }),
+    /合规安全与工作台个人入口强证据行.*NOTIFICATION_SETTINGS_SAVE.*缺少前置阶段证据/u,
   );
 });
 
@@ -534,6 +573,12 @@ function completeStageEvidence(options = {}) {
     "launchReadinessStakeholderRows:IT_MANAGER_RUNTIME_DIAGNOSTICS",
     "launchReadinessStakeholderRows:IMPLEMENTATION_ENGINEER_ONBOARDING_GUIDE",
     "launchReadinessStakeholderRows:HOSPITAL_EXECUTIVE_QUALITY_OVERVIEW",
+    "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
+    "complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE",
+    "complianceWorkbenchPersonalEntryRows:AUDIT_EVIDENCE_EXPORT_VERIFY",
+    "complianceWorkbenchPersonalEntryRows:NOTIFICATION_READBACK",
+    "complianceWorkbenchPersonalEntryRows:NOTIFICATION_SETTINGS_SAVE",
+    "complianceWorkbenchPersonalEntryRows:SOURCE_LINEAGE_PROVENANCE_READBACK",
     "thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
     "diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
     "semanticFamilies:DISEASE_DIAGNOSIS",

@@ -957,13 +957,16 @@ export default function KnowledgeGovernance({
     );
   };
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId);
-  const diffQuery = useKnowledgeCandidateDiff(selectedCandidateId);
+  const selectedListClassification = classificationFor(classifications, selectedCandidateId);
+  const selectedClassificationId = selectedListClassification?.id;
+  const diffQuery = useKnowledgeCandidateDiff(selectedClassificationId);
   const reviewMutation = useReviewKnowledgeCandidate();
   const retirementMutation = useDeprecateKnowledgeIdentity();
 
   const diffCandidates = diffQuery.data?.candidates.items ?? [];
   const diffClassifications = diffQuery.data?.classifications ?? classifications;
-  const selectedClassification = classificationFor(diffClassifications, selectedCandidateId);
+  const selectedClassification =
+    classificationFor(diffClassifications, selectedCandidateId) ?? selectedListClassification;
   const activeVersion =
     diffCandidates.find((version) => version.id === selectedClassification?.activeVersionId) ??
     diffCandidates.find((version) => version.status === "ACTIVE");

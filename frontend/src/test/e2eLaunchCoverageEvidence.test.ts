@@ -4361,7 +4361,7 @@ const sixEntryCoreActionsEvidence = {
       role: "platform-admin",
       path: "/security/baseline",
       frontdeskAction: "前台保存配置、执行权限试算和脱敏预览",
-      serviceOperation: "PATCH /api/v1/system/config-items/{key}",
+      serviceOperation: "PATCH /api/v1/system/configs/{key}",
       serviceStatus: 200,
       readbackVerified: true,
       auditVerified: true,
@@ -4388,7 +4388,7 @@ const sixEntryCoreActionsEvidence = {
       role: "clinical-user",
       path: "/notifications",
       frontdeskAction: "前台打开来源并标为已读",
-      serviceOperation: "POST /api/v1/notifications/{notificationId}/read",
+      serviceOperation: "POST /api/v1/engine/notifications/{notificationId}/read",
       serviceStatus: 200,
       readbackVerified: true,
       auditVerified: true,
@@ -4397,7 +4397,7 @@ const sixEntryCoreActionsEvidence = {
       role: "clinical-user",
       path: "/notifications/settings",
       frontdeskAction: "前台保存个人通知偏好并回读强制安全订阅",
-      serviceOperation: "PUT /api/v1/notifications/preferences/me",
+      serviceOperation: "PUT /api/v1/engine/notifications/settings",
       serviceStatus: 200,
       readbackVerified: true,
       auditVerified: true,
@@ -4406,7 +4406,7 @@ const sixEntryCoreActionsEvidence = {
       role: "clinical-user",
       path: "/sandbox",
       frontdeskAction: "前台运行真实协同链路并查看运行证据摘要",
-      serviceOperation: "POST /api/v1/sandbox/scenarios/{scenarioCode}/run",
+      serviceOperation: "POST /api/v1/engine/sandbox/scenarios/{scenarioId}/run",
       serviceStatus: 200,
       readbackVerified: true,
       auditVerified: true,
@@ -4415,7 +4415,7 @@ const sixEntryCoreActionsEvidence = {
       role: "auditor",
       path: "/advanced/provenance",
       frontdeskAction: "前台检索来源血缘、选择版本并查看来源详情",
-      serviceOperation: "GET /api/v1/provenance/knowledge-identities",
+      serviceOperation: "GET /api/v1/engine/knowledge/identities/{id}/provenance",
       serviceStatus: 200,
       readbackVerified: true,
       auditVerified: true,
@@ -4446,6 +4446,72 @@ function sixEntryCoreActionsEvidenceResult(body: Record<string, unknown>) {
 function expectNoSixEntryCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = sixEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
+}
+
+function complianceWorkbenchPersonalEntryEvidenceResult(
+  roleBody: Record<string, unknown> = fourRoleCoreActionsEvidence,
+  entryBody: Record<string, unknown> = sixEntryCoreActionsEvidence,
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/four-role-core-actions-rehearsal.spec.ts",
+        title: "四职责主动作均完成真实前台操作与服务回读闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "four-role-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(roleBody),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/entry-core-actions-rehearsal.spec.ts",
+        title: "七个路由覆盖六类入口族完成真实前台核心动作代表闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(entryBody),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoComplianceWorkbenchPersonalEntryCoverage(
+  roleBody: Record<string, unknown> = fourRoleCoreActionsEvidence,
+  entryBody: Record<string, unknown> = sixEntryCoreActionsEvidence,
+) {
+  const evidence = complianceWorkbenchPersonalEntryEvidenceResult(roleBody, entryBody);
+  expect(evidence.launchCoverage.complianceWorkbenchPersonalEntryMatrix).toBeUndefined();
+  expect(evidence.launchCoverage.complianceWorkbenchPersonalEntryRows).toBeUndefined();
+}
+
+function fourRoleCoreActionsWithAuditorOverride(
+  patch: Partial<typeof fourRoleCoreActionsEvidence.auditor>,
+) {
+  const body = structuredClone(fourRoleCoreActionsEvidence);
+  body.roleActions = body.roleActions.map((item) =>
+    item.role === "auditor" ? { ...item, ...patch } : item,
+  );
+  body.auditor = { ...body.auditor, ...patch };
+  return body;
+}
+
+function sixEntryCoreActionsWithPathOverride(
+  path: string,
+  patch: Partial<(typeof sixEntryCoreActionsEvidence.entryActions)[number]>,
+) {
+  const body = structuredClone(sixEntryCoreActionsEvidence);
+  body.entryActions = body.entryActions.map((item) =>
+    item.path === path ? { ...item, ...patch } : item,
+  );
+  return body;
 }
 
 const platformAdminEntryCoreActionsEvidence = {
@@ -9792,6 +9858,71 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares compliance, audit, notification and provenance entry rows only from cross-spec real frontdesk action evidence", () => {
+    const evidence = complianceWorkbenchPersonalEntryEvidenceResult();
+
+    expect(
+      evidence.launchCoverage.complianceWorkbenchPersonalEntryMatrix?.map((item) => item.code),
+    ).toEqual(["COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS"]);
+    expect(
+      evidence.launchCoverage.complianceWorkbenchPersonalEntryRows?.map((item) => item.code),
+    ).toEqual([
+      "SECURITY_BASELINE_CONFIG_CHANGE",
+      "AUDIT_EVIDENCE_EXPORT_VERIFY",
+      "NOTIFICATION_READBACK",
+      "NOTIFICATION_SETTINGS_SAVE",
+      "SOURCE_LINEAGE_PROVENANCE_READBACK",
+    ]);
+    expect(evidence.launchCoverage.platformAdminEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare compliance personal entry rows from only one proving spec", () => {
+    const roleOnly = fourRoleCoreActionsEvidenceResult(fourRoleCoreActionsEvidence);
+    const entryOnly = sixEntryCoreActionsEvidenceResult(sixEntryCoreActionsEvidence);
+
+    expect(roleOnly.launchCoverage.complianceWorkbenchPersonalEntryMatrix).toBeUndefined();
+    expect(roleOnly.launchCoverage.complianceWorkbenchPersonalEntryRows).toBeUndefined();
+    expect(entryOnly.launchCoverage.complianceWorkbenchPersonalEntryMatrix).toBeUndefined();
+    expect(entryOnly.launchCoverage.complianceWorkbenchPersonalEntryRows).toBeUndefined();
+  });
+
+  it("does not declare compliance personal entry rows from matching attachments in non-target specs", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/ad-hoc-four-role-core-actions-rehearsal.spec.ts",
+          title: "非目标 spec 不能冒领审计入口强证据",
+          status: "passed",
+          attachments: [
+            {
+              name: "four-role-core-actions-codes",
+              contentType: "application/json",
+              body: JSON.stringify(fourRoleCoreActionsEvidence),
+            },
+          ],
+        },
+        {
+          file: "/repo/frontend/e2e/ad-hoc-entry-core-actions-rehearsal.spec.ts",
+          title: "非目标 spec 不能冒领合规与个人入口强证据",
+          status: "passed",
+          attachments: [
+            {
+              name: "entry-core-actions-codes",
+              contentType: "application/json",
+              body: JSON.stringify(sixEntryCoreActionsEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.complianceWorkbenchPersonalEntryMatrix).toBeUndefined();
+    expect(evidence.launchCoverage.complianceWorkbenchPersonalEntryRows).toBeUndefined();
+  });
+
   it("declares platform-admin P0 entry core action coverage only from complete real frontdesk matrix evidence", () => {
     const evidence = platformAdminEntryCoreActionsEvidenceResult(
       platformAdminEntryCoreActionsEvidence,
@@ -11017,6 +11148,80 @@ describe("browser E2E launch coverage evidence", () => {
   ])("does not declare six-entry core action coverage when $name", ({ body }) => {
     expectNoSixEntryCoreActionsCoverage(body);
   });
+
+  it.each([
+    {
+      name: "缺少审计证据导出验签入口",
+      roleBody: {
+        ...fourRoleCoreActionsEvidence,
+        roleActions: fourRoleCoreActionsEvidence.roleActions.filter(
+          (item) => item.path !== "/admin/audit",
+        ),
+      },
+      entryBody: sixEntryCoreActionsEvidence,
+    },
+    {
+      name: "审计入口服务端操作不是真实验签端点",
+      roleBody: fourRoleCoreActionsWithAuditorOverride({
+        serviceOperation: "GET /api/v1/compliance/audit/events",
+      }),
+      entryBody: sixEntryCoreActionsEvidence,
+    },
+    {
+      name: "安全基线入口缺少配置变更端点",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/security/baseline", {
+        serviceOperation: "PATCH /api/v1/system/config-items/{key}",
+      }),
+    },
+    {
+      name: "通知已读入口缺少引擎通知已读端点",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/notifications", {
+        serviceOperation: "POST /api/v1/notifications/{notificationId}/read",
+      }),
+    },
+    {
+      name: "通知偏好入口没有审计证据",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/notifications/settings", {
+        auditVerified: false,
+      }),
+    },
+    {
+      name: "通知偏好入口不是临床使用者",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/notifications/settings", {
+        role: "auditor",
+      }),
+    },
+    {
+      name: "来源血缘入口缺少来源详情端点",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/advanced/provenance", {
+        serviceOperation: "GET /api/v1/provenance/knowledge-identities",
+      }),
+    },
+    {
+      name: "来源血缘入口没有回读证据",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/advanced/provenance", {
+        readbackVerified: false,
+      }),
+    },
+    {
+      name: "安全基线入口服务端状态不是 2xx",
+      roleBody: fourRoleCoreActionsEvidence,
+      entryBody: sixEntryCoreActionsWithPathOverride("/security/baseline", {
+        serviceStatus: 500,
+      }),
+    },
+  ])(
+    "does not declare compliance personal entry coverage when $name",
+    ({ roleBody, entryBody }) => {
+      expectNoComplianceWorkbenchPersonalEntryCoverage(roleBody, entryBody);
+    },
+  );
 
   it("does not declare four-role core action coverage from menu or route reachability evidence", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
