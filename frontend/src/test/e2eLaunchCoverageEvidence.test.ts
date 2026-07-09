@@ -5700,6 +5700,8 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const requiredSpecialDiseaseStages = pathwayLifecycleEvidence().specialDiseaseStages as string[];
+
 function versionedAssetSupplyChainMatrixTests(
   options: {
     omitFiles?: string[];
@@ -10398,6 +10400,38 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "SPECIAL_DISEASE_PATHWAY",
     ]);
+    expect(evidence.launchCoverage.specialDiseaseStages?.map((item) => item.code)).toEqual(
+      requiredSpecialDiseaseStages,
+    );
+  });
+
+  it("does not declare special disease stage coverage when the pathway milestone matrix is incomplete", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
+          title:
+            "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+          status: "passed",
+          attachments: [
+            {
+              name: "pathway-lifecycle-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify(
+                pathwayLifecycleEvidence({
+                  specialDiseaseStages: requiredSpecialDiseaseStages.filter(
+                    (stage) => stage !== "QUALITY_ITERATION",
+                  ),
+                }),
+              ),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.specialDiseaseStages).toBeUndefined();
   });
 

@@ -23,6 +23,41 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百批本地推进：接长目标自动续跑，本批继续按“上线总账驱动”推进低冲突高收益缺口，而不是扩单点页面。
+  本批收口 `PRODUCT_SCOPE.md` §15 第 14 项中的 `specialDiseaseStages`：专病路径真实 E2E 附件此前已经包含并校验十阶段，
+  但 `frontend/e2e/support/launchCoverageEvidence.ts` 只声明 `S6`、`CLINICAL_EXECUTION`、`ORDER_SET` 和
+  `SPECIAL_DISEASE_PATHWAY`，没有把十阶段写入 `launchCoverage`。本批在仍依赖
+  `hasRequiredPathwayLifecycleAttachment()` 完整强校验的前提下，将
+  `SCREENING_TRIAGE / DIAGNOSIS_DIFFERENTIAL / RISK_STRATIFICATION / TREATMENT_DECISION /
+  EXECUTION_CANDIDATE / MONITORING_WARNING / DISCHARGE_REFERRAL / REHAB_EDUCATION_FOLLOWUP /
+  OUTCOME_EVALUATION / QUALITY_ITERATION` 十行声明为 `specialDiseaseStages:*`。
+- 第二百批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 从既有
+  `requiredPathwayMilestoneStages` 派生 `pathwayLifecycleSpecialDiseaseStageClaims`，并合并到
+  `pathway-lifecycle-frontdesk.spec.ts` 的强 proof claims；未新增第二套阶段常量。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿：完整 `pathwayLifecycleEvidence()` 现在必须产出十阶段行，
+  并新增缺 `QUALITY_ITERATION` 时不声明 `scenarios` 与 `specialDiseaseStages` 的负例，避免用不完整里程碑冒领。
+- 第二百批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175 无监听）。
+  执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pathway-special-disease-stages-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium pathway-lifecycle-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-pathway-special-disease-stages-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`，`launchCoverage.specialDiseaseStages` 为上述十阶段，
+  附件 `apiEvidence` 中路径草稿、仿真、入径、标准推进、ORDER_SET 运行消费、变异、随访接续和回读均为 `true`。
+- 第二百批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 `specialDiseaseStages` 未声明，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（363 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，
+  无 whitespace error。
+- 第二百批边界与下一步：本批只是把已有真实专病路径十阶段强证据接入 `LAUNCH-14.specialDiseaseStages`，
+  仍不是完整上线完成、不是完整医疗语义全集完成、不是 12 个模型赋能面完整完成、不是 S0-S40 五态矩阵完成、
+  不是 34 入口全部业务深度完成、也不是 134 清库重部署复演。并行只读子代理正在预审 P1 运维 / 国产化入口可安全产出的
+  `scenarioConditionRows`，子代理已返回且未改文件：P1 运维可优先补 `S15__NORMAL`（系统运维恢复连续性）、
+  `S15__DEGRADATION`（系统依赖诚实降级）、特定 `S15__MISSING_DATA`（仅限备份恢复演练证据真实 NOT_AVAILABLE 分支）
+  和 `S14__ABNORMAL`（临床账号越权读取运维入口被拒绝），但不得声明 `S15__ABNORMAL`、`S15__HIGH_RISK`
+  或完整 S15/205 行完成。下一批优先继续补 `LAUNCH-06` 五态行，或转向 `LAUNCH-13.organizationLevels` 九层组织证据。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第一百九十九批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行：
   一个审计 S2/S4 术语集成现有附件能否产出 `scenarioConditionRows`，一个审计后续最适合并行推进的上线切片；两个子代理均已关闭，
   未编辑、未暂存、未提交。本批主线程按 TDD 只做一个能减少 `LAUNCH-06` 五态总账缺口的真实证据切片：

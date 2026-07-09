@@ -935,6 +935,9 @@ const requiredPathwayMilestoneStages = [
   "OUTCOME_EVALUATION",
   "QUALITY_ITERATION",
 ];
+const pathwayLifecycleSpecialDiseaseStageClaims = requiredPathwayMilestoneStages.map(
+  (stage) => `specialDiseaseStages:${stage}`,
+);
 
 const requiredSystemProvidersScenarioEvidence = [
   "平台管理员读取真实服务运行保障快照",
@@ -1100,7 +1103,7 @@ const coverageProofs: CoverageProof[] = [
     file: "pathway-lifecycle-frontdesk.spec.ts",
     titleIncludes:
       "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
-    claims: pathwayLifecycleClaims,
+    claims: [...pathwayLifecycleClaims, ...pathwayLifecycleSpecialDiseaseStageClaims],
     requiresPathwayLifecycleAttachment: true,
   },
   {
