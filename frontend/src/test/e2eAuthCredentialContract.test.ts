@@ -550,6 +550,11 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain("hasCompletePharmacyReviewConsumerSlice");
     expect(coverageParser).toContain("pharmacyReviewConsumerSlice");
     expect(coverageParser).toContain("requiresPharmacyReviewConsumerSliceAttachment");
+    expect(coverageParser).toContain("hasCompletePublicHealthInfectionRegulatoryConsumerSlice");
+    expect(coverageParser).toContain("publicHealthInfectionRegulatoryConsumerSlice");
+    expect(coverageParser).toContain(
+      "requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment",
+    );
     expect(fullSystemGate).toContain('"PHARMACY_REVIEW"');
     expect(fullSystemGate).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
     expect(fullSystemGate).toContain('"NURSING_ANESTHESIA_TRANSFUSION_ICU"');
@@ -572,6 +577,7 @@ describe("E2E credential contract", () => {
     expect(pharmacySource).not.toContain("完整第三方药房审方系统族已上线");
     expect(infectionSource).toContain("infection-public-health-safety-frontdesk-codes");
     expect(infectionSource).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
+    expect(infectionSource).toContain("publicHealthInfectionRegulatoryConsumerSlice");
     expect(infectionSource).toContain('expect(["NOT_CONNECTED", "RETRYING"].includes(status)');
     expect(infectionSource).toContain('textField(compensation, "status") === "NOT_CONNECTED"');
     expect(infectionSource).not.toContain("完整公卫法定上报已上线");

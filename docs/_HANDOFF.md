@@ -23,6 +23,58 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十九批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有院感公卫与医疗安全事件真实前台链路从旧式
+  `thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY` 隐式 claim 升级为显式
+  `publicHealthInfectionRegulatoryConsumerSlice` 代表消费者切片。证据固定来源于
+  `infection-public-health-safety-frontdesk.spec.ts` 的 `infection-public-health-safety-frontdesk-codes` 附件：
+  真实前台创建 PUBLIC_HEALTH_INFECTION_REGULATORY 适配器 / 回调通道 / 签名预览，当前机构生效版本消费
+  TERMINOLOGY / RULE / ACTION_CARD，Condition / Observation / Document 标准资源支撑院感公卫入站、上报预填断连补偿、
+  推荐消费、人工确认和医疗安全事件整改闭环。明确不声明完整院感系统、完整公卫法定上报、完整不良事件系统、
+  完整公卫院感监管系统族、真实外部公卫上报成功联通、自动法定上报、完整 S21、完整 S32、完整第三方系统族、
+  完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百三十九批实现细节：`frontend/e2e/infection-public-health-safety-frontdesk.spec.ts` 的附件新增
+  `publicHealthInfectionRegulatoryConsumerSlice`，固定 `systemFamilyCode=PUBLIC_HEALTH_INFECTION_REGULATORY`、
+  `consumer=INFECTION_REPORT_PREFILL_SAFETY_RECTIFICATION`、
+  `canonicalResources=[Patient,Encounter,Condition,Observation,Document]`、
+  `sourceSystems=[MEDKERNEL_FRONTDESK,PUBLIC_HEALTH_INFECTION_REGULATORY]`，并绑定本轮
+  `patientId/encounterId/contextSnapshotId/runtimeReleaseId/adapterId/webhookId/outboundMessageId/inboundMessageId/`
+  `clinicalEventId/recommendationCardId/feedbackId/findingId/taskId`。切片显式要求适配器 / 回调 / 签名预览来自真实服务，
+  出站 `NOT_CONNECTED/RETRYING` 断连补偿不阻断主链路、签名入站处理到临床事件、当前机构生效版本推荐消费、人工上报审核、
+  整改关闭、审计 / 权限 / 六态边界成立，且 `requiresPhysicianConfirmation=true`、`noLegalAutoSubmit=true`、
+  `noExternalSuccessClaim=true`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增单独 proof 和严格
+  `hasCompletePublicHealthInfectionRegulatoryConsumerSlice()`：公卫基础 proof 仍只声明 S21/S32、产品层、资产、服务组合和既有
+  三条条件行；`PUBLIC_HEALTH_INFECTION_REGULATORY` 消费者切片必须有显式 `publicHealthInfectionRegulatoryConsumerSlice`
+  才会声明。collector 复用院感公卫 API、runtime、上下文、出站、入站、推荐、人工确认和整改强校验，并要求 slice scope
+  明确否定完整院感系统 / 公卫法定上报 / 不良事件系统 / 公卫院感监管系统族 / 真实外部成功联通 / 自动法定上报 /
+  完整 S21 / 完整 S32 / S0-S40 / 上线验收。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  基础 S21/S32 proof 不再声明消费者切片，显式 slice 才声明；缺显式 slice、系统族错配、scope 冒领、缺 Condition /
+  Observation / Document 标准资源、出站伪造成外部成功、缺入站报告、入站来源错配、缺人工确认、允许自动法定上报、整改未关闭、
+  缺审计 / 权限 / 六态边界，均不声明 `PUBLIC_HEALTH_INFECTION_REGULATORY`。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  同步锁定 E2E 附件、parser 和 release 门禁源码契约。
+- 第二百三十九批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-public-health-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium infection-public-health-safety-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-public-health-consumer-slice-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.thirdPartySystemFamilyConsumerSlices=[PUBLIC_HEALTH_INFECTION_REGULATORY]`，且只保留既有
+  `scenarioConditionRows=[S21__HIGH_RISK,S21__DEGRADATION,S32__ABNORMAL]`，未新增 S21/S32 其他状态或任何新 S0-S40 行。
+  附件抽查：`publicHealthInfectionRegulatoryConsumerSlice.consumer=INFECTION_REPORT_PREFILL_SAFETY_RECTIFICATION`、
+  `canonicalResources=[Patient,Encounter,Condition,Observation,Document]`、`noLegalAutoSubmit=true`、
+  `noExternalSuccessClaim=true`，并绑定本轮 `adapterId/webhookId/outboundMessageId/inboundMessageId/clinicalEventId/`
+  `recommendationCardId/feedbackId/findingId/taskId`。
+- 第二百三十九批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在旧基础公卫 proof 仍声明
+  `PUBLIC_HEALTH_INFECTION_REGULATORY` 和缺 / 错显式 slice 负例仍被声明；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（876 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（943 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）和真实 E2E。
+  并行只读 explorer 已返回下一批候选：`NURSING_ANESTHESIA_TRANSFUSION_ICU` 仍适合补
+  `nursingAnesthesiaTransfusionIcuConsumerSlice` 显式对象 + 严格 collector 负例；不能把现有 S26 条件行或 scope 文案冒领为完整
+  手麻输血 ICU 系统族 / 完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

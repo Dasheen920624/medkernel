@@ -66,6 +66,7 @@ type CoverageProof = {
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
   requiresPharmacyReviewConsumerSliceAttachment?: boolean;
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
+  requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
   requiresReportInterpretationScenarioAttachment?: boolean;
@@ -374,6 +375,9 @@ const infectionPublicHealthSafetyFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "serviceCombinations:QUALITY_IMPROVEMENT",
+];
+
+const publicHealthInfectionRegulatoryConsumerSliceClaims = [
   "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
 ];
 
@@ -1462,6 +1466,13 @@ const coverageProofs: CoverageProof[] = [
     requiresInfectionPublicHealthSafetyFrontdeskAttachment: true,
   },
   {
+    file: "infection-public-health-safety-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成院感公卫上报预填和医疗安全事件整改代表闭环",
+    claims: publicHealthInfectionRegulatoryConsumerSliceClaims,
+    requiresInfectionPublicHealthSafetyFrontdeskAttachment: true,
+    requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment: true,
+  },
+  {
     file: "surgery-anesthesia-transfusion-frontdesk.spec.ts",
     titleIncludes: "临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环",
     claims: surgeryAnesthesiaTransfusionFrontdeskClaims,
@@ -1783,6 +1794,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredPharmacyReviewConsumerSliceAttachment(test)) &&
       (!proof.requiresInfectionPublicHealthSafetyFrontdeskAttachment ||
         hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test)) &&
+      (!proof.requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment ||
+        hasRequiredPublicHealthInfectionRegulatoryConsumerSliceAttachment(test)) &&
       (!proof.requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment ||
         hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test)) &&
       (!proof.requiresCriticalEmergencyIcuFrontdeskAttachment ||
@@ -7484,6 +7497,21 @@ function hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test: Browser
   }
 }
 
+function hasRequiredPublicHealthInfectionRegulatoryConsumerSliceAttachment(
+  test: BrowserE2eTestResult,
+) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "infection-public-health-safety-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed !== null && hasCompletePublicHealthInfectionRegulatoryConsumerSlice(parsed);
+  } catch {
+    return false;
+  }
+}
+
 function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: BrowserE2eTestResult) {
   const attachment = test.attachments?.find(
     (item) => item.name === "surgery-anesthesia-transfusion-frontdesk-codes",
@@ -11920,6 +11948,124 @@ function hasCompleteInfectionPublicHealthApiEvidence(value: unknown) {
   ].every((field) => evidence?.[field] === true);
 }
 
+function hasCompletePublicHealthInfectionRegulatoryConsumerSlice(
+  body: Record<string, unknown>,
+) {
+  const runtime = parseInfectionPublicHealthRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const slice = recordValue(body.publicHealthInfectionRegulatoryConsumerSlice);
+  const context = recordValue(body.clinicalContext);
+  const outbound = recordValue(body.outboundPrefill);
+  const inbound = recordValue(body.inboundReport);
+  const recommendation = recordValue(body.recommendation);
+  const manualReview = recordValue(body.manualReview);
+  const rectification = recordValue(body.qualityRectification);
+  const adapter = recordValue(body.adapter);
+  const webhook = recordValue(body.webhookSignature);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  return (
+    slice !== null &&
+    context !== null &&
+    outbound !== null &&
+    inbound !== null &&
+    recommendation !== null &&
+    manualReview !== null &&
+    rectification !== null &&
+    adapter !== null &&
+    webhook !== null &&
+    slice.systemFamilyCode === "PUBLIC_HEALTH_INFECTION_REGULATORY" &&
+    hasText(slice.familyName) &&
+    (String(slice.familyName).includes("公卫") || String(slice.familyName).includes("院感")) &&
+    slice.consumer === "INFECTION_REPORT_PREFILL_SAFETY_RECTIFICATION" &&
+    arrayEquals(slice.canonicalResources, [
+      "Patient",
+      "Encounter",
+      "Condition",
+      "Observation",
+      "Document",
+    ]) &&
+    arrayEquals(slice.sourceSystems, [
+      "MEDKERNEL_FRONTDESK",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    ]) &&
+    (slice.adapterVerified === true || slice.adapterCreatedThroughRealService === true) &&
+    (slice.webhookSignatureVerified === true ||
+      slice.webhookCreatedThroughRealService === true ||
+      slice.signaturePreviewGenerated === true) &&
+    (slice.outboundDegradationVerified === true || slice.outboundNotConnectedVerified === true) &&
+    (slice.inboundReportVerified === true ||
+      slice.signedInboundProcessedVerified === true ||
+      slice.clinicalEventProcessedVerified === true) &&
+    (slice.runtimeConsumerVerified === true || slice.recommendationConsumerVerified === true) &&
+    (slice.humanReportReviewVerified === true || slice.manualReportReviewVerified === true) &&
+    slice.rectificationClosedVerified === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    slice.requiresPhysicianConfirmation === true &&
+    slice.noLegalAutoSubmit === true &&
+    slice.noExternalSuccessClaim === true &&
+    slice.aiGenerated !== true &&
+    slice.patientId === context.patientId &&
+    slice.encounterId === context.encounterId &&
+    slice.contextSnapshotId === context.contextSnapshotId &&
+    slice.runtimeReleaseId === runtime.releaseId &&
+    slice.recommendationCardId === recommendation.cardId &&
+    (slice.feedbackId === manualReview.feedbackId ||
+      slice.manualReviewFeedbackId === manualReview.feedbackId) &&
+    slice.findingId === rectification.findingId &&
+    slice.taskId === rectification.taskId &&
+    (!hasText(slice.adapterId) || slice.adapterId === adapter.adapterId) &&
+    (!hasText(slice.webhookId) || slice.webhookId === webhook.webhookId) &&
+    (!hasText(slice.outboundMessageId) || slice.outboundMessageId === outbound.messageId) &&
+    (!hasText(slice.inboundMessageId) || slice.inboundMessageId === inbound.messageId) &&
+    (!hasText(slice.clinicalEventId) || slice.clinicalEventId === clinicalEvent?.eventId) &&
+    slice.outboundPath === "outboundPrefill" &&
+    slice.inboundPath === "inboundReport" &&
+    slice.manualReviewPath === "manualReview" &&
+    slice.rectificationPath === "qualityRectification" &&
+    hasPublicHealthInfectionRegulatoryConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompleteInfectionPublicHealthApiEvidence(body.apiEvidence) &&
+    hasCompleteInfectionPublicHealthAdapterEvidence(body.adapter) &&
+    hasCompleteInfectionPublicHealthWebhookEvidence(body.webhookSignature, body.adapter) &&
+    infectionPublicHealthRuntimeAssetMatches(body.terminologyGate, runtime.terminologyAsset) &&
+    infectionPublicHealthRuntimeAssetMatches(body.ruleAsset, runtime.ruleAsset) &&
+    infectionPublicHealthRuntimeAssetMatches(body.actionCard, runtime.actionCardAsset) &&
+    hasCompleteInfectionPublicHealthTerminologyGate(body.terminologyGate) &&
+    hasCompleteInfectionPublicHealthActionCard(body.actionCard) &&
+    hasCompleteInfectionPublicHealthRuleAsset(body.ruleAsset) &&
+    hasCompleteInfectionPublicHealthActivationRequest(body.activationRequest, runtime) &&
+    hasCompleteInfectionPublicHealthClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteInfectionPublicHealthOutbound(
+      body.outboundPrefill,
+      body.adapter,
+      body.clinicalContext,
+    ) &&
+    hasCompleteInfectionPublicHealthInbound(
+      body.inboundReport,
+      body.adapter,
+      body.webhookSignature,
+      body.outboundPrefill,
+      runtime.releaseId,
+    ) &&
+    hasCompleteInfectionPublicHealthTrigger(body.clinicalTrigger, runtime.releaseId) &&
+    hasCompleteInfectionPublicHealthRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteInfectionPublicHealthManualReview(body.manualReview, runtime.actionCardAsset) &&
+    hasCompleteInfectionPublicHealthRectification(body.qualityRectification, body.recommendation) &&
+    evidencePathsResolve(body, [
+      slice.outboundPath,
+      slice.inboundPath,
+      slice.manualReviewPath,
+      slice.rectificationPath,
+    ])
+  );
+}
+
 function parseInfectionPublicHealthRuntimeEvidence(value: unknown) {
   const runtime = recordValue(value);
   if (
@@ -12461,6 +12607,47 @@ function hasInfectionPublicHealthSafetyScopeBoundary(value: unknown) {
     hasNegatedScopeTerm(statement, "完整不良事件系统") &&
     hasNegatedScopeTerm(statement, "第三方公卫院感监管系统族完整覆盖")
   );
+}
+
+function hasPublicHealthInfectionRegulatoryConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedPublicHealthInfectionRegulatoryConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整院感系统") &&
+    hasNegatedScopeTerm(statement, "完整公卫法定上报") &&
+    hasNegatedScopeTerm(statement, "完整不良事件系统") &&
+    hasNegatedScopeTerm(statement, "完整公卫院感监管系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "真实外部公卫上报成功联通") &&
+    hasNegatedScopeTerm(statement, "自动法定上报") &&
+    hasNegatedScopeTerm(statement, "完整 S21") &&
+    hasNegatedScopeTerm(statement, "完整 S32") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedPublicHealthInfectionRegulatoryConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整院感系统",
+    "完整公卫法定上报",
+    "完整不良事件系统",
+    "完整公卫院感监管系统族覆盖",
+    "完整公卫院感监管系统族",
+    "真实外部公卫上报成功联通",
+    "自动法定上报",
+    "完整 S21",
+    "完整S21",
+    "完整 S32",
+    "完整S32",
+    "完整第三方系统族覆盖",
+    "完整上线验收",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 type SurgeryAnesthesiaTransfusionRuntimeAsset = {

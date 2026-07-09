@@ -1660,6 +1660,81 @@ async function attachInfectionPublicHealthSafetyEvidence(
         recommendation: evidence.recommendation,
         manualReview: evidence.manualReview,
         qualityRectification: evidence.qualityRectification,
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          systemFamilyCode: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+          familyName: "第三方公卫院感监管系统族",
+          consumer: "INFECTION_REPORT_PREFILL_SAFETY_RECTIFICATION",
+          canonicalResources: ["Patient", "Encounter", "Condition", "Observation", "Document"],
+          sourceSystems: ["MEDKERNEL_FRONTDESK", "PUBLIC_HEALTH_INFECTION_REGULATORY"],
+          adapterVerified: true,
+          webhookSignatureVerified: true,
+          outboundDegradationVerified: true,
+          inboundReportVerified: true,
+          runtimeConsumerVerified: true,
+          humanReportReviewVerified: true,
+          rectificationClosedVerified: true,
+          auditVerified: true,
+          permissionVerified: true,
+          sixStateBoundaryVerified: true,
+          requiresPhysicianConfirmation: true,
+          noLegalAutoSubmit: true,
+          noExternalSuccessClaim: true,
+          patientId: requireText(
+            textFieldAtPath(evidence.clinicalContext, "patientId"),
+            "公卫院感消费者切片必须绑定 patientId",
+          ),
+          encounterId: requireText(
+            textFieldAtPath(evidence.clinicalContext, "encounterId"),
+            "公卫院感消费者切片必须绑定 encounterId",
+          ),
+          contextSnapshotId: requireText(
+            textFieldAtPath(evidence.clinicalContext, "contextSnapshotId"),
+            "公卫院感消费者切片必须绑定 contextSnapshotId",
+          ),
+          runtimeReleaseId: evidence.runtime.releaseId,
+          adapterId: requireText(
+            textFieldAtPath(evidence.adapter, "adapterId"),
+            "公卫院感消费者切片必须绑定 adapterId",
+          ),
+          webhookId: requireText(
+            textFieldAtPath(evidence.webhookSignature, "webhookId"),
+            "公卫院感消费者切片必须绑定 webhookId",
+          ),
+          outboundMessageId: requireText(
+            textFieldAtPath(evidence.outboundPrefill, "messageId"),
+            "公卫院感消费者切片必须绑定 outboundMessageId",
+          ),
+          inboundMessageId: requireText(
+            textFieldAtPath(evidence.inboundReport, "messageId"),
+            "公卫院感消费者切片必须绑定 inboundMessageId",
+          ),
+          clinicalEventId: requireText(
+            textFieldAtPath(evidence.inboundReport, "clinicalEvent.eventId"),
+            "公卫院感消费者切片必须绑定 clinicalEventId",
+          ),
+          recommendationCardId: requireText(
+            textFieldAtPath(evidence.recommendation, "cardId"),
+            "公卫院感消费者切片必须绑定 recommendationCardId",
+          ),
+          feedbackId: requireText(
+            textFieldAtPath(evidence.manualReview, "feedbackId"),
+            "公卫院感消费者切片必须绑定 feedbackId",
+          ),
+          findingId: requireText(
+            textFieldAtPath(evidence.qualityRectification, "findingId"),
+            "公卫院感消费者切片必须绑定 findingId",
+          ),
+          taskId: requireText(
+            textFieldAtPath(evidence.qualityRectification, "taskId"),
+            "公卫院感消费者切片必须绑定 taskId",
+          ),
+          outboundPath: "outboundPrefill",
+          inboundPath: "inboundReport",
+          manualReviewPath: "manualReview",
+          rectificationPath: "qualityRectification",
+          scopeStatement:
+            "第三方公卫院感监管系统族真实消费者代表切片：真实前台用 Condition、Observation、Document 标准资源驱动 PUBLIC_HEALTH_INFECTION_REGULATORY 院感公卫入站、上报预填断连补偿、当前机构生效版本推荐消费、人工确认和医疗安全事件整改闭环；不代表完整院感系统，不代表完整公卫法定上报，不代表完整不良事件系统，不代表完整公卫院感监管系统族覆盖，不代表真实外部公卫上报成功联通，不代表自动法定上报，不代表完整 S21，不代表完整 S32，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+        },
         scenarioConditionEvidence: [
           {
             code: "S21__HIGH_RISK",

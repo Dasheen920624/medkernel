@@ -4345,6 +4345,60 @@ function expectNoInfectionPublicHealthSafetyCoverage(body: Record<string, unknow
   ).not.toContain("PUBLIC_HEALTH_INFECTION_REGULATORY");
 }
 
+function publicHealthInfectionRegulatoryConsumerSliceEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...structuredClone(infectionPublicHealthSafetyEvidence),
+    publicHealthInfectionRegulatoryConsumerSlice: publicHealthInfectionRegulatoryConsumerSlice(),
+    ...overrides,
+  };
+}
+
+function publicHealthInfectionRegulatoryConsumerSlice(): Record<string, unknown> {
+  return {
+    systemFamilyCode: "PUBLIC_HEALTH_INFECTION_REGULATORY",
+    familyName: "第三方公卫院感监管系统族",
+    consumer: "INFECTION_REPORT_PREFILL_SAFETY_RECTIFICATION",
+    canonicalResources: ["Patient", "Encounter", "Condition", "Observation", "Document"],
+    sourceSystems: ["MEDKERNEL_FRONTDESK", "PUBLIC_HEALTH_INFECTION_REGULATORY"],
+    adapterVerified: true,
+    webhookSignatureVerified: true,
+    outboundDegradationVerified: true,
+    inboundReportVerified: true,
+    runtimeConsumerVerified: true,
+    humanReportReviewVerified: true,
+    rectificationClosedVerified: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    requiresPhysicianConfirmation: true,
+    noLegalAutoSubmit: true,
+    noExternalSuccessClaim: true,
+    patientId: "mpi-public-health-infection",
+    encounterId: "enc-public-health-infection",
+    contextSnapshotId: "ctx-public-health-infection",
+    runtimeReleaseId: "runtime-public-health-infection",
+    recommendationCardId: "card-public-health-infection",
+    feedbackId: "rf-public-health-review",
+    findingId: "finding-public-health-safety",
+    taskId: "task-public-health-safety",
+    outboundPath: "outboundPrefill",
+    inboundPath: "inboundReport",
+    manualReviewPath: "manualReview",
+    rectificationPath: "qualityRectification",
+    scopeStatement:
+      "第三方公卫院感监管系统族真实消费者代表切片：真实前台用 Condition、Observation、Document 标准资源驱动 PUBLIC_HEALTH_INFECTION_REGULATORY 院感公卫入站、上报预填断连补偿、当前机构生效版本推荐消费、人工确认和医疗安全事件整改闭环；不代表完整院感系统，不代表完整公卫法定上报，不代表完整不良事件系统，不代表完整公卫院感监管系统族覆盖，不代表真实外部公卫上报成功联通，不代表自动法定上报，不代表完整 S21，不代表完整 S32，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+  };
+}
+
+function expectNoPublicHealthInfectionRegulatoryConsumerSlice(body: Record<string, unknown>) {
+  const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("PUBLIC_HEALTH_INFECTION_REGULATORY");
+}
+
 const surgeryAnesthesiaTransfusionEvidence = {
   scenarioCodes: ["S26"],
   productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
@@ -13434,8 +13488,8 @@ describe("browser E2E launch coverage evidence", () => {
       "QUALITY_IMPROVEMENT",
     ]);
     expect(
-      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
-    ).toEqual(["PUBLIC_HEALTH_INFECTION_REGULATORY"]);
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+    ).not.toContain("PUBLIC_HEALTH_INFECTION_REGULATORY");
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S21__HIGH_RISK",
       "S21__DEGRADATION",
@@ -13684,6 +13738,156 @@ describe("browser E2E launch coverage evidence", () => {
       "ACTION_CARD",
     ]);
   });
+
+  it("declares PUBLIC_HEALTH_INFECTION_REGULATORY consumer slice only with explicit structured evidence", () => {
+    const evidence = infectionPublicHealthSafetyEvidenceResult(
+      publicHealthInfectionRegulatoryConsumerSliceEvidence(),
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["PUBLIC_HEALTH_INFECTION_REGULATORY"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S21__HIGH_RISK",
+      "S21__DEGRADATION",
+      "S32__ABNORMAL",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺显式 consumer slice",
+      body: infectionPublicHealthSafetyEvidence,
+    },
+    {
+      name: "系统族错配",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          systemFamilyCode: "PHARMACY_REVIEW",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整公卫法定上报",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          scopeStatement: "完整公卫法定上报和完整公卫院感监管系统族已上线。",
+        },
+      }),
+    },
+    {
+      name: "缺少 Condition 标准资源",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          canonicalResources: ["Patient", "Encounter", "Observation", "Document"],
+        },
+      }),
+    },
+    {
+      name: "缺少 Observation 标准资源",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          canonicalResources: ["Patient", "Encounter", "Condition", "Document"],
+        },
+      }),
+    },
+    {
+      name: "缺少 Document 标准资源",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          canonicalResources: ["Patient", "Encounter", "Condition", "Observation"],
+        },
+      }),
+    },
+    {
+      name: "伪造外部上报成功",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        outboundPrefill: {
+          ...infectionPublicHealthSafetyEvidence.outboundPrefill,
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+      }),
+    },
+    {
+      name: "缺少签名入站报告",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({ inboundReport: undefined }),
+    },
+    {
+      name: "入站来源错配",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        inboundReport: {
+          ...infectionPublicHealthSafetyEvidence.inboundReport,
+          sourceSystem: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "人工确认缺失",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        manualReview: {
+          ...infectionPublicHealthSafetyEvidence.manualReview,
+          cardStatus: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "允许自动法定上报",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          noLegalAutoSubmit: false,
+        },
+      }),
+    },
+    {
+      name: "整改未关闭",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          taskStatus: "SUBMITTED",
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: publicHealthInfectionRegulatoryConsumerSliceEvidence({
+        publicHealthInfectionRegulatoryConsumerSlice: {
+          ...publicHealthInfectionRegulatoryConsumerSlice(),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+  ])(
+    "does not declare PUBLIC_HEALTH_INFECTION_REGULATORY consumer slice when $name",
+    ({ body }) => {
+      expectNoPublicHealthInfectionRegulatoryConsumerSlice(body);
+    },
+  );
 
   it.each([
     {
