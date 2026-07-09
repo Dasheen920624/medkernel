@@ -665,6 +665,20 @@ const clinicalEntryScenarioConditionRows = [
     source: "CLINICAL_WORKFLOW_TODO_COMPLETION",
   },
 ] as const;
+const diagnosticCriticalValueScenarioConditionRows = [
+  {
+    code: "S36__HIGH_RISK",
+    scenarioCode: "S36",
+    condition: "HIGH_RISK",
+    source: "DIAGNOSTIC_CRITICAL_VALUE_HUMAN_CLOSURE",
+  },
+  {
+    code: "S36__DEGRADATION",
+    scenarioCode: "S36",
+    condition: "DEGRADATION",
+    source: "FHIR_LIS_NOT_CONNECTED_COMPENSATION",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -3826,6 +3840,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectClinicalEntryScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectDiagnosticCriticalValueScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
   }
   return [...claims];
 }
@@ -3981,6 +3998,82 @@ function clinicalEntryScenarioConditionBackedByEvidence(
     case "S11__NORMAL":
       return entryActions.some((action) =>
         hasCompleteClinicalEntryCoreAction(action, "workflow-todos"),
+      );
+    default:
+      return false;
+  }
+}
+
+function collectDiagnosticCriticalValueScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "diagnostic-critical-value-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnostic-critical-value-frontdesk-codes",
+  );
+  if (!attachment?.body || !hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test)) {
+    return [];
+  }
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      diagnosticCriticalValueScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return diagnosticCriticalValueScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          diagnosticCriticalValueScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function diagnosticCriticalValueScenarioConditionBackedByEvidence(
+  code: (typeof diagnosticCriticalValueScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const runtime = parseDiagnosticCriticalValueRuntimeEvidence(parsed.runtime);
+  if (!runtime) return false;
+  switch (code) {
+    case "S36__HIGH_RISK":
+      return (
+        hasCompleteDiagnosticCriticalValueApiEvidence(parsed.apiEvidence) &&
+        hasCompleteDiagnosticCriticalValueClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+          parsed.inboundObservation,
+          parsed.inboundDiagnosticReport,
+        ) &&
+        hasCompleteDiagnosticCriticalValueInterpretation(parsed.interpretation, runtime) &&
+        hasCompleteDiagnosticCriticalValueRecommendation(parsed.recommendation, runtime) &&
+        hasCompleteDiagnosticCriticalValueWorkflowTodo(parsed.workflowTodo, parsed.recommendation)
+      );
+    case "S36__DEGRADATION":
+      return (
+        hasCompleteDiagnosticCriticalValueInboundObservation(
+          parsed.inboundObservation,
+          runtime.releaseId,
+        ) &&
+        hasCompleteDiagnosticCriticalValueInboundReport(
+          parsed.inboundDiagnosticReport,
+          runtime.releaseId,
+        ) &&
+        hasCompleteDiagnosticCriticalValueClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+          parsed.inboundObservation,
+          parsed.inboundDiagnosticReport,
+        ) &&
+        hasCompleteDiagnosticCriticalValueWorkflowTodo(parsed.workflowTodo, parsed.recommendation)
       );
     default:
       return false;

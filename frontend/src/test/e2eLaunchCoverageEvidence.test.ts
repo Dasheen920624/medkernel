@@ -1479,6 +1479,31 @@ const diagnosticCriticalValueEvidence = {
       ],
     },
   ],
+  scenarioConditionEvidence: [
+    {
+      code: "S36__HIGH_RISK",
+      scenarioCode: "S36",
+      condition: "HIGH_RISK",
+      source: "DIAGNOSTIC_CRITICAL_VALUE_HUMAN_CLOSURE",
+      evidence: [
+        "FHIR/LIS 入站 Observation 标记危急值",
+        "报告解读解释 criticalRisk=true 且推荐卡要求医师确认",
+        "医技或医生人工完成报告解读待办",
+        "系统不改写报告且不自动开嘱",
+      ],
+    },
+    {
+      code: "S36__DEGRADATION",
+      scenarioCode: "S36",
+      condition: "DEGRADATION",
+      source: "FHIR_LIS_NOT_CONNECTED_COMPENSATION",
+      evidence: [
+        "外部 Observation 入站补偿收敛到 NOT_CONNECTED",
+        "外部 DiagnosticReport 入站补偿收敛到 NOT_CONNECTED",
+        "断连状态下本地标准资源与报告解读主链路仍可人工闭环",
+      ],
+    },
+  ],
 };
 
 const diagnosticReportFamilyMatrixRows = [
@@ -8590,6 +8615,133 @@ describe("browser E2E launch coverage evidence", () => {
       "CLINICAL_RUNTIME",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S36 high-risk and degradation condition rows only from explicit critical-value evidence", () => {
+    const evidence = diagnosticCriticalValueEvidenceResult(diagnosticCriticalValueEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S36__HIGH_RISK",
+      "S36__DEGRADATION",
+    ]);
+  });
+
+  it("does not declare S36 condition rows without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = diagnosticCriticalValueEvidence;
+    const evidence = diagnosticCriticalValueEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S36__NORMAL",
+            scenarioCode: "S36",
+            condition: "NORMAL",
+            source: "DIAGNOSTIC_CRITICAL_VALUE_HUMAN_CLOSURE",
+            evidence: ["危急值高风险链路不能冒领普通正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S36__HIGH_RISK",
+            scenarioCode: "S36",
+            condition: "HIGH_RISK",
+            source: "FHIR_LIS_NOT_CONNECTED_COMPENSATION",
+            evidence: ["来源错配不能声明"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S36__HIGH_RISK",
+            scenarioCode: "S36",
+            condition: "HIGH_RISK",
+            source: "DIAGNOSTIC_CRITICAL_VALUE_HUMAN_CLOSURE",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "报告解读不是危急风险",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        interpretation: {
+          ...diagnosticCriticalValueEvidence.interpretation,
+          interpretations: [
+            {
+              ...diagnosticCriticalValueEvidence.interpretation.interpretations[0],
+              criticalRisk: false,
+            },
+          ],
+        },
+      },
+    },
+    {
+      name: "推荐卡不要求医师确认",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        recommendation: {
+          ...diagnosticCriticalValueEvidence.recommendation,
+          requiresPhysicianConfirmation: false,
+        },
+      },
+    },
+    {
+      name: "协同待办未完成",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        workflowTodo: {
+          ...diagnosticCriticalValueEvidence.workflowTodo,
+          status: "PENDING",
+        },
+      },
+    },
+    {
+      name: "Observation 未收敛到 NOT_CONNECTED",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        inboundObservation: {
+          ...diagnosticCriticalValueEvidence.inboundObservation,
+          integrationStatus: "RETRYING",
+          operationOutcomeContainsNotConnected: false,
+          compensationStatus: "RETRYING",
+        },
+      },
+    },
+    {
+      name: "DiagnosticReport 未收敛到 NOT_CONNECTED",
+      body: {
+        ...diagnosticCriticalValueEvidence,
+        inboundDiagnosticReport: {
+          ...diagnosticCriticalValueEvidence.inboundDiagnosticReport,
+          integrationStatus: "RETRYING",
+          operationOutcomeContainsNotConnected: false,
+          compensationStatus: "RETRYING",
+        },
+      },
+    },
+  ])("does not declare S36 scenario condition rows when $name", ({ body }) => {
+    const evidence = diagnosticCriticalValueEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it.each([

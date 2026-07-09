@@ -60,6 +60,38 @@
   `LAUNCH-13` 九层组织完成，也不是 134 清库重部署。下一批建议二选一：继续沿 `LAUNCH-06` 补诊断危急值 / 护理连续性 /
   药学审方 / 感控公卫等已有强链路的 `HIGH_RISK/DEGRADATION/NORMAL` 条件行；或进入 `LAUNCH-13` 先建真实组织层级证据模型。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百零三批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只收口诊断危急值 S36 已有真实前台强链路，新增 2 条显式背书行：`S36__HIGH_RISK`
+  （FHIR/LIS 入站 Observation 危急值、报告解读 `criticalRisk=true`、推荐卡要求医师确认、人工完成待办、
+  不改写报告且不自动开嘱）和 `S36__DEGRADATION`（Observation 与 DiagnosticReport 外部入站均收敛到
+  `NOT_CONNECTED` 补偿，本地标准资源、报告解读和人工待办仍闭环）。不声明 `S36__NORMAL`、`S36__ABNORMAL`
+  或 `S36__MISSING_DATA`，不把普通诊断场景覆盖、报告族覆盖或危急值 happy path 冒领为完整 S36 五态。
+- 第二百零三批实现细节：`frontend/e2e/diagnostic-critical-value-frontdesk.spec.ts` 的
+  `diagnostic-critical-value-frontdesk-codes` 附件新增 `scenarioConditionEvidence`，仅写出
+  `S36__HIGH_RISK` 与 `S36__DEGRADATION`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增诊断危急值条件行
+  collector，必须先通过完整 `hasRequiredDiagnosticCriticalValueFrontdeskAttachment()`，再用严格白名单校验
+  `code/scenarioCode/condition/source/evidence`，并分别绑定完整 API 证据、临床上下文、解读、推荐卡、协同待办、
+  Observation/DiagnosticReport `NOT_CONNECTED` 补偿字段。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、空证据、`criticalRisk=false`、推荐卡不要求医师确认、
+  待办未完成、Observation 或 DiagnosticReport 未 `NOT_CONNECTED` 均不声明条件行。
+- 第二百零三批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-diagnostic-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium diagnostic-critical-value-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-diagnostic-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S36__HIGH_RISK,S36__DEGRADATION]`，`launchCoverage.scenarios` 为 `[S36]`。
+- 第二百零三批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增 S36 正例缺条件行，随后实现并复跑通过 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  （407 tests）、`npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需跑 `git diff --check`。
+- 第二百零三批并行只读审计结论：诊断危急值 S36 当前两行可安全保留；其余已有强链路中，下一刀优先建议
+  围手术 / 麻醉 / 输血 `S26__HIGH_RISK`、`S26__DEGRADATION`、`S26__ABNORMAL`，因为字段集中在同一附件，
+  但必须新增显式 `scenarioConditionEvidence` 并绑定 SAFETY 红线 `CRITICAL`、风险矩阵 `CRITICAL`、困难气道 / ASA /
+  用血风险、人工确认、`noAutoOrder/noAutoTransfusion/noAutoSurgery`、外部 checklist `NOT_CONNECTED` 且不阻断主链路、
+  以及 `SURGERY_TIMELINE` 质量整改 CLOSED/APPROVED。不得声明 S26 `NORMAL/MISSING_DATA`，也不得把自动执行、
+  普通手术路径或未闭环整改冒领为五态行。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

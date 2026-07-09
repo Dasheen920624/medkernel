@@ -1078,6 +1078,31 @@ async function attachDiagnosticCriticalValueEvidence(
             observedStages: Array.from(evidence.observedStages),
           },
         ],
+        scenarioConditionEvidence: [
+          {
+            code: "S36__HIGH_RISK",
+            scenarioCode: "S36",
+            condition: "HIGH_RISK",
+            source: "DIAGNOSTIC_CRITICAL_VALUE_HUMAN_CLOSURE",
+            evidence: [
+              "FHIR/LIS 入站 Observation 标记危急值",
+              "报告解读解释 criticalRisk=true 且推荐卡要求医师确认",
+              "医技或医生人工完成报告解读待办",
+              "系统不改写报告且不自动开嘱",
+            ],
+          },
+          {
+            code: "S36__DEGRADATION",
+            scenarioCode: "S36",
+            condition: "DEGRADATION",
+            source: "FHIR_LIS_NOT_CONNECTED_COMPENSATION",
+            evidence: [
+              "外部 Observation 入站补偿收敛到 NOT_CONNECTED",
+              "外部 DiagnosticReport 入站补偿收敛到 NOT_CONNECTED",
+              "断连状态下本地标准资源与报告解读主链路仍可人工闭环",
+            ],
+          },
+        ],
       },
       null,
       2,
