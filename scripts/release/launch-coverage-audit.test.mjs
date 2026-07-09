@@ -645,6 +645,23 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
     /第三方系统族真实消费者代表切片.*PHARMACY_REVIEW.*缺少前置阶段证据/u,
   );
 
+  const missingNursingAnesthesiaTransfusionConsumer = completeStageEvidence();
+  missingNursingAnesthesiaTransfusionConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices =
+    missingNursingAnesthesiaTransfusionConsumer[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+      (item) => item.code !== "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingNursingAnesthesiaTransfusionConsumer),
+      }),
+    /第三方系统族真实消费者代表切片.*NURSING_ANESTHESIA_TRANSFUSION_ICU.*缺少前置阶段证据/u,
+  );
+
   const missingRegionalConsumer = completeStageEvidence();
   missingRegionalConsumer[
     "browser-e2e"

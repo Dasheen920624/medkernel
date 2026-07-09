@@ -4918,6 +4918,75 @@ function expectNoSurgeryAnesthesiaTransfusionCoverage(body: Record<string, unkno
   ).not.toContain("NURSING_ANESTHESIA_TRANSFUSION_ICU");
 }
 
+function expectNoNursingAnesthesiaTransfusionIcuConsumerSlice(body: Record<string, unknown>) {
+  const evidence = surgeryAnesthesiaTransfusionEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("NURSING_ANESTHESIA_TRANSFUSION_ICU");
+}
+
+function nursingAnesthesiaTransfusionIcuConsumerSliceEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...structuredClone(surgeryAnesthesiaTransfusionEvidence),
+    nursingAnesthesiaTransfusionIcuConsumerSlice: nursingAnesthesiaTransfusionIcuConsumerSlice(),
+    ...overrides,
+  };
+}
+
+function nursingAnesthesiaTransfusionIcuConsumerSlice(): Record<string, unknown> {
+  return {
+    systemFamilyCode: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    familyName: "护理、手麻、手术室、输血与 ICU 第三方系统族",
+    consumer: "SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION",
+    canonicalResources: [
+      "Patient",
+      "Encounter",
+      "Procedure",
+      "Observation",
+      "Medication",
+      "Document",
+    ],
+    sourceSystems: ["MEDKERNEL_FRONTDESK", "NURSING_ANESTHESIA_TRANSFUSION_ICU"],
+    adapterVerified: true,
+    webhookSignatureVerified: true,
+    outboundDegradationVerified: true,
+    signedInboundProcessedVerified: true,
+    runtimeConsumerVerified: true,
+    manualConfirmationVerified: true,
+    rectificationClosedVerified: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoTransfusion: true,
+    noAutoSurgery: true,
+    noExternalSuccessClaim: true,
+    aiGenerated: false,
+    patientId: "mpi-surgery",
+    encounterId: "enc-surgery",
+    contextSnapshotId: "ctx-surgery",
+    runtimeReleaseId: "runtime-surgery",
+    adapterId: "adapter-surgery-anesthesia-transfusion",
+    webhookId: "webhook-surgery-anesthesia-transfusion",
+    outboundMessageId: "out-surgery-checklist",
+    inboundMessageId: "in-surgery",
+    clinicalEventId: "evt-wh-surgery",
+    recommendationCardId: "card-surgery",
+    feedbackId: "rf-surgery",
+    findingId: "finding-surgery",
+    taskId: "task-surgery",
+    outboundPath: "outboundChecklist",
+    inboundPath: "inboundSurgeryEvent",
+    manualConfirmationPath: "manualConfirmation",
+    rectificationPath: "qualityRectification",
+    scopeStatement:
+      "护理、手麻、手术室、输血与 ICU 第三方系统族真实消费者代表切片：真实前台用 Procedure、Observation、Medication、Document 标准资源驱动 NURSING_ANESTHESIA_TRANSFUSION_ICU 入站、术前核查、麻醉风险、用血确认、当前机构生效版本推荐消费、医生人工确认和时序质控整改闭环；不代表完整护理系统，不代表完整围手术期系统，不代表完整手麻系统，不代表完整手术室系统，不代表完整输血系统，不代表完整 ICU 系统，不代表完整护理手麻手术室输血 ICU 第三方系统族覆盖，不代表真实外部成功联通，不代表自动开嘱，不代表自动输血，不代表自动手术，不代表完整 S26，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+  };
+}
+
 const criticalEmergencyIcuEvidence = {
   scenarioCodes: ["S19", "S24", "S27"],
   productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
@@ -14023,8 +14092,8 @@ describe("browser E2E launch coverage evidence", () => {
       "QUALITY_IMPROVEMENT",
     ]);
     expect(
-      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
-    ).toEqual(["NURSING_ANESTHESIA_TRANSFUSION_ICU"]);
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+    ).not.toContain("NURSING_ANESTHESIA_TRANSFUSION_ICU");
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S26__HIGH_RISK",
       "S26__DEGRADATION",
@@ -14032,6 +14101,186 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
+
+  it("declares NURSING_ANESTHESIA_TRANSFUSION_ICU consumer slice only from explicit bounded evidence", () => {
+    const evidence = surgeryAnesthesiaTransfusionEvidenceResult(
+      nursingAnesthesiaTransfusionIcuConsumerSliceEvidence(),
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["NURSING_ANESTHESIA_TRANSFUSION_ICU"]);
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S26"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S26__HIGH_RISK",
+      "S26__DEGRADATION",
+      "S26__ABNORMAL",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "缺显式消费者切片",
+      body: surgeryAnesthesiaTransfusionEvidence,
+    },
+    {
+      name: "系统族错配",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 S26 和完整上线",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          scopeStatement:
+            "完整护理手麻手术室输血 ICU 第三方系统族覆盖、完整 S26 和完整上线验收已完成。",
+        },
+      }),
+    },
+    {
+      name: "缺 Procedure 标准资源",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          canonicalResources: ["Patient", "Encounter", "Observation", "Medication", "Document"],
+        },
+      }),
+    },
+    {
+      name: "出站伪造成外部成功联通",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        outboundChecklist: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.outboundChecklist),
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+      }),
+    },
+    {
+      name: "出站断连阻断主链路",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        outboundChecklist: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.outboundChecklist),
+          blocksMainFlow: true,
+        },
+      }),
+    },
+    {
+      name: "缺签名入站事件",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        inboundSurgeryEvent: undefined,
+      }),
+    },
+    {
+      name: "入站来源错配",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        inboundSurgeryEvent: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent),
+          sourceSystem: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "临床事件未处理完成",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        inboundSurgeryEvent: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent),
+          clinicalEvent: {
+            ...structuredClone(
+              surgeryAnesthesiaTransfusionEvidence.inboundSurgeryEvent.clinicalEvent,
+            ),
+            status: "FAILED",
+          },
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        recommendation: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "人工确认不是医生确认",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        manualConfirmation: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.manualConfirmation),
+          persisted: {
+            ...structuredClone(surgeryAnesthesiaTransfusionEvidence.manualConfirmation.persisted),
+            operatorRole: "NURSE",
+          },
+        },
+      }),
+    },
+    {
+      name: "允许自动输血",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          noAutoTransfusion: false,
+        },
+      }),
+    },
+    {
+      name: "整改未关闭",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        qualityRectification: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.qualityRectification),
+          taskStatus: "OPEN",
+        },
+      }),
+    },
+    {
+      name: "整改未绑定本轮推荐卡",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        qualityRectification: {
+          ...structuredClone(surgeryAnesthesiaTransfusionEvidence.qualityRectification),
+          sourceId: "other-card",
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: nursingAnesthesiaTransfusionIcuConsumerSliceEvidence({
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          ...nursingAnesthesiaTransfusionIcuConsumerSlice(),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+  ])(
+    "does not declare NURSING_ANESTHESIA_TRANSFUSION_ICU consumer slice when $name",
+    ({ body }) => {
+      expectNoNursingAnesthesiaTransfusionIcuConsumerSlice(body);
+    },
+  );
 
   it("does not declare S26 condition rows without explicit condition evidence", () => {
     const { scenarioConditionEvidence: _omitted, ...body } = surgeryAnesthesiaTransfusionEvidence;

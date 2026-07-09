@@ -2078,6 +2078,88 @@ async function attachPeriopEvidence(
         recommendation: evidence.recommendation,
         manualConfirmation: evidence.manualConfirmation,
         qualityRectification: evidence.qualityRectification,
+        nursingAnesthesiaTransfusionIcuConsumerSlice: {
+          systemFamilyCode: "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+          familyName: "护理、手麻、手术室、输血与 ICU 第三方系统族",
+          consumer: "SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION",
+          canonicalResources: [
+            "Patient",
+            "Encounter",
+            "Procedure",
+            "Observation",
+            "Medication",
+            "Document",
+          ],
+          sourceSystems: ["MEDKERNEL_FRONTDESK", "NURSING_ANESTHESIA_TRANSFUSION_ICU"],
+          adapterVerified: true,
+          webhookSignatureVerified: true,
+          outboundDegradationVerified: true,
+          signedInboundProcessedVerified: true,
+          runtimeConsumerVerified: true,
+          manualConfirmationVerified: true,
+          rectificationClosedVerified: true,
+          auditVerified: true,
+          permissionVerified: true,
+          sixStateBoundaryVerified: true,
+          requiresPhysicianConfirmation: true,
+          noAutoOrder: true,
+          noAutoTransfusion: true,
+          noAutoSurgery: true,
+          noExternalSuccessClaim: true,
+          aiGenerated: false,
+          patientId: requireText(
+            textFieldAtPath(evidence.clinicalContext, "patientId"),
+            "消费者切片必须绑定本轮患者",
+          ),
+          encounterId: requireText(
+            textFieldAtPath(evidence.clinicalContext, "encounterId"),
+            "消费者切片必须绑定本轮就诊",
+          ),
+          contextSnapshotId: requireText(
+            textFieldAtPath(evidence.clinicalContext, "contextSnapshotId"),
+            "消费者切片必须绑定本轮上下文快照",
+          ),
+          runtimeReleaseId: evidence.runtime.releaseId,
+          adapterId: requireText(textField(evidence.adapter, "adapterId"), "消费者切片必须绑定适配器"),
+          webhookId: requireText(
+            textField(evidence.webhookSignature, "webhookId"),
+            "消费者切片必须绑定回调通道",
+          ),
+          outboundMessageId: requireText(
+            textField(evidence.outboundChecklist, "messageId"),
+            "消费者切片必须绑定出站消息",
+          ),
+          inboundMessageId: requireText(
+            textField(evidence.inboundSurgeryEvent, "messageId"),
+            "消费者切片必须绑定入站消息",
+          ),
+          clinicalEventId: requireText(
+            textFieldAtPath(evidence.inboundSurgeryEvent, "clinicalEvent.eventId"),
+            "消费者切片必须绑定临床事件",
+          ),
+          recommendationCardId: requireText(
+            textField(evidence.recommendation, "cardId"),
+            "消费者切片必须绑定推荐卡",
+          ),
+          feedbackId: requireText(
+            textField(evidence.manualConfirmation, "feedbackId"),
+            "消费者切片必须绑定人工确认",
+          ),
+          findingId: requireText(
+            textField(evidence.qualityRectification, "findingId"),
+            "消费者切片必须绑定整改问题",
+          ),
+          taskId: requireText(
+            textField(evidence.qualityRectification, "taskId"),
+            "消费者切片必须绑定整改任务",
+          ),
+          outboundPath: "outboundChecklist",
+          inboundPath: "inboundSurgeryEvent",
+          manualConfirmationPath: "manualConfirmation",
+          rectificationPath: "qualityRectification",
+          scopeStatement:
+            "护理、手麻、手术室、输血与 ICU 第三方系统族真实消费者代表切片：真实前台用 Procedure、Observation、Medication、Document 标准资源驱动 NURSING_ANESTHESIA_TRANSFUSION_ICU 入站、术前核查、麻醉风险、用血确认、当前机构生效版本推荐消费、医生人工确认和时序质控整改闭环；不代表完整护理系统，不代表完整围手术期系统，不代表完整手麻系统，不代表完整手术室系统，不代表完整输血系统，不代表完整 ICU 系统，不代表完整护理手麻手术室输血 ICU 第三方系统族覆盖，不代表真实外部成功联通，不代表自动开嘱，不代表自动输血，不代表自动手术，不代表完整 S26，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+        },
         scenarioConditionEvidence: [
           {
             code: "S26__HIGH_RISK",

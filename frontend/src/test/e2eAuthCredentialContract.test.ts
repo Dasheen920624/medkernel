@@ -555,6 +555,12 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain(
       "requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment",
     );
+    expect(coverageParser).toContain("hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice");
+    expect(coverageParser).toContain("nursingAnesthesiaTransfusionIcuConsumerSlice");
+    expect(coverageParser).toContain("requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment");
+    expect(coverageParser).toContain("noExternalSuccessClaim");
+    expect(coverageParser).toContain("noAutoTransfusion");
+    expect(coverageParser).toContain("noAutoSurgery");
     expect(fullSystemGate).toContain('"PHARMACY_REVIEW"');
     expect(fullSystemGate).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
     expect(fullSystemGate).toContain('"NURSING_ANESTHESIA_TRANSFUSION_ICU"');
@@ -583,6 +589,11 @@ describe("E2E credential contract", () => {
     expect(infectionSource).not.toContain("完整公卫法定上报已上线");
     expect(surgerySource).toContain("surgery-anesthesia-transfusion-frontdesk-codes");
     expect(surgerySource).toContain('"NURSING_ANESTHESIA_TRANSFUSION_ICU"');
+    expect(surgerySource).toContain("nursingAnesthesiaTransfusionIcuConsumerSlice");
+    expect(surgerySource).toContain("noExternalSuccessClaim");
+    expect(surgerySource).toContain("不代表完整护理系统");
+    expect(surgerySource).toContain("不代表真实外部成功联通");
+    expect(surgerySource).toContain("不代表自动输血");
     expect(surgerySource).toContain('expect(["NOT_CONNECTED", "RETRYING"].includes(status)');
     expect(surgerySource).toContain('textField(compensation, "status") === "NOT_CONNECTED"');
     expect(surgerySource).not.toContain("完整手麻手术室输血系统已上线");

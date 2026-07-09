@@ -68,6 +68,7 @@ type CoverageProof = {
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
   requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
+  requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment?: boolean;
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
   requiresReportInterpretationScenarioAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
@@ -395,6 +396,9 @@ const surgeryAnesthesiaTransfusionFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "serviceCombinations:QUALITY_IMPROVEMENT",
+];
+
+const nursingAnesthesiaTransfusionIcuConsumerSliceClaims = [
   "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
 ];
 
@@ -1479,6 +1483,13 @@ const coverageProofs: CoverageProof[] = [
     requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment: true,
   },
   {
+    file: "surgery-anesthesia-transfusion-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成围手术期麻醉输血核查代表闭环",
+    claims: nursingAnesthesiaTransfusionIcuConsumerSliceClaims,
+    requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment: true,
+    requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment: true,
+  },
+  {
     file: "critical-emergency-icu-frontdesk.spec.ts",
     titleIncludes: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
     claims: criticalEmergencyIcuFrontdeskClaims,
@@ -1798,6 +1809,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredPublicHealthInfectionRegulatoryConsumerSliceAttachment(test)) &&
       (!proof.requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment ||
         hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test)) &&
+      (!proof.requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment ||
+        hasRequiredSurgeryAnesthesiaTransfusionConsumerSliceAttachment(test)) &&
       (!proof.requiresCriticalEmergencyIcuFrontdeskAttachment ||
         hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test)) &&
       (!proof.requiresReportInterpretationScenarioAttachment ||
@@ -7651,6 +7664,21 @@ function hasRequiredSurgeryAnesthesiaTransfusionFrontdeskAttachment(test: Browse
   }
 }
 
+function hasRequiredSurgeryAnesthesiaTransfusionConsumerSliceAttachment(
+  test: BrowserE2eTestResult,
+) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "surgery-anesthesia-transfusion-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed !== null && hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice(parsed);
+  } catch {
+    return false;
+  }
+}
+
 function hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test: BrowserE2eTestResult) {
   const attachment = test.attachments?.find(
     (item) => item.name === "critical-emergency-icu-frontdesk-codes",
@@ -13278,6 +13306,188 @@ function hasUnnegatedSurgeryAnesthesiaTransfusionScopeClaim(statement: string) {
     "完整手麻手术室输血系统",
     "完整手麻手术室输血系统族",
     "护理、手麻、手术室、输血和 ICU 第三方系统族完整覆盖",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice(body: Record<string, unknown>) {
+  const runtime = parseSurgeryAnesthesiaTransfusionRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const slice = recordValue(body.nursingAnesthesiaTransfusionIcuConsumerSlice);
+  const context = recordValue(body.clinicalContext);
+  const outbound = recordValue(body.outboundChecklist);
+  const inbound = recordValue(body.inboundSurgeryEvent);
+  const recommendation = recordValue(body.recommendation);
+  const manualConfirmation = recordValue(body.manualConfirmation);
+  const rectification = recordValue(body.qualityRectification);
+  const adapter = recordValue(body.adapter);
+  const webhook = recordValue(body.webhookSignature);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  return (
+    slice !== null &&
+    context !== null &&
+    outbound !== null &&
+    inbound !== null &&
+    recommendation !== null &&
+    manualConfirmation !== null &&
+    rectification !== null &&
+    adapter !== null &&
+    webhook !== null &&
+    slice.systemFamilyCode === "NURSING_ANESTHESIA_TRANSFUSION_ICU" &&
+    hasText(slice.familyName) &&
+    (String(slice.familyName).includes("护理") ||
+      String(slice.familyName).includes("围手术期") ||
+      String(slice.familyName).includes("麻醉")) &&
+    slice.consumer ===
+      "SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION" &&
+    arrayEquals(slice.canonicalResources, [
+      "Patient",
+      "Encounter",
+      "Procedure",
+      "Observation",
+      "Medication",
+      "Document",
+    ]) &&
+    arrayEquals(slice.sourceSystems, [
+      "MEDKERNEL_FRONTDESK",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+    ]) &&
+    slice.adapterVerified === true &&
+    slice.webhookSignatureVerified === true &&
+    slice.outboundDegradationVerified === true &&
+    (slice.signedInboundProcessedVerified === true ||
+      slice.inboundSurgeryEventVerified === true ||
+      slice.clinicalEventProcessedVerified === true) &&
+    (slice.runtimeConsumerVerified === true || slice.recommendationConsumerVerified === true) &&
+    (slice.manualConfirmationVerified === true || slice.physicianConfirmationVerified === true) &&
+    slice.rectificationClosedVerified === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    slice.requiresPhysicianConfirmation === true &&
+    slice.noAutoOrder === true &&
+    slice.noAutoTransfusion === true &&
+    slice.noAutoSurgery === true &&
+    slice.noExternalSuccessClaim === true &&
+    slice.aiGenerated !== true &&
+    slice.patientId === context.patientId &&
+    slice.encounterId === context.encounterId &&
+    slice.contextSnapshotId === context.contextSnapshotId &&
+    slice.runtimeReleaseId === runtime.releaseId &&
+    slice.adapterId === adapter.adapterId &&
+    slice.webhookId === webhook.webhookId &&
+    slice.outboundMessageId === outbound.messageId &&
+    slice.inboundMessageId === inbound.messageId &&
+    slice.clinicalEventId === clinicalEvent?.eventId &&
+    slice.recommendationCardId === recommendation.cardId &&
+    slice.feedbackId === manualConfirmation.feedbackId &&
+    slice.findingId === rectification.findingId &&
+    slice.taskId === rectification.taskId &&
+    slice.outboundPath === "outboundChecklist" &&
+    slice.inboundPath === "inboundSurgeryEvent" &&
+    slice.manualConfirmationPath === "manualConfirmation" &&
+    slice.rectificationPath === "qualityRectification" &&
+    hasNursingAnesthesiaTransfusionIcuConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompleteSurgeryAnesthesiaTransfusionApiEvidence(body.apiEvidence) &&
+    hasCompleteSurgeryAnesthesiaTransfusionAdapterEvidence(body.adapter) &&
+    hasCompleteSurgeryAnesthesiaTransfusionWebhookEvidence(body.webhookSignature, body.adapter) &&
+    surgeryAnesthesiaTransfusionRuntimeAssetMatches(
+      body.terminologyGate,
+      runtime.terminologyAsset,
+    ) &&
+    surgeryAnesthesiaTransfusionRuntimeAssetMatches(body.safetyRedline, runtime.safetyAsset) &&
+    surgeryAnesthesiaTransfusionRuntimeAssetMatches(body.riskMatrix, runtime.cdssRiskAsset) &&
+    surgeryAnesthesiaTransfusionRuntimeAssetMatches(body.ruleAsset, runtime.ruleAsset) &&
+    surgeryAnesthesiaTransfusionRuntimeAssetMatches(body.actionCard, runtime.actionCardAsset) &&
+    hasCompleteSurgeryAnesthesiaTransfusionTerminologyGate(body.terminologyGate) &&
+    hasCompleteSurgeryAnesthesiaTransfusionSafetyRedline(body.safetyRedline) &&
+    hasCompleteSurgeryAnesthesiaTransfusionRiskMatrix(body.riskMatrix) &&
+    hasCompleteSurgeryAnesthesiaTransfusionActionCard(body.actionCard) &&
+    hasCompleteSurgeryAnesthesiaTransfusionRuleAsset(body.ruleAsset) &&
+    hasCompleteSurgeryAnesthesiaTransfusionActivationRequest(body.activationRequest, runtime) &&
+    hasCompleteSurgeryAnesthesiaTransfusionClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteSurgeryAnesthesiaTransfusionOutbound(
+      body.outboundChecklist,
+      body.adapter,
+      body.clinicalContext,
+    ) &&
+    hasCompleteSurgeryAnesthesiaTransfusionInbound(
+      body.inboundSurgeryEvent,
+      body.adapter,
+      body.webhookSignature,
+      body.outboundChecklist,
+      runtime.releaseId,
+    ) &&
+    hasCompleteSurgeryAnesthesiaTransfusionTrigger(body.clinicalTrigger, runtime.releaseId) &&
+    hasCompleteSurgeryAnesthesiaTransfusionRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteSurgeryAnesthesiaTransfusionManualConfirmation(
+      body.manualConfirmation,
+      runtime.actionCardAsset,
+    ) &&
+    hasCompleteSurgeryAnesthesiaTransfusionRectification(
+      body.qualityRectification,
+      body.recommendation,
+    ) &&
+    evidencePathsResolve(body, [
+      slice.outboundPath,
+      slice.inboundPath,
+      slice.manualConfirmationPath,
+      slice.rectificationPath,
+    ])
+  );
+}
+
+function hasNursingAnesthesiaTransfusionIcuConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedNursingAnesthesiaTransfusionIcuConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整护理系统") &&
+    hasNegatedScopeTerm(statement, "完整围手术期系统") &&
+    hasNegatedScopeTerm(statement, "完整手麻系统") &&
+    hasNegatedScopeTerm(statement, "完整手术室系统") &&
+    hasNegatedScopeTerm(statement, "完整输血系统") &&
+    hasNegatedScopeTerm(statement, "完整 ICU 系统") &&
+    hasNegatedScopeTerm(statement, "完整护理手麻手术室输血 ICU 第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "真实外部成功联通") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "自动输血") &&
+    hasNegatedScopeTerm(statement, "自动手术") &&
+    hasNegatedScopeTerm(statement, "完整 S26") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedNursingAnesthesiaTransfusionIcuConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整护理系统",
+    "完整围手术期系统",
+    "完整手麻系统",
+    "完整手术室系统",
+    "完整输血系统",
+    "完整 ICU 系统",
+    "完整ICU系统",
+    "完整护理手麻手术室输血 ICU 第三方系统族覆盖",
+    "完整护理手麻手术室输血ICU第三方系统族覆盖",
+    "真实外部成功联通",
+    "自动开嘱",
+    "自动输血",
+    "自动手术",
+    "完整 S26",
+    "完整S26",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
   ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 

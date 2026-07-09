@@ -75,6 +75,64 @@
   `nursingAnesthesiaTransfusionIcuConsumerSlice` 显式对象 + 严格 collector 负例；不能把现有 S26 条件行或 scope 文案冒领为完整
   手麻输血 ICU 系统族 / 完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百四十批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有围手术期、麻醉与输血真实前台链路从旧式
+  `thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU` 隐式 claim 升级为显式
+  `nursingAnesthesiaTransfusionIcuConsumerSlice` 代表消费者切片。证据固定来源于
+  `surgery-anesthesia-transfusion-frontdesk.spec.ts` 的 `surgery-anesthesia-transfusion-frontdesk-codes` 附件：
+  真实前台创建 NURSING_ANESTHESIA_TRANSFUSION_ICU 适配器 / 回调通道 / 签名预览，签名入站生成
+  Procedure / Observation / Medication / Document，出站核查回传诚实收敛到 `NOT_CONNECTED/RETRYING` 且不阻断主链路，
+  当前机构生效版本消费 TERMINOLOGY / SAFETY / CDSS_RISK / RULE / ACTION_CARD，临床用户触发推荐、医生人工确认、围手术期时序质控整改关闭。
+  明确不声明完整护理系统、完整围手术期系统、完整手麻系统、完整手术室系统、完整输血系统、完整 ICU 系统、
+  完整护理手麻手术室输血 ICU 第三方系统族覆盖、真实外部成功联通、自动开嘱 / 自动输血 / 自动手术、完整 S26、
+  完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百四十批实现细节：`frontend/e2e/surgery-anesthesia-transfusion-frontdesk.spec.ts` 的附件新增
+  `nursingAnesthesiaTransfusionIcuConsumerSlice`，固定
+  `systemFamilyCode=NURSING_ANESTHESIA_TRANSFUSION_ICU`、
+  `consumer=SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION`、
+  `canonicalResources=[Patient,Encounter,Procedure,Observation,Medication,Document]`、
+  `sourceSystems=[MEDKERNEL_FRONTDESK,NURSING_ANESTHESIA_TRANSFUSION_ICU]`，并绑定本轮
+  `patientId/encounterId/contextSnapshotId/runtimeReleaseId/adapterId/webhookId/outboundMessageId/inboundMessageId/`
+  `clinicalEventId/recommendationCardId/feedbackId/findingId/taskId`。切片显式要求适配器 / 回调 / 出站降级 / 签名入站 /
+  当前 runtime 消费 / 医生人工确认 / 整改关闭 / 审计 / 权限 / 六态边界成立，且
+  `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、`noAutoTransfusion=true`、`noAutoSurgery=true`、
+  `noExternalSuccessClaim=true`、`aiGenerated=false`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增单独 proof 和严格
+  `hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice()`：S26 基础 proof 仍只声明 S26、产品层、资产、服务组合和既有
+  三条条件行；`NURSING_ANESTHESIA_TRANSFUSION_ICU` 消费者切片必须有显式 `nursingAnesthesiaTransfusionIcuConsumerSlice`
+  才会声明。collector 复用围手术期 API、runtime、适配器、回调、上下文、出站、入站、推荐、人工确认和整改强校验，并要求
+  slice scope 明确否定完整护理 / 围手术期 / 手麻 / 手术室 / 输血 / ICU 系统、真实外部成功联通、自动开嘱 / 输血 / 手术、
+  完整 S26、完整 S0-S40 和上线验收。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  基础 S26 proof 不再声明消费者切片，显式 slice 才声明；缺显式 slice、系统族错配、scope 冒领、缺 Procedure 标准资源、
+  出站伪造成外部成功、出站断连阻断主链路、缺签名入站、入站来源错配、临床事件未处理、推荐未绑定当前 runtime、
+  人工确认不是医生、允许自动输血、整改未关闭 / 未绑定本轮推荐卡、缺审计 / 权限 / 六态边界，均不声明
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU`。`frontend/src/test/e2eAuthCredentialContract.test.ts` 与
+  `scripts/release/launch-coverage-audit.test.mjs` 同步锁定显式 slice 源码契约和缺 NURSING 消费者切片时 release 审计失败负例。
+- 第二百四十批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-nursing-anesthesia-transfusion-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium surgery-anesthesia-transfusion-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-nursing-anesthesia-transfusion-consumer-slice-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.thirdPartySystemFamilyConsumerSlices=[NURSING_ANESTHESIA_TRANSFUSION_ICU]`，且只保留既有
+  `scenarioConditionRows=[S26__HIGH_RISK,S26__DEGRADATION,S26__ABNORMAL]`，未新增 S26 其他两态或任何新 S0-S40 行。
+  附件抽查：`nursingAnesthesiaTransfusionIcuConsumerSlice.consumer=`
+  `SURGERY_ANESTHESIA_TRANSFUSION_CHECKLIST_RECOMMENDATION_RECTIFICATION`、
+  `canonicalResources=[Patient,Encounter,Procedure,Observation,Medication,Document]`、`noAutoTransfusion=true`、
+  `noAutoSurgery=true`、`noExternalSuccessClaim=true`，并绑定本轮
+  `adapterId/webhookId/outboundMessageId/inboundMessageId/clinicalEventId/recommendationCardId/feedbackId/findingId/taskId`。
+- 第二百四十批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在旧基础 S26 proof 仍声明
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU` 和显式消费者切片负例仍被声明；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（894 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `node --test scripts/release/launch-coverage-audit.test.mjs`（7 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（961 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
+  和真实 E2E。并行只读 explorer 已返回下一批候选：优先 `REGIONAL_REMOTE` 从
+  `regional-diagnostic-mutual-recognition-frontdesk.spec.ts` 补 `regionalRemoteConsumerSlice` 显式对象 + 严格 collector 负例；
+  只能声明区域远程互认代表消费者切片，不能声明完整区域平台、完整远程医疗、真实外部区域平台成功联通、完整 S40、
+  完整第三方系统族或完整上线。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`
