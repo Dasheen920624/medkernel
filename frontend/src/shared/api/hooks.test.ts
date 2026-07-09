@@ -3116,6 +3116,7 @@ describe("mpi api helpers", () => {
         currentMedicationText: "华法林、阿司匹林、青霉素、华法林",
         allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难、青霉素：皮疹",
         observationText: "CRP=128 mg/L；PCT=2.4 ng/mL",
+        specialPopulations: ["PREGNANCY", "GERIATRIC"],
         heightCm: 170,
         weightKg: 82,
         diagnosticReportType: "血钾检验",
@@ -3133,6 +3134,9 @@ describe("mpi api helpers", () => {
       ward_id?: string | null;
       orgUnitId?: string;
       resources?: {
+        patient?: {
+          specialPopulations?: string[];
+        };
         medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
         allergyIntolerances?: Array<{
           code?: string;
@@ -3176,6 +3180,7 @@ describe("mpi api helpers", () => {
               currentMedicationCount?: number;
               allergyIntoleranceCount?: number;
               observationCount?: number;
+              specialPopulationCount?: number;
               heightCm?: number;
               weightKg?: number;
               diagnosticReportCount?: number;
@@ -3190,6 +3195,7 @@ describe("mpi api helpers", () => {
     });
     expect(requestBody.ward_id).toBe("ward-A");
     expect(requestBody.orgUnitId).toBe("ward-A");
+    expect(requestBody.resources?.patient?.specialPopulations).toEqual(["PREGNANCY", "GERIATRIC"]);
     expect(requestBody.resources?.medications).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -3292,6 +3298,9 @@ describe("mpi api helpers", () => {
       1,
     );
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.observationCount).toBe(2);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.specialPopulationCount).toBe(
+      2,
+    );
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.claimCount).toBe(1);
   });
 });

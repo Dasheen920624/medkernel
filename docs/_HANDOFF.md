@@ -23,6 +23,38 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十三批本地推进：继续按“上线总账驱动”推进，但本批不硬凑新的 S0-S40 五态行。并行只读审计
+  `S30`、`S37`、`S22`、`S25/S28/S29/S38/S39` 后均确认当前没有可直接升级为 `scenarioConditionRows` 的
+  专属强附件；`S30` 缺基层能力目录、双向转诊申请/接收/回传和区域资源匹配，`S37` 缺床旁问答、条款定位、
+  来源版本和患者关联解释，`S22` 缺 MDT/专科中心讨论材料、责任任务和结论证据，`S25/S28/S29/S38/S39`
+  目前只有领域门面 B0 或相邻业务证据，不得冒领。本批转为补 S28 后续真实链路必需的患者事实基础能力：
+  在患者 360 “建立当前就诊上下文”前台增加“特殊人群标记”多选，提交到 `ContextSnapshotCreatePayload.specialPopulations`，
+  并落入 canonical `Patient.specialPopulations` 与前台上下文扩展摘要 `specialPopulationCount`。
+  `medication-safety-frontdesk.spec.ts` 的既有真实前台用药安全链路同步选择“妊娠/老年”，从服务响应回读
+  canonical Patient 标记并写入 `clinicalContext.specialPopulations` 附件。只证明特殊人群患者事实入口与服务回读；
+  不声明 `S28__NORMAL` 或任何新的 `scenarioConditionRows`，不声明完整妇产儿科老年特殊人群、特殊人群剂量/禁忌闭环、
+  完整用药安全、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百三十三批实现细节：`frontend/src/pages/clinical/Mpi.tsx` 新增特殊人群选项（妊娠、哺乳、儿童、老年、
+  肾功能不全、肝功能不全）与多选控件；`frontend/src/shared/api/hooks.ts` 将前台 payload 中的
+  `specialPopulations` 写入 snapshot 请求的 `resources.patient.specialPopulations`，并在
+  `extensions.local.frontdeskContext.specialPopulationCount` 暴露数量。`frontend/src/pages/clinical/Mpi.test.tsx`
+  先红于缺少“特殊人群标记”控件，随后验证患者 360 建上下文提交 `["PREGNANCY","GERIATRIC"]`；
+  `frontend/src/shared/api/hooks.test.ts` 先红于缺 `specialPopulationCount`，随后验证 canonical Patient 与扩展摘要均正确。
+  真实 E2E `medication-safety-frontdesk.spec.ts` 仅把该事实写入既有 S5 高危链路附件，parser 仍只声明既有
+  `S5__HIGH_RISK`。
+- 第二百三十三批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-special-population-context-20260710-r1 npm --prefix frontend run e2e -- --project=chromium medication-safety-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-special-population-context-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 仍仅为
+  `[S5__HIGH_RISK]`。附件抽查显示 `clinicalContext.specialPopulations=[PREGNANCY,GERIATRIC]`，
+  `clinicalContext.resources.patient.specialPopulations=[PREGNANCY,GERIATRIC]`，未产生 S28 条件行。
+- 第二百三十三批验证证据：已通过
+  `npm --prefix frontend run test -- Mpi hooks e2eLaunchCoverageEvidence -- --run`（925 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
+  和真实 E2E。提交前仍需跑 `git diff --check`。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与
+  `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十二批本地推进：用户要求在保证质量前提下加速并使用并行/子代理。本批不再硬凑 S0-S40 五态行，
   改为补“全专业领域门面 B0 真实前台证据”底座覆盖：新增知识治理入口“领域门面无模型证据”，由医疗引擎运营员
   从前台真实回读 `GET /engine/domain-facades/b0-evidence`，严格证明 17 张专业领域门面均进入共享 B0 主链路、

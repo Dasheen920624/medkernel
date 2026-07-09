@@ -226,6 +226,7 @@ test.describe("用药安全代表切片真实前台闭环", () => {
       "用药安全上下文必须绑定包含本轮 SAFETY/CDSS_RISK/RULE 的当前机构生效版本",
     ).toBe(runtime.releaseId);
     assertSnapshotContainsMedicationAllergy(snapshot.resources);
+    assertSnapshotContainsSpecialPopulations(snapshot.resources);
     apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
     recordStage(observedStages, "临床用户从患者 360 建立 Medication 与 AllergyIntolerance 上下文");
 
@@ -271,6 +272,7 @@ test.describe("用药安全代表切片真实前台闭环", () => {
         contextSnapshotId: snapshot.snapshotId,
         runtimeReleaseId: snapshot.runtimeReleaseId,
         encounterId: snapshot.encounterId,
+        specialPopulations: ["PREGNANCY", "GERIATRIC"],
         resources: snapshot.resources,
       },
       clinicalTrigger: {
@@ -1109,6 +1111,10 @@ async function createMedicationSafetyContextFromFrontdesk(
   await contextDialog
     .getByLabel("过敏/不良反应")
     .fill(overrides.allergyText ?? "青霉素：皮疹；头孢菌素：呼吸困难");
+  await contextDialog.getByRole("combobox", { name: "特殊人群标记" }).click();
+  await page.getByTitle("妊娠").click();
+  await contextDialog.getByRole("combobox", { name: "特殊人群标记" }).click();
+  await page.getByTitle("老年").click();
   await contextDialog.getByLabel("身高 cm").fill("170");
   await contextDialog.getByLabel("体重 kg").fill("82");
   await contextDialog
@@ -1734,6 +1740,15 @@ function assertSnapshotContainsMedicationAllergy(resources: Record<string, unkno
     ),
     "前台上下文必须提交结构化 AllergyIntolerance J01C",
   ).toBe(true);
+}
+
+function assertSnapshotContainsSpecialPopulations(resources: Record<string, unknown>) {
+  const populations = arrayFieldAtPath(resources, "patient.specialPopulations").map((item) =>
+    String(item),
+  );
+  expect(populations, "前台上下文必须把特殊人群标记写入 canonical Patient").toEqual(
+    expect.arrayContaining(["PREGNANCY", "GERIATRIC"]),
+  );
 }
 
 function ruleApiContext(subject: string, step: string) {

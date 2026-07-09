@@ -6789,6 +6789,7 @@ export interface ContextSnapshotCreatePayload {
   currentMedicationText?: string;
   allergyIntoleranceText?: string;
   observationText?: string;
+  specialPopulations?: string[];
   heightCm?: number;
   weightKg?: number;
   diagnosticReportType?: string;
@@ -7171,7 +7172,7 @@ function frontdeskSnapshotRequest(
           name: payload.patient.maskedName,
           birthDate: estimatedBirthDateFromAge(payload.patient.age),
           gender: payload.patient.gender,
-          specialPopulations: [],
+          specialPopulations: payload.specialPopulations ?? [],
           sourceSystem: "MEDKERNEL_FRONTDESK",
           sourceRecordId: payload.patient.mpiId,
           mappedVersion: "FRONTDESK_CONTEXT_V1",
@@ -7231,6 +7232,7 @@ function frontdeskSnapshotRequest(
               currentMedicationCount: medications.length,
               allergyIntoleranceCount: allergyIntolerances.length,
               observationCount: observations.length,
+              specialPopulationCount: payload.specialPopulations?.length ?? 0,
               ...(payload.heightCm !== undefined ? { heightCm: payload.heightCm } : {}),
               ...(payload.weightKg !== undefined ? { weightKg: payload.weightKg } : {}),
               diagnosticReportCount: diagnosticReports.length,

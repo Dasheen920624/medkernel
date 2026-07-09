@@ -83,6 +83,15 @@ const PAGE_META = {
   },
 };
 
+const specialPopulationOptions = [
+  { value: "PREGNANCY", label: "妊娠" },
+  { value: "LACTATION", label: "哺乳" },
+  { value: "PEDIATRIC", label: "儿童" },
+  { value: "GERIATRIC", label: "老年" },
+  { value: "RENAL_IMPAIRMENT", label: "肾功能不全" },
+  { value: "HEPATIC_IMPAIRMENT", label: "肝功能不全" },
+];
+
 type ContextSnapshotFormValues = {
   encounterType: FrontdeskEncounterType;
   diseaseCode: string;
@@ -90,6 +99,7 @@ type ContextSnapshotFormValues = {
   currentMedicationText?: string;
   allergyIntoleranceText?: string;
   observationText?: string;
+  specialPopulations?: string[];
   heightCm?: number | null;
   weightKg?: number | null;
   diagnosticReportType?: string;
@@ -492,6 +502,9 @@ export default function Mpi() {
         ...(currentMedicationText ? { currentMedicationText } : {}),
         ...(allergyIntoleranceText ? { allergyIntoleranceText } : {}),
         ...(observationText ? { observationText } : {}),
+        ...(values.specialPopulations?.length
+          ? { specialPopulations: values.specialPopulations }
+          : {}),
         ...(values.heightCm !== undefined && values.heightCm !== null
           ? { heightCm: values.heightCm }
           : {}),
@@ -1158,6 +1171,15 @@ export default function Mpi() {
                 aria-label="监测指标"
                 placeholder="可选，填写检验或监测指标，例如：CRP=128 mg/L；PCT=2.4 ng/mL"
                 rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="specialPopulations" label="特殊人群标记">
+              <Select
+                aria-label="特殊人群标记"
+                mode="multiple"
+                allowClear
+                options={specialPopulationOptions}
+                placeholder="可选，选择妊娠、儿童、老年等需专项复核的人群标记"
               />
             </Form.Item>
             <Text strong>护理高风险评估（可选）</Text>
