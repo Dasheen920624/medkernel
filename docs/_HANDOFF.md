@@ -23,6 +23,43 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第一百九十九批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行：
+  一个审计 S2/S4 术语集成现有附件能否产出 `scenarioConditionRows`，一个审计后续最适合并行推进的上线切片；两个子代理均已关闭，
+  未编辑、未暂存、未提交。本批主线程按 TDD 只做一个能减少 `LAUNCH-06` 五态总账缺口的真实证据切片：
+  S2/S4 术语集成真实 E2E 现在在完整主链通过且显式 `scenarioConditionEvidence` 齐全时，产出
+  `S2__NORMAL`、`S2__ABNORMAL`、`S4__NORMAL`、`S4__ABNORMAL` 四条 `scenarioConditionRows`。
+  其中 NORMAL 绑定真实 Webhook 入站归一 / 术语运行契约，ABNORMAL 绑定非法入站 Webhook 签名拒绝 / 非法主数据同步签名拒绝。
+  本批明确不声明 `S2/S4__MISSING_DATA`、`S2/S4__HIGH_RISK`、`S2/S4__DEGRADATION`，也不冒领 S0-S40 共 205 行完成。
+- 第一百九十九批实现细节：`frontend/e2e/s2-s4-terminology-integration-rehearsal.spec.ts` 的
+  `s2-s4-runtime-mapping-codes` 附件新增 `scenarioConditionEvidence`，并按 `scenarioCodes` 与
+  `invalidMasterDataSignatureRejected`、`invalidInboundWebhookSignatureRejected` 条件生成行。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S2/S4 条件行白名单、动态 collector 和强校验：
+  只有 `hasRequiredS2S4RuntimeMappingAttachment()` 已通过、附件只包含已知 4 行、每行 `scenarioCode/condition/source/evidence`
+  匹配且 API 证据布尔也成立时，才声明 `scenarioConditionRows:*`；夹带未知行、重复行、空证据、缺异常签名或普通场景覆盖均不会声明。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿，锁定完整附件产出 4 行，并新增缺条件附件、
+  缺异常签名、未知行、代码/状态错配和空证据等负例。
+- 第一百九十九批真实 E2E：临时启动后端 18102（dev/H2，使用既有
+  `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar`）和前端 5175（本批启动，已停止；复核 18102/5175 无监听）。
+  执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s2-s4-condition-rows-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium s2-s4-terminology-integration-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s2-s4-condition-rows-20260709-r1/report/results.json` 读回 `status=PASSED`、`expected=1`、
+  `unexpected=0`、`flaky=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S2__NORMAL,S2__ABNORMAL,S4__NORMAL,S4__ABNORMAL]`，附件中两类非法签名拒绝布尔均为 `true`。
+- 第一百九十九批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在缺 `scenarioConditionRows`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（362 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，
+  无 whitespace error。
+- 第一百九十九批边界与下一步：本批只是把 S2/S4 已有强真实链路转成 4 条五态总账行，仍不是完整上线完成、
+  不是 S0-S40 五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是 134 清库重部署复演。
+  下批可按子代理只读审计建议并行推进：1）P1 运维 / 国产化入口把 `runtime-diagnostics`、`domestic-check`、
+  `system-providers` 的 NOT_CONNECTED、UNHEALTHY、缺配置、越权边界转成更多 `scenarioConditionRows`；
+  2）专病路径十阶段强附件接入 `LAUNCH-14.specialDiseaseStages`，低冲突高收益；
+  3）集团组织九层与跨范围职责证据补 `LAUNCH-13.organizationLevels`。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第一百九十八批本地推进：接长目标继续推进和用户“不要片面优化”的要求，本批先做上线总账防冒领而不是继续新增单个
   happy path E2E。使用 2 个只读子代理并行审计 release 总账与真实前台 34 入口，结论一致：`PRODUCT_SCOPE.md` §15
   第 6 项要求 S0-S40 均完成正常、异常、缺数、高风险和降级演练，但 release 之前只强制 `scenarios:S0..S40` 41 行，

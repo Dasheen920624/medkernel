@@ -1004,6 +1004,61 @@ async function attachS2S4CoverageEvidence(
       return required?.observedStages.every((stage) => scenario.observedStages.includes(stage));
     })
     .map((scenario) => scenario.code);
+  const scenarioConditionEvidence = [
+    ...(scenarioCodes.includes("S2")
+      ? [
+          {
+            code: "S2__NORMAL",
+            scenarioCode: "S2",
+            condition: "NORMAL",
+            source: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
+            evidence: [
+              "平台管理员前台创建 LIS Webhook 适配器并配置字段映射",
+              "真实 Webhook 入站通过验签并生成标准临床事件",
+              "入站字段映射按当前机构生效版本完成术语归一",
+            ],
+          },
+        ]
+      : []),
+    ...(input.invalidInboundWebhookSignatureRejected
+      ? [
+          {
+            code: "S2__ABNORMAL",
+            scenarioCode: "S2",
+            condition: "ABNORMAL",
+            source: "INVALID_INBOUND_WEBHOOK_SIGNATURE_REJECTED",
+            evidence: ["非法入站 Webhook 签名被拒绝"],
+          },
+        ]
+      : []),
+    ...(scenarioCodes.includes("S4")
+      ? [
+          {
+            code: "S4__NORMAL",
+            scenarioCode: "S4",
+            condition: "NORMAL",
+            source: "TERMINOLOGY_RUNTIME_CONTRACT",
+            evidence: [
+              "前台登记标准术语",
+              "签名主数据同步登记院内术语",
+              "前台生成并确认术语映射候选",
+              "当前机构生效版本和第三方运行契约读回同一术语资产",
+            ],
+          },
+        ]
+      : []),
+    ...(input.invalidMasterDataSignatureRejected
+      ? [
+          {
+            code: "S4__ABNORMAL",
+            scenarioCode: "S4",
+            condition: "ABNORMAL",
+            source: "INVALID_MASTER_DATA_SIGNATURE_REJECTED",
+            evidence: ["非法主数据同步签名被拒绝"],
+          },
+        ]
+      : []),
+  ];
   await testInfo.attach("s2-s4-runtime-mapping-codes", {
     contentType: "application/json",
     body: JSON.stringify(
@@ -1055,6 +1110,7 @@ async function attachS2S4CoverageEvidence(
           consumer: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
         },
         scenarioEvidence,
+        scenarioConditionEvidence,
       },
       null,
       2,

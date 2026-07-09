@@ -487,6 +487,45 @@ function s2s4RuntimeMappingEvidence(overrides: Record<string, unknown> = {}) {
         ],
       },
     ],
+    scenarioConditionEvidence: [
+      {
+        code: "S2__NORMAL",
+        scenarioCode: "S2",
+        condition: "NORMAL",
+        source: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
+        evidence: [
+          "平台管理员前台创建 LIS Webhook 适配器并配置字段映射",
+          "真实 Webhook 入站通过验签并生成标准临床事件",
+          "入站字段映射按当前机构生效版本完成术语归一",
+        ],
+      },
+      {
+        code: "S2__ABNORMAL",
+        scenarioCode: "S2",
+        condition: "ABNORMAL",
+        source: "INVALID_INBOUND_WEBHOOK_SIGNATURE_REJECTED",
+        evidence: ["非法入站 Webhook 签名被拒绝"],
+      },
+      {
+        code: "S4__NORMAL",
+        scenarioCode: "S4",
+        condition: "NORMAL",
+        source: "TERMINOLOGY_RUNTIME_CONTRACT",
+        evidence: [
+          "前台登记标准术语",
+          "签名主数据同步登记院内术语",
+          "前台生成并确认术语映射候选",
+          "当前机构生效版本和第三方运行契约读回同一术语资产",
+        ],
+      },
+      {
+        code: "S4__ABNORMAL",
+        scenarioCode: "S4",
+        condition: "ABNORMAL",
+        source: "INVALID_MASTER_DATA_SIGNATURE_REJECTED",
+        evidence: ["非法主数据同步签名被拒绝"],
+      },
+    ],
     ...overrides,
   };
 }
@@ -7520,7 +7559,7 @@ describe("browser E2E launch coverage evidence", () => {
     );
   });
 
-  it("declares S2/S4 runtime mapping coverage only with frontdesk evidence and real inbound consumption", () => {
+  it("declares S2/S4 runtime mapping coverage and only the condition rows backed by real evidence", () => {
     const evidence = s2s4EvidenceResult(s2s4RuntimeMappingEvidence());
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S2", "S4"]);
@@ -7535,6 +7574,79 @@ describe("browser E2E launch coverage evidence", () => {
       "THIRD_PARTY_INTERFACE",
       "CLINICAL_RUNTIME",
     ]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S2__NORMAL",
+      "S2__ABNORMAL",
+      "S4__NORMAL",
+      "S4__ABNORMAL",
+    ]);
+  });
+
+  it("does not auto-generate S2/S4 condition rows from ordinary scenario coverage", () => {
+    const evidence = s2s4EvidenceResult(
+      s2s4RuntimeMappingEvidence({ scenarioConditionEvidence: undefined }),
+    );
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S2", "S4"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "异常签名拒绝证据缺失",
+      body: s2s4RuntimeMappingEvidence({
+        apiEvidence: {
+          ...s2s4RuntimeMappingEvidence().apiEvidence,
+          invalidInboundWebhookSignatureRejected: false,
+        },
+      }),
+    },
+    {
+      name: "条件行代码不属于 S2/S4 已证明范围",
+      body: s2s4RuntimeMappingEvidence({
+        scenarioConditionEvidence: [
+          ...(s2s4RuntimeMappingEvidence().scenarioConditionEvidence as unknown[]),
+          {
+            code: "S2__DEGRADATION",
+            scenarioCode: "S2",
+            condition: "DEGRADATION",
+            source: "UNPROVEN_DEGRADATION",
+            evidence: ["没有真实降级证据"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行场景和状态与代码不一致",
+      body: s2s4RuntimeMappingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S2__NORMAL",
+            scenarioCode: "S4",
+            condition: "NORMAL",
+            source: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
+            evidence: ["场景代码不一致"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行没有具体证据文本",
+      body: s2s4RuntimeMappingEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S2__NORMAL",
+            scenarioCode: "S2",
+            condition: "NORMAL",
+            source: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+  ])("does not declare S2/S4 condition rows when $name", ({ body }) => {
+    const evidence = s2s4EvidenceResult(body);
+
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 

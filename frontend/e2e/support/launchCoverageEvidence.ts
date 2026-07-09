@@ -609,6 +609,32 @@ const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .map((claim) => claim.split(":")[1]);
 
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
+const s2s4ScenarioConditionRows = [
+  {
+    code: "S2__NORMAL",
+    scenarioCode: "S2",
+    condition: "NORMAL",
+    source: "SIGNED_WEBHOOK_INBOUND_NORMALIZATION",
+  },
+  {
+    code: "S2__ABNORMAL",
+    scenarioCode: "S2",
+    condition: "ABNORMAL",
+    source: "INVALID_INBOUND_WEBHOOK_SIGNATURE_REJECTED",
+  },
+  {
+    code: "S4__NORMAL",
+    scenarioCode: "S4",
+    condition: "NORMAL",
+    source: "TERMINOLOGY_RUNTIME_CONTRACT",
+  },
+  {
+    code: "S4__ABNORMAL",
+    scenarioCode: "S4",
+    condition: "ABNORMAL",
+    source: "INVALID_MASTER_DATA_SIGNATURE_REJECTED",
+  },
+] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
@@ -1240,6 +1266,10 @@ export function buildBrowserE2eLaunchEvidence(input: {
   const thirdPartyDegradationClaims = collectThirdPartySystemFamilyDegradationClaims(input.tests);
   if (thirdPartyDegradationClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, thirdPartyDegradationClaims, generatedAt);
+  }
+  const s2s4ScenarioConditionClaims = collectS2S4ScenarioConditionClaims(input.tests);
+  if (s2s4ScenarioConditionClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, s2s4ScenarioConditionClaims, generatedAt);
   }
   return evidence;
 }
@@ -3620,6 +3650,80 @@ function hasRequiredS2S4RuntimeMappingAttachment(test: BrowserE2eTestResult) {
     });
   } catch {
     return false;
+  }
+}
+
+function collectS2S4ScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
+  return tests.some(
+    (test) =>
+      path.basename(test.file) === "s2-s4-terminology-integration-rehearsal.spec.ts" &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      test.title.includes("真实入站消息按当前机构生效版本归一") &&
+      hasCompleteS2S4ScenarioConditionEvidence(test),
+  )
+    ? s2s4ScenarioConditionRows.map((row) => `scenarioConditionRows:${row.code}`)
+    : [];
+}
+
+function hasCompleteS2S4ScenarioConditionEvidence(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find((item) => item.name === "s2-s4-runtime-mapping-codes");
+  if (!attachment?.body || !hasRequiredS2S4RuntimeMappingAttachment(test)) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      apiEvidence?: unknown;
+      scenarioConditionEvidence?: unknown;
+    };
+    const apiEvidence = recordValue(parsed.apiEvidence);
+    if (!apiEvidence || !Array.isArray(parsed.scenarioConditionEvidence)) return false;
+    const rows = new Map<string, Record<string, unknown>>();
+    for (const item of parsed.scenarioConditionEvidence) {
+      const row = recordValue(item);
+      const code = textValue(row?.code);
+      const knownRow = s2s4ScenarioConditionRows.some((expected) => expected.code === code);
+      if (!row || !code || !knownRow || rows.has(code)) return false;
+      rows.set(code, row);
+    }
+    return rows.size === s2s4ScenarioConditionRows.length && s2s4ScenarioConditionRows.every((expected) => {
+      const row = rows.get(expected.code);
+      return (
+        row !== undefined &&
+        row.scenarioCode === expected.scenarioCode &&
+        row.condition === expected.condition &&
+        row.source === expected.source &&
+        hasNonEmptyTextArray(row.evidence) &&
+        s2s4ScenarioConditionBackedByApiEvidence(expected.code, apiEvidence)
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function s2s4ScenarioConditionBackedByApiEvidence(
+  code: (typeof s2s4ScenarioConditionRows)[number]["code"],
+  apiEvidence: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S2__NORMAL":
+      return (
+        apiEvidence.inboundWebhookAccepted === true &&
+        apiEvidence.inboundNormalizedByRuntimeRelease === true
+      );
+    case "S2__ABNORMAL":
+      return apiEvidence.invalidInboundWebhookSignatureRejected === true;
+    case "S4__NORMAL":
+      return (
+        apiEvidence.standardTermRegisteredFromFrontdesk === true &&
+        apiEvidence.localTermRegisteredThroughSignedSync === true &&
+        apiEvidence.candidateGeneratedFromFrontdesk === true &&
+        apiEvidence.candidateConfirmedFromFrontdesk === true &&
+        apiEvidence.runtimeContractReadbackMatched === true
+      );
+    case "S4__ABNORMAL":
+      return apiEvidence.invalidMasterDataSignatureRejected === true;
+    default:
+      return false;
   }
 }
 
@@ -10725,6 +10829,10 @@ function arrayEquals(value: unknown, expected: readonly string[]) {
 
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasNonEmptyTextArray(value: unknown) {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => hasText(item));
 }
 
 function textValue(value: unknown) {
