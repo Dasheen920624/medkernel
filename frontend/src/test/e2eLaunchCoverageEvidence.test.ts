@@ -5342,6 +5342,24 @@ const implementationGuideEntryCoreActionsEvidence = {
       implementationStepsReadbackVerified: true,
       onboardingReadinessReadbackVerified: true,
       dataQualityReportVerified: true,
+      dataQualityReport: {
+        reportId: "dq-report-implementation-guide",
+        traceId: "trace-dq-implementation-guide",
+        gapSummary: "未接通适配器：13；未登记院内系统适配器：2",
+        auditVerified: true,
+      },
+    },
+  ],
+  scenarioConditionEvidence: [
+    {
+      code: "S23__ABNORMAL",
+      scenarioCode: "S23",
+      condition: "ABNORMAL",
+      source: "IMPLEMENTATION_GUIDE_DATA_QUALITY_GAP_EVIDENCE",
+      evidence: [
+        "实施工程师从实施与验收页回读实施步骤和开通就绪状态",
+        "系统接入数据质量报告返回缺口摘要并能从审计列表回读",
+      ],
     },
   ],
 };
@@ -5372,6 +5390,13 @@ function expectNoImplementationGuideEntryCoreActionsCoverage(body: Record<string
   const evidence = implementationGuideEntryCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.implementationGuideEntryCoreActions).toBeUndefined();
   expect(evidence.launchCoverage.implementationGuideEntryCoreActionRows).toBeUndefined();
+}
+
+function expectNoImplementationGuideS23ConditionCoverage(body: Record<string, unknown>) {
+  const evidence = implementationGuideEntryCoreActionsEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S23__ABNORMAL");
 }
 
 const dashboardWorkbenchCoreActionsEvidence = {
@@ -6986,6 +7011,25 @@ describe("browser E2E launch coverage evidence", () => {
     ).toEqual(["IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY"]);
   });
 
+  it("declares S23 abnormal condition row only from implementation guide data-quality gap evidence", () => {
+    const evidence = implementationGuideEntryCoreActionsEvidenceResult();
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S23__ABNORMAL",
+    ]);
+  });
+
+  it("does not declare S23 abnormal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } =
+      implementationGuideEntryCoreActionsEvidence;
+    const evidence = implementationGuideEntryCoreActionsEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.implementationGuideEntryCoreActions?.map((item) => item.code),
+    ).toEqual(["IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
   it.each([
     {
       name: "没有边界声明",
@@ -7064,6 +7108,151 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare implementation guide entry core actions when $name", ({ body }) => {
     expectNoImplementationGuideEntryCoreActionsCoverage(body);
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S23__NORMAL",
+            scenarioCode: "S23",
+            condition: "NORMAL",
+            source: "IMPLEMENTATION_GUIDE_DATA_QUALITY_GAP_EVIDENCE",
+            evidence: ["数据质量缺口只能声明异常态代表行"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S23__ABNORMAL",
+            scenarioCode: "S23",
+            condition: "ABNORMAL",
+            source: "IMPLEMENTATION_GUIDE_PAGE_VISIBLE_ONLY",
+            evidence: ["不能只靠实施与验收页可见冒领异常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S23__ABNORMAL",
+            scenarioCode: "S23",
+            condition: "ABNORMAL",
+            source: "IMPLEMENTATION_GUIDE_DATA_QUALITY_GAP_EVIDENCE",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "数据质量报告缺报告编号",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          dataQualityReport: {
+            ...structuredClone(action.dataQualityReport),
+            reportId: "",
+          },
+        })),
+      },
+    },
+    {
+      name: "数据质量报告缺追踪编号",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          dataQualityReport: {
+            ...structuredClone(action.dataQualityReport),
+            traceId: "",
+          },
+        })),
+      },
+    },
+    {
+      name: "数据质量报告缺缺口摘要",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          dataQualityReport: {
+            ...structuredClone(action.dataQualityReport),
+            gapSummary: "",
+          },
+        })),
+      },
+    },
+    {
+      name: "数据质量报告缺口摘要不是异常缺口",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          dataQualityReport: {
+            ...structuredClone(action.dataQualityReport),
+            gapSummary: "全部接入正常",
+          },
+        })),
+      },
+    },
+    {
+      name: "数据质量报告未从审计回读",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          dataQualityReport: {
+            ...structuredClone(action.dataQualityReport),
+            auditVerified: false,
+          },
+        })),
+      },
+    },
+    {
+      name: "入口动作服务不是 2xx",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          serviceStatus: 500,
+        })),
+      },
+    },
+    {
+      name: "缺实施步骤回读",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          implementationStepsReadbackVerified: false,
+        })),
+      },
+    },
+    {
+      name: "缺整体审计证据",
+      body: {
+        ...structuredClone(implementationGuideEntryCoreActionsEvidence),
+        entryActions: implementationGuideEntryCoreActionsEvidence.entryActions.map((action) => ({
+          ...structuredClone(action),
+          auditVerified: false,
+        })),
+      },
+    },
+  ])("does not declare S23 abnormal condition row when $name", ({ body }) => {
+    expectNoImplementationGuideS23ConditionCoverage(body);
   });
 
   it("does not declare implementation guide entry core actions from a non-target spec", () => {

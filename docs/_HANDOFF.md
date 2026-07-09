@@ -815,6 +815,42 @@
   不是 134 清库重部署。下一批继续沿 `LAUNCH-06` 时优先复核 `S30__NORMAL` 是否能由真实前台慢病随访连续主链路
   强字段背书；当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百二十三批本地推进：接用户要求继续加速并使用子代理，本批使用 2 个只读 explorer：一个审计
+  `S30__NORMAL`，结论是当前 `real-frontdesk-rehearsal` 只能证明 `S12__NORMAL` 的 FOLLOWUP 随访主链路，
+  缺慢病指标、基层能力范围、双向转诊和区域资源显式字段，不能安全声明 S30；另一个审计下一批候选，建议优先
+  `S23__ABNORMAL`。两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。主线程按 TDD 改做更稳的
+  `S23__ABNORMAL`：本批只收口实施与验收 / 系统接入数据质量缺口代表切片，新增 1 条显式背书行：
+  `S23__ABNORMAL`（实施工程师从 `/onboarding/guide` 回读实施步骤和开通就绪状态，进入系统接入生成上线前数据质量报告，
+  报告返回 `reportId/traceId/gapSummary`，且报告能从审计列表回读）。不声明 `S23__NORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，
+  不声明 S30，不冒领完整 S23、电子病历评级全流程、互联互通评级、34 入口业务闭环、完整 S0-S40 或完整上线。
+- 第二百二十三批实现细节：`frontend/e2e/stakeholder-view-rehearsal.spec.ts` 的
+  `implementation-guide-entry-core-actions-codes` 附件新增 `dataQualityReport` 强字段和显式
+  `scenarioConditionEvidence`，来源固定为 `IMPLEMENTATION_GUIDE_DATA_QUALITY_GAP_EVIDENCE`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S23 异常行白名单和 implementation guide 条件行 collector：
+  必须来自通过的 `stakeholder-view-rehearsal.spec.ts` 目标附件，显式 `code/scenarioCode/condition/source/evidence`
+  严格匹配，先通过完整实施与验收入口动作，再绑定 `reportId`、`traceId`、异常缺口摘要和审计回读，才声明
+  `S23__ABNORMAL`。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式条件附件、
+  未知行、来源错配、证据为空、缺报告编号、缺追踪编号、缺缺口摘要、摘要不是异常缺口、报告未审计回读、入口服务非 2xx、
+  缺实施步骤回读或缺整体审计证据，均不声明 S23 异常行。
+- 第二百二十三批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；
+  复核 18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s23-abnormal-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s23-abnormal-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows=[S23__ABNORMAL]`，
+  同时保留 `implementationGuideEntryCoreActions=[IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS]` 和
+  `implementationGuideEntryCoreActionRows=[IMPLEMENTATION_ENGINEER_READINESS_AND_DATA_QUALITY]`。
+- 第二百二十三批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增 S23 正例缺 `S23__ABNORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（651 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑最终门禁和 `git diff --check`。
+- 第二百二十三批边界与下一步：本批只是把实施与验收 / 系统接入数据质量缺口接入 1 条五态总账异常行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是完整 S23 或评级验收完成、不是完整 34 入口业务深度完成、不是全医学知识生产完成、
+  不是 134 清库重部署。下一批继续沿 `LAUNCH-06` 时可优先评估 `S17__NORMAL`，但必须先把报告解读动作抽成专用强附件：
+  当前上下文 `runtimeReleaseId`、`sourceVersionId/versionNo`、医技报告异常解释、报告解读协同待办完成回读和审计字段都齐备后，
+  才能新增显式条件行；仍不得用普通 runtime record、菜单、文案或代表矩阵冒领。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

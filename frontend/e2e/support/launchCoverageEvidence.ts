@@ -656,6 +656,14 @@ const diagnosisKnowledgeScenarioConditionRows = [
     source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
   },
 ] as const;
+const implementationGuideScenarioConditionRows = [
+  {
+    code: "S23__ABNORMAL",
+    scenarioCode: "S23",
+    condition: "ABNORMAL",
+    source: "IMPLEMENTATION_GUIDE_DATA_QUALITY_GAP_EVIDENCE",
+  },
+] as const;
 const sourceLineageScenarioConditionRows = [
   {
     code: "S7__NORMAL",
@@ -2965,6 +2973,27 @@ function hasCompleteImplementationGuideEntryCoreAction(value: unknown) {
   );
 }
 
+function hasCompleteImplementationGuideDataQualityGapEvidence(value: unknown) {
+  const body = recordValue(value);
+  if (!body || body.matrixCode !== "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS") {
+    return false;
+  }
+  if (!hasImplementationGuideEntryCoreActionScopeBoundary(body.scopeStatement)) return false;
+  if (!Array.isArray(body.entryActions) || body.entryActions.length !== 1) return false;
+  const action = recordValue(body.entryActions[0]);
+  if (!action || !hasCompleteImplementationGuideEntryCoreAction(action)) return false;
+  const report = recordValue(action.dataQualityReport);
+  if (!report) return false;
+  const gapSummary = textValue(report.gapSummary);
+  return (
+    hasText(report.reportId) &&
+    hasText(report.traceId) &&
+    hasText(gapSummary) &&
+    /适配器|NOT_CONNECTED|MISCONFIGURED|缺口|未接通|未登记/u.test(gapSummary ?? "") &&
+    report.auditVerified === true
+  );
+}
+
 function hasExpectedImplementationGuideEntryCoreActionServiceOperation(
   serviceOperation: string | null,
 ) {
@@ -4074,6 +4103,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectImplementationGuideScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectSourceLineageScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4429,6 +4461,49 @@ function diagnosisKnowledgeScenarioConditionBackedByEvidence(
   switch (code) {
     case "S3__NORMAL":
       return hasCompleteDiagnosisKnowledgeStructuredEvidence(parsed);
+    default:
+      return false;
+  }
+}
+
+function collectImplementationGuideScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "stakeholder-view-rehearsal.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "implementation-guide-entry-core-actions-codes",
+  );
+  if (!attachment?.body) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      implementationGuideScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return implementationGuideScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          implementationGuideScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function implementationGuideScenarioConditionBackedByEvidence(
+  code: (typeof implementationGuideScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S23__ABNORMAL":
+      return hasCompleteImplementationGuideDataQualityGapEvidence(parsed);
     default:
       return false;
   }

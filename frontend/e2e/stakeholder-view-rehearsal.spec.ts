@@ -24,6 +24,12 @@ type ImplementationGuideEntryCoreActionEvidence = {
   implementationStepsReadbackVerified: boolean;
   onboardingReadinessReadbackVerified: boolean;
   dataQualityReportVerified: boolean;
+  dataQualityReport: {
+    reportId: string;
+    traceId: string;
+    gapSummary: string;
+    auditVerified: true;
+  };
 };
 
 type StakeholderActionResult = {
@@ -605,6 +611,12 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
       implementationStepsReadbackVerified: Array.isArray(implementationStepsReadback),
       onboardingReadinessReadbackVerified: Boolean(onboardingReadinessReadback),
       dataQualityReportVerified: Boolean(report.data?.reportId && report.data?.gapSummary),
+      dataQualityReport: {
+        reportId: report.data?.reportId ?? "",
+        traceId: report.data?.traceId ?? "",
+        gapSummary: report.data?.gapSummary ?? "",
+        auditVerified: true,
+      },
     };
   }
   return {
@@ -1520,6 +1532,18 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
             scopeStatement:
               "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表 34 个入口全部业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
             entryActions: [implementationGuideEvidence],
+            scenarioConditionEvidence: [
+              {
+                code: "S23__ABNORMAL",
+                scenarioCode: "S23",
+                condition: "ABNORMAL",
+                source: "IMPLEMENTATION_GUIDE_DATA_QUALITY_GAP_EVIDENCE",
+                evidence: [
+                  "实施工程师从实施与验收页回读实施步骤和开通就绪状态",
+                  "系统接入数据质量报告返回缺口摘要并能从审计列表回读",
+                ],
+              },
+            ],
           },
           null,
           2,
