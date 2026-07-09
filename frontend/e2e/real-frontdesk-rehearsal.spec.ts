@@ -2735,6 +2735,16 @@ async function attachScenarioEvidence(
                           "临床用户基于当前上下文生成随访计划并完成问卷与异常回院登记",
                         ],
                       },
+                      {
+                        code: "S12__ABNORMAL",
+                        scenarioCode: "S12",
+                        condition: "ABNORMAL",
+                        source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+                        evidence: [
+                          "异常回院登记为高风险且已由真实前台登记",
+                          "异常回院仅生成随访处置线索，不自动开嘱",
+                        ],
+                      },
                     ]
                   : [],
                 standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([

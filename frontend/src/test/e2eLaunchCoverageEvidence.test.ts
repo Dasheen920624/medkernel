@@ -13001,6 +13001,33 @@ describe("browser E2E launch coverage evidence", () => {
     ).not.toContain("S12__NORMAL");
   }
 
+  function realFrontdeskS12AbnormalEvidence(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    const body = structuredClone(realFrontdeskScenarioEvidence) as Record<string, unknown>;
+    body.scenarioConditionEvidence = [
+      ...(body.scenarioConditionEvidence as unknown[]),
+      {
+        code: "S12__ABNORMAL",
+        scenarioCode: "S12",
+        condition: "ABNORMAL",
+        source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+        evidence: [
+          "异常回院登记为高风险且已由真实前台登记",
+          "异常回院仅生成随访处置线索，不自动开嘱",
+        ],
+      },
+    ];
+    return { ...body, ...overrides };
+  }
+
+  function expectNoRealFrontdeskS12AbnormalConditionCoverage(body: Record<string, unknown>) {
+    const evidence = realFrontdeskScenarioEvidenceResult(body);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S12__ABNORMAL");
+  }
+
   it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {
     const evidence = realFrontdeskScenarioEvidenceResult(realFrontdeskScenarioEvidence);
 
@@ -13017,6 +13044,15 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S12__NORMAL",
+    ]);
+  });
+
+  it("declares S12 abnormal condition row only from high-risk abnormal-return evidence without auto orders", () => {
+    const evidence = realFrontdeskScenarioEvidenceResult(realFrontdeskS12AbnormalEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S12__NORMAL",
+      "S12__ABNORMAL",
     ]);
   });
 
@@ -13170,6 +13206,119 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S12 normal condition row when $name", ({ body }) => {
     expectNoRealFrontdeskScenarioConditionCoverage(body);
+  });
+
+  it("does not declare S12 abnormal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = realFrontdeskS12AbnormalEvidence();
+    const evidence = realFrontdeskScenarioEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual([
+      "S10",
+      "S11",
+      "S12",
+    ]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: realFrontdeskS12AbnormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S30__ABNORMAL",
+            scenarioCode: "S30",
+            condition: "ABNORMAL",
+            source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+            evidence: ["不能把随访异常回院冒领为慢病基层双向转诊"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行来源错配",
+      body: realFrontdeskS12AbnormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S12__ABNORMAL",
+            scenarioCode: "S12",
+            condition: "ABNORMAL",
+            source: "FOLLOWUP_PAGE_VISIBLE_ONLY",
+            evidence: ["不能只靠随访页面可见冒领异常态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行证据为空",
+      body: realFrontdeskS12AbnormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S12__ABNORMAL",
+            scenarioCode: "S12",
+            condition: "ABNORMAL",
+            source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "异常回院操作不匹配",
+      body: realFrontdeskS12AbnormalEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          operation: "REGISTER_ROUTINE_FOLLOWUP_RETURN",
+        },
+      }),
+    },
+    {
+      name: "异常回院风险不是高风险",
+      body: realFrontdeskS12AbnormalEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          riskLevel: "MEDIUM",
+        },
+      }),
+    },
+    {
+      name: "异常回院未登记",
+      body: realFrontdeskS12AbnormalEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          registered: false,
+        },
+      }),
+    },
+    {
+      name: "异常回院允许自动开嘱",
+      body: realFrontdeskS12AbnormalEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "异常回院计划不匹配",
+      body: realFrontdeskS12AbnormalEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          planId: "followup-plan-other",
+        },
+      }),
+    },
+    {
+      name: "异常回院患者不匹配",
+      body: realFrontdeskS12AbnormalEvidence({
+        abnormalReturn: {
+          ...structuredClone(realFrontdeskScenarioEvidence.abnormalReturn),
+          patientId: "mpi-other",
+        },
+      }),
+    },
+  ])("does not declare S12 abnormal condition row when $name", ({ body }) => {
+    expectNoRealFrontdeskS12AbnormalConditionCoverage(body);
   });
 
   it("declares service organization coverage only when the passed spec attaches complete frontdesk evidence", () => {

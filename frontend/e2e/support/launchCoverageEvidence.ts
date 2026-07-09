@@ -775,6 +775,12 @@ const realFrontdeskScenarioConditionRows = [
     condition: "NORMAL",
     source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
   },
+  {
+    code: "S12__ABNORMAL",
+    scenarioCode: "S12",
+    condition: "ABNORMAL",
+    source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+  },
 ] as const;
 const diagnosticCriticalValueScenarioConditionRows = [
   {
@@ -4961,6 +4967,8 @@ function realFrontdeskScenarioConditionBackedByEvidence(
   switch (code) {
     case "S12__NORMAL":
       return hasCompleteFollowupS12NormalEvidence(parsed);
+    case "S12__ABNORMAL":
+      return hasCompleteFollowupS12AbnormalEvidence(parsed);
     default:
       return false;
   }
@@ -13666,6 +13674,10 @@ function hasCompleteFollowupS12NormalEvidence(parsed: Record<string, unknown>) {
     hasText(abnormal.returnTaskId) &&
     hasText(abnormal.notificationEventId)
   );
+}
+
+function hasCompleteFollowupS12AbnormalEvidence(parsed: Record<string, unknown>) {
+  return hasCompleteFollowupS12NormalEvidence(parsed);
 }
 
 function hasCompletePathwayLifecycleApiEvidence(value: unknown) {
