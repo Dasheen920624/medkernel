@@ -616,6 +616,14 @@ const serviceOrganizationScenarioConditionRows = [
     source: "SERVICE_ORGANIZATION_ONBOARDING_ORG_TREE_READBACK",
   },
 ] as const;
+const identityBindingScenarioConditionRows = [
+  {
+    code: "S14__NORMAL",
+    scenarioCode: "S14",
+    condition: "NORMAL",
+    source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
+  },
+] as const;
 const diagnosisKnowledgeScenarioConditionRows = [
   {
     code: "S3__NORMAL",
@@ -3960,6 +3968,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectServiceOrganizationScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectIdentityBindingScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4049,6 +4060,57 @@ function serviceOrganizationScenarioConditionBackedByEvidence(
           parsed.orgTreeEvidence,
           parsed.onboardingEvidence,
         )
+      );
+    default:
+      return false;
+  }
+}
+
+function collectIdentityBindingScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "identity-binding-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "identity-binding-scenario-codes",
+  );
+  if (!attachment?.body || !hasRequiredIdentityBindingAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      identityBindingScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return identityBindingScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          identityBindingScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function identityBindingScenarioConditionBackedByEvidence(
+  code: (typeof identityBindingScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  const binding = parseIdentityBindingEvidence(parsed.binding);
+  if (!binding) return false;
+  switch (code) {
+    case "S14__NORMAL":
+      return (
+        hasCompleteIdentityBindingApiEvidence(parsed.apiEvidence) &&
+        hasCompleteIdentityBindingCreatedPersonnel(parsed.createdPersonnel, binding.userId) &&
+        hasCompleteIdentityPlaintextSafetyEvidence(parsed.plaintextSafety) &&
+        hasCompleteIdentityUnbindingEvidence(parsed.unbinding, binding) &&
+        hasCompleteIdentityCleanupEvidence(parsed.cleanup)
       );
     default:
       return false;

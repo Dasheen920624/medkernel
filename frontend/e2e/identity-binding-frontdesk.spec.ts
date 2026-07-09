@@ -62,6 +62,13 @@ type IdentityBindingScenarioEvidence = {
   plaintextSafety: IdentityPlaintextSafetyEvidence | null;
   unbinding: IdentityUnbindingEvidence | null;
   cleanup: IdentityCleanupEvidence;
+  scenarioConditionEvidence: Array<{
+    code: "S14__NORMAL";
+    scenarioCode: "S14";
+    condition: "NORMAL";
+    source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY";
+    evidence: string[];
+  }>;
   scenarioEvidence: Array<{ code: "S14"; observedStages: string[] }>;
 };
 
@@ -148,6 +155,18 @@ test.describe("身份来源真实前台上线演练", () => {
           plaintextSafety,
           unbinding,
           cleanup: cleanupEvidence,
+          scenarioConditionEvidence: [
+            {
+              code: "S14__NORMAL",
+              scenarioCode: "S14",
+              condition: "NORMAL",
+              source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
+              evidence: [
+                "平台管理员前台绑定院内身份来源并列表脱敏回读",
+                "重复外部身份被后端拒绝，解绑后保留历史证据并清理演练账号",
+              ],
+            },
+          ],
           scenarioEvidence: [{ code: "S14", observedStages: Array.from(observedStages) }],
         });
         await attachPlatformAdminEntryCoreActionEvidence(testInfo, {

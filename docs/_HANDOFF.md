@@ -422,6 +422,38 @@
   不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是自动医嘱闭环完成、
   不是 134 清库重部署。下一批应回到全局总账中挑选剩余强链路缺口，或转 `LAUNCH-13` 真实九层组织证据模型；
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十三批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口身份来源绑定 S14 正常生命周期代表切片已有真实前台强链路，新增 1 条显式背书行：`S14__NORMAL`
+  （平台管理员真实前台创建两名身份来源演练人员，绑定院内 `EMPLOYEE_NO` 身份来源，列表回读只展示脱敏提示且不返回摘要 /
+  原文，重复外部身份被后端 409 拒绝，解绑后版本推进并停用演练账号）。不声明 `S14__MISSING_DATA/HIGH_RISK/DEGRADATION`，
+  不覆盖既有 `S14__ABNORMAL` 越权拒绝证据，不把平台管理员入口矩阵、菜单、权限画像或普通 S14 场景覆盖冒领为完整身份治理。
+- 第二百一十三批实现细节：`frontend/e2e/identity-binding-frontdesk.spec.ts` 的
+  `identity-binding-scenario-codes` 附件新增 `scenarioConditionEvidence`，只声明 `S14__NORMAL` 来源
+  `IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增身份绑定条件行白名单
+  和 collector，必须先通过完整 `hasRequiredIdentityBindingAttachment()`，再严格校验
+  `code/scenarioCode/condition/source/evidence`，并复用完整 `apiEvidence`、`createdPersonnel`、`binding`、`plaintextSafety`、
+  `unbinding`、`cleanup` 背书：绑定 / 列表 / 明文不落库 / 重复拒绝 / 解绑 / 清理均为真，绑定为 ACTIVE `EMPLOYEE_NO`，
+  `version` 为正数，解绑状态为 `UNBOUND` 且版本推进，两个演练账号均停用。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式条件附件、未知行、来源错配、空证据、绑定未成功、列表泄露身份原文、重复身份未拒绝、
+  解绑未推进版本、演练账号未清理，均不声明 `S14__NORMAL`。
+- 第二百一十三批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s14-identity-condition-row-20260709-r1 npm --prefix frontend run e2e -- --project=chromium identity-binding-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s14-identity-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`，
+  `launchCoverage.scenarioConditionRows` 为 `[S14__NORMAL]`，`launchCoverage.scenarios` 为 `[S14]`，
+  `productLayers` 为 `[FOUNDATION_GOVERNANCE]`，`serviceCombinations` 为 `[COMPLIANCE_OPERATIONS]`；附件抽查
+  `identity-binding-scenario-codes.json` 已写出同一条结构化 `scenarioConditionEvidence`。
+- 第二百一十三批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S14__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（526 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十三批边界与下一步：本批只是把身份来源绑定 S14 正常生命周期强链路接入 1 条五态总账行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是完整 S14 身份 / 权限 / MFA / 组织安全治理完成、不是 34 入口全部业务深度完成、
+  不是全医学知识生产完成、不是 134 清库重部署。下一批应继续按 `LAUNCH-06` 从剩余强链路中选择能被真实前台、
+  真实服务回读、审计 / 六态 / 权限 / 安全边界完整背书的最小五态行；不得把普通 `scenarioEvidence` 自动升级。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

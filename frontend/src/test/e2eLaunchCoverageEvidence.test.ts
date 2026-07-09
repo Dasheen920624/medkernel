@@ -4737,6 +4737,18 @@ const identityBindingEvidence = {
     duplicateAccountDisabled: true,
     bindingUnboundOrAlreadyUnbound: true,
   },
+  scenarioConditionEvidence: [
+    {
+      code: "S14__NORMAL",
+      scenarioCode: "S14",
+      condition: "NORMAL",
+      source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
+      evidence: [
+        "平台管理员前台绑定院内身份来源并列表脱敏回读",
+        "重复外部身份被后端拒绝，解绑后保留历史证据并清理演练账号",
+      ],
+    },
+  ],
   scenarioEvidence: [
     {
       code: "S14",
@@ -4751,6 +4763,33 @@ const identityBindingEvidence = {
     },
   ],
 };
+
+function identityBindingEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/identity-binding-frontdesk.spec.ts",
+        title: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
+        status: "passed",
+        attachments: [
+          {
+            name: "identity-binding-scenario-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoIdentityBindingScenarioConditionCoverage(body: Record<string, unknown>) {
+  const evidence = identityBindingEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S14__NORMAL");
+}
 
 const fourRoleCoreActionsEvidence = {
   scopeStatement:
@@ -11982,23 +12021,7 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it("declares identity binding coverage only when the passed spec attaches complete plaintext-safety evidence", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
-      stats: passedStats,
-      tests: [
-        {
-          file: "/repo/frontend/e2e/identity-binding-frontdesk.spec.ts",
-          title: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
-          status: "passed",
-          attachments: [
-            {
-              name: "identity-binding-scenario-codes",
-              contentType: "application/json",
-              body: JSON.stringify(identityBindingEvidence),
-            },
-          ],
-        },
-      ],
-    });
+    const evidence = identityBindingEvidenceResult(identityBindingEvidence);
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S14"]);
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
@@ -12008,6 +12031,122 @@ describe("browser E2E launch coverage evidence", () => {
       "COMPLIANCE_OPERATIONS",
     ]);
     expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
+  it("declares S14 normal condition row only from identity binding lifecycle and plaintext-safety evidence", () => {
+    const evidence = identityBindingEvidenceResult(identityBindingEvidence);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S14__NORMAL",
+    ]);
+  });
+
+  it("does not declare S14 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = identityBindingEvidence;
+    const evidence = identityBindingEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S14"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S14__HIGH_RISK",
+            scenarioCode: "S14",
+            condition: "HIGH_RISK",
+            source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
+            evidence: ["身份来源正常绑定生命周期不能冒领高危态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行来源错配",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S14__NORMAL",
+            scenarioCode: "S14",
+            condition: "NORMAL",
+            source: "PLATFORM_ADMIN_ENTRY_CORE_ACTIONS",
+            evidence: ["不能只靠平台管理员入口矩阵冒领 S14 正常态"],
+          },
+        ],
+      },
+    },
+    {
+      name: "条件行证据为空",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        scenarioConditionEvidence: [
+          {
+            code: "S14__NORMAL",
+            scenarioCode: "S14",
+            condition: "NORMAL",
+            source: "IDENTITY_BINDING_LIFECYCLE_PLAINTEXT_SAFETY",
+            evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "绑定未成功",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        apiEvidence: {
+          ...structuredClone(identityBindingEvidence.apiEvidence),
+          bindingPosted: false,
+        },
+      },
+    },
+    {
+      name: "列表泄露身份原文",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        plaintextSafety: {
+          ...structuredClone(identityBindingEvidence.plaintextSafety),
+          listOmitsExternalSubjectPlaintext: false,
+        },
+      },
+    },
+    {
+      name: "重复外部身份未拒绝",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        plaintextSafety: {
+          ...structuredClone(identityBindingEvidence.plaintextSafety),
+          duplicateStatus: 200,
+        },
+      },
+    },
+    {
+      name: "解绑未推进版本",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        unbinding: {
+          ...structuredClone(identityBindingEvidence.unbinding),
+          versionAdvanced: false,
+        },
+      },
+    },
+    {
+      name: "演练账号未清理",
+      body: {
+        ...structuredClone(identityBindingEvidence),
+        cleanup: {
+          ...structuredClone(identityBindingEvidence.cleanup),
+          duplicateAccountDisabled: false,
+        },
+      },
+    },
+  ])("does not declare S14 normal condition row when $name", ({ body }) => {
+    expectNoIdentityBindingScenarioConditionCoverage(body);
   });
 
   it("does not declare identity binding coverage from a passed spec without complete bind/unbind cleanup evidence", () => {
