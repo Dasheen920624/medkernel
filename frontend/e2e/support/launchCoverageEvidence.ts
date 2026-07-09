@@ -571,6 +571,9 @@ const implementationGuideEntryCoreActionRowClaims = [
 const dashboardWorkbenchCoreActionsClaims = [
   "dashboardWorkbenchCoreActions:FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS",
 ];
+const roleScopeFrontdeskActionRepresentativeSliceClaims = [
+  "roleScopeFrontdeskActionRepresentativeSlice:FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE",
+];
 const requiredDashboardWorkbenchRows = [
   {
     role: "platform-admin",
@@ -1680,6 +1683,15 @@ export function buildBrowserE2eLaunchEvidence(input: {
           (row) => `dashboardWorkbenchCoreActionRows:${row.row}`,
         ),
       ],
+      generatedAt,
+    );
+  }
+  const roleScopeFrontdeskActionRepresentativeSliceClaims =
+    collectRoleScopeFrontdeskActionRepresentativeSliceClaims(input.tests);
+  if (roleScopeFrontdeskActionRepresentativeSliceClaims.length > 0) {
+    mergeClaims(
+      evidence.launchCoverage,
+      roleScopeFrontdeskActionRepresentativeSliceClaims,
       generatedAt,
     );
   }
@@ -3278,6 +3290,35 @@ function hasRequiredDashboardWorkbenchCoreActionsAttachment(tests: BrowserE2eTes
     }
   }
   return false;
+}
+
+function collectRoleScopeFrontdeskActionRepresentativeSliceClaims(
+  tests: BrowserE2eTestResult[],
+) {
+  const dashboardTest = tests.find(
+    (test) =>
+      path.basename(test.file) === "product-role-journeys.spec.ts" &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      hasRequiredDashboardWorkbenchCoreActionsAttachment([test]),
+  );
+  if (!dashboardTest || !hasRequiredFourRoleCoreActionsFromTargetSpec(tests)) return [];
+  const attachment = dashboardTest.attachments?.find((item) =>
+    item.name.startsWith("dashboard-workbench-core-actions-codes-"),
+  );
+  if (!attachment?.body || attachment.contentType !== "application/json") return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed &&
+      hasCompleteDashboardWorkbenchPermissionBoundaryEvidence(
+        parsed.permissionBoundaryEvidence,
+      ) &&
+      hasCompleteDashboardWorkbenchSixStateEvidence(parsed.sixStateEvidence)
+      ? roleScopeFrontdeskActionRepresentativeSliceClaims
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function hasDashboardWorkbenchCoreActionScopeBoundary(value: unknown) {

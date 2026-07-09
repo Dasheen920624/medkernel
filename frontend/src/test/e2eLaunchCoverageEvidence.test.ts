@@ -6599,6 +6599,41 @@ function dashboardWorkbenchCoreActionsEvidenceResult(
   });
 }
 
+function roleScopeFrontdeskActionRepresentativeEvidenceResult(
+  dashboardBody: Record<string, unknown> = dashboardWorkbenchCoreActionsEvidence,
+  fourRoleBody: Record<string, unknown> = fourRoleCoreActionsEvidence,
+) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/product-role-journeys.spec.ts",
+        title: "desktop-1440 下全部角色工作台可完成主任务起步",
+        status: "passed",
+        attachments: [
+          {
+            name: "dashboard-workbench-core-actions-codes-desktop-1440",
+            contentType: "application/json",
+            body: JSON.stringify(dashboardBody),
+          },
+        ],
+      },
+      {
+        file: "/repo/frontend/e2e/four-role-core-actions-rehearsal.spec.ts",
+        title: "四职责主动作均完成真实前台操作与服务回读闭环",
+        status: "passed",
+        attachments: [
+          {
+            name: "four-role-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(fourRoleBody),
+          },
+        ],
+      },
+    ],
+  });
+}
+
 function expectNoDashboardWorkbenchCoreActionsCoverage(body: Record<string, unknown>) {
   const evidence = dashboardWorkbenchCoreActionsEvidenceResult(body);
   expect(evidence.launchCoverage.dashboardWorkbenchCoreActions).toBeUndefined();
@@ -8607,6 +8642,15 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
   });
 
+  it("declares role-scope frontdesk action representative slice only from dashboard scope and four-role action evidence", () => {
+    const evidence = roleScopeFrontdeskActionRepresentativeEvidenceResult();
+
+    expect(
+      evidence.launchCoverage.roleScopeFrontdeskActionRepresentativeSlice?.map((item) => item.code),
+    ).toEqual(["FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE"]);
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
   it.each([
     {
       name: "缺少边界声明",
@@ -8795,6 +8839,10 @@ describe("browser E2E launch coverage evidence", () => {
         expect(
           dashboardWorkbenchCoreActionsEvidenceResult(body).launchCoverage.scenarioConditionRows,
         ).toBeUndefined();
+        expect(
+          dashboardWorkbenchCoreActionsEvidenceResult(body).launchCoverage
+            .roleScopeFrontdeskActionRepresentativeSlice,
+        ).toBeUndefined();
         return;
       }
       const evidence = dashboardWorkbenchCoreActionsEvidenceResult(body);
@@ -8804,6 +8852,16 @@ describe("browser E2E launch coverage evidence", () => {
       expect(
         evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
       ).not.toContain(expectedMissing);
+      if (
+        body.permissionBoundaryEvidence !==
+          dashboardWorkbenchCoreActionsEvidence.permissionBoundaryEvidence ||
+        body.sixStateEvidence !== dashboardWorkbenchCoreActionsEvidence.sixStateEvidence
+      ) {
+        expect(
+          roleScopeFrontdeskActionRepresentativeEvidenceResult(body).launchCoverage
+            .roleScopeFrontdeskActionRepresentativeSlice,
+        ).toBeUndefined();
+      }
     },
   );
 
@@ -8828,6 +8886,46 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.dashboardWorkbenchCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.dashboardWorkbenchCoreActionRows).toBeUndefined();
+    expect(evidence.launchCoverage.roleScopeFrontdeskActionRepresentativeSlice).toBeUndefined();
+  });
+
+  it("does not declare role-scope frontdesk action representative slice from dashboard evidence alone", () => {
+    const evidence = dashboardWorkbenchCoreActionsEvidenceResult();
+
+    expect(evidence.launchCoverage.dashboardWorkbenchCoreActions?.map((item) => item.code)).toEqual(
+      ["FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS"],
+    );
+    expect(evidence.launchCoverage.roleScopeFrontdeskActionRepresentativeSlice).toBeUndefined();
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
+  it("does not declare role-scope frontdesk action representative slice from four-role actions alone", () => {
+    const evidence = fourRoleCoreActionsEvidenceResult(fourRoleCoreActionsEvidence);
+
+    expect(evidence.launchCoverage.roleRepresentativeCoreActions?.map((item) => item.code)).toEqual(
+      ["FOUR_ROLE_PRIMARY_ACTIONS"],
+    );
+    expect(evidence.launchCoverage.roleScopeFrontdeskActionRepresentativeSlice).toBeUndefined();
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
+  it("does not declare role-scope frontdesk action representative slice when four-role action evidence lacks audit", () => {
+    const body = {
+      ...fourRoleCoreActionsEvidence,
+      auditor: {
+        ...fourRoleCoreActionsEvidence.auditor,
+        auditVerified: false,
+      },
+      roleActions: fourRoleCoreActionsEvidence.roleActions.map((action) =>
+        action.role === "auditor" ? { ...action, auditVerified: false } : action,
+      ),
+    };
+    const evidence = roleScopeFrontdeskActionRepresentativeEvidenceResult(
+      dashboardWorkbenchCoreActionsEvidence,
+      body,
+    );
+
+    expect(evidence.launchCoverage.roleScopeFrontdeskActionRepresentativeSlice).toBeUndefined();
   });
 
   it("declares release governance and runtime asset coverage only when the real runtime release spec passes", () => {

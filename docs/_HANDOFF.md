@@ -305,6 +305,43 @@
   只保留既有 `launchCoverage.scenarios=[S13]` 与
   `scenarioConditionRows=[S13__NORMAL,S13__DEGRADATION]`，未新增任何 S13 其他三态或新 S0-S40 行。当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百四十五批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 13 项集团 / 多机构组织与职责范围总账。
+  本批不新增 S0-S40 五态行、不写入 `organizationLevels`；只把既有四职责工作台职责范围读回与四职责真实主动作闭环组合为
+  `roleScopeFrontdeskActionRepresentativeSlice:FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE` 代表子账。证据固定组合来源于
+  `product-role-journeys.spec.ts` 的 `dashboard-workbench-core-actions-codes-*` 附件和
+  `four-role-core-actions-rehearsal.spec.ts` 的 `four-role-core-actions-codes` 附件：四个固定职责
+  `platform-admin/engine-operator/clinical-user/auditor` 均从工作台读取安全画像 / 来源服务，工作台权限边界与六态边界成立，
+  且四职责分别完成固定前台主动作 `/admin/users`、`/knowledge/production`、`/workflow/todos`、`/admin/audit`，服务 2xx、
+  回读和审计均成立。明确不声明完整 LAUNCH-13、完整九层组织、任意 `organizationLevels` 新增、跨机构任职完整模型、
+  四职责全部运行端点覆盖、34 / 35 个入口全部业务动作闭环、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百四十五批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `roleScopeFrontdeskActionRepresentativeSlice:FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE` claim 和
+  `collectRoleScopeFrontdeskActionRepresentativeSliceClaims()`，必须同时满足目标 `product-role-journeys.spec.ts` passed/expected
+  且有完整 `DASHBOARD_WORKBENCH_CORE_ACTIONS` 附件、目标 `four-role-core-actions-rehearsal.spec.ts` passed/expected 且有完整
+  `four-role-core-actions-codes` 附件；dashboard 附件继续强校验四职责工作台行、`roleScopeReadbackVerified`、
+  `permissionBoundaryEvidence`、`sixStateEvidence`、无浏览器 / 服务端 / 网络错误；four-role 附件继续强校验四职责固定路径、
+  2xx 服务、真实回读与审计。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例与负例：只有 dashboard
+  附件、只有 four-role 附件、four-role 缺审计、非目标 spec、dashboard 权限边界或六态缺失，均不得声明该代表子账或
+  `organizationLevels`。`frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定附件字段、parser 锚点和
+  不输出 `organizationLevels:PLATFORM/GROUP` 的边界。`scripts/release/full-system-rehearsal-lib.mjs` 将该 key 注册到覆盖字典，
+  `scripts/release/launch-coverage-audit.test.mjs` 的完整 stage fixture 补入该 claim；`LAUNCH-13.requiredCoverage` 仍保持
+  `["organizationLevels"]`，不得把代表子账冒领为完整 LAUNCH-13 门禁。
+- 第二百四十五批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例缺
+  `roleScopeFrontdeskActionRepresentativeSlice`；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1011 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-role-scope-frontdesk-action-20260710-r1 npm --prefix frontend run e2e -- --project=chromium product-role-journeys.spec.ts four-role-core-actions-rehearsal.spec.ts --grep "desktop-1440 下全部角色工作台可完成主任务起步|四职责主动作均完成真实前台操作与服务回读闭环"`
+  通过；`/tmp/medkernel-e2e-role-scope-frontdesk-action-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=2`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.roleScopeFrontdeskActionRepresentativeSlice=[FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE]`，
+  同时保留既有 `dashboardWorkbenchCoreActions=[FOUR_ROLE_DASHBOARD_WORKBENCH_CORE_ACTIONS]`、
+  `dashboardWorkbenchCoreActionRows=[PLATFORM_ADMIN,ENGINE_OPERATOR,CLINICAL_USER,AUDITOR]`、
+  `roleRepresentativeCoreActions=[FOUR_ROLE_PRIMARY_ACTIONS]` 和 `scenarioConditionRows=[S0__NORMAL]`，未产生 `organizationLevels`。
+  并行只读 explorer 已关闭，未编辑、未暂存、未提交。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

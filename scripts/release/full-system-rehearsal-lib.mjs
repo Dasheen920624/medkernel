@@ -203,6 +203,10 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     label: "四职责工作台核心动作行",
     codes: ["PLATFORM_ADMIN", "ENGINE_OPERATOR", "CLINICAL_USER", "AUDITOR"],
   },
+  roleScopeFrontdeskActionRepresentativeSlice: {
+    label: "四职责职责范围与前台动作代表子账",
+    codes: ["FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE"],
+  },
   roleRepresentativeCoreActions: {
     label: "四职责代表主动作矩阵",
     codes: ["FOUR_ROLE_PRIMARY_ACTIONS"],

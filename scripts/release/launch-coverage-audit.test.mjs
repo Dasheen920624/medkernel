@@ -1058,6 +1058,7 @@ function completeStageEvidence(options = {}) {
     "dashboardWorkbenchCoreActionRows:ENGINE_OPERATOR",
     "dashboardWorkbenchCoreActionRows:CLINICAL_USER",
     "dashboardWorkbenchCoreActionRows:AUDITOR",
+    "roleScopeFrontdeskActionRepresentativeSlice:FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE",
     "roleRepresentativeCoreActions:FOUR_ROLE_PRIMARY_ACTIONS",
     "entryRepresentativeCoreActions:SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
     "platformAdminEntryCoreActions:FOUR_PLATFORM_ADMIN_P0_ENTRY_ACTIONS",

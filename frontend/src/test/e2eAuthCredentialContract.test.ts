@@ -2634,12 +2634,20 @@ describe("E2E credential contract", () => {
     expect(source).toContain("primaryActionVerified");
     expect(source).toContain("highFrequencyTasksVerified");
     expect(source).toContain("sourceStatusVerified");
+    expect(source).toContain("permissionBoundaryEvidence");
+    expect(source).toContain("sixStateEvidence");
+    expect(source).toContain("roleScopeReadbackVerified");
     expect(source).toContain("noBrowserErrors");
     expect(source).toContain("noServerErrors");
     expect(source).toContain("noNetworkFailures");
     expect(coverageParser).toContain('"GET /api/v1/compliance/audit/events"');
     expect(coverageParser).toContain("dashboardWorkbenchCoreActions");
     expect(coverageParser).toContain("dashboardWorkbenchCoreActionRows");
+    expect(coverageParser).toContain("roleScopeFrontdeskActionRepresentativeSlice");
+    expect(coverageParser).toContain("FOUR_ROLE_SCOPE_FRONTDESK_ACTION_REPRESENTATIVE");
+    expect(coverageParser).toContain("hasRequiredFourRoleCoreActionsFromTargetSpec");
+    expect(coverageParser).not.toContain("organizationLevels:PLATFORM");
+    expect(coverageParser).not.toContain("organizationLevels:GROUP");
   });
 
   it("requires embedded business host rehearsal to use real embed services before launch coverage", () => {
