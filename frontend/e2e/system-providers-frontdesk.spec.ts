@@ -94,12 +94,17 @@ type SystemProvidersCoverageEvidence = {
     clinicalSmoke: ClinicalSmokeEvidence;
   };
   scenarioEvidence: Array<{ observedStages: string[] }>;
+  scenarioConditionEvidence?: Array<{
+    code: string;
+    scenarioCode: string;
+    condition: string;
+    source: string;
+    evidence: string[];
+  }>;
 };
 
 test.describe("服务运行保障真实前台上线演练", () => {
-  test("平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖", async ({
-    page,
-  }, testInfo) => {
+  test("平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const runtime = collectRuntime(page);
     const coverageEvidence = createSystemProvidersCoverageEvidence();
@@ -132,26 +137,17 @@ test.describe("服务运行保障真实前台上线演练", () => {
       await expect(page.getByText("依赖服务", { exact: true })).toBeVisible();
       await assertBackupReadinessCard(page, snapshot);
       coverageEvidence.apiEvidence.backupReadinessObserved = true;
-      recordSystemProvidersStage(
-        coverageEvidence,
-        "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
-      );
+      recordSystemProvidersStage(coverageEvidence, "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略");
       await assertHonestDependencyDegradation(page, snapshot);
       coverageEvidence.apiEvidence.honestDegradationObserved = true;
       coverageEvidence.dependencyEvidence = {
         ...(coverageEvidence.dependencyEvidence ?? { dependencies: [] }),
         honestDegradationText: "核心业务继续走本地确定性主链路",
       };
-      recordSystemProvidersStage(
-        coverageEvidence,
-        "前台展示依赖诚实降级并保留本地主链路提示",
-      );
+      recordSystemProvidersStage(coverageEvidence, "前台展示依赖诚实降级并保留本地主链路提示");
       await assertEvidenceDetailsDiagnostics(page, snapshot);
       coverageEvidence.apiEvidence.evidenceDetailsObserved = true;
-      recordSystemProvidersStage(
-        coverageEvidence,
-        "证据详情展示部署档案、迁移路径和备份恢复诊断",
-      );
+      recordSystemProvidersStage(coverageEvidence, "证据详情展示部署档案、迁移路径和备份恢复诊断");
 
       if (backupDrillSucceeded(snapshot)) {
         const runtimeContinuity = await readRuntimeContinuityAfterRestore(page);
@@ -199,10 +195,7 @@ test.describe("服务运行保障真实前台上线演练", () => {
         ...coverageEvidence.accessEvidence,
         ...clinicalAccessEvidence,
       };
-      recordSystemProvidersStage(
-        coverageEvidence,
-        "临床账号无法读取或展示服务运行保障快照",
-      );
+      recordSystemProvidersStage(coverageEvidence, "临床账号无法读取或展示服务运行保障快照");
     } finally {
       await attachSystemProvidersCoverageEvidence(testInfo, coverageEvidence);
       await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
@@ -230,10 +223,7 @@ test.describe("服务运行保障真实前台上线演练", () => {
       const accessEvidence = await assertClinicalUserCannotReadOperations(page);
       coverageEvidence.apiEvidence.clinicalForbidden = true;
       coverageEvidence.accessEvidence = accessEvidence;
-      recordSystemProvidersStage(
-        coverageEvidence,
-        "临床账号无法读取或展示服务运行保障快照",
-      );
+      recordSystemProvidersStage(coverageEvidence, "临床账号无法读取或展示服务运行保障快照");
 
       expect(runtime.operationsResponses, "无权限页面不应发起运维快照读取").toEqual([]);
       expect(runtime.browserErrors, "无权限服务运行保障页不应产生浏览器错误").toEqual([]);
@@ -637,7 +627,12 @@ function requireNumber(value: number | null, message: string) {
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
-  if (await dialog.getByText(optionText, { exact: true }).isVisible().catch(() => false)) {
+  if (
+    await dialog
+      .getByText(optionText, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
   const field = dialog.getByLabel(label);
@@ -670,16 +665,12 @@ function escapeRegExp(value: string) {
 
 function waitForPost(page: Page, pathIncludes: string) {
   return page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" && response.url().includes(pathIncludes),
+    (response) => response.request().method() === "POST" && response.url().includes(pathIncludes),
     { timeout: 60_000 },
   );
 }
 
-function recordSystemProvidersStage(
-  evidence: SystemProvidersCoverageEvidence,
-  stage: string,
-) {
+function recordSystemProvidersStage(evidence: SystemProvidersCoverageEvidence, stage: string) {
   const stages = evidence.scenarioEvidence[0]?.observedStages ?? [];
   if (!stages.includes(stage)) {
     stages.push(stage);
@@ -692,9 +683,63 @@ async function attachSystemProvidersCoverageEvidence(
   evidence: SystemProvidersCoverageEvidence,
 ) {
   const recordPath = testInfo.outputPath("system-providers-operations-codes.json");
-  await writeFile(recordPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  const enrichedEvidence = {
+    ...evidence,
+    scenarioConditionEvidence: collectSystemProvidersScenarioConditionEvidence(evidence),
+  };
+  await writeFile(recordPath, `${JSON.stringify(enrichedEvidence, null, 2)}\n`, "utf8");
   await testInfo.attach("system-providers-operations-codes", {
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+function collectSystemProvidersScenarioConditionEvidence(
+  evidence: SystemProvidersCoverageEvidence,
+) {
+  const rows: NonNullable<SystemProvidersCoverageEvidence["scenarioConditionEvidence"]> = [];
+  if (
+    evidence.apiEvidence.runtimeReadbackObserved === true &&
+    evidence.apiEvidence.runtimeConsumerReadbackObserved === true &&
+    evidence.apiEvidence.clinicalSmokeAfterRestore === true &&
+    evidence.runtimeContinuityEvidence
+  ) {
+    rows.push({
+      code: "S15__NORMAL",
+      scenarioCode: "S15",
+      condition: "NORMAL",
+      source: "SYSTEM_OPERATIONS_RESTORE_CONTINUITY",
+      evidence: [
+        "备份恢复成功后当前机构生效版本和第三方运行契约一致",
+        "临床账号恢复后完成患者主索引和上下文主链路冒烟",
+      ],
+    });
+  }
+  if (
+    evidence.apiEvidence.honestDegradationObserved === true &&
+    evidence.dependencyEvidence?.honestDegradationText?.includes("核心业务继续走本地确定性主链路")
+  ) {
+    rows.push({
+      code: "S15__DEGRADATION",
+      scenarioCode: "S15",
+      condition: "DEGRADATION",
+      source: "SYSTEM_DEPENDENCY_HONEST_DEGRADATION",
+      evidence: ["外部依赖断连或不健康时前台诚实展示降级且本地确定性主链路继续可用"],
+    });
+  }
+  if (
+    evidence.apiEvidence.clinicalForbidden === true &&
+    evidence.accessEvidence?.clinicalOperationsStatus === 403 &&
+    evidence.accessEvidence.clinicalPageForbidden === true &&
+    evidence.accessEvidence.clinicalPageNoOperationsData === true
+  ) {
+    rows.push({
+      code: "S14__ABNORMAL",
+      scenarioCode: "S14",
+      condition: "ABNORMAL",
+      source: "CLINICAL_SYSTEM_OPERATIONS_FORBIDDEN",
+      evidence: ["临床账号 API 读取系统运维快照返回 403，前台只展示权限不足且不展示运维数据"],
+    });
+  }
+  return rows.length > 0 ? rows : undefined;
 }

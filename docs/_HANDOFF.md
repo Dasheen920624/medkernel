@@ -23,6 +23,46 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
+  `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
+  主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出
+  `scenarioConditionEvidence`，release 浏览器覆盖只在逐行字段背书成立时声明对应 `scenarioConditionRows`。
+  本地 dev/H2 真实链路当前只证明 `S15__DEGRADATION`（系统依赖断连 / 不健康时诚实降级并保留本地确定性主链路）
+  与 `S14__ABNORMAL`（临床账号越权访问系统运维 / P1 运维入口被 403 拒绝并展示权限不足），不声明 `S15__NORMAL`、
+  `S15__MISSING_DATA`、`S15__ABNORMAL`、`S15__HIGH_RISK`，也不冒领完整 S15 或 205 行五态矩阵完成。
+- 第二百零一批实现细节：`frontend/e2e/system-providers-frontdesk.spec.ts` 在附件写出前按真实采集到的
+  `apiEvidence/dependencyEvidence/accessEvidence/runtimeContinuityEvidence` 条件生成系统运维条件行；
+  `frontend/e2e/platform-admin-p1-entry-core-actions-rehearsal.spec.ts` 的细附件
+  `platform-admin-p1-system-operations-codes` 在运行诊断和国产化自检两入口均证明临床账号 API 403 + 页面权限不足时生成
+  `S14__ABNORMAL`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增 system/P1 条件行 collector：
+  system-providers 逐行声明，P1 必须同时有 P1 代表矩阵与细附件；`mergeClaims()` 现在按 `key/code` 去重，避免
+  system-providers 与 P1 同时证明 `S14__ABNORMAL` 时把同一 coverage row 重复计数。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖：完整成功夹具可产出 `S15__NORMAL/S15__DEGRADATION/S14__ABNORMAL`；真实 `NOT_AVAILABLE` 备份恢复本地形态只产出
+  `S15__DEGRADATION/S14__ABNORMAL`；P1 真实 Playwright 标题仍可产出 `S14__ABNORMAL`；矩阵附件不会自动产出条件行；
+  未知/高危夹带、字段不背书、空证据文本和重复证明均不会冒领。
+- 第二百零一批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核 18102/5175 无监听）。
+  最终执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-system-p1-condition-rows-20260709-r3 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts platform-admin-p1-entry-core-actions-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-system-p1-condition-rows-20260709-r3/report/results.json` 读回 `status=PASSED`、
+  `expected=3`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S15__DEGRADATION,S14__ABNORMAL]`，`platformAdminP1EntryCoreActions` 为
+  `[RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK]`。附件抽查显示 system-providers 真实 `backup.drillEvidence.status=NOT_AVAILABLE`，
+  因此本轮没有、也不应声明 `S15__NORMAL`；P1 细附件证明运行诊断和国产化自检两入口 clinical API 均为 403 且页面权限不足。
+- 第二百零一批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在缺 system/P1 条件行，真实 E2E 又暴露本地
+  `NOT_AVAILABLE` 不应声明 `S15__NORMAL` 和 P1 标题匹配过窄；随后修为逐行声明并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（380 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check`。`git diff --check` 退出码 0，仅提示无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF 将被 LF 替换，
+  无 whitespace error。
+- 第二百零一批边界与下一步：本批只是把系统运维 / P1 已有真实前台证据转为 2 条五态总账行，仍不是完整上线完成、
+  不是 S0-S40 五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是完整 S15 目标环境复演完成、
+  也不是 134 清库重部署。下一批建议继续沿“上线总账驱动”补 `scenarioConditionRows`：优先选择已有真实强链路但未映射五态的
+  临床质量 / 工作流 / 医保审核 / 通知 / 第三方消费者入口，或转向 `LAUNCH-13.organizationLevels` 九层组织证据；不要把
+  `NOT_AVAILABLE` 备份恢复误当成 `S15__NORMAL`。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百批本地推进：接长目标自动续跑，本批继续按“上线总账驱动”推进低冲突高收益缺口，而不是扩单点页面。
   本批收口 `PRODUCT_SCOPE.md` §15 第 14 项中的 `specialDiseaseStages`：专病路径真实 E2E 附件此前已经包含并校验十阶段，
   但 `frontend/e2e/support/launchCoverageEvidence.ts` 只声明 `S6`、`CLINICAL_EXECUTION`、`ORDER_SET` 和

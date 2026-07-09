@@ -27,6 +27,18 @@ type DomesticCheckEvidence = {
   clinicalPageForbidden: boolean;
 };
 
+type PlatformAdminP1SystemOperationsEvidence = {
+  runtimeDiagnosticsEvidence: RuntimeDiagnosticsEvidence;
+  domesticCheckEvidence: DomesticCheckEvidence;
+  scenarioConditionEvidence?: Array<{
+    code: string;
+    scenarioCode: string;
+    condition: string;
+    source: string;
+    evidence: string[];
+  }>;
+};
+
 test.describe("平台管理员 P1 系统运维入口核心动作真实前台演练", () => {
   test("运行诊断和国产化适配自检均完成真实前台动作、服务回读与权限边界", async ({
     page,
@@ -224,10 +236,7 @@ async function assertClinicalUserCannotReadSystemPage(
 
 async function attachRuntimeP1Evidence(
   testInfo: TestInfo,
-  evidence: {
-    runtimeDiagnosticsEvidence: RuntimeDiagnosticsEvidence;
-    domesticCheckEvidence: DomesticCheckEvidence;
-  },
+  evidence: PlatformAdminP1SystemOperationsEvidence,
 ) {
   const recordPath = testInfo.outputPath("platform-admin-p1-system-operations-codes.json");
   await writeFile(
@@ -237,6 +246,7 @@ async function attachRuntimeP1Evidence(
         scopeStatement:
           "平台管理员 P1 系统运维入口真实前台证据：只证明运行诊断与国产化适配自检两个入口的代表核心动作，不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
         ...evidence,
+        scenarioConditionEvidence: collectPlatformAdminP1ScenarioConditionEvidence(evidence),
       },
       null,
       2,
@@ -247,6 +257,31 @@ async function attachRuntimeP1Evidence(
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+function collectPlatformAdminP1ScenarioConditionEvidence(
+  evidence: PlatformAdminP1SystemOperationsEvidence,
+) {
+  if (
+    evidence.runtimeDiagnosticsEvidence.clinicalRuntimeStatus !== 403 ||
+    evidence.runtimeDiagnosticsEvidence.clinicalPageForbidden !== true ||
+    evidence.domesticCheckEvidence.clinicalOperationsStatus !== 403 ||
+    evidence.domesticCheckEvidence.clinicalPageForbidden !== true
+  ) {
+    return undefined;
+  }
+  return [
+    {
+      code: "S14__ABNORMAL",
+      scenarioCode: "S14",
+      condition: "ABNORMAL",
+      source: "P1_SYSTEM_OPERATIONS_FORBIDDEN",
+      evidence: [
+        "临床账号直接读取运行诊断和国产化自检服务均返回 403",
+        "临床账号访问 P1 系统运维页面只展示权限不足",
+      ],
+    },
+  ];
 }
 
 function is2xx(status: number) {

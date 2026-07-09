@@ -939,6 +939,36 @@ const pathwayLifecycleSpecialDiseaseStageClaims = requiredPathwayMilestoneStages
   (stage) => `specialDiseaseStages:${stage}`,
 );
 
+const systemProvidersScenarioConditionRows = [
+  {
+    code: "S15__NORMAL",
+    scenarioCode: "S15",
+    condition: "NORMAL",
+    source: "SYSTEM_OPERATIONS_RESTORE_CONTINUITY",
+  },
+  {
+    code: "S15__DEGRADATION",
+    scenarioCode: "S15",
+    condition: "DEGRADATION",
+    source: "SYSTEM_DEPENDENCY_HONEST_DEGRADATION",
+  },
+  {
+    code: "S14__ABNORMAL",
+    scenarioCode: "S14",
+    condition: "ABNORMAL",
+    source: "CLINICAL_SYSTEM_OPERATIONS_FORBIDDEN",
+  },
+] as const;
+
+const platformAdminP1ScenarioConditionRows = [
+  {
+    code: "S14__ABNORMAL",
+    scenarioCode: "S14",
+    condition: "ABNORMAL",
+    source: "P1_SYSTEM_OPERATIONS_FORBIDDEN",
+  },
+] as const;
+
 const requiredSystemProvidersScenarioEvidence = [
   "平台管理员读取真实服务运行保障快照",
   "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
@@ -1273,6 +1303,18 @@ export function buildBrowserE2eLaunchEvidence(input: {
   const s2s4ScenarioConditionClaims = collectS2S4ScenarioConditionClaims(input.tests);
   if (s2s4ScenarioConditionClaims.length > 0) {
     mergeClaims(evidence.launchCoverage, s2s4ScenarioConditionClaims, generatedAt);
+  }
+  const systemProvidersScenarioConditionClaims = collectSystemProvidersScenarioConditionClaims(
+    input.tests,
+  );
+  if (systemProvidersScenarioConditionClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, systemProvidersScenarioConditionClaims, generatedAt);
+  }
+  const platformAdminP1ScenarioConditionClaims = collectPlatformAdminP1ScenarioConditionClaims(
+    input.tests,
+  );
+  if (platformAdminP1ScenarioConditionClaims.length > 0) {
+    mergeClaims(evidence.launchCoverage, platformAdminP1ScenarioConditionClaims, generatedAt);
   }
   return evidence;
 }
@@ -3409,15 +3451,18 @@ function isPositiveFiniteNumber(value: unknown) {
 
 function hasPositiveFiniteNumberArray(value: unknown) {
   return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((item) => isPositiveFiniteNumber(item))
+    Array.isArray(value) && value.length > 0 && value.every((item) => isPositiveFiniteNumber(item))
   );
 }
 
 function parsedFragmentCountCoversIds(count: unknown, ids: unknown) {
   const parsed = numberValue(count);
-  if (typeof parsed !== "number" || !Number.isInteger(parsed) || parsed <= 0 || !Array.isArray(ids)) {
+  if (
+    typeof parsed !== "number" ||
+    !Number.isInteger(parsed) ||
+    parsed <= 0 ||
+    !Array.isArray(ids)
+  ) {
     return false;
   }
   const uniqueIds = new Set(ids.map((item) => numberValue(item)));
@@ -3687,17 +3732,20 @@ function hasCompleteS2S4ScenarioConditionEvidence(test: BrowserE2eTestResult) {
       if (!row || !code || !knownRow || rows.has(code)) return false;
       rows.set(code, row);
     }
-    return rows.size === s2s4ScenarioConditionRows.length && s2s4ScenarioConditionRows.every((expected) => {
-      const row = rows.get(expected.code);
-      return (
-        row !== undefined &&
-        row.scenarioCode === expected.scenarioCode &&
-        row.condition === expected.condition &&
-        row.source === expected.source &&
-        hasNonEmptyTextArray(row.evidence) &&
-        s2s4ScenarioConditionBackedByApiEvidence(expected.code, apiEvidence)
-      );
-    });
+    return (
+      rows.size === s2s4ScenarioConditionRows.length &&
+      s2s4ScenarioConditionRows.every((expected) => {
+        const row = rows.get(expected.code);
+        return (
+          row !== undefined &&
+          row.scenarioCode === expected.scenarioCode &&
+          row.condition === expected.condition &&
+          row.source === expected.source &&
+          hasNonEmptyTextArray(row.evidence) &&
+          s2s4ScenarioConditionBackedByApiEvidence(expected.code, apiEvidence)
+        );
+      })
+    );
   } catch {
     return false;
   }
@@ -3728,6 +3776,200 @@ function s2s4ScenarioConditionBackedByApiEvidence(
     default:
       return false;
   }
+}
+
+function collectSystemProvidersScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
+  const claims = new Set<string>();
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "system-providers-frontdesk.spec.ts" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected"
+    ) {
+      continue;
+    }
+    for (const claim of collectSystemProvidersScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
+  }
+  return [...claims];
+}
+
+function collectSystemProvidersScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "system-providers-operations-codes",
+  );
+  if (!attachment?.body) return [];
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      apiEvidence?: unknown;
+      dependencyEvidence?: unknown;
+      accessEvidence?: unknown;
+      runtimeContinuityEvidence?: unknown;
+      scenarioConditionEvidence?: unknown;
+    };
+    if (!Array.isArray(parsed.scenarioConditionEvidence)) return [];
+    const apiEvidence = recordValue(parsed.apiEvidence);
+    const dependencyEvidence = recordValue(parsed.dependencyEvidence);
+    const accessEvidence = recordValue(parsed.accessEvidence);
+    const rows = collectStrictScenarioConditionRows(
+      parsed.scenarioConditionEvidence,
+      systemProvidersScenarioConditionRows,
+    );
+    if (!apiEvidence || !dependencyEvidence || !accessEvidence || rows === null) return [];
+    return systemProvidersScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          systemProvidersScenarioConditionBackedByEvidence(
+            expected.code,
+            apiEvidence,
+            dependencyEvidence,
+            accessEvidence,
+            parsed.runtimeContinuityEvidence,
+          ),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function systemProvidersScenarioConditionBackedByEvidence(
+  code: (typeof systemProvidersScenarioConditionRows)[number]["code"],
+  apiEvidence: Record<string, unknown>,
+  dependencyEvidence: Record<string, unknown>,
+  accessEvidence: Record<string, unknown>,
+  runtimeContinuityEvidence: unknown,
+) {
+  switch (code) {
+    case "S15__NORMAL":
+      return (
+        apiEvidence.operationsSnapshotRead === true &&
+        apiEvidence.backupReadinessObserved === true &&
+        apiEvidence.evidenceDetailsObserved === true &&
+        apiEvidence.runtimeReadbackObserved === true &&
+        apiEvidence.runtimeConsumerReadbackObserved === true &&
+        apiEvidence.clinicalSmokeAfterRestore === true &&
+        hasCompleteSystemProvidersRuntimeContinuityEvidence(runtimeContinuityEvidence)
+      );
+    case "S15__DEGRADATION":
+      return (
+        apiEvidence.operationsSnapshotRead === true &&
+        apiEvidence.honestDegradationObserved === true &&
+        hasCompleteSystemProvidersDependencyEvidence(dependencyEvidence)
+      );
+    case "S14__ABNORMAL":
+      return (
+        apiEvidence.clinicalForbidden === true &&
+        hasCompleteSystemProvidersAccessEvidence(accessEvidence)
+      );
+    default:
+      return false;
+  }
+}
+
+function collectPlatformAdminP1ScenarioConditionClaims(tests: BrowserE2eTestResult[]) {
+  const hasCompleteMatrix = hasRequiredPlatformAdminP1EntryCoreActionsAttachment(tests);
+  return tests.some(
+    (test) =>
+      hasCompleteMatrix &&
+      path.basename(test.file) === "platform-admin-p1-entry-core-actions-rehearsal.spec.ts" &&
+      test.status === "passed" &&
+      (test.outcome ?? "expected") === "expected" &&
+      hasCompletePlatformAdminP1UnauthorizedAccessEvidence(test),
+  )
+    ? platformAdminP1ScenarioConditionRows.map((row) => `scenarioConditionRows:${row.code}`)
+    : [];
+}
+
+function hasCompletePlatformAdminP1UnauthorizedAccessEvidence(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "platform-admin-p1-system-operations-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    if (!parsed || !hasPlatformAdminP1SystemOperationsScopeBoundary(parsed.scopeStatement)) {
+      return false;
+    }
+    const runtimeDiagnostics = recordValue(parsed.runtimeDiagnosticsEvidence);
+    const domesticCheck = recordValue(parsed.domesticCheckEvidence);
+    return (
+      hasCompleteP1RuntimeDiagnosticsUnauthorizedAccessEvidence(runtimeDiagnostics) &&
+      hasCompleteP1DomesticCheckUnauthorizedAccessEvidence(domesticCheck)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteP1RuntimeDiagnosticsUnauthorizedAccessEvidence(
+  evidence: Record<string, unknown> | null,
+) {
+  if (!evidence) return false;
+  return (
+    is2xxStatus(evidence.runtimeStatus) &&
+    is2xxStatus(evidence.operationsStatus) &&
+    is2xxStatus(evidence.apiContractsStatus) &&
+    typeof evidence.contractCount === "number" &&
+    evidence.contractCount > 0 &&
+    evidence.pluginBoundaryObserved === true &&
+    evidence.clinicalRuntimeStatus === 403 &&
+    evidence.clinicalPageForbidden === true
+  );
+}
+
+function hasCompleteP1DomesticCheckUnauthorizedAccessEvidence(
+  evidence: Record<string, unknown> | null,
+) {
+  if (!evidence) return false;
+  return (
+    is2xxStatus(evidence.operationsStatus) &&
+    is2xxStatus(evidence.reportStatus) &&
+    evidence.reportContainsSummary === true &&
+    evidence.issueFilterObserved === true &&
+    evidence.unknownFilterObserved === true &&
+    evidence.clinicalOperationsStatus === 403 &&
+    evidence.clinicalPageForbidden === true
+  );
+}
+
+function hasPlatformAdminP1SystemOperationsScopeBoundary(value: unknown) {
+  if (typeof value !== "string") return false;
+  return (
+    value.includes("不代表 6 个平台管理员入口全部闭环") &&
+    value.includes("不代表 34 个入口全部业务动作闭环") &&
+    value.includes("不代表完整上线验收")
+  );
+}
+
+function collectStrictScenarioConditionRows<
+  T extends readonly {
+    code: string;
+    scenarioCode: string;
+    condition: string;
+    source: string;
+  }[],
+>(value: unknown, expectedRows: T) {
+  if (!Array.isArray(value)) return null;
+  const rows = new Map<string, Record<string, unknown>>();
+  for (const item of value) {
+    const row = recordValue(item);
+    const code = textValue(row?.code);
+    const expected = expectedRows.find((candidate) => candidate.code === code);
+    if (!row || !code || !expected || rows.has(code)) return null;
+    if (
+      row.scenarioCode !== expected.scenarioCode ||
+      row.condition !== expected.condition ||
+      row.source !== expected.source ||
+      !hasNonEmptyTextArray(row.evidence)
+    ) {
+      return null;
+    }
+    rows.set(code, row);
+  }
+  return rows;
 }
 
 function hasRequiredCdssDeclarativeRuntimeAssetAttachment(test: BrowserE2eTestResult) {
@@ -10838,6 +11080,10 @@ function hasNonEmptyTextArray(value: unknown) {
   return Array.isArray(value) && value.length > 0 && value.every((item) => hasText(item));
 }
 
+function is2xxStatus(value: unknown) {
+  return typeof value === "number" && value >= 200 && value < 300;
+}
+
 function textValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -10861,6 +11107,7 @@ function mergeClaims(
     const [key, code] = claim.split(":");
     if (!key || !code) throw new Error(`无效浏览器覆盖声明 ${claim}`);
     target[key] ??= [];
+    if (target[key].some((row) => row.code === code)) continue;
     target[key].push({
       code,
       status: "PASSED",

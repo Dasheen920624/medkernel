@@ -4239,6 +4239,32 @@ const systemProvidersEvidence = {
       ],
     },
   ],
+  scenarioConditionEvidence: [
+    {
+      code: "S15__NORMAL",
+      scenarioCode: "S15",
+      condition: "NORMAL",
+      source: "SYSTEM_OPERATIONS_RESTORE_CONTINUITY",
+      evidence: [
+        "备份恢复成功后当前机构生效版本和第三方运行契约一致",
+        "临床账号恢复后完成患者主索引和上下文主链路冒烟",
+      ],
+    },
+    {
+      code: "S15__DEGRADATION",
+      scenarioCode: "S15",
+      condition: "DEGRADATION",
+      source: "SYSTEM_DEPENDENCY_HONEST_DEGRADATION",
+      evidence: ["外部依赖 NOT_CONNECTED 时前台诚实展示降级且本地确定性主链路继续可用"],
+    },
+    {
+      code: "S14__ABNORMAL",
+      scenarioCode: "S14",
+      condition: "ABNORMAL",
+      source: "CLINICAL_SYSTEM_OPERATIONS_FORBIDDEN",
+      evidence: ["临床账号 API 读取系统运维快照返回 403，前台只展示权限不足且不展示运维数据"],
+    },
+  ],
 };
 
 const identityBindingEvidence = {
@@ -4887,6 +4913,29 @@ const platformAdminP1EntryCoreActionsEvidence = {
   ],
 };
 
+const platformAdminP1SystemOperationsEvidence = {
+  scopeStatement:
+    "平台管理员 P1 系统运维入口真实前台证据：只证明运行诊断与国产化适配自检两个入口的代表核心动作，不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+  runtimeDiagnosticsEvidence: {
+    runtimeStatus: 200,
+    operationsStatus: 200,
+    apiContractsStatus: 200,
+    contractCount: 3,
+    pluginBoundaryObserved: true,
+    clinicalRuntimeStatus: 403,
+    clinicalPageForbidden: true,
+  },
+  domesticCheckEvidence: {
+    operationsStatus: 200,
+    reportStatus: 200,
+    reportContainsSummary: true,
+    issueFilterObserved: true,
+    unknownFilterObserved: true,
+    clinicalOperationsStatus: 403,
+    clinicalPageForbidden: true,
+  },
+};
+
 const clinicalEntryCoreActionsEvidence = {
   matrixCode: "CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS",
   scopeStatement:
@@ -5336,6 +5385,37 @@ function platformAdminP1EntryCoreActionsEvidenceResult(body: Record<string, unkn
             name: "platform-admin-entry-core-actions-codes",
             contentType: "application/json",
             body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function platformAdminP1SystemOperationsEvidenceResult(options?: {
+  matrixBody?: Record<string, unknown>;
+  operationsBody?: Record<string, unknown>;
+  title?: string;
+}) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/platform-admin-p1-entry-core-actions-rehearsal.spec.ts",
+        title: options?.title ?? "平台管理员 P1 系统运维入口完成真实前台核心动作代表矩阵",
+        status: "passed",
+        attachments: [
+          {
+            name: "platform-admin-entry-core-actions-codes",
+            contentType: "application/json",
+            body: JSON.stringify(options?.matrixBody ?? platformAdminP1EntryCoreActionsEvidence),
+          },
+          {
+            name: "platform-admin-p1-system-operations-codes",
+            contentType: "application/json",
+            body: JSON.stringify(
+              options?.operationsBody ?? platformAdminP1SystemOperationsEvidence,
+            ),
           },
         ],
       },
@@ -7133,6 +7213,230 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
+  });
+
+  it("declares only the system operations condition rows backed by explicit real evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(systemProvidersEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S15__NORMAL",
+      "S15__DEGRADATION",
+      "S14__ABNORMAL",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not auto-generate system operations condition rows from ordinary operations coverage", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                ...systemProvidersEvidence,
+                scenarioConditionEvidence: undefined,
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "MANAGEMENT_WORKSPACE",
+    ]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it("declares only backed system operations condition rows when local backup drill is still NOT_AVAILABLE", () => {
+    const localNotAvailableEvidence = {
+      ...systemProvidersEvidence,
+      apiEvidence: {
+        operationsSnapshotRead: true,
+        backupReadinessObserved: true,
+        honestDegradationObserved: true,
+        evidenceDetailsObserved: true,
+        runtimeReadbackObserved: false,
+        runtimeConsumerReadbackObserved: false,
+        clinicalSmokeAfterRestore: false,
+        clinicalForbidden: true,
+      },
+      backup: {
+        ...systemProvidersEvidence.backup,
+        enabled: false,
+        rpo: "未启用",
+        rto: "未启用",
+        drillEvidence: {
+          status: "NOT_AVAILABLE",
+          completedAt: null,
+          migrationCount: null,
+          evidenceReference: null,
+          checksumEvidence: null,
+          drillDatabaseIsIsolated: null,
+          rpo: null,
+          rto: null,
+          detail: "尚未提供隔离恢复演练证据",
+        },
+      },
+      runtimeContinuityEvidence: undefined,
+      scenarioConditionEvidence: [
+        {
+          code: "S15__DEGRADATION",
+          scenarioCode: "S15",
+          condition: "DEGRADATION",
+          source: "SYSTEM_DEPENDENCY_HONEST_DEGRADATION",
+          evidence: ["外部依赖断连或不健康时前台诚实展示降级且本地确定性主链路继续可用"],
+        },
+        {
+          code: "S14__ABNORMAL",
+          scenarioCode: "S14",
+          condition: "ABNORMAL",
+          source: "CLINICAL_SYSTEM_OPERATIONS_FORBIDDEN",
+          evidence: ["临床账号 API 读取系统运维快照返回 403，前台只展示权限不足且不展示运维数据"],
+        },
+      ],
+    };
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(localNotAvailableEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S15__DEGRADATION",
+      "S14__ABNORMAL",
+    ]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).not.toContain(
+      "S15__NORMAL",
+    );
+    expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码不属于已证明的系统运维五态范围",
+      missingCode: "S15__HIGH_RISK",
+      body: {
+        ...systemProvidersEvidence,
+        scenarioConditionEvidence: [
+          ...systemProvidersEvidence.scenarioConditionEvidence,
+          {
+            code: "S15__HIGH_RISK",
+            scenarioCode: "S15",
+            condition: "HIGH_RISK",
+            source: "UNPROVEN_DESTRUCTIVE_OPERATION",
+            evidence: ["没有真实高危操作门证据"],
+          },
+        ],
+      },
+    },
+    {
+      name: "恢复后运行消费者与当前机构生效版本不一致",
+      missingCode: "S15__NORMAL",
+      body: {
+        ...systemProvidersEvidence,
+        runtimeContinuityEvidence: {
+          ...systemProvidersEvidence.runtimeContinuityEvidence,
+          runtimeConsumer: {
+            ...systemProvidersEvidence.runtimeContinuityEvidence.runtimeConsumer,
+            releaseId: "runtime-other",
+          },
+        },
+      },
+    },
+    {
+      name: "缺少依赖诚实降级提示",
+      missingCode: "S15__DEGRADATION",
+      body: {
+        ...systemProvidersEvidence,
+        dependencyEvidence: {
+          ...systemProvidersEvidence.dependencyEvidence,
+          honestDegradationText: "",
+        },
+      },
+    },
+    {
+      name: "临床账号越权访问未被拒绝",
+      missingCode: "S14__ABNORMAL",
+      body: {
+        ...systemProvidersEvidence,
+        accessEvidence: {
+          ...systemProvidersEvidence.accessEvidence,
+          clinicalOperationsStatus: 200,
+        },
+      },
+    },
+    {
+      name: "条件行没有具体证据文本",
+      missingCode: "S15__NORMAL",
+      body: {
+        ...systemProvidersEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S15__NORMAL",
+            scenarioCode: "S15",
+            condition: "NORMAL",
+            source: "SYSTEM_OPERATIONS_RESTORE_CONTINUITY",
+            evidence: [],
+          },
+        ],
+      },
+    },
+  ])("does not declare system operations condition rows when $name", ({ body, missingCode }) => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(body),
+            },
+          ],
+        },
+      ],
+    });
+
+    const codes = evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [];
+    expect(codes).not.toContain(missingCode);
   });
 
   it("does not declare system operations coverage from local NOT_AVAILABLE backup drill evidence", () => {
@@ -10836,6 +11140,125 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.entryRepresentativeCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares S14 abnormal condition row from P1 unauthorized API and page evidence only with the detailed attachment", () => {
+    const evidence = platformAdminP1SystemOperationsEvidenceResult();
+
+    expect(
+      evidence.launchCoverage.platformAdminP1EntryCoreActions?.map((item) => item.code),
+    ).toEqual(["RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S14__ABNORMAL",
+    ]);
+  });
+
+  it("declares P1 S14 abnormal condition row from the real test title emitted by Playwright", () => {
+    const evidence = platformAdminP1SystemOperationsEvidenceResult({
+      title: "运行诊断和国产化适配自检均完成真实前台动作、服务回读与权限边界",
+    });
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S14__ABNORMAL",
+    ]);
+  });
+
+  it("keeps scenario condition rows unique when system providers and P1 both prove S14 abnormal", () => {
+    const p1Evidence = platformAdminP1SystemOperationsEvidenceResult({
+      title: "运行诊断和国产化适配自检均完成真实前台动作、服务回读与权限边界",
+    });
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        ...p1Evidence.tests,
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(systemProvidersEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S15__NORMAL",
+      "S15__DEGRADATION",
+      "S14__ABNORMAL",
+    ]);
+  });
+
+  it("does not auto-generate P1 S14 abnormal condition row from the representative matrix alone", () => {
+    const evidence = platformAdminP1EntryCoreActionsEvidenceResult(
+      platformAdminP1EntryCoreActionsEvidence,
+    );
+
+    expect(
+      evidence.launchCoverage.platformAdminP1EntryCoreActions?.map((item) => item.code),
+    ).toEqual(["RUNTIME_DIAGNOSTICS_DOMESTIC_CHECK"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "运行诊断 API 越权没有返回 403",
+      operationsBody: {
+        ...platformAdminP1SystemOperationsEvidence,
+        runtimeDiagnosticsEvidence: {
+          ...platformAdminP1SystemOperationsEvidence.runtimeDiagnosticsEvidence,
+          clinicalRuntimeStatus: 200,
+        },
+      },
+    },
+    {
+      name: "运行诊断页面没有权限不足证据",
+      operationsBody: {
+        ...platformAdminP1SystemOperationsEvidence,
+        runtimeDiagnosticsEvidence: {
+          ...platformAdminP1SystemOperationsEvidence.runtimeDiagnosticsEvidence,
+          clinicalPageForbidden: false,
+        },
+      },
+    },
+    {
+      name: "国产化自检 API 越权没有返回 403",
+      operationsBody: {
+        ...platformAdminP1SystemOperationsEvidence,
+        domesticCheckEvidence: {
+          ...platformAdminP1SystemOperationsEvidence.domesticCheckEvidence,
+          clinicalOperationsStatus: 200,
+        },
+      },
+    },
+    {
+      name: "国产化自检页面没有权限不足证据",
+      operationsBody: {
+        ...platformAdminP1SystemOperationsEvidence,
+        domesticCheckEvidence: {
+          ...platformAdminP1SystemOperationsEvidence.domesticCheckEvidence,
+          clinicalPageForbidden: false,
+        },
+      },
+    },
+    {
+      name: "P1 矩阵缺少国产化适配入口",
+      matrixBody: {
+        ...platformAdminP1EntryCoreActionsEvidence,
+        entryActions: platformAdminP1EntryCoreActionsEvidence.entryActions.filter(
+          (item) => item.menuKey !== "domestic-check",
+        ),
+      },
+      operationsBody: platformAdminP1SystemOperationsEvidence,
+    },
+  ])("does not declare P1 S14 abnormal condition row when $name", (options) => {
+    const evidence = platformAdminP1SystemOperationsEvidenceResult(options);
+
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
   });
 
   it("does not declare platform-admin P1 entry coverage from only the P0 platform-admin matrix", () => {
