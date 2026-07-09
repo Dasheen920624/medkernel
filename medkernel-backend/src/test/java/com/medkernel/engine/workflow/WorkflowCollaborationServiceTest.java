@@ -591,6 +591,104 @@ class WorkflowCollaborationServiceTest {
     }
 
     @Test
+    void listTodosPassesSourceIdToVisibleRepositoryFilterForCurrentRecommendationTodo() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo focusedTodo = new WorkflowTodo(
+            null,
+            "todo-regional-report",
+            "tenant-A",
+            WorkflowTodoSourceType.REPORT_INTERPRETATION,
+            "card-regional-1",
+            "医技报告解读：胸部 CT 影像报告",
+            "区域互认报告需要医生人工完成协同待办",
+            WorkflowPriority.LOW,
+            WorkflowTodoStatus.PENDING,
+            null,
+            "clinical-user",
+            "patient-regional-1",
+            "enc-regional-1",
+            now.plusSeconds(3600),
+            "/cdss/fatigue?cardId=card-regional-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-regional",
+            now,
+            "system",
+            now,
+            "system");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(todos.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1"))
+            .thenReturn(1L);
+        when(todos.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1",
+            0,
+            10))
+            .thenReturn(List.of(focusedTodo));
+
+        PageResponse<WorkflowTodoResponse> page = service.listTodos(
+            new WorkflowTodoFilter(
+                WorkflowTodoStatus.PENDING,
+                null,
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                null,
+                null,
+                null,
+                "card-regional-1"),
+            new PageRequest(1, 10, null));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.todoId()).isEqualTo("todo-regional-report");
+                assertThat(item.sourceId()).isEqualTo("card-regional-1");
+                assertThat(item.sourceType()).isEqualTo(WorkflowTodoSourceType.REPORT_INTERPRETATION);
+            });
+        verify(todos).countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1");
+        verify(todos).pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1",
+            0,
+            10);
+    }
+
+    @Test
     void completeTodoPersistsAuditableClosureInsteadOfOnlyChangingBrowserState() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         WorkflowTodo pending = new WorkflowTodo(

@@ -122,6 +122,57 @@ class WorkflowTodoRepositoryTest {
     }
 
     @Test
+    void visibleAssigneeScopeNarrowsReportInterpretationTodoBySourceId() {
+        seedRoleAssignment("doctor-1", "clinical-user");
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        for (int index = 0; index < 12; index++) {
+            repository.save(sample(
+                "todo-report-old-" + index,
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                "card-report-old-" + index,
+                WorkflowPriority.HIGH,
+                "patient-report-" + index,
+                null,
+                null));
+        }
+        repository.save(sample(
+            "todo-report-current",
+            WorkflowTodoSourceType.REPORT_INTERPRETATION,
+            "card-regional-1",
+            WorkflowPriority.HIGH,
+            "patient-current",
+            null,
+            now.plusSeconds(3600)));
+
+        long total = repository.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1");
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1",
+            0,
+            10);
+
+        assertThat(total).isEqualTo(1);
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-report-current");
+    }
+
+    @Test
     void visibleAssigneeScopeIncludesCurrentUserAndUnassignedRowsOnly() {
         seedRoleAssignment("doctor-1", "clinical-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");

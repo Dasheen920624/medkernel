@@ -41,8 +41,13 @@ function renderWorkflowTodos() {
   );
 }
 
+function setWorkflowLocation(path: string) {
+  window.history.pushState({}, "", path);
+}
+
 describe("WorkflowTodos", () => {
   beforeEach(() => {
+    setWorkflowLocation("/workflow/todos");
     vi.clearAllMocks();
     useEvidenceDetailsStore.setState({ enabled: false });
     workflowHookMocks.useSecurityProfile.mockReturnValue({
@@ -207,6 +212,21 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("HIGH")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("opens the exact report interpretation todo when the page is entered with a recommendation card id", () => {
+    setWorkflowLocation("/workflow/todos?cardId=card-regional-1");
+
+    renderWorkflowTodos();
+
+    expect(workflowHookMocks.useWorkflowTodos).toHaveBeenCalledWith({
+      status: "PENDING",
+      priority: undefined,
+      sourceType: "REPORT_INTERPRETATION",
+      sourceId: "card-regional-1",
+      page: 1,
+      size: 10,
+    });
   });
 
   it("reveals workflow todo source evidence only after evidence details are enabled", async () => {

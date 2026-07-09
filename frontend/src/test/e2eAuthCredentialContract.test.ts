@@ -2235,6 +2235,9 @@ describe("E2E credential contract", () => {
   });
 
   it("requires regional diagnostic mutual-recognition rehearsal to resolve KNOWLEDGE through hospital runtime candidates", () => {
+    const coverageParser = readFileSync("e2e/support/launchCoverageEvidence.ts", "utf8");
+    const fullSystemGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
+    const auditGate = readFileSync("../scripts/release/launch-coverage-audit.test.mjs", "utf8");
     const e2eSource = readFileSync(
       "e2e/regional-diagnostic-mutual-recognition-frontdesk.spec.ts",
       "utf8",
@@ -2246,6 +2249,12 @@ describe("E2E credential contract", () => {
 
     expect(e2eSource).toContain("regional-diagnostic-mutual-recognition-frontdesk-codes");
     expect(e2eSource).toContain("REGIONAL_REMOTE");
+    expect(e2eSource).toContain("/workflow/todos?cardId=");
+    expect(e2eSource).toContain('a[href*="cardId=${options.cardId}"]');
+    expect(coverageParser).toContain("thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE");
+    expect(fullSystemGate).toContain('"REGIONAL_REMOTE"');
+    expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE");
+    expect(auditGate).toContain("missingRegionalConsumer");
     expect(e2eSource).toContain('"KNOWLEDGE"');
     expect(e2eSource).toContain('"FIELD_CATALOG"');
     expect(e2eSource).toContain('"ACTION_CARD"');

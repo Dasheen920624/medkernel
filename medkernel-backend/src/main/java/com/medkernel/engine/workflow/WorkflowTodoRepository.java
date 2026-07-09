@@ -100,7 +100,29 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
             assigneeId,
             currentUserId,
             null,
-            patientId);
+            patientId,
+            null);
+    }
+
+    default long countByVisibleAssigneeScope(
+            String tenantId,
+            String status,
+            String priority,
+            String sourceType,
+            String assigneeId,
+            String currentUserId,
+            String currentOrgUnitId,
+            String patientId) {
+        return countByVisibleAssigneeScope(
+            tenantId,
+            status,
+            priority,
+            sourceType,
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            null);
     }
 
     @Query("""
@@ -128,6 +150,7 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
+          AND (:sourceId IS NULL OR source_id = :sourceId)
           AND (:patientId IS NULL OR patient_id = :patientId)
           AND (
             (:assigneeId IS NOT NULL AND assignee_id = :assigneeId)
@@ -180,7 +203,8 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String assigneeId,
         String currentUserId,
         String currentOrgUnitId,
-        String patientId);
+        String patientId,
+        String sourceId);
 
     @Query("""
         SELECT COUNT(*)
@@ -189,6 +213,7 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
+          AND (:sourceId IS NULL OR source_id = :sourceId)
           AND (:patientId IS NULL OR patient_id = :patientId)
           AND t.org_unit_id IS NOT NULL
           AND EXISTS (
@@ -245,7 +270,31 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String currentUserId,
         String currentOrgUnitId,
         String patientId,
-        String selectedOrgUnitId);
+        String selectedOrgUnitId,
+        String sourceId);
+
+    default long countByVisibleAssigneeScopeAndOrgUnitFilter(
+            String tenantId,
+            String status,
+            String priority,
+            String sourceType,
+            String assigneeId,
+            String currentUserId,
+            String currentOrgUnitId,
+            String patientId,
+            String selectedOrgUnitId) {
+        return countByVisibleAssigneeScopeAndOrgUnitFilter(
+            tenantId,
+            status,
+            priority,
+            sourceType,
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            selectedOrgUnitId,
+            null);
+    }
 
     default List<WorkflowTodo> pageByVisibleAssigneeScope(
             String tenantId,
@@ -266,6 +315,7 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
             currentUserId,
             null,
             patientId,
+            null,
             offset,
             limit);
     }
@@ -319,6 +369,7 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
+          AND (:sourceId IS NULL OR source_id = :sourceId)
           AND (:patientId IS NULL OR patient_id = :patientId)
           AND (
             (:assigneeId IS NOT NULL AND assignee_id = :assigneeId)
@@ -395,8 +446,34 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String currentUserId,
         String currentOrgUnitId,
         String patientId,
+        String sourceId,
         int offset,
         int limit);
+
+    default List<WorkflowTodo> pageByVisibleAssigneeScope(
+            String tenantId,
+            String status,
+            String priority,
+            String sourceType,
+            String assigneeId,
+            String currentUserId,
+            String currentOrgUnitId,
+            String patientId,
+            int offset,
+            int limit) {
+        return pageByVisibleAssigneeScope(
+            tenantId,
+            status,
+            priority,
+            sourceType,
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            null,
+            offset,
+            limit);
+    }
 
     @Query("""
         SELECT t.*
@@ -405,6 +482,7 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
+          AND (:sourceId IS NULL OR source_id = :sourceId)
           AND (:patientId IS NULL OR patient_id = :patientId)
           AND t.org_unit_id IS NOT NULL
           AND EXISTS (
@@ -485,6 +563,34 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String currentOrgUnitId,
         String patientId,
         String selectedOrgUnitId,
+        String sourceId,
         int offset,
         int limit);
+
+    default List<WorkflowTodo> pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            String tenantId,
+            String status,
+            String priority,
+            String sourceType,
+            String assigneeId,
+            String currentUserId,
+            String currentOrgUnitId,
+            String patientId,
+            String selectedOrgUnitId,
+            int offset,
+            int limit) {
+        return pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            tenantId,
+            status,
+            priority,
+            sourceType,
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            selectedOrgUnitId,
+            null,
+            offset,
+            limit);
+    }
 }

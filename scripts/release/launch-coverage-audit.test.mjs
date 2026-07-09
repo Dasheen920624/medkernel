@@ -268,6 +268,16 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
     },
+    {
+      code: "REGIONAL_REMOTE",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath: "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey: "launchCoverage.thirdPartySystemFamilyConsumerSlices.REGIONAL_REMOTE",
+      observedCode: "REGIONAL_REMOTE",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
   ]);
   assert.deepEqual(evidence.coverage.diagnosticReportFamilyConsumerMatrix, [
     {
@@ -393,6 +403,22 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
         readJson: readKnownEvidence(missingPharmacyConsumer),
       }),
     /第三方系统族真实消费者代表切片.*PHARMACY_REVIEW.*缺少前置阶段证据/u,
+  );
+
+  const missingRegionalConsumer = completeStageEvidence();
+  missingRegionalConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices = missingRegionalConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+    (item) => item.code !== "REGIONAL_REMOTE",
+  );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingRegionalConsumer),
+      }),
+    /第三方系统族真实消费者代表切片.*REGIONAL_REMOTE.*缺少前置阶段证据/u,
   );
 
   const missingDiagnosticMatrix = completeStageEvidence();
@@ -715,6 +741,7 @@ function completeStageEvidence(options = {}) {
     "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
     "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
     "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
+    "thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE",
     "diagnosticReportFamilyConsumerMatrix:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
     "semanticFamilies:DISEASE_DIAGNOSIS",
     "semanticFamilies:SYMPTOM_RISK",

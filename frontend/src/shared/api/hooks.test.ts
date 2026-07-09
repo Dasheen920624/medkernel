@@ -690,6 +690,41 @@ describe("shared runtime api helpers", () => {
     });
   });
 
+  it("loads a workflow todo by source id so recommendation links can reopen the exact pending task", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 1,
+          size: 10,
+          total: 0,
+          hasNext: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      useWorkflowTodos({
+        status: "PENDING",
+        sourceType: "REPORT_INTERPRETATION",
+        sourceId: "card-regional-1",
+        page: 1,
+        size: 10,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/workflow/todos", {
+      params: {
+        status: "PENDING",
+        sourceType: "REPORT_INTERPRETATION",
+        sourceId: "card-regional-1",
+        page: 1,
+        size: 10,
+      },
+    });
+  });
+
   it("completes workflow todos through the auditable completion endpoint", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: { data: { todoId: "todo-real-1", status: "COMPLETED" } },

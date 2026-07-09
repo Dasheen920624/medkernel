@@ -1142,7 +1142,9 @@ async function findRegionalReportRecommendation(
 
 async function completeRegionalReportTodo(page: Page, options: { cardId: string }) {
   await ensureReadySession(page, "clinical-user");
-  await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
+  await page.goto(appPath(`/workflow/todos?cardId=${encodeURIComponent(options.cardId)}`), {
+    waitUntil: "domcontentloaded",
+  });
   await page.waitForLoadState("networkidle");
   await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible({
     timeout: 30_000,

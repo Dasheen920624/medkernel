@@ -186,6 +186,12 @@ const assigneeRoleText: Record<string, string> = {
   QUALITY: "质控",
 };
 
+function reportInterpretationCardIdFromLocation() {
+  if (typeof window === "undefined") return undefined;
+  const cardId = new URLSearchParams(window.location.search).get("cardId")?.trim();
+  return cardId || undefined;
+}
+
 const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]) => ({
   value,
   label,
@@ -277,11 +283,13 @@ export default function WorkflowTodos() {
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
+  const focusedReportCardId = reportInterpretationCardIdFromLocation();
 
   const queryParams = {
     status,
     priority,
-    sourceType,
+    sourceType: focusedReportCardId ? "REPORT_INTERPRETATION" : sourceType,
+    sourceId: focusedReportCardId,
     orgUnitId,
     page: 1,
     size: 10,

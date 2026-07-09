@@ -270,6 +270,7 @@ const regionalDiagnosticMutualRecognitionFrontdeskClaims = [
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
+  "thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE",
 ];
 
 const nursingContinuityFrontdeskClaims = [

@@ -10,6 +10,64 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百九十批本地推进：接第一百八十九批和用户“全角色真实前台操作、不要片面优化、允许必要子代理但先关闭无用子代理”的要求，
+  先关闭仍在运行的只读子代理 `019f44ec-8770-7c81-aaaa-47928785b6c4`。本批继续做非破坏、可本地验证且能收紧上线门禁的一刀：
+  把既有 S40 区域医技报告互认真实前台证据纳入完整覆盖审计的
+  `thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE`，并修复真实复跑暴露的协同任务前台无法按本轮推荐卡定位待办的问题。
+  范围仍是 REGIONAL_REMOTE 区域互认代表消费者切片和协同任务按来源定位能力，不冒领完整区域平台、完整远程医疗、完整第三方系统族、
+  完整 S40、完整上线验收、134 清库重部署或全知识资料生产完成。
+- 第一百九十批实现细节：`frontend/e2e/support/launchCoverageEvidence.ts` 在
+  `regionalDiagnosticMutualRecognitionFrontdeskClaims` 中新增
+  `thirdPartySystemFamilyConsumerSlices:REGIONAL_REMOTE`，仍只接受
+  `regional-diagnostic-mutual-recognition-frontdesk.spec.ts` passed/expected 的
+  `regional-diagnostic-mutual-recognition-frontdesk-codes` 强附件；该附件继续强校验 `REGIONAL_REMOTE`
+  FHIR 接入、区域来源 HIGH 可信分级、跨机构 `DiagnosticReport` 入站、当前机构 runtime 中 KNOWLEDGE /
+  FIELD_CATALOG / ACTION_CARD 消费、报告解读推荐卡、人工协同待办闭环和不过度声明边界。
+  `scripts/release/full-system-rehearsal-lib.mjs` 将完整覆盖审计的第三方系统族真实消费者代表切片从 5 个扩到 6 个：
+  `PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG / PHARMACY_REVIEW / PUBLIC_HEALTH_INFECTION_REGULATORY /
+  NURSING_ANESTHESIA_TRANSFUSION_ICU / LIS_MONITORING_CRITICAL / REGIONAL_REMOTE`。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 增加正向声明断言，并要求所有不完整 S40 区域互认负向样例不得声明
+  `REGIONAL_REMOTE`；`scripts/release/launch-coverage-audit.test.mjs` 增加完整输出和缺 REGIONAL_REMOTE 拒绝；
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 锁定 parser、总门禁、区域互认 E2E 附件和 `cardId` 前台定位契约。
+- 第一百九十批真实前台缺口修复：首次真实复跑区域互认 E2E 失败在 `/workflow/todos`，页面第一页积累了旧
+  REPORT_INTERPRETATION 待办，测试按本轮推荐卡 `cardId=rc-661d96f4-e00f-40c6-bcf6-1229422f8ba2`
+  找不到待办链接。根因不是覆盖 parser，而是协同任务真实前台缺少“从推荐 / 报告上下文进入时按来源卡片定位待办”的能力。
+  本批在 `WorkflowTodos.tsx` 支持 `/workflow/todos?cardId=<cardId>`，前端将其映射为
+  `sourceType=REPORT_INTERPRETATION + sourceId=<cardId>` 的服务端分页查询；`frontend/src/shared/api/hooks.ts`
+  暴露 `sourceId` 查询参数。后端 `WorkflowTodoController / WorkflowTodoFilter /
+  WorkflowCollaborationService / WorkflowTodoRepository` 增加可选 `sourceId` 过滤，保留原有租户、当前用户 / 角色、
+  组织范围和服务端分页约束；无 `sourceId` 的普通协同任务列表仍走旧查询签名，避免影响首页排序和历史用例。
+  `WorkflowTodos.test.tsx`、`hooks.test.ts`、`WorkflowCollaborationServiceTest`、
+  `WorkflowTodoRepositoryTest` 分别覆盖 URL 定位、API 参数、service 透传和仓储可见范围内按 sourceId 缩窄。
+  区域互认 E2E 现在从真实前台进入 `/workflow/todos?cardId=<本轮推荐卡>`，再点击当前卡片对应待办完成，不绕过页面。
+- 第一百九十批真实 E2E 与验证证据：先复现红点，证据目录
+  `/tmp/medkernel-e2e-regional-remote-consumer-slice-20260709-r1`，`results.json` 为 `FAILED`
+  （expected=0，unexpected=1），错误为“应能定位本轮区域报告推荐卡对应的待办链接”，页面只显示旧报告解读待办。
+  修复后使用当前代码重新构建并启动临时后端 18102、前端 5175，复跑：
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-regional-remote-consumer-slice-20260709-r2 npm --prefix frontend run e2e -- --project=chromium regional-diagnostic-mutual-recognition-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-regional-remote-consumer-slice-20260709-r2/report/results.json` 为 `PASSED`
+  （expected=1，unexpected=0，flaky=0，skipped=0，duration≈23.4s），顶层 `launchCoverage.thirdPartySystemFamilyConsumerSlices.REGIONAL_REMOTE`
+  为 PASSED。附件确认 `systemFamilyCode=REGIONAL_REMOTE`、`routeType=FHIR`、`sourceTrust=HIGH`，
+  runtime 含 `KNOWLEDGE:IMG.CT.CHEST.*`、`FIELD_CATALOG:FIELD.CATALOG.CLINICAL_CONTEXT`、
+  `ACTION_CARD:ACTION_CARD.REPORT.CRITICAL_VALUE` 等资产；推荐卡 `rc-b911965d-b4ce-434e-8c71-2859522af4d1`
+  对应待办 `todo-56cbea1a-d5b5-4839-b333-12d60d84b0f5` 已由 `clinical-user` 完成，完成说明保留
+  “不改写报告、不自动互认、不自动开嘱”，`apiEvidence.workflowTodoCompletedByHuman=true`。
+- 第一百九十批收尾门禁：最终复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（350 tests）、
+  `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs`（12 tests）、
+  `npm --prefix frontend run test -- WorkflowTodos hooks e2eAuthCredentialContract -- --run`（221 tests）、
+  `mvn -f medkernel-backend/pom.xml -Dtest=WorkflowTodoRepositoryTest,WorkflowCollaborationServiceTest test`（42 tests）、
+  `mvn -f medkernel-backend/pom.xml -DskipTests package`、`npm --prefix frontend run typecheck -- --pretty false`、
+  `npm --prefix frontend run format:check`、`git diff --check`。`git diff --check` 退出码 0，仅提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与两个脚本文件 CRLF 将被 LF 替换，无 whitespace error。本批临时启动的后端 18102
+  与前端 5175 收尾前需停止；既有 18092/5174 不是本批启动，不要擅自停。
+- 第一百九十批边界与下一步：本批仍不是完整上线、不是 134 清库 / 重部署复演、不是 34 个入口全部业务动作闭环、
+  不是 13 类第三方系统族真实消费者全部完成、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成，也不是全部医学知识、
+  术语、值集、公式、安全红线或标准包收集 / 生产完成。下一批建议继续按全局上线门禁推进：1）继续补 34 入口剩余页面的真实业务动作，
+  不能停在菜单 / 路由 / 文案；2）继续扩第三方系统族真实消费者和断连降级补偿矩阵；3）把知识资料准备继续落回 134
+  标准包导入、院内字典同步、原文 / 原包留存、结构校验、覆盖矩阵、持续更新、影响分析和回滚审计；4）目标库迁移 smoke、
+  公网模型 Provider 真实证据、真实第三方回调、134 清库 / 重部署仍按 destructive / external 规则，执行前必须再次取得用户明确确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 仍为工作树脏文件，不要回滚、不要暂存；`test-results/` 和 `/tmp` 产物不要暂存。
 - 第一百八十九批本地推进：接第一百八十八批和用户“前台演练需要按全角色真实操作、不要片面优化”的要求，
   本批继续做非破坏、可本地验证且能收紧上线门禁的一刀：把 `/dashboard` 工作台从菜单 / 路由 / 主按钮可达底座推进到
   四职责真实工作台核心动作结构化证据矩阵。范围仍是四职责工作台代表动作，不冒领 34 个入口全部业务动作闭环、每个入口完整业务流程、

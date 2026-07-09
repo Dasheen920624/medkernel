@@ -130,45 +130,134 @@ public class WorkflowCollaborationService {
         String assigneeId = blankToNull(safeFilter.assigneeId());
         String patientId = blankToNull(safeFilter.patientId());
         String selectedOrgUnitId = blankToNull(safeFilter.orgUnitId());
+        String sourceId = blankToNull(safeFilter.sourceId());
         String currentUserId = currentUserId(ctx);
         String currentOrgUnitId = currentOrgUnitId(ctx);
-        long total = selectedOrgUnitId == null
-            ? todos.countByVisibleAssigneeScope(
+        long total = countVisibleTodos(
+            tenantId,
+            safeFilter,
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            selectedOrgUnitId,
+            sourceId);
+        List<WorkflowTodo> page = pageVisibleTodos(
+            tenantId,
+            safeFilter,
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            selectedOrgUnitId,
+            sourceId,
+            req);
+        List<WorkflowTodoResponse> rows = page.stream()
+            .map(WorkflowTodoResponse::from)
+            .toList();
+        return PageResponse.of(rows, req, total);
+    }
+
+    private long countVisibleTodos(
+            String tenantId,
+            WorkflowTodoFilter filter,
+            String assigneeId,
+            String currentUserId,
+            String currentOrgUnitId,
+            String patientId,
+            String selectedOrgUnitId,
+            String sourceId) {
+        if (selectedOrgUnitId == null) {
+            if (sourceId == null) {
+                return todos.countByVisibleAssigneeScope(
+                    tenantId,
+                    name(filter.status()),
+                    name(filter.priority()),
+                    name(filter.sourceType()),
+                    assigneeId,
+                    currentUserId,
+                    currentOrgUnitId,
+                    patientId);
+            }
+            return todos.countByVisibleAssigneeScope(
                 tenantId,
-                name(safeFilter.status()),
-                name(safeFilter.priority()),
-                name(safeFilter.sourceType()),
+                name(filter.status()),
+                name(filter.priority()),
+                name(filter.sourceType()),
                 assigneeId,
                 currentUserId,
                 currentOrgUnitId,
-                patientId)
-            : todos.countByVisibleAssigneeScopeAndOrgUnitFilter(
+                patientId,
+                sourceId);
+        }
+        if (sourceId == null) {
+            return todos.countByVisibleAssigneeScopeAndOrgUnitFilter(
                 tenantId,
-                name(safeFilter.status()),
-                name(safeFilter.priority()),
-                name(safeFilter.sourceType()),
+                name(filter.status()),
+                name(filter.priority()),
+                name(filter.sourceType()),
                 assigneeId,
                 currentUserId,
                 currentOrgUnitId,
                 patientId,
                 selectedOrgUnitId);
-        List<WorkflowTodo> page = selectedOrgUnitId == null
-            ? todos.pageByVisibleAssigneeScope(
+        }
+        return todos.countByVisibleAssigneeScopeAndOrgUnitFilter(
+            tenantId,
+            name(filter.status()),
+            name(filter.priority()),
+            name(filter.sourceType()),
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            selectedOrgUnitId,
+            sourceId);
+    }
+
+    private List<WorkflowTodo> pageVisibleTodos(
+            String tenantId,
+            WorkflowTodoFilter filter,
+            String assigneeId,
+            String currentUserId,
+            String currentOrgUnitId,
+            String patientId,
+            String selectedOrgUnitId,
+            String sourceId,
+            PageRequest req) {
+        if (selectedOrgUnitId == null) {
+            if (sourceId == null) {
+                return todos.pageByVisibleAssigneeScope(
+                    tenantId,
+                    name(filter.status()),
+                    name(filter.priority()),
+                    name(filter.sourceType()),
+                    assigneeId,
+                    currentUserId,
+                    currentOrgUnitId,
+                    patientId,
+                    req.offset(),
+                    req.safeSize());
+            }
+            return todos.pageByVisibleAssigneeScope(
                 tenantId,
-                name(safeFilter.status()),
-                name(safeFilter.priority()),
-                name(safeFilter.sourceType()),
+                name(filter.status()),
+                name(filter.priority()),
+                name(filter.sourceType()),
                 assigneeId,
                 currentUserId,
                 currentOrgUnitId,
                 patientId,
+                sourceId,
                 req.offset(),
-                req.safeSize())
-            : todos.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+                req.safeSize());
+        }
+        if (sourceId == null) {
+            return todos.pageByVisibleAssigneeScopeAndOrgUnitFilter(
                 tenantId,
-                name(safeFilter.status()),
-                name(safeFilter.priority()),
-                name(safeFilter.sourceType()),
+                name(filter.status()),
+                name(filter.priority()),
+                name(filter.sourceType()),
                 assigneeId,
                 currentUserId,
                 currentOrgUnitId,
@@ -176,10 +265,20 @@ public class WorkflowCollaborationService {
                 selectedOrgUnitId,
                 req.offset(),
                 req.safeSize());
-        List<WorkflowTodoResponse> rows = page.stream()
-            .map(WorkflowTodoResponse::from)
-            .toList();
-        return PageResponse.of(rows, req, total);
+        }
+        return todos.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            tenantId,
+            name(filter.status()),
+            name(filter.priority()),
+            name(filter.sourceType()),
+            assigneeId,
+            currentUserId,
+            currentOrgUnitId,
+            patientId,
+            selectedOrgUnitId,
+            sourceId,
+            req.offset(),
+            req.safeSize());
     }
 
     /**

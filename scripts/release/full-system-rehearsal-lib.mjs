@@ -224,6 +224,7 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "PUBLIC_HEALTH_INFECTION_REGULATORY",
       "NURSING_ANESTHESIA_TRANSFUSION_ICU",
       "LIS_MONITORING_CRITICAL",
+      "REGIONAL_REMOTE",
     ],
   },
   diagnosticReportFamilyConsumerMatrix: {

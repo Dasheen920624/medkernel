@@ -1876,6 +1876,13 @@ function expectNoRegionalDiagnosticMutualRecognitionCoverage(body: Record<string
   );
 }
 
+function expectNoRegionalRemoteConsumerSliceCoverage(body: Record<string, unknown>) {
+  const evidence = regionalDiagnosticMutualRecognitionEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("REGIONAL_REMOTE");
+}
+
 const nursingContinuityEvidence = {
   scenarioCodes: ["S20", "S35"],
   productLayers: ["CLINICAL_EXECUTION"],
@@ -8132,6 +8139,9 @@ describe("browser E2E launch coverage evidence", () => {
       "CLINICAL_RUNTIME",
       "PROFESSIONAL_COLLABORATION",
     ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["REGIONAL_REMOTE"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
@@ -8279,6 +8289,7 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare S40 regional mutual-recognition coverage when $name", ({ body }) => {
     expectNoRegionalDiagnosticMutualRecognitionCoverage(body);
+    expectNoRegionalRemoteConsumerSliceCoverage(body);
   });
 
   it("declares S20/S35 nursing continuity coverage only with nursing facts, followup asset and backflow", () => {
