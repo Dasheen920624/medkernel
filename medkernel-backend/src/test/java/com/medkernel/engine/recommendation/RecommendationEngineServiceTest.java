@@ -149,6 +149,7 @@ class RecommendationEngineServiceTest {
         verify(sources).save(sourceCap.capture());
         verify(fatigueSignals).save(signalCap.capture());
 
+        assertThat(response.cardIds()).containsExactly(cardCap.getValue().cardId());
         assertThat(triggerCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(triggerCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(triggerCap.getValue().encounterId()).isEqualTo("ENC-1");

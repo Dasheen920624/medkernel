@@ -96,8 +96,10 @@ type ContextSnapshotSummary = {
 };
 type ReportInterpretationPayload = {
   runtimeReleaseId?: string;
+  recommendationCardIds?: string[];
   interpretations?: Array<{
     itemCode?: string;
+    reportType?: string;
     sourceVersionId?: number;
     versionNo?: string;
     summary?: string;
@@ -775,26 +777,25 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     `${view.label} 医技报告解读必须基于前台录入的已签发报告生成至少 1 项结果`,
   ).toBeGreaterThan(0);
   assertReportInterpretationUsesSnapshotRuntimeKnowledge(interpretation.data, snapshot, view);
+  const expectedSourceId = interpretation.data?.recommendationCardIds?.[0] ?? "";
+  expect(expectedSourceId, `${view.label} 报告解读响应必须返回本轮推荐卡来源`).toBeTruthy();
   const interpretedReportType = interpretation.data?.interpretations?.[0]?.reportType ?? "血钾检验";
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
+  await page.goto(appPath(`/workflow/todos?cardId=${encodeURIComponent(expectedSourceId)}`), {
+    waitUntil: "domcontentloaded",
+  });
   await page.waitForLoadState("networkidle");
   await expect(
     page.locator("main").getByRole("heading", { name: "协同任务" }).first(),
     `${view.label} 应能在协同任务查看报告解读闭环待办`,
   ).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/报告解读 [1-9]\d* 项/u)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("link", { name: "打开报告上下文" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
-  const todoRow = page
-    .getByRole("row")
-    .filter({ hasText: "报告解读" })
-    .filter({ hasText: interpretedReportType })
-    .first();
+  const todoRow = page.locator("tr", { has: page.locator(`a[href*="${expectedSourceId}"]`) }).first();
   await expect(todoRow, `${view.label} 应能定位本次报告解读协同待办`).toBeVisible({
     timeout: 30_000,
   });
+  await expect(todoRow).toContainText("报告解读");
+  await expect(todoRow).toContainText(interpretedReportType);
   const completeResponsePromise = waitForPost(page, "/engine/workflow/todos/");
   await todoRow.getByRole("button", { name: "完成" }).click();
   const completeDialog = page.getByRole("dialog", { name: "完成待办" });
@@ -821,7 +822,15 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
   ).toContain("医技已复核报告解读提示");
   expect(completedTodo.data?.completedBy, `${view.label} 完成待办应记录办理人`).toBeTruthy();
   await expect(completeDialog).toBeHidden({ timeout: 20_000 });
-  const completedTodosResponsePromise = waitForGet(page, "/engine/workflow/todos");
+  await page.goto(appPath(`/workflow/todos?cardId=${encodeURIComponent(expectedSourceId)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "协同任务" }).first(),
+    `${view.label} 应能回到本次报告解读协同任务`,
+  ).toBeVisible({ timeout: 30_000 });
+  const completedTodosResponsePromise = waitForCompletedReportTodoReadback(page, expectedSourceId);
   await choosePageSelectOption(page, "待办状态", "已完成");
   const completedTodosResponse = await completedTodosResponsePromise;
   const completedTodosText = await completedTodosResponse.text();
@@ -830,13 +839,17 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     `${view.label} 切换已完成协同待办应返回成功 status=${completedTodosResponse.status()} body=${completedTodosText}`,
   ).toBe(true);
   const completedTodosPayload = JSON.parse(completedTodosText) as {
-    data?: { items?: Array<{ todoId?: string; status?: string }> };
+    data?: { items?: Array<{ todoId?: string; sourceId?: string; status?: string }> };
   };
+  const readbackRows = completedTodosPayload.data?.items ?? [];
   expect(
-    completedTodosPayload.data?.items?.some(
-      (item) => item.todoId === completedTodoId && item.status === "COMPLETED",
+    readbackRows.some(
+      (item) =>
+        item.todoId === completedTodoId &&
+        item.sourceId === expectedSourceId &&
+        item.status === "COMPLETED",
     ),
-    `${view.label} 已完成筛选接口应返回本次完成的报告解读待办`,
+    `${view.label} 已完成筛选接口应返回本次完成的报告解读待办 url=${completedTodosResponse.url()} rows=${JSON.stringify(readbackRows)} expectedTodo=${completedTodoId} expectedSource=${expectedSourceId}`,
   ).toBe(true);
   const completedTodoRow = page.locator(`tr[data-row-key="${completedTodoId}"]`).first();
   await expect(
@@ -1520,6 +1533,22 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
 function waitForGet(page: Page, path: string) {
   return page.waitForResponse(
     (response) => response.request().method() === "GET" && response.url().includes(path),
+    { timeout: 30_000 },
+  );
+}
+
+function waitForCompletedReportTodoReadback(page: Page, expectedSourceId: string) {
+  return page.waitForResponse(
+    (response) => {
+      if (response.request().method() !== "GET") return false;
+      const url = new URL(response.url());
+      return (
+        url.pathname.includes("/engine/workflow/todos") &&
+        url.searchParams.get("status") === "COMPLETED" &&
+        url.searchParams.get("sourceType") === "REPORT_INTERPRETATION" &&
+        url.searchParams.get("sourceId") === expectedSourceId
+      );
+    },
     { timeout: 30_000 },
   );
 }

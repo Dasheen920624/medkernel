@@ -145,8 +145,10 @@ public class RecommendationEngineService {
             status, null, request.occurredAt() == null ? now : request.occurredAt(),
             now, actor, now, actor, traceId));
 
+        List<String> cardIds = new ArrayList<>();
         for (AssessedCard assessedCard : assessedCards) {
             RecommendationCard card = saveCard(trigger, assessedCard, now, actor, traceId);
+            cardIds.add(card.cardId());
             for (RecommendationSourceRequest sourceRequest : assessedCard.request().sources()) {
                 saveSource(card.cardId(), sourceRequest, now, actor, traceId);
             }
@@ -158,7 +160,7 @@ public class RecommendationEngineService {
         transitions.record("recommendation_trigger", triggerId, null, status.name(), "接收推荐触发", null);
         auditRecorder.record(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
             "接收推荐触发 " + request.triggerCode());
-        return new RecommendationTriggerResponse(triggerId, status, assessedCards.size(), traceId);
+        return new RecommendationTriggerResponse(triggerId, status, assessedCards.size(), cardIds, traceId);
     }
 
     /**

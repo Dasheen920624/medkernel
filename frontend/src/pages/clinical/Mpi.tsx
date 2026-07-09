@@ -958,6 +958,8 @@ export default function Mpi() {
             columns={columns}
             rowKey="id"
             loading={listLoading}
+            tableLayout="fixed"
+            scroll={{ x: 920 }}
             pagination={{
               current: page,
               pageSize: size,

@@ -25,6 +25,7 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationSourceRequest;
 import com.medkernel.engine.recommendation.RecommendationSourceType;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
+import com.medkernel.engine.recommendation.RecommendationTriggerResponse;
 import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
 import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.VersionedAssetType;
@@ -93,13 +94,14 @@ public class ReportInterpretationService {
                 .map(item -> interpret(report, item, runtimeReleaseId))
                 .ifPresent(interpretations::add);
         }
-        if (!interpretations.isEmpty()) {
-            persist(snapshot, interpretations, itemRefs);
-        }
+        List<String> recommendationCardIds = interpretations.isEmpty()
+            ? List.of()
+            : persist(snapshot, interpretations, itemRefs);
         return new ReportInterpretationResponse(
             snapshot.snapshotId(),
             runtimeReleaseId,
             interpretations,
+            recommendationCardIds,
             interpretations.isEmpty() ? ADVISORY_EMPTY : ADVISORY_PRESENT,
             traceId());
     }
@@ -234,7 +236,7 @@ public class ReportInterpretationService {
         return List.of("当前仅生成报告阅读辅助说明，系统不自动开立医嘱。");
     }
 
-    private void persist(
+    private List<String> persist(
             ContextSnapshotResponse snapshot,
             List<ReportInterpretationItem> interpretations,
             List<RuntimeDiagnosticItemReference> itemRefs) {
@@ -250,7 +252,7 @@ public class ReportInterpretationService {
         String encounterId = snapshot.resources().encounters().isEmpty()
             ? null
             : snapshot.resources().encounters().getFirst().encounterId();
-        recommendationEngine.trigger(new RecommendationTriggerRequest(
+        RecommendationTriggerResponse response = recommendationEngine.trigger(new RecommendationTriggerRequest(
             "REPORT-" + snapshot.snapshotId(),
             TRIGGER_HOOK,
             null,
@@ -263,6 +265,7 @@ public class ReportInterpretationService {
             null,
             cards,
             Boolean.FALSE));
+        return response.cardIds();
     }
 
     private RecommendationCardRequest toCard(

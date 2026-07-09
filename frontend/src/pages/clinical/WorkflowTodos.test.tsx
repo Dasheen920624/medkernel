@@ -224,8 +224,31 @@ describe("WorkflowTodos", () => {
       priority: undefined,
       sourceType: "REPORT_INTERPRETATION",
       sourceId: "card-regional-1",
+      orgUnitId: undefined,
       page: 1,
       size: 10,
+    });
+  });
+
+  it("keeps the focused report card source when switching completed status", async () => {
+    const user = userEvent.setup();
+    setWorkflowLocation("/workflow/todos?cardId=card-current-report");
+
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("combobox", { name: "待办状态" }));
+    await user.click(await screen.findByText("已完成"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "COMPLETED",
+        priority: undefined,
+        sourceType: "REPORT_INTERPRETATION",
+        sourceId: "card-current-report",
+        orgUnitId: undefined,
+        page: 1,
+        size: 10,
+      });
     });
   });
 
@@ -422,6 +445,7 @@ describe("WorkflowTodos", () => {
         status: "PENDING",
         priority: undefined,
         sourceType: undefined,
+        sourceId: undefined,
         orgUnitId: "dept-a",
         page: 1,
         size: 10,
@@ -441,6 +465,8 @@ describe("WorkflowTodos", () => {
         status: "TRANSFERRED",
         priority: undefined,
         sourceType: undefined,
+        sourceId: undefined,
+        orgUnitId: undefined,
         page: 1,
         size: 10,
       });
@@ -454,6 +480,8 @@ describe("WorkflowTodos", () => {
         status: "CANCELLED",
         priority: undefined,
         sourceType: undefined,
+        sourceId: undefined,
+        orgUnitId: undefined,
         page: 1,
         size: 10,
       });

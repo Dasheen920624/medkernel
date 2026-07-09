@@ -5492,6 +5492,7 @@ export interface ReportInterpretationResponse {
   contextSnapshotId: string;
   runtimeReleaseId: string;
   interpretations: ReportInterpretationItem[];
+  recommendationCardIds: string[];
   advisoryNote: string;
   traceId: string;
 }

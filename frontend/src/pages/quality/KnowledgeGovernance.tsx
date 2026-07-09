@@ -2655,6 +2655,8 @@ export default function KnowledgeGovernance({
           rowKey="customizationId"
           columns={customizationColumns}
           dataSource={customizationItems}
+          tableLayout="fixed"
+          scroll={{ x: 920 }}
           locale={{ emptyText: "当前机构全部使用平台标准" }}
           pagination={{
             current: customizationsQuery.data?.page ?? customizationPage,
@@ -2694,6 +2696,8 @@ export default function KnowledgeGovernance({
             rowKey="id"
             columns={institutionIdentityColumns}
             dataSource={platformStandardIdentities}
+            tableLayout="fixed"
+            scroll={{ x: 760 }}
             locale={{ emptyText: "当前筛选下暂无可派生的平台标准" }}
             pagination={{
               current: identityPage,

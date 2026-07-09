@@ -26,6 +26,8 @@ import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
+import com.medkernel.engine.recommendation.RecommendationTriggerResponse;
+import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
 import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
 import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.VersionedAssetType;
@@ -60,6 +62,12 @@ class ReportInterpretationServiceTest {
             recommendationEngine,
             declarativeAssets,
             new ObjectMapper());
+        when(recommendationEngine.trigger(any())).thenReturn(new RecommendationTriggerResponse(
+            "rt-report-default",
+            RecommendationTriggerStatus.EVALUATED,
+            0,
+            List.of(),
+            "trace-report"));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-report",
             OrgScope.tenant("t-1"),
@@ -123,12 +131,19 @@ class ReportInterpretationServiceTest {
                 "v1.0",
                 SourceAuthorityLevel.B_GUIDELINE.name(),
                 "hash-potassium")));
+        when(recommendationEngine.trigger(any())).thenReturn(new RecommendationTriggerResponse(
+            "rt-report",
+            RecommendationTriggerStatus.EVALUATED,
+            1,
+            List.of("rc-report-current"),
+            "trace-report"));
 
-        service.interpret(new ReportInterpretationRequest("snap-report"));
+        ReportInterpretationResponse response = service.interpret(new ReportInterpretationRequest("snap-report"));
 
         ArgumentCaptor<RecommendationTriggerRequest> cap = ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
         verify(recommendationEngine).trigger(cap.capture());
         RecommendationTriggerRequest request = cap.getValue();
+        assertThat(response.recommendationCardIds()).containsExactly("rc-report-current");
         assertThat(request.triggerType()).isEqualTo("result-review");
         assertThat(request.scenarioCode()).isEqualTo("S36");
         assertThat(request.contextSnapshotId()).isEqualTo("snap-report");

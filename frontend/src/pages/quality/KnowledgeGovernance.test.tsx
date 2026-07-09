@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
@@ -975,6 +978,28 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByText("定制草稿")).not.toBeInTheDocument();
     expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
     expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
+  });
+
+  it("keeps institution knowledge tables contained on mobile viewports", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/pages/quality/KnowledgeGovernance.tsx"),
+      {
+        encoding: "utf8",
+      },
+    );
+    const institutionBody = source.slice(
+      source.indexOf("let customizationListContent: ReactNode;"),
+      source.indexOf("let institutionKnowledgeContent: ReactNode;"),
+    );
+    const institutionPageBody = source.slice(
+      source.indexOf("if (isPlatformTenant)"),
+      source.indexOf("const reviewContent = ("),
+    );
+
+    expect(institutionBody).toContain("scroll={{ x: 920 }}");
+    expect(institutionBody).toContain('tableLayout="fixed"');
+    expect(institutionPageBody).toContain("scroll={{ x: 760 }}");
+    expect(institutionPageBody).toContain('tableLayout="fixed"');
   });
 
   it("keeps platform-source guidance in service institution language", () => {

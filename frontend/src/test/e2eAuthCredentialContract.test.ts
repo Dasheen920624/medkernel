@@ -2034,6 +2034,31 @@ describe("E2E credential contract", () => {
     expect(e2eSource).not.toContain("activeAssets: []");
   });
 
+  it("requires report interpretation todo completion readback to target the current source card", () => {
+    const e2eSources = [
+      readFileSync("e2e/four-role-core-actions-rehearsal.spec.ts", "utf8"),
+      readFileSync("e2e/clinical-entry-core-actions-rehearsal.spec.ts", "utf8"),
+      readFileSync("e2e/stakeholder-view-rehearsal.spec.ts", "utf8"),
+    ];
+
+    for (const source of e2eSources) {
+      expect(source).toContain("recommendationCardIds?.[0]");
+      expect(source).toContain("报告解读响应必须返回本轮推荐卡来源");
+      expect(source).toContain('a[href*="${expectedSourceId}"]');
+      expect(source).toContain("waitForCompletedReportTodoReadback(");
+      expect(source).toContain('url.searchParams.get("status") === "COMPLETED"');
+      expect(source).toContain('url.searchParams.get("sourceType") === "REPORT_INTERPRETATION"');
+      expect(source).toContain("expectedSourceId");
+      expect(source).toContain(
+        "appPath(`/workflow/todos?cardId=${encodeURIComponent(expectedSourceId)}`)",
+      );
+      expect(source).not.toContain(
+        'const completedTodosResponsePromise = waitForGet(page, "/engine/workflow/todos");',
+      );
+      expect(source).not.toContain("reportTodoSourceId(");
+    }
+  });
+
   it("requires clinical entry rehearsal to read hospital runtime with engine operator privileges", () => {
     const e2eSource = readFileSync("e2e/clinical-entry-core-actions-rehearsal.spec.ts", "utf8");
     const functionStart = e2eSource.indexOf("async function currentHospitalRuntimeReleaseId");

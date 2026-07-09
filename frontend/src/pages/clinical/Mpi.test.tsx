@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
@@ -680,4 +682,15 @@ describe("Mpi", () => {
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );
+
+  it("keeps the MPI patient table constrained instead of widening the mobile root", () => {
+    const pageSource = readFileSync("src/pages/clinical/Mpi.tsx", "utf8");
+    const cssSource = readFileSync("src/pages/clinical/Mpi.module.css", "utf8");
+    const tableCardRule = cssSource.match(/\.tableCard\s*\{[^}]+\}/u)?.[0] ?? "";
+
+    expect(pageSource).toContain('tableLayout="fixed"');
+    expect(pageSource).toContain("scroll={{ x: 920 }}");
+    expect(tableCardRule).toContain("min-width: 0;");
+    expect(tableCardRule).toContain("overflow: hidden;");
+  });
 });
