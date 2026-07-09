@@ -64,6 +64,10 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
       config.evidenceRoot,
       "runtime-resilience.json",
     ),
+    "target-environment": path.join(
+      config.evidenceRoot,
+      "target-environment.json",
+    ),
     "browser-e2e": path.join(config.evidenceRoot, "e2e/report/results.json"),
   };
   const stageStatus = {};

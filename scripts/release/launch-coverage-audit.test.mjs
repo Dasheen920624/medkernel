@@ -60,12 +60,26 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   assert.equal(evidence.status, "PASSED");
   assert.deepEqual(
     Object.values(evidence.stageStatus),
-    Array(8).fill("PASSED"),
+    Array(9).fill("PASSED"),
   );
   assert.equal(evidence.coverage.databaseDialects.length, 5);
   assert.equal(evidence.acceptance.length, 15);
   assert.equal(
     evidence.acceptance.find((item) => item.code === "LAUNCH-11")?.status,
+    "PASSED",
+  );
+  assert.deepEqual(
+    evidence.coverage.targetEnvironmentRehearsal.map((item) => item.code),
+    [
+      "BACKUP_RESTORE_BEFORE_CLEAN",
+      "CLEAN_DATABASE_V1_ONLY",
+      "DEPLOY_CURRENT_ARTIFACT",
+      "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+      "RESTART_AND_SECOND_RESTORE",
+    ],
+  );
+  assert.equal(
+    evidence.acceptance.find((item) => item.code === "LAUNCH-15")?.status,
     "PASSED",
   );
   assert.equal(evidence.coverage.standardPatientResources.length, 13);
@@ -701,6 +715,7 @@ function completeStageEvidence(options = {}) {
         modelInvocationAllowed: true,
       },
     },
+    "target-environment": targetEnvironmentEvidence(),
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
   };
   if (!includeLaunchCoverage) return evidence;
@@ -777,6 +792,13 @@ function completeStageEvidence(options = {}) {
     "deliveryShapes:ENGINE_CORE",
     "serviceCombinations:QUALITY_IMPROVEMENT",
     "serviceCombinations:COMPLIANCE_OPERATIONS",
+  ]);
+  evidence["target-environment"].launchCoverage = launchCoverageClaims([
+    "targetEnvironmentRehearsal:BACKUP_RESTORE_BEFORE_CLEAN",
+    "targetEnvironmentRehearsal:CLEAN_DATABASE_V1_ONLY",
+    "targetEnvironmentRehearsal:DEPLOY_CURRENT_ARTIFACT",
+    "targetEnvironmentRehearsal:FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+    "targetEnvironmentRehearsal:RESTART_AND_SECOND_RESTORE",
   ]);
   evidence["browser-e2e"].launchCoverage = launchCoverageClaims([
     "productLayers:DATA_INTEROPERABILITY",
@@ -990,6 +1012,55 @@ function databaseMigrationEvidence() {
       artifactCount: 1,
       contentSha256: "c".repeat(64),
     })),
+  };
+}
+
+function targetEnvironmentEvidence() {
+  return {
+    schemaVersion: "1.0.0",
+    status: "PASSED",
+    stage: "TARGET_ENVIRONMENT_REHEARSAL",
+    environment: {
+      host: "193.112.107.134",
+      webBaseUrl: "https://193.112.107.134/medkernel",
+      apiBaseUrl: "https://193.112.107.134/medkernel/api/v1",
+      source: SOURCE,
+    },
+    checks: [
+      {
+        code: "BACKUP_RESTORE_BEFORE_CLEAN",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/backup-before-clean.json",
+        checksumSha256: "d".repeat(64),
+      },
+      {
+        code: "CLEAN_DATABASE_V1_ONLY",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/clean-v1.json",
+        checksumSha256: "e".repeat(64),
+      },
+      {
+        code: "DEPLOY_CURRENT_ARTIFACT",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/deploy-current.json",
+        checksumSha256: "f".repeat(64),
+      },
+      {
+        code: "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/full-system.json",
+        checksumSha256: "1".repeat(64),
+      },
+      {
+        code: "RESTART_AND_SECOND_RESTORE",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/restart-restore.json",
+        checksumSha256: "2".repeat(64),
+      },
+    ],
+    destructiveConfirmed: true,
+    patientDataExported: false,
+    credentialsInEvidence: false,
   };
 }
 

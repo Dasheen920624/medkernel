@@ -23,6 +23,35 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第一百九十五批本地推进：接用户再次校准“不是只有知识功能，是整套系统功能”和是否走偏的担忧，本批不继续扩知识单点，
+  也不执行 134 破坏性动作，而是收紧 `PRODUCT_SCOPE.md` §15 第 15 项的上线总账门禁：新增独立
+  `targetEnvironmentRehearsal` 覆盖矩阵和 `target-environment` 整套演练阶段，明确 134 目标环境最终上线不能再由
+  实施入口、交付形态、迁移或本地浏览器代表证据间接冒领。`LAUNCH-15` 现在只接受目标环境上线复演证据，必须覆盖
+  `BACKUP_RESTORE_BEFORE_CLEAN`、`CLEAN_DATABASE_V1_ONLY`、`DEPLOY_CURRENT_ARTIFACT`、
+  `FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL`、`RESTART_AND_SECOND_RESTORE` 五项。
+- 第一百九十五批实现细节：`scripts/release/full-system-rehearsal-lib.mjs` 新增
+  `TARGET_ENVIRONMENT_REHEARSAL_CHECKS`、`buildTargetEnvironmentRehearsalEvidence()` 和
+  `validateTargetEnvironmentEvidence()`；整套演练由 9 阶段扩为 10 阶段，在 `runtime-resilience` 后、
+  `browser-e2e` 前执行 `scripts/release/target-environment-rehearsal.mjs`。新增必填环境变量
+  `LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH`，该路径必须在仓库外；新增标准阶段证据
+  `target-environment.json`。新 CLI 只读取外部原始复演 JSON、校验并标准化为 release 证据，不连接 134、
+  不清库、不部署、不恢复；真正执行 134 清库、重部署、备份恢复和全功能全知识复演仍必须先取得用户明确确认。
+  `scripts/release/launch-coverage-audit.mjs` 已把 `target-environment.json` 纳入完整覆盖审计。
+- 第一百九十五批验证证据：已按 TDD 先让 `full-system-rehearsal.test.mjs` 红在缺目标环境阶段和缺
+  `targetEnvironmentRehearsal` 门禁，随后实现并复跑通过
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  （15 tests，含目标环境复演标准化和 CLI 入口测试）、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/release/platform-baseline-bootstrap.test.mjs`
+  （23 tests）、
+  `node --test scripts/db/generate-migrations.test.mjs scripts/migration-convention-guard.test.mjs`（22 tests）、
+  `npm --prefix frontend run format:check`、`git diff --check`。`git diff --check` 退出码 0，仅提示无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与本批触碰的 release 脚本 CRLF 将被 LF 替换，无 whitespace error。
+- 第一百九十五批边界与下一步：本批是“防冒领”和“上线总账纠偏”，不是完整上线完成、不是 134 清库重部署完成、
+  不是 34 入口全部业务流程完成、不是 S0-S40 全异常 / 缺数 / 高风险 / 降级矩阵完成、不是全部第三方系统族消费者完成、
+  也不是全医学资源实际生产完成。下一批继续按 15 项上线总账推进真实系统功能深度：优先补 34 入口的真实业务动作、
+  服务回读、审计、六态和权限边界；同步补采集接入、第三方断连补偿、S0-S40 异常矩阵和知识资源生产运行消费者。
+  134 目标环境复演前需先准备仓库外 `LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH` 指向的原始复演证据，并在执行破坏性操作前再次确认。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存。
 - 第一百九十二批本地推进：接用户纠偏“不是只有知识功能，而是整套系统功能”和长目标续跑要求，本批从局部知识/代表切片
   回到上线总账驱动，只做非破坏、可本地验证且能防止总账冒领的一刀：把 `PRODUCT_SCOPE.md` §15 的 15 项完整上线验收
   显式落成 release 总账门禁，并把五数据库方言迁移从文档口径提升为整套演练第一阶段真实证据。范围仍是上线门禁和契约纠偏，

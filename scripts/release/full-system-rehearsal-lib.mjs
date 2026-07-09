@@ -11,6 +11,13 @@ const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+const TARGET_ENVIRONMENT_REHEARSAL_CHECKS = Object.freeze([
+  "BACKUP_RESTORE_BEFORE_CLEAN",
+  "CLEAN_DATABASE_V1_ONLY",
+  "DEPLOY_CURRENT_ARTIFACT",
+  "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+  "RESTART_AND_SECOND_RESTORE",
+]);
 const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   productLayers: {
     label: "六层产品能力",
@@ -271,6 +278,10 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   databaseDialects: {
     label: "五数据库方言",
     codes: ["POSTGRES", "KINGBASE", "ORACLE", "DM", "H2"],
+  },
+  targetEnvironmentRehearsal: {
+    label: "目标环境上线复演",
+    codes: [...TARGET_ENVIRONMENT_REHEARSAL_CHECKS],
   },
   semanticFamilies: {
     label: "完整医疗语义族",
@@ -567,15 +578,7 @@ const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
   {
     code: "LAUNCH-15",
     label: "目标环境完成备份恢复、清库 V1、部署、全功能全知识演练和重启恢复",
-    requiredCoverage: [
-      "launchReadinessStakeholderMatrix",
-      "launchReadinessStakeholderRows",
-      "implementationGuideEntryCoreActions",
-      "implementationGuideEntryCoreActionRows",
-      "deliveryShapes",
-      "databaseMigrationSource",
-      "databaseDialects",
-    ],
+    requiredCoverage: ["targetEnvironmentRehearsal"],
   },
 ]);
 
@@ -591,6 +594,7 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     "LAUNCH_MODEL_PROVIDER_TYPE",
     "LAUNCH_MODEL_PROVIDER_ENDPOINT",
     "LAUNCH_MODEL_VERSION",
+    "LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH",
     "FULL_KNOWLEDGE_MANIFEST_PATH",
     "LAUNCH_SOURCE",
   ];
@@ -622,6 +626,11 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     repoRoot,
     "首次接管令牌路径",
   );
+  const targetEnvironmentSourcePath = outsideRepo(
+    env.LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH,
+    repoRoot,
+    "目标环境上线复演原始证据路径",
+  );
   const webBaseUrl = normalizeWebBaseUrl(env.LAUNCH_WEB_BASE_URL);
   const apiBaseUrl = normalizeApiBaseUrl(env.LAUNCH_API_BASE_URL);
   if (!apiBaseUrl.startsWith(`${webBaseUrl}/`)) {
@@ -635,6 +644,7 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     indexPath: path.join(evidenceRoot, "full-system.json"),
     credentialsPath,
     bootstrapTokenPath,
+    targetEnvironmentSourcePath,
     manifestPath: path.resolve(env.FULL_KNOWLEDGE_MANIFEST_PATH.trim()),
     source: normalizeSource(env.LAUNCH_SOURCE),
     webBaseUrl,
@@ -673,6 +683,10 @@ export function buildFullSystemStagePlan(config) {
   const resilienceEvidence = path.join(
     config.evidenceRoot,
     "runtime-resilience.json",
+  );
+  const targetEnvironmentEvidence = path.join(
+    config.evidenceRoot,
+    "target-environment.json",
   );
   const browserRoot = path.join(config.evidenceRoot, "e2e");
   const launchCoverageEvidence = path.join(
@@ -787,6 +801,22 @@ export function buildFullSystemStagePlan(config) {
         LAUNCH_CREDENTIALS_FILE: config.credentialsPath,
         RUNTIME_RESILIENCE_PROVIDER_CODE: config.provider.code,
         RUNTIME_RESILIENCE_EVIDENCE_PATH: resilienceEvidence,
+      },
+    },
+    {
+      id: "target-environment",
+      label: "134 目标环境清库重部署与恢复复演",
+      command: process.execPath,
+      args: ["scripts/release/target-environment-rehearsal.mjs"],
+      cwd: config.repoRoot,
+      evidencePath: targetEnvironmentEvidence,
+      env: {
+        ...common,
+        LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH: config.targetEnvironmentSourcePath,
+        LAUNCH_TARGET_ENVIRONMENT_EVIDENCE_PATH: targetEnvironmentEvidence,
+        LAUNCH_WEB_BASE_URL: config.webBaseUrl,
+        LAUNCH_API_BASE_URL: config.apiBaseUrl,
+        LAUNCH_SOURCE: config.source,
       },
     },
     {
@@ -1133,6 +1163,8 @@ export function validateStageEvidence(stageId, evidence) {
         b0EvidenceCount: 17,
         restored: true,
       };
+    case "target-environment":
+      return validateTargetEnvironmentEvidence(evidence);
     case "browser-e2e":
       if (
         !Number.isInteger(evidence.stats?.expected) ||
@@ -1173,6 +1205,71 @@ export function buildRequiredLaunchCoverage() {
         })),
       ]),
   );
+}
+
+export function buildTargetEnvironmentRehearsalEvidence(sourceEvidence, options = {}) {
+  const generatedAt = now(options.now);
+  const evidence = {
+    ...sourceEvidence,
+    schemaVersion: sourceEvidence?.schemaVersion ?? "1.0.0",
+    status: sourceEvidence?.status ?? "PASSED",
+    stage: "TARGET_ENVIRONMENT_REHEARSAL",
+    generatedAt: sourceEvidence?.generatedAt ?? generatedAt,
+  };
+  if (options.webBaseUrl || options.apiBaseUrl || options.source) {
+    evidence.environment = {
+      ...(evidence.environment ?? {}),
+      ...(options.webBaseUrl ? { webBaseUrl: options.webBaseUrl } : {}),
+      ...(options.apiBaseUrl ? { apiBaseUrl: options.apiBaseUrl } : {}),
+      ...(options.source ? { source: options.source } : {}),
+    };
+  }
+  validateTargetEnvironmentEvidence(evidence);
+  evidence.launchCoverage = launchCoverageClaims(
+    TARGET_ENVIRONMENT_REHEARSAL_CHECKS.map((code) => [
+      "targetEnvironmentRehearsal",
+      code,
+    ]),
+    evidence.generatedAt,
+  );
+  return evidence;
+}
+
+function validateTargetEnvironmentEvidence(evidence) {
+  const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
+  const passedCodes = new Set(
+    checks
+      .filter(
+        (item) =>
+          item?.status === "PASSED" &&
+          TARGET_ENVIRONMENT_REHEARSAL_CHECKS.includes(item.code) &&
+          hasText(item.evidenceRef) &&
+          path.isAbsolute(item.evidenceRef) &&
+          /^[a-f0-9]{64}$/iu.test(item.checksumSha256 ?? ""),
+      )
+      .map((item) => item.code),
+  );
+  if (
+    evidence.status !== "PASSED" ||
+    evidence.stage !== "TARGET_ENVIRONMENT_REHEARSAL" ||
+    evidence.destructiveConfirmed !== true ||
+    evidence.patientDataExported !== false ||
+    evidence.credentialsInEvidence !== false ||
+    !hasText(evidence.environment?.host) ||
+    !hasText(evidence.environment?.webBaseUrl) ||
+    !hasText(evidence.environment?.apiBaseUrl) ||
+    !hasText(evidence.environment?.source) ||
+    TARGET_ENVIRONMENT_REHEARSAL_CHECKS.some((code) => !passedCodes.has(code))
+  ) {
+    throw new Error(
+      "目标环境上线复演证据必须覆盖备份恢复、清库 V1、当前部署、全功能全知识演练和重启恢复",
+    );
+  }
+  return {
+    environmentHost: evidence.environment.host,
+    checkCount: TARGET_ENVIRONMENT_REHEARSAL_CHECKS.length,
+    destructiveConfirmed: true,
+  };
 }
 
 export function buildRequiredLaunchAcceptance() {

@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -7,6 +11,7 @@ import {
   buildFullSystemStagePlan,
   buildRequiredLaunchAcceptance,
   buildRequiredLaunchCoverage,
+  buildTargetEnvironmentRehearsalEvidence,
   readFullSystemRehearsalConfig,
   runFullSystemRehearsal,
   validateStageEvidence,
@@ -18,6 +23,7 @@ const MANIFEST_PATH = fileURLToPath(
     import.meta.url,
   ),
 );
+const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
   const config = rehearsalConfig();
@@ -33,6 +39,7 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
       "platform-baseline",
       "sandbox",
       "runtime-resilience",
+      "target-environment",
       "browser-e2e",
       "launch-coverage",
     ],
@@ -59,15 +66,25 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
   assert.equal(plan[5].label, "演练机构十规则四十用例与机构生效版本");
   assert.equal(plan[6].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
   assert.equal(plan[6].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[7].cwd.endsWith("/frontend"), true);
-  assert.equal(plan[7].env.E2E_EXTERNAL_DEPLOYMENT, "1");
-  assert.equal(plan[7].env.E2E_EXPECT_MFA_DISABLED, "1");
-  assert.equal(plan[7].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
+  assert.equal(plan[7].id, "target-environment");
   assert.equal(
-    plan[8].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"),
+    plan[7].env.LAUNCH_TARGET_ENVIRONMENT_EVIDENCE_PATH.endsWith(
+      "/target-environment.json",
+    ),
     true,
   );
-  assert.equal(plan[8].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
+  assert.equal(plan[7].env.LAUNCH_WEB_BASE_URL, config.webBaseUrl);
+  assert.equal(plan[7].env.LAUNCH_API_BASE_URL, config.apiBaseUrl);
+  assert.equal(plan[7].env.LAUNCH_SOURCE, config.source);
+  assert.equal(plan[8].cwd.endsWith("/frontend"), true);
+  assert.equal(plan[8].env.E2E_EXTERNAL_DEPLOYMENT, "1");
+  assert.equal(plan[8].env.E2E_EXPECT_MFA_DISABLED, "1");
+  assert.equal(plan[8].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
+  assert.equal(
+    plan[9].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"),
+    true,
+  );
+  assert.equal(plan[9].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
 
   const requiredCoverage = buildRequiredLaunchCoverage();
   assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
@@ -133,6 +150,10 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
   assert.deepEqual(
     requiredAcceptance.find((item) => item.code === "LAUNCH-11").requiredCoverage,
     ["databaseMigrationSource", "databaseDialects"],
+  );
+  assert.deepEqual(
+    requiredAcceptance.find((item) => item.code === "LAUNCH-15").requiredCoverage,
+    ["targetEnvironmentRehearsal"],
   );
   assert.equal(
     requiredAcceptance
@@ -202,7 +223,7 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
   ]);
 });
 
-test("九阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
+test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
   const coverageEvidence = completeLaunchCoverageEvidence();
   const evidenceByStage = {
     "database-migrations": databaseMigrationEvidence(),
@@ -243,6 +264,7 @@ test("九阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
         modelInvocationAllowed: true,
       },
     },
+    "target-environment": targetEnvironmentEvidence(),
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
     "launch-coverage": coverageEvidence,
   };
@@ -256,7 +278,7 @@ test("九阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
 
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
-  assert.equal(result.stages.length, 9);
+  assert.equal(result.stages.length, 10);
   assert.deepEqual(
     result.coverage.scenarios,
     coverageEvidence.coverage.scenarios,
@@ -284,7 +306,7 @@ test("九阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(written[0].value.status, "PASSED");
 });
 
-test("整套演练持续输出九阶段进度并在总索引记录阶段耗时", async () => {
+test("整套演练持续输出十阶段进度并在总索引记录阶段耗时", async () => {
   const progress = [];
   const result = await runFullSystemRehearsal(rehearsalConfig(), {
     runCommand: async () => ({ exitCode: 0 }),
@@ -302,12 +324,12 @@ test("整套演练持续输出九阶段进度并在总索引记录阶段耗时",
         event.type === "stage-complete" &&
         event.stageId === "full-knowledge" &&
         event.completed === 4 &&
-        event.remaining === 5 &&
+        event.remaining === 6 &&
         event.durationMs > 0,
     ),
   );
   assert.equal(progress.at(-1).type, "rehearsal-complete");
-  assert.equal(progress.at(-1).stageCount, 9);
+  assert.equal(progress.at(-1).stageCount, 10);
   assert.ok(result.stages.every((stage) => stage.durationMs > 0));
 });
 
@@ -324,6 +346,13 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   missingDialect.coverage.databaseDialects =
     missingDialect.coverage.databaseDialects.filter((item) => item.code !== "DM");
   assert.throws(() => assertCompleteLaunchCoverage(missingDialect), /五数据库方言/u);
+
+  const missingTargetRehearsal = structuredClone(complete);
+  delete missingTargetRehearsal.coverage.targetEnvironmentRehearsal;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingTargetRehearsal),
+    /目标环境上线复演/u,
+  );
 
   const skippedAsset = structuredClone(complete);
   skippedAsset.coverage.versionedAssets[0].status = "SKIPPED";
@@ -398,6 +427,77 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   );
 });
 
+test("目标环境复演标准化必须保留五类破坏性上线证据", () => {
+  const evidence = buildTargetEnvironmentRehearsalEvidence(targetEnvironmentEvidence(), {
+    now: () => "2026-06-22T09:30:00.000Z",
+    webBaseUrl: "https://193.112.107.134/medkernel",
+    apiBaseUrl: "https://193.112.107.134/medkernel/api/v1",
+    source: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+  });
+
+  assert.equal(evidence.status, "PASSED");
+  assert.deepEqual(
+    evidence.launchCoverage.targetEnvironmentRehearsal.map((item) => item.code),
+    [
+      "BACKUP_RESTORE_BEFORE_CLEAN",
+      "CLEAN_DATABASE_V1_ONLY",
+      "DEPLOY_CURRENT_ARTIFACT",
+      "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+      "RESTART_AND_SECOND_RESTORE",
+    ],
+  );
+  assert.throws(
+    () =>
+      buildTargetEnvironmentRehearsalEvidence({
+        ...targetEnvironmentEvidence(),
+        checks: targetEnvironmentEvidence().checks.slice(0, 4),
+      }),
+    /目标环境上线复演证据/u,
+  );
+});
+
+test("目标环境复演 CLI 从外部源证据生成标准阶段证据", () => {
+  const tempRoot = mkdtempSync(path.join(tmpdir(), "medkernel-target-env-"));
+  try {
+    const sourcePath = path.join(tempRoot, "source.json");
+    const outputPath = path.join(tempRoot, "target-environment.json");
+    writeFileSync(sourcePath, JSON.stringify(targetEnvironmentEvidence()), "utf8");
+
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/release/target-environment-rehearsal.mjs"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH: sourcePath,
+          LAUNCH_TARGET_ENVIRONMENT_EVIDENCE_PATH: outputPath,
+          LAUNCH_WEB_BASE_URL: "https://193.112.107.134/medkernel",
+          LAUNCH_API_BASE_URL: "https://193.112.107.134/medkernel/api/v1",
+          LAUNCH_SOURCE: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = JSON.parse(readFileSync(outputPath, "utf8"));
+    assert.equal(evidence.stage, "TARGET_ENVIRONMENT_REHEARSAL");
+    assert.deepEqual(
+      evidence.launchCoverage.targetEnvironmentRehearsal.map((item) => item.code),
+      [
+        "BACKUP_RESTORE_BEFORE_CLEAN",
+        "CLEAN_DATABASE_V1_ONLY",
+        "DEPLOY_CURRENT_ARTIFACT",
+        "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+        "RESTART_AND_SECOND_RESTORE",
+      ],
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 function completeLaunchCoverageEvidence() {
   return {
     status: "PASSED",
@@ -428,6 +528,7 @@ function evidenceStageForCoverageKey(key) {
   if (key === "databaseDialects" || key === "databaseMigrationSource") {
     return "database-migrations";
   }
+  if (key === "targetEnvironmentRehearsal") return "target-environment";
   return "browser-e2e";
 }
 
@@ -437,6 +538,9 @@ function evidencePathForCoverageKey(key) {
   }
   if (key === "databaseDialects" || key === "databaseMigrationSource") {
     return "/var/lib/medkernel/evidence/current-launch/database-migrations.json";
+  }
+  if (key === "targetEnvironmentRehearsal") {
+    return "/var/lib/medkernel/evidence/current-launch/target-environment.json";
   }
   return "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json";
 }
@@ -481,6 +585,7 @@ function completeStageEvidence() {
         modelInvocationAllowed: true,
       },
     },
+    "target-environment": targetEnvironmentEvidence(),
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
     "launch-coverage": completeLaunchCoverageEvidence(),
   };
@@ -504,6 +609,62 @@ function databaseMigrationEvidence() {
     launchCoverage: testLaunchCoverageClaims([
       ["databaseMigrationSource", "SINGLE_SCHEMA_GENERATOR_CHECK"],
       ...dialects.map((code) => ["databaseDialects", code]),
+    ]),
+  };
+}
+
+function targetEnvironmentEvidence() {
+  return {
+    schemaVersion: "1.0.0",
+    status: "PASSED",
+    stage: "TARGET_ENVIRONMENT_REHEARSAL",
+    environment: {
+      host: "193.112.107.134",
+      webBaseUrl: "https://193.112.107.134/medkernel",
+      apiBaseUrl: "https://193.112.107.134/medkernel/api/v1",
+      source: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    },
+    checks: [
+      {
+        code: "BACKUP_RESTORE_BEFORE_CLEAN",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/backup-before-clean.json",
+        checksumSha256: "d".repeat(64),
+      },
+      {
+        code: "CLEAN_DATABASE_V1_ONLY",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/clean-v1.json",
+        checksumSha256: "e".repeat(64),
+      },
+      {
+        code: "DEPLOY_CURRENT_ARTIFACT",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/deploy-current.json",
+        checksumSha256: "f".repeat(64),
+      },
+      {
+        code: "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/full-system.json",
+        checksumSha256: "1".repeat(64),
+      },
+      {
+        code: "RESTART_AND_SECOND_RESTORE",
+        status: "PASSED",
+        evidenceRef: "/zoesoft/medkernel-data/evidence/restart-restore.json",
+        checksumSha256: "2".repeat(64),
+      },
+    ],
+    destructiveConfirmed: true,
+    patientDataExported: false,
+    credentialsInEvidence: false,
+    launchCoverage: testLaunchCoverageClaims([
+      ["targetEnvironmentRehearsal", "BACKUP_RESTORE_BEFORE_CLEAN"],
+      ["targetEnvironmentRehearsal", "CLEAN_DATABASE_V1_ONLY"],
+      ["targetEnvironmentRehearsal", "DEPLOY_CURRENT_ARTIFACT"],
+      ["targetEnvironmentRehearsal", "FULL_FUNCTION_FULL_KNOWLEDGE_REHEARSAL"],
+      ["targetEnvironmentRehearsal", "RESTART_AND_SECOND_RESTORE"],
     ]),
   };
 }
@@ -699,6 +860,8 @@ function baseEnv() {
     LAUNCH_MODEL_PROVIDER_TYPE: "OLLAMA",
     LAUNCH_MODEL_PROVIDER_ENDPOINT: "http://127.0.0.1:11434",
     LAUNCH_MODEL_VERSION: "medkernel-qwen25:1.5b-v1",
+    LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH:
+      "/var/lib/medkernel/evidence/target-environment-source.json",
     FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
     LAUNCH_SOURCE: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
   };
