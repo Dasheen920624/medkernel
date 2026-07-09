@@ -546,10 +546,12 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain(
       "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
     );
+    expect(coverageParser).toContain("thirdPartySystemFamilyConsumerSlices:HIS_EMR_CDR");
     expect(fullSystemGate).toContain('"PHARMACY_REVIEW"');
     expect(fullSystemGate).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
     expect(fullSystemGate).toContain('"NURSING_ANESTHESIA_TRANSFUSION_ICU"');
     expect(fullSystemGate).toContain('"LIS_MONITORING_CRITICAL"');
+    expect(fullSystemGate).toContain('"HIS_EMR_CDR"');
     expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW");
     expect(auditGate).toContain(
       "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
@@ -558,6 +560,7 @@ describe("E2E credential contract", () => {
       "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
     );
     expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL");
+    expect(auditGate).toContain("thirdPartySystemFamilyConsumerSlices:HIS_EMR_CDR");
     expect(pharmacySource).toContain("pharmacy-review-antimicrobial-frontdesk-codes");
     expect(pharmacySource).toContain('"PHARMACY_REVIEW"');
     expect(pharmacySource).toContain("waitForPharmacyReviewCompensation");
@@ -575,6 +578,8 @@ describe("E2E credential contract", () => {
     expect(surgerySource).not.toContain("完整手麻手术室输血系统已上线");
     expect(criticalSource).toContain("critical-emergency-icu-frontdesk-codes");
     expect(criticalSource).toContain('"LIS_MONITORING_CRITICAL"');
+    expect(criticalSource).toContain("hisEmrCdrConsumerSlice");
+    expect(criticalSource).toContain('"HIS_EMR_CDR"');
     expect(criticalSource).toContain(
       'healthStatus: textField(data, "healthStatus") ?? "NOT_CONNECTED"',
     );

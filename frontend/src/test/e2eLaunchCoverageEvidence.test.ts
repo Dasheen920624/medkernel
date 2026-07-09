@@ -5323,6 +5323,54 @@ function expectNoCriticalEmergencyIcuCoverage(body: Record<string, unknown>) {
   ).not.toContain("LIS_MONITORING_CRITICAL");
 }
 
+function criticalEmergencyIcuHisEmrCdrConsumerEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...structuredClone(criticalEmergencyIcuEvidence),
+    hisEmrCdrConsumerSlice: {
+      systemFamilyCode: "HIS_EMR_CDR",
+      familyName: "HIS/EMR/CDR",
+      consumer: "CRITICAL_EMERGENCY_ICU_TRIAGE_CONTEXT",
+      canonicalResources: ["Patient", "Encounter", "Condition", "Observation", "Procedure"],
+      frontdeskPatientCreated: true,
+      contextSnapshotReadbackVerified: true,
+      recommendationConsumerVerified: true,
+      manualEscalationVerified: true,
+      todoCompletionVerified: true,
+      auditVerified: true,
+      permissionVerified: true,
+      sixStateBoundaryVerified: true,
+      requiresPhysicianConfirmation: true,
+      noAutoOrder: true,
+      noAutoTransfer: true,
+      noDeviceControl: true,
+      noAutoVentilatorChange: true,
+      patientId: "mpi-critical",
+      encounterId: "enc-critical-ed",
+      contextSnapshotId: "ctx-critical",
+      runtimeReleaseId: "runtime-critical",
+      cardId: "card-critical",
+      feedbackId: "rf-critical",
+      todoId: "todo-critical",
+      contextResourcePath: "clinicalContext.resources",
+      recommendationPath: "recommendation",
+      manualEscalationPath: "manualEscalation",
+      todoPath: "escalationTodo",
+      scopeStatement:
+        "HIS/EMR/CDR 急诊分诊上下文真实消费者代表切片：真实前台用 Patient、Encounter、Condition、Observation、Procedure 标准资源建立 ED LEVEL_1 急诊分诊上下文，当前机构生效版本只消费为 ICU 升级人工确认候选；不代表完整 HIS/EMR/CDR 系统族覆盖，不代表完整急诊系统覆盖，不代表完整 ICU 系统覆盖，不代表完整病历归档，不代表医嘱闭环，不代表费用病案 CDR 全量同步，不代表生命支持设备控制，不代表完整第三方系统族覆盖，不代表完整 S19/S24/S27，不代表完整 S0-S40，不代表完整上线验收。",
+    },
+    ...overrides,
+  };
+}
+
+function expectNoHisEmrCdrConsumerSlice(body: Record<string, unknown>) {
+  const evidence = criticalEmergencyIcuEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("HIS_EMR_CDR");
+}
+
 const systemProvidersEvidence = {
   deliveryShapes: ["MANAGEMENT_WORKSPACE"],
   serviceCombinations: ["COMPLIANCE_OPERATIONS"],
@@ -13869,6 +13917,361 @@ describe("browser E2E launch coverage evidence", () => {
       "S27__HIGH_RISK",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares HIS/EMR/CDR representative consumer slice only from explicit ED triage context, manual escalation and completed todo evidence", () => {
+    const evidence = criticalEmergencyIcuEvidenceResult(
+      criticalEmergencyIcuHisEmrCdrConsumerEvidence(),
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["LIS_MONITORING_CRITICAL", "HIS_EMR_CDR"]);
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S19__HIGH_RISK",
+      "S24__HIGH_RISK",
+      "S27__HIGH_RISK",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare HIS/EMR/CDR consumer slice from scope text without explicit slice evidence", () => {
+    expectNoHisEmrCdrConsumerSlice(criticalEmergencyIcuEvidence);
+  });
+
+  it.each([
+    {
+      name: "系统族代码错配",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          systemFamilyCode: "LIS_MONITORING_CRITICAL",
+        },
+      }),
+    },
+    {
+      name: "拿 LIS 监护入站切片冒充",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          consumer: "CRITICAL_MONITORING_INBOUND",
+        },
+      }),
+    },
+    {
+      name: "缺 Patient 标准资源",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          canonicalResources: ["Encounter", "Condition", "Observation", "Procedure"],
+        },
+      }),
+    },
+    {
+      name: "缺 Encounter 标准资源",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          canonicalResources: ["Patient", "Condition", "Observation", "Procedure"],
+        },
+      }),
+    },
+    {
+      name: "缺 Condition 标准资源",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          canonicalResources: ["Patient", "Encounter", "Observation", "Procedure"],
+        },
+      }),
+    },
+    {
+      name: "缺 Observation 标准资源",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          canonicalResources: ["Patient", "Encounter", "Condition", "Procedure"],
+        },
+      }),
+    },
+    {
+      name: "缺 Procedure 标准资源",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          canonicalResources: ["Patient", "Encounter", "Condition", "Observation"],
+        },
+      }),
+    },
+    {
+      name: "上下文不是 ED",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          clinicalSetting: "INPATIENT",
+        },
+      }),
+    },
+    {
+      name: "缺 LEVEL_1 急诊分诊",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                emergencyTriage: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .emergencyTriage,
+                  ),
+                  triageLevel: "LEVEL_3",
+                },
+              },
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "缺 ICU 去向候选",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                emergencyTriage: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .emergencyTriage,
+                  ),
+                  destinationCandidate: "WARD",
+                },
+              },
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "缺人工升级要求",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                emergencyTriage: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .emergencyTriage,
+                  ),
+                  manualEscalationRequired: false,
+                },
+              },
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        recommendation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "反馈不是医生人工确认",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          persisted: {
+            ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation.persisted),
+            operatorRole: "SYSTEM",
+          },
+        },
+      }),
+    },
+    {
+      name: "待办未完成",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "待办未绑定本轮 card",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          sourceId: "card-other",
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动转 ICU",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          noAutoTransfer: false,
+        },
+      }),
+    },
+    {
+      name: "允许设备控制",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          noDeviceControl: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 HIS/EMR/CDR",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          scopeStatement:
+            "HIS/EMR/CDR 急诊分诊上下文真实消费者代表切片，完整 HIS/EMR/CDR 系统族覆盖已完成。",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整急诊 ICU",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          scopeStatement:
+            "HIS/EMR/CDR 急诊分诊上下文真实消费者代表切片，完整急诊系统和完整 ICU 系统已上线。",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整第三方系统族",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          scopeStatement:
+            "HIS/EMR/CDR 急诊分诊上下文真实消费者代表切片，完整第三方系统族覆盖已完成。",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整上线",
+      body: criticalEmergencyIcuHisEmrCdrConsumerEvidence({
+        hisEmrCdrConsumerSlice: {
+          ...(criticalEmergencyIcuHisEmrCdrConsumerEvidence().hisEmrCdrConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          scopeStatement: "HIS/EMR/CDR 急诊分诊上下文真实消费者代表切片，完整上线验收已完成。",
+        },
+      }),
+    },
+  ])("does not declare HIS/EMR/CDR consumer slice when $name", ({ body }) => {
+    expectNoHisEmrCdrConsumerSlice(body);
   });
 
   it("does not declare S19/S24/S27 condition rows without explicit condition evidence", () => {

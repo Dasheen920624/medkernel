@@ -402,6 +402,7 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   thirdPartySystemFamilyConsumerSlices: {
     label: "第三方系统族真实消费者代表切片",
     codes: [
+      "HIS_EMR_CDR",
       "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
       "PHARMACY_REVIEW",
       "PUBLIC_HEALTH_INFECTION_REGULATORY",

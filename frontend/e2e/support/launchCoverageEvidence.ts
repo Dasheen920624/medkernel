@@ -74,6 +74,7 @@ type CoverageProof = {
   requiresPlatformAdminEntryCoreActionsAttachment?: boolean;
   requiresDomainFacadeB0EvidenceAttachment?: boolean;
   requiresFollowupPatientServiceConsumerSliceAttachment?: boolean;
+  requiresHisEmrCdrConsumerSliceAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -408,6 +409,8 @@ const criticalEmergencyIcuFrontdeskClaims = [
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
 ];
+
+const hisEmrCdrConsumerSliceClaims = ["thirdPartySystemFamilyConsumerSlices:HIS_EMR_CDR"];
 
 const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
@@ -1461,6 +1464,13 @@ const coverageProofs: CoverageProof[] = [
     requiresCriticalEmergencyIcuFrontdeskAttachment: true,
   },
   {
+    file: "critical-emergency-icu-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
+    claims: hisEmrCdrConsumerSliceClaims,
+    requiresCriticalEmergencyIcuFrontdeskAttachment: true,
+    requiresHisEmrCdrConsumerSliceAttachment: true,
+  },
+  {
     file: "real-frontdesk-rehearsal.spec.ts",
     titleIncludes:
       "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
@@ -1778,7 +1788,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresDomainFacadeB0EvidenceAttachment ||
         hasRequiredDomainFacadeB0EvidenceAttachment(test)) &&
       (!proof.requiresFollowupPatientServiceConsumerSliceAttachment ||
-        hasRequiredFollowupPatientServiceConsumerSliceAttachment(test))
+        hasRequiredFollowupPatientServiceConsumerSliceAttachment(test)) &&
+      (!proof.requiresHisEmrCdrConsumerSliceAttachment ||
+        hasRequiredHisEmrCdrConsumerSliceAttachment(test))
     );
   });
 }
@@ -3547,6 +3559,147 @@ function hasCompleteFollowupPatientServiceConsumerSlice(body: Record<string, unk
       slice.auditEventPath,
     ])
   );
+}
+
+function hasRequiredHisEmrCdrConsumerSliceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "critical-emergency-icu-frontdesk-codes",
+  );
+  if (!attachment?.body || attachment.contentType !== "application/json") return false;
+  try {
+    const body = recordValue(JSON.parse(attachment.body));
+    return body !== null && hasCompleteHisEmrCdrConsumerSlice(body);
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteHisEmrCdrConsumerSlice(body: Record<string, unknown>) {
+  const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const slice = recordValue(body.hisEmrCdrConsumerSlice);
+  const context = recordValue(body.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const encounters = Array.isArray(resources?.encounters) ? resources.encounters : [];
+  const conditions = Array.isArray(resources?.conditions) ? resources.conditions : [];
+  const observations = Array.isArray(resources?.observations) ? resources.observations : [];
+  const procedures = Array.isArray(resources?.procedures) ? resources.procedures : [];
+  return (
+    slice !== null &&
+    context !== null &&
+    slice.systemFamilyCode === "HIS_EMR_CDR" &&
+    hasText(slice.familyName) &&
+    String(slice.familyName).includes("HIS") &&
+    slice.consumer === "CRITICAL_EMERGENCY_ICU_TRIAGE_CONTEXT" &&
+    arrayEquals(slice.canonicalResources, [
+      "Patient",
+      "Encounter",
+      "Condition",
+      "Observation",
+      "Procedure",
+    ]) &&
+    slice.frontdeskPatientCreated === true &&
+    slice.contextSnapshotReadbackVerified === true &&
+    slice.recommendationConsumerVerified === true &&
+    slice.manualEscalationVerified === true &&
+    slice.todoCompletionVerified === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    slice.requiresPhysicianConfirmation === true &&
+    slice.noAutoOrder === true &&
+    slice.noAutoTransfer === true &&
+    slice.noDeviceControl === true &&
+    slice.noAutoVentilatorChange === true &&
+    slice.patientId === context.patientId &&
+    slice.encounterId === context.encounterId &&
+    slice.contextSnapshotId === context.contextSnapshotId &&
+    slice.runtimeReleaseId === runtime.releaseId &&
+    hasText(slice.cardId) &&
+    hasText(slice.feedbackId) &&
+    hasText(slice.todoId) &&
+    slice.contextResourcePath === "clinicalContext.resources" &&
+    slice.recommendationPath === "recommendation" &&
+    slice.manualEscalationPath === "manualEscalation" &&
+    slice.todoPath === "escalationTodo" &&
+    hasHisEmrCdrConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompleteCriticalEmergencyIcuApiEvidence(body.apiEvidence) &&
+    hasCompleteCriticalEmergencyIcuClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteCriticalEmergencyIcuRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteCriticalEmergencyIcuManualEscalation(
+      body.manualEscalation,
+      runtime.actionCardAsset,
+      body.recommendation,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTodo(
+      body.escalationTodo,
+      body.recommendation,
+      body.clinicalContext,
+    ) &&
+    recordValue(body.recommendation)?.cardId === slice.cardId &&
+    recordValue(body.manualEscalation)?.feedbackId === slice.feedbackId &&
+    recordValue(body.escalationTodo)?.todoId === slice.todoId &&
+    encounters.length > 0 &&
+    conditions.length > 0 &&
+    observations.length >= 2 &&
+    procedures.length > 0 &&
+    evidencePathsResolve(body, [
+      slice.contextResourcePath,
+      slice.recommendationPath,
+      slice.manualEscalationPath,
+      slice.todoPath,
+    ])
+  );
+}
+
+function hasHisEmrCdrConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedHisEmrCdrConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 HIS/EMR/CDR 系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整急诊系统覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 ICU 系统覆盖") &&
+    hasNegatedScopeTerm(statement, "完整病历归档") &&
+    hasNegatedScopeTerm(statement, "医嘱闭环") &&
+    hasNegatedScopeTerm(statement, "费用病案 CDR 全量同步") &&
+    hasNegatedScopeTerm(statement, "生命支持设备控制") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S19/S24/S27") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedHisEmrCdrConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整 HIS/EMR/CDR 系统族覆盖",
+    "完整HIS/EMR/CDR系统族覆盖",
+    "完整急诊系统覆盖",
+    "完整急诊系统",
+    "完整 ICU 系统覆盖",
+    "完整 ICU 系统",
+    "完整ICU系统",
+    "完整病历归档",
+    "医嘱闭环",
+    "费用病案 CDR 全量同步",
+    "费用病案CDR全量同步",
+    "生命支持设备控制",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整 S19/S24/S27",
+    "完整S19/S24/S27",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线",
+    "完整上线验收",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasFollowupPatientServiceConsumerSliceScopeBoundary(value: unknown) {

@@ -23,6 +23,49 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十七批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有急诊分诊与 ICU 生命支持真实前台链路中“前台创建 Patient / Encounter 急诊上下文、
+  Condition / Observation / Procedure 标准资源回读、当前机构生效版本推荐消费、医生人工确认、升级待办完成、审计 / 权限 / 六态边界”
+  升级为 `thirdPartySystemFamilyConsumerSlices:HIS_EMR_CDR` 代表消费者切片。证据固定来源于
+  `critical-emergency-icu-frontdesk.spec.ts` 的 `critical-emergency-icu-frontdesk-codes` 附件；明确不声明完整
+  HIS/EMR/CDR 系统族、完整急诊系统、完整 ICU 系统、完整病历归档、医嘱闭环、费用 / 病案 / CDR 全量同步、
+  生命支持设备控制、完整 S19/S24/S27、完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百三十七批实现细节：`frontend/e2e/critical-emergency-icu-frontdesk.spec.ts` 的附件新增
+  `hisEmrCdrConsumerSlice`，固定 `systemFamilyCode=HIS_EMR_CDR`、`consumer=CRITICAL_EMERGENCY_ICU_TRIAGE_CONTEXT`、
+  `canonicalResources=[Patient,Encounter,Condition,Observation,Procedure]`，并绑定本轮
+  `patientId/encounterId/contextSnapshotId/runtimeReleaseId/cardId/feedbackId/todoId`；切片显式要求
+  `frontdeskPatientCreated/contextSnapshotReadbackVerified/recommendationConsumerVerified/manualEscalationVerified/`
+  `todoCompletionVerified/auditVerified/permissionVerified/sixStateBoundaryVerified=true`，
+  `requiresPhysicianConfirmation=true`，`noAutoOrder/noAutoTransfer/noDeviceControl/noAutoVentilatorChange=true`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增单独 proof 和严格 `hasCompleteHisEmrCdrConsumerSlice()`：
+  仍保留急危重 ICU 基础 proof 只声明 `LIS_MONITORING_CRITICAL`，`HIS_EMR_CDR` 必须有显式 slice 才会声明；
+  collector 复用急危重 ICU 强校验，要求 API 证据、ED / LEVEL_1 / ICU 去向候选 / 人工升级上下文、推荐卡绑定当前 runtime、
+  医生人工确认、待办完成、四类资源数组和 scope 否定边界均成立。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖正例和负例：缺显式 slice、只在 scope 文案出现、系统族错配、用 LIS 冒充、缺 Patient / Encounter /
+  Condition / Observation / Procedure 任一资源、非 ED、非 LEVEL_1、缺 ICU 去向候选、缺人工升级要求、推荐未绑定 runtime、
+  反馈不是医生人工确认、待办未完成 / 未绑定本轮 card、允许自动开嘱 / 转 ICU / 设备控制、缺权限 / 审计 / 六态边界、
+  scope 冒领完整 HIS/EMR/CDR / 急诊 ICU / 第三方系统族 / 上线，均不声明 `HIS_EMR_CDR`。
+  `scripts/release/full-system-rehearsal-lib.mjs`、`scripts/release/launch-coverage-audit.test.mjs` 与
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步把 `HIS_EMR_CDR` 纳入代表消费者切片门禁，并新增缺该切片时 release 审计失败的负例。
+- 第二百三十七批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-his-emr-cdr-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium critical-emergency-icu-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-his-emr-cdr-consumer-slice-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.thirdPartySystemFamilyConsumerSlices=[LIS_MONITORING_CRITICAL,HIS_EMR_CDR]`，且只保留既有
+  `scenarioConditionRows=[S19__HIGH_RISK,S24__HIGH_RISK,S27__HIGH_RISK]`，未新增 S19/S24/S27 其他四态或任何新 S0-S40 行。
+- 第二百三十七批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增 HIS/EMR/CDR 消费者切片正例缺
+  `HIS_EMR_CDR`；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（841 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（908 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
+  和真实 E2E。并行只读 explorer 已返回后续候选：`PHARMACY_REVIEW`、`PUBLIC_HEALTH_INFECTION_REGULATORY`、
+  `NURSING_ANESTHESIA_TRANSFUSION_ICU`、`REGIONAL_REMOTE` 可继续补“显式 consumerSlice 对象 + 严格 collector 负例”；
+  均需防止把断连补偿、预填建议或代表切片冒领为完整系统族 / 完整上线。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十六批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有随访协同真实前台链路补齐“随访结果回流 → 标准 FollowUp 资源回读 → 审计事件”后，
   升级为 `thirdPartySystemFamilyConsumerSlices:FOLLOWUP_PATIENT_SERVICE` 代表消费者切片。证据固定来源于

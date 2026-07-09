@@ -305,6 +305,18 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   );
   assert.deepEqual(evidence.coverage.thirdPartySystemFamilyConsumerSlices, [
     {
+      code: "HIS_EMR_CDR",
+      status: "PASSED",
+      evidenceStage: "browser-e2e",
+      evidencePath:
+        "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
+      evidenceKey:
+        "launchCoverage.thirdPartySystemFamilyConsumerSlices.HIS_EMR_CDR",
+      observedCode: "HIS_EMR_CDR",
+      observedStatus: "PASSED",
+      observedAt: "2026-06-22T09:00:00.000Z",
+    },
+    {
       code: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
       status: "PASSED",
       evidenceStage: "browser-e2e",
@@ -597,6 +609,23 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
         readJson: readKnownEvidence(missingDiagnosticConsumer),
       }),
     /第三方系统族真实消费者代表切片.*PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG.*缺少前置阶段证据/u,
+  );
+
+  const missingHisEmrCdrConsumer = completeStageEvidence();
+  missingHisEmrCdrConsumer[
+    "browser-e2e"
+  ].launchCoverage.thirdPartySystemFamilyConsumerSlices =
+    missingHisEmrCdrConsumer[
+      "browser-e2e"
+    ].launchCoverage.thirdPartySystemFamilyConsumerSlices.filter(
+      (item) => item.code !== "HIS_EMR_CDR",
+    );
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(missingHisEmrCdrConsumer),
+      }),
+    /第三方系统族真实消费者代表切片.*HIS_EMR_CDR.*缺少前置阶段证据/u,
   );
 
   const missingPharmacyConsumer = completeStageEvidence();
@@ -1060,6 +1089,7 @@ function completeStageEvidence(options = {}) {
     "complianceWorkbenchPersonalEntryRows:NOTIFICATION_SETTINGS_SAVE",
     "complianceWorkbenchPersonalEntryRows:SOURCE_LINEAGE_PROVENANCE_READBACK",
     "thirdPartySystemFamilyConsumerSlices:PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+    "thirdPartySystemFamilyConsumerSlices:HIS_EMR_CDR",
     "thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW",
     "thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY",
     "thirdPartySystemFamilyConsumerSlices:NURSING_ANESTHESIA_TRANSFUSION_ICU",
