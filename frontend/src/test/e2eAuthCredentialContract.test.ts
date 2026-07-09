@@ -558,6 +558,10 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain("hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice");
     expect(coverageParser).toContain("nursingAnesthesiaTransfusionIcuConsumerSlice");
     expect(coverageParser).toContain("requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment");
+    expect(coverageParser).toContain("hasCompleteLisMonitoringCriticalConsumerSlice");
+    expect(coverageParser).toContain("lisMonitoringCriticalConsumerSlice");
+    expect(coverageParser).toContain("requiresLisMonitoringCriticalConsumerSliceAttachment");
+    expect(coverageParser).toContain("CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION");
     expect(coverageParser).toContain("noExternalSuccessClaim");
     expect(coverageParser).toContain("noAutoTransfusion");
     expect(coverageParser).toContain("noAutoSurgery");
@@ -599,6 +603,12 @@ describe("E2E credential contract", () => {
     expect(surgerySource).not.toContain("完整手麻手术室输血系统已上线");
     expect(criticalSource).toContain("critical-emergency-icu-frontdesk-codes");
     expect(criticalSource).toContain('"LIS_MONITORING_CRITICAL"');
+    expect(criticalSource).toContain("lisMonitoringCriticalConsumerSlice");
+    expect(criticalSource).toContain("CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION");
+    expect(criticalSource).toContain("noExternalSuccessClaim");
+    expect(criticalSource).toContain("不代表完整 LIS 系统");
+    expect(criticalSource).toContain("不代表真实外部成功联通");
+    expect(criticalSource).toContain("不代表自动调整呼吸机");
     expect(criticalSource).toContain("hisEmrCdrConsumerSlice");
     expect(criticalSource).toContain('"HIS_EMR_CDR"');
     expect(criticalSource).toContain(

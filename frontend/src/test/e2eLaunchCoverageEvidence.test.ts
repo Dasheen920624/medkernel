@@ -5561,6 +5561,74 @@ function expectNoCriticalEmergencyIcuCoverage(body: Record<string, unknown>) {
   ).not.toContain("LIS_MONITORING_CRITICAL");
 }
 
+function expectNoLisMonitoringCriticalConsumerSlice(body: Record<string, unknown>) {
+  const evidence = criticalEmergencyIcuEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("LIS_MONITORING_CRITICAL");
+}
+
+function criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...structuredClone(criticalEmergencyIcuEvidence),
+    lisMonitoringCriticalConsumerSlice: lisMonitoringCriticalConsumerSlice(),
+    ...overrides,
+  };
+}
+
+function lisMonitoringCriticalConsumerSlice(): Record<string, unknown> {
+  return {
+    systemFamilyCode: "LIS_MONITORING_CRITICAL",
+    familyName: "检验、监护与急危重症系统族",
+    consumer: "CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION",
+    canonicalResources: ["Patient", "Encounter", "Observation"],
+    sourceSystems: ["LIS_MONITORING_CRITICAL", "MEDKERNEL_FRONTDESK"],
+    adapterVerified: true,
+    onboardingNotConnectedVerified: true,
+    webhookSignatureVerified: true,
+    signedInboundObservationVerified: true,
+    standardObservationMappedVerified: true,
+    runtimeConsumerVerified: true,
+    recommendationVerified: true,
+    manualEscalationVerified: true,
+    todoClosureVerified: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoTransfer: true,
+    noDeviceControl: true,
+    noAutoVentilatorChange: true,
+    noExternalSuccessClaim: true,
+    aiGenerated: false,
+    patientId: "mpi-critical",
+    encounterId: "enc-critical-ed",
+    contextSnapshotId: "ctx-critical",
+    runtimeReleaseId: "runtime-critical",
+    adapterId: "adapter-critical-monitoring",
+    onboardingId: "onb-critical-emergency",
+    webhookId: "webhook-critical-monitoring",
+    inboundMessageId: "in-critical-monitoring",
+    clinicalEventId: "evt-wh-critical",
+    recommendationCardId: "card-critical",
+    feedbackId: "rf-critical",
+    todoId: "todo-critical",
+    adapterPath: "monitoringAdapter",
+    onboardingPath: "emergencyOnboarding",
+    webhookPath: "webhookSignature",
+    inboundPath: "inboundMonitoringEvent",
+    contextPath: "clinicalContext",
+    recommendationPath: "recommendation",
+    manualEscalationPath: "manualEscalation",
+    todoPath: "escalationTodo",
+    scopeStatement:
+      "LIS_MONITORING_CRITICAL 检验监护入站真实消费者代表切片：真实前台用 Patient、Encounter、Observation 标准资源驱动监护 Webhook 签名入站、乳酸 LOINC 映射、当前机构生效版本风险推荐、医生人工确认和升级待办闭环；不代表完整 LIS 系统，不代表完整监护设备平台，不代表完整急诊系统，不代表完整 ICU 系统，不代表真实外部成功联通，不代表自动开嘱，不代表自动转 ICU，不代表设备控制，不代表自动调整呼吸机，不代表完整 S19/S24/S27，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+  };
+}
+
 function criticalEmergencyIcuHisEmrCdrConsumerEvidence(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -14834,6 +14902,22 @@ describe("browser E2E launch coverage evidence", () => {
       "PROFESSIONAL_COLLABORATION",
     ]);
     expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+    ).not.toContain("LIS_MONITORING_CRITICAL");
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S19__HIGH_RISK",
+      "S24__HIGH_RISK",
+      "S27__HIGH_RISK",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares LIS_MONITORING_CRITICAL consumer slice only from explicit bounded monitoring evidence", () => {
+    const evidence = criticalEmergencyIcuEvidenceResult(
+      criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence(),
+    );
+
+    expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["LIS_MONITORING_CRITICAL"]);
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
@@ -14851,7 +14935,7 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
-    ).toEqual(["LIS_MONITORING_CRITICAL", "HIS_EMR_CDR"]);
+    ).toEqual(["HIS_EMR_CDR"]);
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S19__HIGH_RISK",
       "S24__HIGH_RISK",
@@ -14862,6 +14946,184 @@ describe("browser E2E launch coverage evidence", () => {
 
   it("does not declare HIS/EMR/CDR consumer slice from scope text without explicit slice evidence", () => {
     expectNoHisEmrCdrConsumerSlice(criticalEmergencyIcuEvidence);
+  });
+
+  it.each([
+    {
+      name: "缺显式消费者切片",
+      body: criticalEmergencyIcuEvidence,
+    },
+    {
+      name: "系统族代码错配",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "缺 Observation 标准资源",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          canonicalResources: ["Patient", "Encounter"],
+        },
+      }),
+    },
+    {
+      name: "接入系统族不是 LIS_MONITORING_CRITICAL",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        monitoringAdapter: {
+          ...structuredClone(criticalEmergencyIcuEvidence.monitoringAdapter),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "接入健康状态伪造成外部成功",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        emergencyOnboarding: {
+          ...structuredClone(criticalEmergencyIcuEvidence.emergencyOnboarding),
+          healthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "入站来源错配",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          sourceSystem: "OTHER_SYSTEM",
+        },
+      }),
+    },
+    {
+      name: "入站监护事件未处理完成",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          clinicalEvent: {
+            ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent.clinicalEvent),
+            status: "FAILED",
+          },
+        },
+      }),
+    },
+    {
+      name: "缺 LOINC 乳酸 Observation 映射",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          mappedPayload: {
+            ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent.mappedPayload),
+            observations: [
+              {
+                code: "SHOCK_INDEX",
+                valueNumeric: 1.4,
+                criticalFlag: "HIGH",
+              },
+            ],
+          },
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        recommendation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "反馈不是医生人工确认",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          persisted: {
+            ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation.persisted),
+            operatorRole: "SYSTEM",
+          },
+        },
+      }),
+    },
+    {
+      name: "待办未完成",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "允许设备控制",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noDeviceControl: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动调整呼吸机",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noAutoVentilatorChange: false,
+        },
+      }),
+    },
+    {
+      name: "伪造真实外部成功联通",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 LIS 和完整上线",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          scopeStatement:
+            "LIS_MONITORING_CRITICAL 检验监护入站真实消费者代表切片，完整 LIS 系统和完整上线验收已完成。",
+        },
+      }),
+    },
+  ])("does not declare LIS_MONITORING_CRITICAL consumer slice when $name", ({ body }) => {
+    expectNoLisMonitoringCriticalConsumerSlice(body);
   });
 
   it.each([

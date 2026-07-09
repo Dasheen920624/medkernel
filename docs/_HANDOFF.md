@@ -183,6 +183,59 @@
   `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
   `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
   和真实 E2E。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百四十二批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有急诊分诊与 ICU 生命支持真实前台链路从旧式
+  `thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL` 隐式 claim 升级为显式
+  `lisMonitoringCriticalConsumerSlice` 代表消费者切片。证据固定来源于
+  `critical-emergency-icu-frontdesk.spec.ts` 的 `critical-emergency-icu-frontdesk-codes` 附件：
+  真实前台创建 LIS_MONITORING_CRITICAL 监护入站适配器 / 回调通道 / 签名预览，接入申请保持
+  `NOT_CONNECTED` 诚实状态，签名入站监护事件生成 Observation 并完成 LOINC 乳酸映射，当前机构生效版本消费
+  TERMINOLOGY / CDSS_RISK / RULE / PATHWAY / ACTION_CARD，医生人工确认急危重升级建议并关闭协同待办。
+  明确不声明完整 LIS 系统、完整监护设备平台、完整急诊系统、完整 ICU 系统、真实外部成功联通、自动开嘱、
+  自动转 ICU、设备控制、自动调整呼吸机、完整 S19/S24/S27、完整第三方系统族、完整 S0-S40、134 清库、
+  目标环境部署或完整上线验收。
+- 第二百四十二批实现细节：`frontend/e2e/critical-emergency-icu-frontdesk.spec.ts` 的附件新增
+  `lisMonitoringCriticalConsumerSlice`，固定 `systemFamilyCode=LIS_MONITORING_CRITICAL`、
+  `consumer=CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION`、
+  `canonicalResources=[Patient,Encounter,Observation]`、
+  `sourceSystems=[LIS_MONITORING_CRITICAL,MEDKERNEL_FRONTDESK]`，并绑定本轮
+  `patientId/encounterId/contextSnapshotId/runtimeReleaseId/adapterId/onboardingId/webhookId/inboundMessageId/`
+  `clinicalEventId/recommendationCardId/feedbackId/todoId`。切片显式要求适配器 / 接入断连 / Webhook 签名 /
+  Observation 入站 / 标准映射 / 当前 runtime 消费 / 推荐 / 医生人工确认 / 待办关闭 / 审计 / 权限 / 六态边界成立，
+  且 `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、`noAutoTransfer=true`、`noDeviceControl=true`、
+  `noAutoVentilatorChange=true`、`noExternalSuccessClaim=true`、`aiGenerated=false`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增单独 proof 和严格
+  `hasCompleteLisMonitoringCriticalConsumerSlice()`：急危重 ICU 基础 proof 仍只声明 S19/S24/S27、产品层、资产、
+  服务组合和既有三条高风险条件行；`LIS_MONITORING_CRITICAL` 消费者切片必须有显式
+  `lisMonitoringCriticalConsumerSlice` 才会声明。collector 复用急危重 ICU API、runtime、适配器、接入、签名、
+  入站、上下文、推荐、人工确认和待办强校验，并要求 scope 明确否定完整 LIS / 监护设备平台 / 急诊 / ICU、
+  真实外部成功联通、自动开嘱 / 自动转 ICU / 设备控制 / 自动调整呼吸机、完整 S19/S24/S27、S0-S40 和上线验收。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：基础急危重 ICU proof 不再声明
+  消费者切片，显式 slice 才声明；缺显式 slice、系统族错配、缺 Observation 标准资源、接入不是
+  LIS_MONITORING_CRITICAL、接入伪造成外部成功、入站来源错配、入站未处理、缺 LOINC 乳酸映射、推荐未绑定当前 runtime、
+  反馈不是医生人工确认、待办未完成、允许设备控制 / 自动调整呼吸机、伪造真实外部成功、缺审计 / 权限 / 六态边界、
+  scope 冒领完整 LIS 或完整上线，均不声明 `LIS_MONITORING_CRITICAL`。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  同步锁定显式 slice 源码契约；release audit 已有缺 `LIS_MONITORING_CRITICAL` 终态 coverage 负例，本批无需新增 raw 附件负例。
+- 第二百四十二批验证进度：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在旧基础急危重 ICU proof 仍声明
+  `LIS_MONITORING_CRITICAL` 和显式消费者切片负例仍被声明；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（930 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（997 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-lis-monitoring-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium critical-emergency-icu-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-lis-monitoring-consumer-slice-20260710-r1/report/results.json` 读回
+  `status=PASSED`、`expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.thirdPartySystemFamilyConsumerSlices=[LIS_MONITORING_CRITICAL,HIS_EMR_CDR]`，且只保留既有
+  `scenarioConditionRows=[S19__HIGH_RISK,S24__HIGH_RISK,S27__HIGH_RISK]`，未新增 S19/S24/S27 其他四态或任何新 S0-S40 行。
+  附件抽查：`lisMonitoringCriticalConsumerSlice.consumer=CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION`、
+  `canonicalResources=[Patient,Encounter,Observation]`、`sourceSystems=[LIS_MONITORING_CRITICAL,MEDKERNEL_FRONTDESK]`、
+  `noExternalSuccessClaim=true`、`noDeviceControl=true`、`noAutoVentilatorChange=true`，并绑定本轮
+  `adapterId/onboardingId/webhookId/inboundMessageId/clinicalEventId/recommendationCardId/feedbackId/todoId`。尚待
+  `git diff --check` 和本地提交。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

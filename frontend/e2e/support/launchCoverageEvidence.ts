@@ -71,6 +71,7 @@ type CoverageProof = {
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment?: boolean;
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
+  requiresLisMonitoringCriticalConsumerSliceAttachment?: boolean;
   requiresReportInterpretationScenarioAttachment?: boolean;
   requiresRuntimeReleasePartialSelectionAttachment?: boolean;
   requiresFourRoleCoreActionsAttachment?: boolean;
@@ -419,6 +420,9 @@ const criticalEmergencyIcuFrontdeskClaims = [
   "serviceCombinations:THIRD_PARTY_INTERFACE",
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
+];
+
+const lisMonitoringCriticalConsumerSliceClaims = [
   "thirdPartySystemFamilyConsumerSlices:LIS_MONITORING_CRITICAL",
 ];
 
@@ -1507,6 +1511,13 @@ const coverageProofs: CoverageProof[] = [
   {
     file: "critical-emergency-icu-frontdesk.spec.ts",
     titleIncludes: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
+    claims: lisMonitoringCriticalConsumerSliceClaims,
+    requiresCriticalEmergencyIcuFrontdeskAttachment: true,
+    requiresLisMonitoringCriticalConsumerSliceAttachment: true,
+  },
+  {
+    file: "critical-emergency-icu-frontdesk.spec.ts",
+    titleIncludes: "临床用户与运营员、平台管理员完成急诊分诊与 ICU 生命支持风险代表闭环",
     claims: hisEmrCdrConsumerSliceClaims,
     requiresCriticalEmergencyIcuFrontdeskAttachment: true,
     requiresHisEmrCdrConsumerSliceAttachment: true,
@@ -1824,6 +1835,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredSurgeryAnesthesiaTransfusionConsumerSliceAttachment(test)) &&
       (!proof.requiresCriticalEmergencyIcuFrontdeskAttachment ||
         hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test)) &&
+      (!proof.requiresLisMonitoringCriticalConsumerSliceAttachment ||
+        hasRequiredLisMonitoringCriticalConsumerSliceAttachment(test)) &&
       (!proof.requiresReportInterpretationScenarioAttachment ||
         hasRequiredReportInterpretationScenarioAttachment(test)) &&
       (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
@@ -7822,6 +7835,19 @@ function hasRequiredCriticalEmergencyIcuFrontdeskAttachment(test: BrowserE2eTest
         observedStages.includes(stage),
       );
     });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredLisMonitoringCriticalConsumerSliceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "critical-emergency-icu-frontdesk-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    return parsed !== null && hasCompleteLisMonitoringCriticalConsumerSlice(parsed);
   } catch {
     return false;
   }
@@ -14232,6 +14258,172 @@ function hasCompleteCriticalEmergencyIcuTodo(
     todo.patientId === context.patientId &&
     todo.encounterId === context.encounterId
   );
+}
+
+function hasCompleteLisMonitoringCriticalConsumerSlice(body: Record<string, unknown>) {
+  const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const slice = recordValue(body.lisMonitoringCriticalConsumerSlice);
+  const adapter = recordValue(body.monitoringAdapter);
+  const onboarding = recordValue(body.emergencyOnboarding);
+  const webhook = recordValue(body.webhookSignature);
+  const inbound = recordValue(body.inboundMonitoringEvent);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  const context = recordValue(body.clinicalContext);
+  const recommendation = recordValue(body.recommendation);
+  const manualEscalation = recordValue(body.manualEscalation);
+  const todo = recordValue(body.escalationTodo);
+  return (
+    slice !== null &&
+    adapter !== null &&
+    onboarding !== null &&
+    webhook !== null &&
+    inbound !== null &&
+    clinicalEvent !== null &&
+    context !== null &&
+    recommendation !== null &&
+    manualEscalation !== null &&
+    todo !== null &&
+    slice.systemFamilyCode === "LIS_MONITORING_CRITICAL" &&
+    hasText(slice.familyName) &&
+    (String(slice.familyName).includes("检验") || String(slice.familyName).includes("监护")) &&
+    slice.consumer === "CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION" &&
+    arrayEquals(slice.canonicalResources, ["Patient", "Encounter", "Observation"]) &&
+    arrayEquals(slice.sourceSystems, ["LIS_MONITORING_CRITICAL", "MEDKERNEL_FRONTDESK"]) &&
+    slice.adapterVerified === true &&
+    slice.onboardingNotConnectedVerified === true &&
+    slice.webhookSignatureVerified === true &&
+    slice.signedInboundObservationVerified === true &&
+    slice.standardObservationMappedVerified === true &&
+    (slice.runtimeConsumerVerified === true || slice.recommendationConsumerVerified === true) &&
+    slice.recommendationVerified === true &&
+    slice.manualEscalationVerified === true &&
+    slice.todoClosureVerified === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    slice.requiresPhysicianConfirmation === true &&
+    slice.noAutoOrder === true &&
+    slice.noAutoTransfer === true &&
+    slice.noDeviceControl === true &&
+    slice.noAutoVentilatorChange === true &&
+    slice.noExternalSuccessClaim === true &&
+    slice.aiGenerated !== true &&
+    slice.patientId === context.patientId &&
+    slice.encounterId === context.encounterId &&
+    slice.contextSnapshotId === context.contextSnapshotId &&
+    slice.runtimeReleaseId === runtime.releaseId &&
+    slice.adapterId === adapter.adapterId &&
+    slice.onboardingId === onboarding.onboardingId &&
+    slice.webhookId === webhook.webhookId &&
+    slice.inboundMessageId === inbound.messageId &&
+    slice.clinicalEventId === clinicalEvent.eventId &&
+    slice.recommendationCardId === recommendation.cardId &&
+    slice.feedbackId === manualEscalation.feedbackId &&
+    slice.todoId === todo.todoId &&
+    slice.adapterPath === "monitoringAdapter" &&
+    slice.onboardingPath === "emergencyOnboarding" &&
+    slice.webhookPath === "webhookSignature" &&
+    slice.inboundPath === "inboundMonitoringEvent" &&
+    slice.contextPath === "clinicalContext" &&
+    slice.recommendationPath === "recommendation" &&
+    slice.manualEscalationPath === "manualEscalation" &&
+    slice.todoPath === "escalationTodo" &&
+    hasLisMonitoringCriticalConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompleteCriticalEmergencyIcuApiEvidence(body.apiEvidence) &&
+    hasCompleteCriticalEmergencyIcuAdapterEvidence(body.monitoringAdapter) &&
+    hasCompleteCriticalEmergencyIcuOnboarding(body.emergencyOnboarding, body.monitoringAdapter) &&
+    hasCompleteCriticalEmergencyIcuWebhookEvidence(
+      body.webhookSignature,
+      body.monitoringAdapter,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTerminologyGate(body.terminologyGate) &&
+    hasCompleteCriticalEmergencyIcuRiskMatrix(body.riskMatrix) &&
+    hasCompleteCriticalEmergencyIcuActionCard(body.actionCard) &&
+    hasCompleteCriticalEmergencyIcuActivationRequest(body.activationRequest, runtime) &&
+    hasCompleteCriticalEmergencyIcuClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteCriticalEmergencyIcuInbound(
+      body.inboundMonitoringEvent,
+      body.monitoringAdapter,
+      body.webhookSignature,
+      body.clinicalContext,
+      runtime.releaseId,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTrigger(body.clinicalTrigger, runtime.releaseId) &&
+    hasCompleteCriticalEmergencyIcuRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteCriticalEmergencyIcuManualEscalation(
+      body.manualEscalation,
+      runtime.actionCardAsset,
+      body.recommendation,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTodo(
+      body.escalationTodo,
+      body.recommendation,
+      body.clinicalContext,
+    ) &&
+    evidencePathsResolve(body, [
+      slice.adapterPath,
+      slice.onboardingPath,
+      slice.webhookPath,
+      slice.inboundPath,
+      slice.contextPath,
+      slice.recommendationPath,
+      slice.manualEscalationPath,
+      slice.todoPath,
+    ])
+  );
+}
+
+function hasLisMonitoringCriticalConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedLisMonitoringCriticalConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 LIS 系统") &&
+    hasNegatedScopeTerm(statement, "完整监护设备平台") &&
+    hasNegatedScopeTerm(statement, "完整急诊系统") &&
+    hasNegatedScopeTerm(statement, "完整 ICU 系统") &&
+    hasNegatedScopeTerm(statement, "真实外部成功联通") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "自动转 ICU") &&
+    hasNegatedScopeTerm(statement, "设备控制") &&
+    hasNegatedScopeTerm(statement, "自动调整呼吸机") &&
+    hasNegatedScopeTerm(statement, "完整 S19/S24/S27") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedLisMonitoringCriticalConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整 LIS 系统",
+    "完整LIS系统",
+    "完整监护设备平台",
+    "完整急诊系统",
+    "完整 ICU 系统",
+    "完整ICU系统",
+    "真实外部成功联通",
+    "自动开嘱",
+    "自动转 ICU",
+    "自动转ICU",
+    "设备控制",
+    "自动调整呼吸机",
+    "完整 S19/S24/S27",
+    "完整S19/S24/S27",
+    "完整第三方系统族覆盖",
+    "所有第三方系统族完整覆盖",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasCriticalEmergencyIcuScopeBoundary(value: unknown) {
