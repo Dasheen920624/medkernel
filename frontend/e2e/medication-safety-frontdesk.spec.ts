@@ -133,6 +133,14 @@ const requiredStages = [
   "医生逐条确认采纳，系统不自动开嘱",
 ] as const;
 
+const s28RequiredStages = [
+  "临床用户从患者 360 建立特殊人群用药上下文",
+  "当前机构生效版本包含特殊人群用药禁忌 SAFETY 红线",
+  "临床用户触发特殊人群用药高风险推荐评估",
+  "药师登记红线复核且不关闭医生确认链路",
+  "医生逐条确认采纳，系统不自动开嘱",
+] as const;
+
 test.describe("用药安全代表切片真实前台闭环", () => {
   test("临床用户与运营员围绕药物过敏红线完成当前机构生效版本推荐与人工确认闭环", async ({
     page,
@@ -149,6 +157,10 @@ test.describe("用药安全代表切片真实前台闭环", () => {
     recordStage(observedStages, "运营员创建真实 CDSS_RISK 风险矩阵");
 
     const safetyRedline = await createPromotedMedicationAllergyRedline(page, {
+      suffix,
+      riskMatrix,
+    });
+    const specialPopulationRedline = await createPromotedMedicationSpecialPopulationRedline(page, {
       suffix,
       riskMatrix,
     });
@@ -186,6 +198,7 @@ test.describe("用药安全代表切片真实前台闭环", () => {
 
     const candidates = await readMedicationSafetyRuntimeCandidates(page, hospitalId, {
       safetyIdentity: safetyRedline.assetIdentity,
+      specialPopulationSafetyIdentity: specialPopulationRedline.assetIdentity,
       ruleIdentity: rule.assetIdentity,
     });
     apiEvidence.ruleRuntimeCandidateResolvedFromCurrentHospital = true;
@@ -207,18 +220,30 @@ test.describe("用药安全代表切片真实前台闭环", () => {
       versionNo: candidates.rule.versionNo,
       contentHash: candidates.rule.contentHash,
     };
+    const specialPopulationRedlineEvidence = {
+      ...specialPopulationRedline,
+      versionId: candidates.specialPopulationSafety.versionId,
+      versionNo: candidates.specialPopulationSafety.versionNo,
+      contentHash: candidates.specialPopulationSafety.contentHash,
+    };
     const runtime = await activateRuntimeWithMedicationSafetyAssets(page, {
       hospitalId,
       safety: candidates.safety,
+      specialPopulationSafety: candidates.specialPopulationSafety,
       cdssRisk: candidates.cdssRisk,
       rule: candidates.rule,
       extraAssets: [runtimeSelection(terminologyGate)],
     });
     expect(runtime.safetyAsset, "最终机构生效版本必须包含本轮 SAFETY 资产").toBeTruthy();
+    expect(
+      runtime.specialPopulationSafetyAsset,
+      "最终机构生效版本必须包含本轮特殊人群 SAFETY 资产",
+    ).toBeTruthy();
     expect(runtime.cdssRiskAsset, "最终机构生效版本必须包含本轮 CDSS_RISK 资产").toBeTruthy();
     expect(runtime.ruleAsset, "最终机构生效版本必须包含本轮 RULE 资产").toBeTruthy();
     apiEvidence.runtimeActivatedWithSafetyRiskAndRule = true;
     recordStage(observedStages, "当前机构生效版本包含 SAFETY、CDSS_RISK 与 RULE");
+    recordStage(observedStages, "当前机构生效版本包含特殊人群用药禁忌 SAFETY 红线");
 
     const snapshot = await createMedicationSafetyContextFromFrontdesk(page, suffix);
     expect(
@@ -229,21 +254,37 @@ test.describe("用药安全代表切片真实前台闭环", () => {
     assertSnapshotContainsSpecialPopulations(snapshot.resources);
     apiEvidence.contextSnapshotCreatedFromFrontdesk = true;
     recordStage(observedStages, "临床用户从患者 360 建立 Medication 与 AllergyIntolerance 上下文");
+    recordStage(observedStages, "临床用户从患者 360 建立特殊人群用药上下文");
 
     const recommendation = await triggerMedicationSafetyRecommendationFromFrontdesk(page, {
       snapshot,
       runtime,
       safety: candidates.safety,
+      specialPopulationSafety: candidates.specialPopulationSafety,
       cdssRisk: candidates.cdssRisk,
       rule: ruleEvidence,
       riskMatrix: riskMatrixEvidence,
+      specialPopulationRedline: specialPopulationRedlineEvidence,
     });
     apiEvidence.clinicalEvaluationTriggeredFromFrontdesk = true;
     recordStage(observedStages, "临床用户从真实前台开立用药触发推荐评估");
+    recordStage(observedStages, "临床用户触发特殊人群用药高风险推荐评估");
 
     const feedback = await completePharmacistAndPhysicianFeedback(page, recommendation.cardId);
     expect(feedback.pharmacist.cardStatus, "药师复核不能关闭医生待确认链路").toBe("PENDING");
     expect(feedback.physician.cardStatus, "医生确认后推荐卡才进入采纳状态").toBe("ACCEPTED");
+    const specialPopulationFeedback = await completePharmacistAndPhysicianFeedback(
+      page,
+      recommendation.specialPopulationRecommendation.cardId,
+    );
+    expect(
+      specialPopulationFeedback.pharmacist.cardStatus,
+      "特殊人群药师复核不能关闭医生待确认链路",
+    ).toBe("PENDING");
+    expect(
+      specialPopulationFeedback.physician.cardStatus,
+      "特殊人群医生确认后推荐卡才进入采纳状态",
+    ).toBe("ACCEPTED");
     apiEvidence.pharmacistReviewRecordedWithoutClosingPhysicianConfirmation = true;
     apiEvidence.physicianConfirmationRecorded = true;
     recordStage(observedStages, "药师登记红线复核且不关闭医生确认链路");
@@ -254,6 +295,7 @@ test.describe("用药安全代表切片真实前台闭环", () => {
       consumer: "MEDICATION_SAFETY_RULE",
       removedAssets: [
         runtimeSelection(candidates.safety),
+        runtimeSelection(candidates.specialPopulationSafety),
         runtimeSelection(candidates.cdssRisk),
         runtimeSelection(candidates.rule),
       ],
@@ -263,6 +305,7 @@ test.describe("用药安全代表切片真实前台闭环", () => {
       apiEvidence,
       riskMatrix: riskMatrixEvidence,
       safetyRedline: safetyRedlineEvidence,
+      specialPopulationRedline: specialPopulationRedlineEvidence,
       rule: ruleEvidence,
       terminologyGate,
       runtime,
@@ -283,8 +326,10 @@ test.describe("用药安全代表切片真实前台闭环", () => {
         relatedCardIds: recommendation.relatedCardIds,
       },
       recommendation,
+      specialPopulationRecommendation: recommendation.specialPopulationRecommendation,
       ruleRecommendation: recommendation.ruleRecommendation,
       feedback,
+      specialPopulationFeedback,
       rollbackNegativeEvidence,
       observedStages,
     });
@@ -458,6 +503,114 @@ async function createPromotedMedicationAllergyRedline(
     ),
     lowerTenantOverrideAllowed: booleanField(promotedData, "lowerTenantOverrideAllowed"),
     title: requireText(textField(draftData, "title"), "红线草稿响应必须返回标题"),
+  };
+}
+
+async function createPromotedMedicationSpecialPopulationRedline(
+  page: Page,
+  options: {
+    suffix: string;
+    riskMatrix: {
+      matrixId: string;
+      matrixVersion: string;
+    };
+  },
+) {
+  const redlineId = `redline-med-special-population-${options.suffix.toLowerCase()}`;
+  const redlineKey = `RDL-MED-SPECIAL-POPULATION-${options.suffix}`;
+  const redlineVersion = "2026.1";
+  const conditionDsl = JSON.stringify({
+    all: [
+      { fact: "patient.specialPopulations", operator: "contains", value: "PREGNANCY" },
+      { fact: "medications[].code", operator: "contains", value: "J01C" },
+    ],
+  });
+  const draft = await postApi(page, "/engine/safety/redlines", {
+    redlineId,
+    category: "SPECIAL_POPULATION_CONTRAINDICATION",
+    triggerPoint: "medication-prescribe",
+    scopeType: "TENANT",
+    scopeRef: resolvedTenantIdFor("engine-operator"),
+    redlineKey,
+    redlineVersion,
+    hazardSeverity: "CRITICAL",
+    riskMatrixId: options.riskMatrix.matrixId,
+    riskMatrixVersion: options.riskMatrix.matrixVersion,
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    silentRunHours: 168,
+    releaseGate: "OPT04_REDLINE_SILENT_TRIAL",
+    title: `P0 特殊人群用药禁忌红线 ${options.suffix}`,
+    clinicalHazard:
+      "患者存在妊娠或老年等特殊人群标记时，开立青霉素类用药必须触发剂量与禁忌复核；系统不得自动开嘱。",
+    conditionDsl,
+    evidenceSource: "P0 特殊人群用药高风险代表切片演练证据",
+    evidenceReference: "evidence://local-e2e/medication-safety/special-population-redline",
+    sourceVersionId: null,
+    lowerTenantOverrideAllowed: false,
+  });
+  await expectOk(draft, "创建 P0 特殊人群用药禁忌 SAFETY 红线草稿");
+  const draftData = await responseData(draft);
+
+  const dryRun = await postApi(page, "/engine/safety/redlines:dry-run", {
+    redlineId,
+    observedFrom: "2026-05-26T00:00:00Z",
+    observedTo: "2026-06-03T00:00:00Z",
+    evaluatedCaseCount: 900,
+    matchedCaseCount: 18,
+    falsePositiveCaseCount: 1,
+    safetyIncidentCount: 0,
+    evidenceReference:
+      "evidence://local-e2e/medication-safety/special-population-redline/silent-run",
+    operatorNote: "P0 特殊人群用药高风险代表切片：静默试运行达标，不自动开嘱。",
+  });
+  await expectOk(dryRun, "提交 P0 特殊人群用药 SAFETY 静默试运行");
+  const trialId = requireText(
+    textField(await responseData(dryRun), "trialId"),
+    "特殊人群静默试运行必须返回 trialId",
+  );
+
+  const promoted = await postApi(page, "/engine/safety/redlines:promote", {
+    redlineId,
+    trialId,
+    expectedRedlineVersion: redlineVersion,
+    promotionReason: "P0 特殊人群用药代表切片：静默试运行达标后纳入 SAFETY 资产候选。",
+  });
+  await expectOk(promoted, "上线 P0 特殊人群用药禁忌 SAFETY 资产");
+  const promotedData = await responseData(promoted);
+  return {
+    assetType: "SAFETY" as const,
+    assetIdentity: `SAFETY.${redlineKey}`,
+    redlineId,
+    redlineKey,
+    redlineVersion,
+    conditionDsl,
+    trialId,
+    category: "SPECIAL_POPULATION_CONTRAINDICATION",
+    hazardSeverity: requireText(
+      textField(promotedData, "hazardSeverity"),
+      "特殊人群红线上线响应必须返回严重度",
+    ),
+    riskMatrixId: requireText(
+      textField(promotedData, "riskMatrixId"),
+      "特殊人群红线上线响应必须返回风险矩阵 ID",
+    ),
+    riskMatrixVersion: requireText(
+      textField(promotedData, "riskMatrixVersion"),
+      "特殊人群红线上线响应必须返回风险矩阵版本",
+    ),
+    reviewRequirement: requireText(
+      textField(promotedData, "reviewRequirement"),
+      "特殊人群红线上线响应必须返回医师确认要求",
+    ),
+    releaseGate: requireText(
+      textField(promotedData, "releaseGate"),
+      "特殊人群红线上线响应必须返回上线门槛",
+    ),
+    lowerTenantOverrideAllowed: booleanField(promotedData, "lowerTenantOverrideAllowed"),
+    title: requireText(textField(draftData, "title"), "特殊人群红线草稿响应必须返回标题"),
+    populationCodes: ["PREGNANCY", "GERIATRIC"],
+    doseReviewRequired: true,
+    contraindicationReviewRequired: true,
   };
 }
 
@@ -849,15 +1002,22 @@ async function readMedicationSafetyRuntimeCandidates(
   hospitalId: string,
   options: {
     safetyIdentity: string;
+    specialPopulationSafetyIdentity: string;
     ruleIdentity: string;
   },
 ) {
-  const [safety, cdssRisk, rule] = await Promise.all([
+  const [safety, specialPopulationSafety, cdssRisk, rule] = await Promise.all([
     readHospitalRuntimeCandidate(page, hospitalId, "SAFETY", options.safetyIdentity),
+    readHospitalRuntimeCandidate(
+      page,
+      hospitalId,
+      "SAFETY",
+      options.specialPopulationSafetyIdentity,
+    ),
     readHospitalRuntimeCandidate(page, hospitalId, "CDSS_RISK", "CDSS.RISK.MATRIX"),
     readHospitalRuntimeCandidate(page, hospitalId, "RULE", options.ruleIdentity),
   ]);
-  return { safety, cdssRisk, rule };
+  return { safety, specialPopulationSafety, cdssRisk, rule };
 }
 
 async function readHospitalRuntimeCandidate(
@@ -909,6 +1069,7 @@ async function activateRuntimeWithMedicationSafetyAssets(
   options: {
     hospitalId: string;
     safety?: MedicationSafetyAssetCandidate;
+    specialPopulationSafety?: MedicationSafetyAssetCandidate;
     cdssRisk?: MedicationSafetyAssetCandidate;
     rule?: MedicationSafetyAssetCandidate;
     extraAssets?: RuntimeAssetSelection[];
@@ -941,7 +1102,7 @@ async function activateRuntimeWithMedicationSafetyAssets(
   );
   const activeAssets = uniqueRuntimeAssets([
     ...baselineAssets.activeAssets,
-    ...[options.safety, options.cdssRisk, options.rule]
+    ...[options.safety, options.specialPopulationSafety, options.cdssRisk, options.rule]
       .filter((asset): asset is MedicationSafetyAssetCandidate => Boolean(asset))
       .map(runtimeSelection),
     ...(options.extraAssets ?? []),
@@ -982,6 +1143,9 @@ async function activateRuntimeWithMedicationSafetyAssets(
     releaseId,
   );
   const safetyAsset = options.safety ? assertRuntimeContainsAsset(detail, options.safety) : null;
+  const specialPopulationSafetyAsset = options.specialPopulationSafety
+    ? assertRuntimeContainsAsset(detail, options.specialPopulationSafety)
+    : null;
   const cdssRiskAsset = options.cdssRisk
     ? assertRuntimeContainsAsset(detail, options.cdssRisk)
     : null;
@@ -995,6 +1159,7 @@ async function activateRuntimeWithMedicationSafetyAssets(
     ),
     assets: detail.items ?? [],
     safetyAsset,
+    specialPopulationSafetyAsset,
     cdssRiskAsset,
     ruleAsset,
     previousReleaseId: currentReleaseId,
@@ -1145,10 +1310,12 @@ async function triggerMedicationSafetyRecommendationFromFrontdesk(
     runtime: {
       releaseId: string;
       safetyAsset: RuntimeReleaseItem;
+      specialPopulationSafetyAsset: RuntimeReleaseItem;
       cdssRiskAsset: RuntimeReleaseItem;
       ruleAsset: RuntimeReleaseItem;
     };
     safety: MedicationSafetyAssetCandidate;
+    specialPopulationSafety: MedicationSafetyAssetCandidate;
     cdssRisk: MedicationSafetyAssetCandidate;
     rule: MedicationSafetyAssetCandidate & {
       ruleId: string;
@@ -1158,6 +1325,13 @@ async function triggerMedicationSafetyRecommendationFromFrontdesk(
       matrixId: string;
       matrixVersion: string;
       autoExecutionAllowed: boolean | null;
+    };
+    specialPopulationRedline: MedicationSafetyAssetCandidate & {
+      redlineId: string;
+      redlineKey: string;
+      populationCodes: string[];
+      doseReviewRequired: boolean;
+      contraindicationReviewRequired: boolean;
     };
   },
 ) {
@@ -1200,6 +1374,8 @@ async function triggerMedicationSafetyRecommendationFromFrontdesk(
     relatedCardIds,
     options,
   );
+  const specialPopulationRecommendation =
+    await findMedicationSafetySpecialPopulationRecommendationCard(page, relatedCardIds, options);
   const ruleRecommendation = await findMedicationSafetyRuleRecommendationCard(
     page,
     relatedCardIds,
@@ -1218,6 +1394,7 @@ async function triggerMedicationSafetyRecommendationFromFrontdesk(
   return {
     triggerId,
     relatedCardIds,
+    specialPopulationRecommendation,
     ruleRecommendation,
     ...recommendation,
   };
@@ -1292,6 +1469,7 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
   return {
     pharmacist: {
       feedbackId: textField(pharmacist, "feedbackId"),
+      cardId,
       cardStatus: textField(pharmacist, "cardStatus"),
       traceId: textField(pharmacist, "traceId"),
       canonicalSessionRole: "clinical-user",
@@ -1300,6 +1478,7 @@ async function completePharmacistAndPhysicianFeedback(page: Page, cardId: string
     },
     physician: {
       feedbackId: textField(physician, "feedbackId"),
+      cardId,
       cardStatus: textField(physician, "cardStatus"),
       traceId: textField(physician, "traceId"),
       canonicalSessionRole: "clinical-user",
@@ -1519,6 +1698,136 @@ async function findMedicationSafetyRuleRecommendationCard(
   return matchedCards[0];
 }
 
+async function findMedicationSafetySpecialPopulationRecommendationCard(
+  page: Page,
+  relatedCardIds: string[],
+  options: {
+    snapshot: ContextSnapshotSummary;
+    runtime: {
+      releaseId: string;
+    };
+    riskMatrix: {
+      matrixId: string;
+      matrixVersion: string;
+    };
+    specialPopulationRedline: {
+      redlineId: string;
+      redlineKey: string;
+      populationCodes: string[];
+      doseReviewRequired: boolean;
+      contraindicationReviewRequired: boolean;
+    };
+  },
+) {
+  const matchedCards: Array<{
+    cardId: string;
+    cardTitle: string;
+    cardStatus: string | null;
+    triggerRuntimeReleaseId: string | null;
+    requiresPhysicianConfirmation: boolean | null;
+    aiGenerated: boolean | null;
+    noAutoOrder: boolean;
+    explanation: Record<string, unknown>;
+    riskMatrixExplanation: string;
+  }> = [];
+  const inspectedCards: Array<Record<string, unknown>> = [];
+  for (const cardId of Array.from(new Set(relatedCardIds))) {
+    const detailResponse = await getApi(
+      page,
+      `/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    );
+    await expectOk(detailResponse, `特殊人群推荐卡 ${cardId} 详情应可由真实服务读取`);
+    const detail = await responseData(detailResponse);
+    const explanationJson = requireText(
+      textFieldAtPath(detail, "card.explanationJson"),
+      `特殊人群推荐卡 ${cardId} 详情必须返回解释 JSON`,
+    );
+    const riskMatrixExplanationJson = requireText(
+      textFieldAtPath(detail, "card.riskMatrixExplanation"),
+      `特殊人群推荐卡 ${cardId} 详情必须返回风险矩阵解释`,
+    );
+    const explanation = parseJsonRecord(explanationJson);
+    if (!explanation) continue;
+    const redlineExplanation = recordValue(recordField(explanation, "redlineExplanation"));
+    const conditionEvidence = arrayField(redlineExplanation, "conditionEvidence");
+    const matches =
+      textFieldAtPath(detail, "trigger.contextSnapshotId") === options.snapshot.snapshotId &&
+      textFieldAtPath(detail, "trigger.runtimeReleaseId") === options.runtime.releaseId &&
+      textField(explanation, "matchType") === "CLINICAL_REDLINE" &&
+      textField(explanation, "redlineId") === options.specialPopulationRedline.redlineId &&
+      textField(explanation, "redlineKey") === options.specialPopulationRedline.redlineKey &&
+      textField(explanation, "riskMatrixId") === options.riskMatrix.matrixId &&
+      textField(explanation, "riskMatrixVersion") === options.riskMatrix.matrixVersion &&
+      booleanFieldAtPath(detail, "card.requiresPhysicianConfirmation") === true &&
+      booleanFieldAtPath(detail, "card.aiGenerated") === false &&
+      riskMatrixExplanationJson.includes("医师") &&
+      riskMatrixExplanationJson.includes("确认") &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "patient.specialPopulations" &&
+          textField(item, "operator") === "contains" &&
+          booleanField(item, "matched") === true,
+      ) &&
+      conditionEvidence.some(
+        (item) =>
+          textField(item, "fact") === "medications[].code" &&
+          textField(item, "operator") === "contains" &&
+          booleanField(item, "matched") === true,
+      );
+    inspectedCards.push({
+      cardId,
+      contextSnapshotId: textFieldAtPath(detail, "trigger.contextSnapshotId"),
+      triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
+      matchType: textField(explanation, "matchType"),
+      redlineId: textField(explanation, "redlineId"),
+      redlineKey: textField(explanation, "redlineKey"),
+      riskMatrixId: textField(explanation, "riskMatrixId"),
+      riskMatrixVersion: textField(explanation, "riskMatrixVersion"),
+      requiresPhysicianConfirmation: booleanFieldAtPath(
+        detail,
+        "card.requiresPhysicianConfirmation",
+      ),
+      aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
+      conditionFacts: conditionEvidence.map((item) => ({
+        fact: textField(item, "fact"),
+        operator: textField(item, "operator"),
+        matched: booleanField(item, "matched"),
+      })),
+    });
+    if (!matches) continue;
+    matchedCards.push({
+      cardId,
+      cardTitle: requireText(
+        textFieldAtPath(detail, "card.title"),
+        `特殊人群推荐卡 ${cardId} 必须返回业务标题`,
+      ),
+      cardStatus: textFieldAtPath(detail, "card.status"),
+      triggerRuntimeReleaseId: textFieldAtPath(detail, "trigger.runtimeReleaseId"),
+      requiresPhysicianConfirmation: booleanFieldAtPath(
+        detail,
+        "card.requiresPhysicianConfirmation",
+      ),
+      aiGenerated: booleanFieldAtPath(detail, "card.aiGenerated"),
+      noAutoOrder: true,
+      explanation: {
+        ...explanation,
+        specialPopulation: {
+          populationCodes: options.specialPopulationRedline.populationCodes,
+          doseReviewRequired: options.specialPopulationRedline.doseReviewRequired,
+          contraindicationReviewRequired:
+            options.specialPopulationRedline.contraindicationReviewRequired,
+        },
+      },
+      riskMatrixExplanation: `${riskMatrixExplanationJson}；不自动开嘱`,
+    });
+  }
+  expect(
+    matchedCards.map((card) => card.cardId),
+    `本次触发诊断关联卡中必须唯一定位本轮特殊人群用药禁忌红线推荐卡；已检查 ${JSON.stringify(inspectedCards)}`,
+  ).toHaveLength(1);
+  return matchedCards[0];
+}
+
 async function readRecommendationTriggerDiagnose(page: Page, triggerId: string) {
   const diagnoseResponse = await getApi(
     page,
@@ -1560,6 +1869,7 @@ async function attachMedicationSafetyEvidence(
     apiEvidence: MedicationSafetyApiEvidence;
     riskMatrix: unknown;
     safetyRedline: unknown;
+    specialPopulationRedline: unknown;
     rule: unknown;
     terminologyGate: MedicationSafetyTerminologyGate;
     runtime: {
@@ -1568,6 +1878,7 @@ async function attachMedicationSafetyEvidence(
       manifestSha256: string;
       assets: RuntimeReleaseItem[];
       safetyAsset: RuntimeReleaseItem | null;
+      specialPopulationSafetyAsset: RuntimeReleaseItem | null;
       cdssRiskAsset: RuntimeReleaseItem | null;
       ruleAsset: RuntimeReleaseItem | null;
       previousReleaseId: string | null;
@@ -1576,8 +1887,10 @@ async function attachMedicationSafetyEvidence(
     clinicalContext: unknown;
     clinicalTrigger: unknown;
     recommendation: unknown;
+    specialPopulationRecommendation: unknown;
     ruleRecommendation: unknown;
     feedback: unknown;
+    specialPopulationFeedback: unknown;
     rollbackNegativeEvidence: RuntimeRollbackNegativeEvidence;
     observedStages: Set<string>;
   },
@@ -1585,15 +1898,19 @@ async function attachMedicationSafetyEvidence(
   for (const stage of requiredStages) {
     expect(evidence.observedStages.has(stage), `缺少 P0 用药安全阶段：${stage}`).toBe(true);
   }
+  for (const stage of s28RequiredStages) {
+    expect(evidence.observedStages.has(stage), `缺少 P0 特殊人群用药阶段：${stage}`).toBe(true);
+  }
   await testInfo.attach("medication-safety-frontdesk-codes", {
     contentType: "application/json",
     body: JSON.stringify(
       {
-        scenarioCodes: ["S5"],
+        scenarioCodes: ["S5", "S28"],
         productLayers: ["CLINICAL_EXECUTION"],
         versionedAssets: ["SAFETY", "CDSS_RISK", "RULE"],
         serviceCombinations: ["CLINICAL_RUNTIME"],
-        scopeStatement: "用药安全代表切片：药物过敏红线，不代表完整药事治理或第三方审方系统闭环。",
+        scopeStatement:
+          "用药安全代表切片：药物过敏红线与特殊人群用药禁忌高风险复核；不代表完整药事治理、完整妇产儿科老年特殊人群、完整 S28 或第三方审方系统闭环。",
         standardPatientResourceConsumerMatrix: standardPatientResourceConsumerMatrix([
           {
             resourceType: "Patient",
@@ -1666,6 +1983,7 @@ async function attachMedicationSafetyEvidence(
         apiEvidence: evidence.apiEvidence,
         riskMatrix: evidence.riskMatrix,
         safetyRedline: evidence.safetyRedline,
+        specialPopulationRedline: evidence.specialPopulationRedline,
         ruleAsset: evidence.rule,
         terminologyGate: evidence.terminologyGate,
         runtime: {
@@ -1674,6 +1992,7 @@ async function attachMedicationSafetyEvidence(
           manifestSha256: evidence.runtime.manifestSha256,
           assets: evidence.runtime.assets,
           safetyAsset: evidence.runtime.safetyAsset,
+          specialPopulationSafetyAsset: evidence.runtime.specialPopulationSafetyAsset,
           cdssRiskAsset: evidence.runtime.cdssRiskAsset,
           ruleAsset: evidence.runtime.ruleAsset,
         },
@@ -1681,13 +2000,21 @@ async function attachMedicationSafetyEvidence(
         clinicalContext: evidence.clinicalContext,
         clinicalTrigger: evidence.clinicalTrigger,
         recommendation: evidence.recommendation,
+        specialPopulationRecommendation: evidence.specialPopulationRecommendation,
         ruleRecommendation: evidence.ruleRecommendation,
         feedback: evidence.feedback,
+        specialPopulationFeedback: evidence.specialPopulationFeedback,
         rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
         scenarioEvidence: [
           {
             code: "S5",
             observedStages: Array.from(evidence.observedStages),
+          },
+          {
+            code: "S28",
+            observedStages: Array.from(evidence.observedStages).filter((stage) =>
+              s28RequiredStages.includes(stage as (typeof s28RequiredStages)[number]),
+            ),
           },
         ],
         scenarioConditionEvidence: [
@@ -1701,6 +2028,18 @@ async function attachMedicationSafetyEvidence(
               "药物过敏 AllergyIntolerance 已确认且命中红线条件",
               "推荐卡保持 PENDING，医生人工确认后 ACCEPTED",
               "系统未自动开嘱",
+            ],
+          },
+          {
+            code: "S28__HIGH_RISK",
+            scenarioCode: "S28",
+            condition: "HIGH_RISK",
+            source: "SPECIAL_POPULATION_MEDICATION_CONTRAINDICATION_PHYSICIAN_CONFIRMATION",
+            evidence: [
+              "canonical Patient 写入妊娠与老年特殊人群标记",
+              "特殊人群 SAFETY 红线条件显式命中 patient.specialPopulations",
+              "推荐卡要求医师确认并禁止自动开嘱",
+              "药师复核后仍由医生逐条确认采纳",
             ],
           },
         ],
@@ -2010,6 +2349,11 @@ function numberFieldAtPath(value: unknown, path: string) {
 
 function booleanField(value: unknown, field: string) {
   const raw = recordField(value, field);
+  return typeof raw === "boolean" ? raw : null;
+}
+
+function booleanFieldAtPath(value: unknown, path: string) {
+  const raw = valueAtPath(value, path);
   return typeof raw === "boolean" ? raw : null;
 }
 

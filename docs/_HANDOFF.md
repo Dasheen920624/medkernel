@@ -23,6 +23,49 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十四批本地推进：继续按“上线总账驱动”减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口，
+  本批只把上一批已落地的特殊人群患者事实入口，接入真实药事安全高风险推荐消费链路，升级为显式
+  `S28__HIGH_RISK` 条件行。`medication-safety-frontdesk.spec.ts` 在既有药物过敏红线链路之外，同步创建
+  `SAFETY.RDL-MED-SPECIAL-POPULATION-*` 特殊人群禁忌红线，激活到同一当前机构生效版本，并由临床用户从患者 360
+  建立含 `PREGNANCY/GERIATRIC` 的 canonical Patient 上下文后触发推荐评估。只声明特殊人群用药禁忌/剂量复核高风险
+  窄切片 `S28__HIGH_RISK`，保留既有 `S5__HIGH_RISK`；不声明 `S28__NORMAL/ABNORMAL/MISSING_DATA/DEGRADATION`，
+  不声明完整妇产儿科老年特殊人群、完整特殊人群剂量/禁忌体系、完整药事治理、完整用药安全、完整 S0-S40、
+  134 清库、目标环境部署或完整上线验收。
+- 第二百三十四批实现细节：`frontend/e2e/medication-safety-frontdesk.spec.ts` 新增
+  `createPromotedMedicationSpecialPopulationRedline()`，真实调用 SAFETY 红线创建、静默试运行和上线接口；同一 runtime
+  激活普通药物过敏 SAFETY、特殊人群 SAFETY、CDSS_RISK、RULE 和 TERMINOLOGY，并在附件写出
+  `specialPopulationRedline`、`runtime.specialPopulationSafetyAsset`、`specialPopulationRecommendation` 与显式
+  `scenarioConditionEvidence`。`frontend/e2e/support/launchCoverageEvidence.ts` 新增 `S28__HIGH_RISK` 严格解析，
+  只接受 `medication-safety-frontdesk.spec.ts` / `medication-safety-frontdesk-codes`，并要求 scope 明确否定完整 S28、
+  canonical Patient 与 context 均含 `PREGNANCY/GERIATRIC`、特殊人群红线类型 / DSL / 审方要求完整、runtime 当前生效版本
+  包含同一 SAFETY、推荐卡命中 `patient.specialPopulations` 与 `medications[].code`、`requiresPhysicianConfirmation=true`
+  且 `noAutoOrder=true`，并要求 `specialPopulationFeedback` 的药师 / 医生反馈和 persisted 回读均绑定同一特殊人群推荐卡
+  `cardId`，不能复用普通 S5 药物过敏卡反馈。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  缺显式条件行、冒领 S28 来源、红线缺特殊人群条件、患者未带特殊人群、推荐卡未命中特殊人群、未要求医师确认或允许自动开嘱、
+  缺特殊人群独立反馈、特殊人群反馈绑定错误推荐卡，均不声明 `S28__HIGH_RISK`。
+- 第二百三十四批真实 E2E：临时复用本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。首次执行
+  `/tmp/medkernel-e2e-s28-high-risk-condition-row-20260710-r1` 失败于附件阶段总账缺少“临床用户从患者 360 建立特殊人群用药上下文”，
+  根因为已完成 canonical Patient 特殊人群回读但未登记 S28 阶段；补充 `recordStage` 后复跑
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s28-high-risk-condition-row-20260710-r3 npm --prefix frontend run e2e -- --project=chromium medication-safety-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s28-high-risk-condition-row-20260710-r3/report/results.json` 读回 `status=PASSED`，
+  `launchCoverage.scenarioConditionRows=[S5__HIGH_RISK,S28__HIGH_RISK]`，`launchCoverage.scenarios=[S5,S28]`。附件抽查：
+  `clinicalContext.specialPopulations` 与 `clinicalContext.resources.patient.specialPopulations` 均为
+  `[PREGNANCY,GERIATRIC]`，`specialPopulationRedline.conditionDsl` 含 `patient.specialPopulations` 与 `medications[].code`，
+  `runtime.specialPopulationSafetyAsset.assetIdentity=SAFETY.RDL-MED-SPECIAL-POPULATION-*`，
+  `specialPopulationRecommendation.requiresPhysicianConfirmation=true` 且 `noAutoOrder=true`，`specialPopulationFeedback`
+  的药师和医生 `cardId/persisted.cardId` 均等于特殊人群推荐卡 `rc-d724ab77-62d9-45f8-b6e4-5adf49b18fd1`，普通 S5 反馈绑定另一张卡。
+- 第二百三十四批验证证据：已通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（788 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）
+  和真实 E2E。提交前仍需跑 `git diff --check`。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百三十四批并行只读审计结论：本批使用 2 个只读 explorer，均未编辑、未暂存、未提交、未启动服务、未外调。
+  下一批候选审计确认当前最短路径正是 `S28__HIGH_RISK`；`S15__NORMAL` 只有在真实 `backup.drillEvidence.status=SUCCESS`、
+  隔离恢复、当前机构生效版本回读、第三方 runtime consumer 回读和临床 `/mpi` 冒烟均成立时才能做，dev/H2 仍为
+  `NOT_AVAILABLE` 时不得声明；`S30__NORMAL` 仍缺基层能力目录、双向转诊申请 / 接收 / 回传和区域资源匹配；
+  `S37__NORMAL` 仍缺床旁问答、条款定位、来源版本 / 片段和患者上下文关联解释，不得用领域门面 B0 或知识入口冒领。
 - 第二百三十三批本地推进：继续按“上线总账驱动”推进，但本批不硬凑新的 S0-S40 五态行。并行只读审计
   `S30`、`S37`、`S22`、`S25/S28/S29/S38/S39` 后均确认当前没有可直接升级为 `scenarioConditionRows` 的
   专属强附件；`S30` 缺基层能力目录、双向转诊申请/接收/回传和区域资源匹配，`S37` 缺床旁问答、条款定位、

@@ -1942,6 +1942,193 @@ const medicationSafetyFrontdeskEvidence = {
   ],
 };
 
+function medicationSafetySpecialPopulationEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const base = structuredClone(medicationSafetyFrontdeskEvidence) as Record<string, unknown>;
+  const specialPopulationRedline = {
+    assetType: "SAFETY",
+    assetIdentity: "SAFETY.RDL-MED-SPECIAL-POPULATION-P0",
+    versionId: "av-safety-special-population-p0",
+    versionNo: "V1",
+    contentHash: "a".repeat(64),
+    redlineId: "redline-med-special-population-p0",
+    redlineKey: "RDL-MED-SPECIAL-POPULATION-P0",
+    redlineVersion: "2026.1",
+    conditionDsl:
+      '{"all":[{"fact":"patient.specialPopulations","operator":"contains","value":"PREGNANCY"},{"fact":"medications[].code","operator":"contains","value":"J01C"}]}',
+    trialId: "crt-special-population-p0",
+    category: "SPECIAL_POPULATION_CONTRAINDICATION",
+    hazardSeverity: "CRITICAL",
+    riskMatrixId: "risk-matrix-med-safety",
+    riskMatrixVersion: "med-safety-v1",
+    reviewRequirement: "PHYSICIAN_CONFIRMATION",
+    releaseGate: "OPT04_REDLINE_SILENT_TRIAL",
+    lowerTenantOverrideAllowed: false,
+    populationCodes: ["PREGNANCY", "GERIATRIC"],
+    doseReviewRequired: true,
+    contraindicationReviewRequired: true,
+  };
+  return {
+    ...base,
+    scenarioCodes: ["S5", "S28"],
+    scopeStatement:
+      "用药安全代表切片：药物过敏红线与特殊人群用药禁忌高风险复核；不代表完整药事治理、完整妇产儿科老年特殊人群、完整 S28 或第三方审方系统闭环。",
+    clinicalContext: {
+      ...(base.clinicalContext as Record<string, unknown>),
+      specialPopulations: ["PREGNANCY", "GERIATRIC"],
+      resources: {
+        ...((base.clinicalContext as Record<string, unknown>).resources as Record<string, unknown>),
+        patient: {
+          mpi: "mpi-med-safety",
+          specialPopulations: ["PREGNANCY", "GERIATRIC"],
+        },
+      },
+    },
+    runtime: {
+      ...(base.runtime as Record<string, unknown>),
+      assets: [
+        ...((base.runtime as Record<string, unknown>).assets as unknown[]),
+        {
+          assetType: "SAFETY",
+          assetIdentity: "SAFETY.RDL-MED-SPECIAL-POPULATION-P0",
+          versionId: "av-safety-special-population-p0",
+          versionNo: "V1",
+          contentHash: "a".repeat(64),
+          entryState: "ACTIVE",
+        },
+      ],
+      specialPopulationSafetyAsset: {
+        assetType: "SAFETY",
+        assetIdentity: "SAFETY.RDL-MED-SPECIAL-POPULATION-P0",
+        versionId: "av-safety-special-population-p0",
+        versionNo: "V1",
+        contentHash: "a".repeat(64),
+        entryState: "ACTIVE",
+      },
+    },
+    activationRequest: {
+      ...(base.activationRequest as Record<string, unknown>),
+      activeAssets: [
+        ...((base.activationRequest as Record<string, unknown>).activeAssets as unknown[]),
+        {
+          assetType: "SAFETY",
+          assetIdentity: "SAFETY.RDL-MED-SPECIAL-POPULATION-P0",
+          versionId: "av-safety-special-population-p0",
+        },
+      ],
+    },
+    specialPopulationRedline,
+    clinicalTrigger: {
+      ...(base.clinicalTrigger as Record<string, unknown>),
+      relatedCardIds: [
+        "card-med-safety",
+        "card-rule-med-safety",
+        "card-med-special-population",
+        "card-other",
+      ],
+    },
+    specialPopulationRecommendation: {
+      cardId: "card-med-special-population",
+      cardStatus: "PENDING",
+      triggerRuntimeReleaseId: "runtime-med-safety",
+      requiresPhysicianConfirmation: true,
+      noAutoOrder: true,
+      explanation: {
+        matchType: "CLINICAL_REDLINE",
+        redlineId: "redline-med-special-population-p0",
+        redlineKey: "RDL-MED-SPECIAL-POPULATION-P0",
+        riskMatrixId: "risk-matrix-med-safety",
+        riskMatrixVersion: "med-safety-v1",
+        specialPopulation: {
+          populationCodes: ["PREGNANCY", "GERIATRIC"],
+          doseReviewRequired: true,
+          contraindicationReviewRequired: true,
+        },
+        redlineExplanation: {
+          conditionEvidence: [
+            {
+              fact: "patient.specialPopulations",
+              operator: "contains",
+              expected: "PREGNANCY",
+              actual: ["PREGNANCY", "GERIATRIC"],
+              matched: true,
+            },
+            {
+              fact: "medications[].code",
+              operator: "contains",
+              expected: "J01C",
+              actual: ["J01C"],
+              matched: true,
+            },
+          ],
+        },
+      },
+      riskMatrixExplanation: "特殊人群用药禁忌和剂量复核必须医师确认，不自动开嘱",
+    },
+    specialPopulationFeedback: {
+      pharmacist: {
+        feedbackId: "rf-special-population-pharmacist",
+        cardId: "card-med-special-population",
+        cardStatus: "PENDING",
+        canonicalSessionRole: "clinical-user",
+        roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+        persisted: {
+          feedbackId: "rf-special-population-pharmacist",
+          cardId: "card-med-special-population",
+          feedbackType: "VIEW_SOURCE",
+          operatorRole: "PHARMACIST",
+          reasonCode: "PHARMACIST_REVIEWED",
+        },
+      },
+      physician: {
+        feedbackId: "rf-special-population-physician",
+        cardId: "card-med-special-population",
+        cardStatus: "ACCEPTED",
+        canonicalSessionRole: "clinical-user",
+        roleEvidence: "BUSINESS_FEEDBACK_ROLE_ONLY",
+        persisted: {
+          feedbackId: "rf-special-population-physician",
+          cardId: "card-med-special-population",
+          feedbackType: "ACCEPT",
+          operatorRole: "DOCTOR",
+          reasonCode: "CONFIRMED",
+        },
+      },
+      noAutoOrder: true,
+    },
+    scenarioEvidence: [
+      ...(base.scenarioEvidence as unknown[]),
+      {
+        code: "S28",
+        observedStages: [
+          "临床用户从患者 360 建立特殊人群用药上下文",
+          "当前机构生效版本包含特殊人群用药禁忌 SAFETY 红线",
+          "临床用户触发特殊人群用药高风险推荐评估",
+          "药师登记红线复核且不关闭医生确认链路",
+          "医生逐条确认采纳，系统不自动开嘱",
+        ],
+      },
+    ],
+    scenarioConditionEvidence: [
+      ...(base.scenarioConditionEvidence as unknown[]),
+      {
+        code: "S28__HIGH_RISK",
+        scenarioCode: "S28",
+        condition: "HIGH_RISK",
+        source: "SPECIAL_POPULATION_MEDICATION_CONTRAINDICATION_PHYSICIAN_CONFIRMATION",
+        evidence: [
+          "canonical Patient 写入妊娠与老年特殊人群标记",
+          "特殊人群 SAFETY 红线条件显式命中 patient.specialPopulations",
+          "推荐卡要求医师确认并禁止自动开嘱",
+          "药师复核后仍由医生逐条确认采纳",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function medicationSafetyEvidenceResult(body: Record<string, unknown>) {
   return buildBrowserE2eLaunchEvidence({
     stats: passedStats,
@@ -17190,6 +17377,188 @@ describe("browser E2E launch coverage evidence", () => {
     const evidence = medicationSafetyEvidenceResult(body);
 
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it("declares S28 high-risk row only from explicit special-population medication contraindication evidence", () => {
+    const evidence = medicationSafetyEvidenceResult(medicationSafetySpecialPopulationEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S5__HIGH_RISK",
+      "S28__HIGH_RISK",
+    ]);
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(
+      expect.arrayContaining(["S5", "S28"]),
+    );
+  });
+
+  it("does not declare S28 high-risk row from the ordinary medication allergy evidence", () => {
+    const evidence = medicationSafetyEvidenceResult(medicationSafetyFrontdeskEvidence);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S28__HIGH_RISK");
+  });
+
+  it.each([
+    {
+      name: "缺少显式 S28 条件行",
+      body: medicationSafetySpecialPopulationEvidence({
+        scenarioConditionEvidence: (
+          medicationSafetySpecialPopulationEvidence().scenarioConditionEvidence as Array<{
+            code?: string;
+          }>
+        ).filter((item) => item.code !== "S28__HIGH_RISK"),
+      }),
+    },
+    {
+      name: "S28 条件行来源错配",
+      body: medicationSafetySpecialPopulationEvidence({
+        scenarioConditionEvidence: [
+          ...medicationSafetyFrontdeskEvidence.scenarioConditionEvidence,
+          {
+            code: "S28__HIGH_RISK",
+            scenarioCode: "S28",
+            condition: "HIGH_RISK",
+            source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
+            evidence: ["不能把普通用药安全高风险冒领为特殊人群高风险"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "scope 冒领完整 S28",
+      body: medicationSafetySpecialPopulationEvidence({
+        scopeStatement: "用药安全代表切片：特殊人群用药禁忌高风险复核，完整 S28 已上线。",
+      }),
+    },
+    {
+      name: "特殊人群红线缺 patient.specialPopulations 条件",
+      body: medicationSafetySpecialPopulationEvidence({
+        specialPopulationRedline: {
+          ...(medicationSafetySpecialPopulationEvidence().specialPopulationRedline as Record<
+            string,
+            unknown
+          >),
+          conditionDsl:
+            '{"all":[{"fact":"allergyIntolerances[].code","operator":"contains","value":"J01C"}]}',
+        },
+      }),
+    },
+    {
+      name: "特殊人群上下文没有 canonical Patient 标记",
+      body: medicationSafetySpecialPopulationEvidence({
+        clinicalContext: {
+          ...(medicationSafetySpecialPopulationEvidence().clinicalContext as Record<
+            string,
+            unknown
+          >),
+          specialPopulations: [],
+          resources: {
+            ...((
+              medicationSafetySpecialPopulationEvidence().clinicalContext as Record<string, unknown>
+            ).resources as Record<string, unknown>),
+            patient: { mpi: "mpi-med-safety", specialPopulations: [] },
+          },
+        },
+      }),
+    },
+    {
+      name: "特殊人群推荐卡未命中 patient.specialPopulations",
+      body: medicationSafetySpecialPopulationEvidence({
+        specialPopulationRecommendation: {
+          ...(medicationSafetySpecialPopulationEvidence().specialPopulationRecommendation as Record<
+            string,
+            unknown
+          >),
+          explanation: {
+            ...((
+              medicationSafetySpecialPopulationEvidence().specialPopulationRecommendation as Record<
+                string,
+                unknown
+              >
+            ).explanation as Record<string, unknown>),
+            redlineExplanation: {
+              conditionEvidence: [
+                {
+                  fact: "allergyIntolerances[].code",
+                  operator: "contains",
+                  expected: "J01C",
+                  actual: ["J01C"],
+                  matched: true,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "特殊人群推荐卡允许自动开嘱",
+      body: medicationSafetySpecialPopulationEvidence({
+        specialPopulationRecommendation: {
+          ...(medicationSafetySpecialPopulationEvidence().specialPopulationRecommendation as Record<
+            string,
+            unknown
+          >),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "特殊人群推荐卡不要求医师确认",
+      body: medicationSafetySpecialPopulationEvidence({
+        specialPopulationRecommendation: {
+          ...(medicationSafetySpecialPopulationEvidence().specialPopulationRecommendation as Record<
+            string,
+            unknown
+          >),
+          requiresPhysicianConfirmation: false,
+        },
+      }),
+    },
+    {
+      name: "缺少特殊人群推荐卡独立反馈",
+      body: medicationSafetySpecialPopulationEvidence({
+        specialPopulationFeedback: undefined,
+      }),
+    },
+    {
+      name: "特殊人群反馈绑定到错误推荐卡",
+      body: medicationSafetySpecialPopulationEvidence({
+        specialPopulationFeedback: {
+          ...(medicationSafetySpecialPopulationEvidence().specialPopulationFeedback as Record<
+            string,
+            unknown
+          >),
+          pharmacist: {
+            ...((
+              medicationSafetySpecialPopulationEvidence().specialPopulationFeedback as Record<
+                string,
+                unknown
+              >
+            ).pharmacist as Record<string, unknown>),
+            cardId: "card-med-safety",
+            persisted: {
+              ...((
+                (
+                  medicationSafetySpecialPopulationEvidence().specialPopulationFeedback as Record<
+                    string,
+                    unknown
+                  >
+                ).pharmacist as Record<string, unknown>
+              ).persisted as Record<string, unknown>),
+              cardId: "card-med-safety",
+            },
+          },
+        },
+      }),
+    },
+  ])("does not declare S28 high-risk condition row when $name", ({ body }) => {
+    const evidence = medicationSafetyEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S28__HIGH_RISK");
   });
 
   it.each([

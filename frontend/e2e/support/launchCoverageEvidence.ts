@@ -452,9 +452,7 @@ const requiredDomainFacadeB0Codes = [
   "SVC-DOMAIN-02",
 ] as const;
 
-const domainFacadeB0Claims = [
-  "domainFacadeB0Coverage:CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG",
-];
+const domainFacadeB0Claims = ["domainFacadeB0Coverage:CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG"];
 
 const sourceLineageClaims = ["scenarios:S7", "semanticFamilies:SOURCE_VALIDITY"];
 
@@ -804,6 +802,12 @@ const medicationSafetyScenarioConditionRows = [
     condition: "HIGH_RISK",
     source: "MEDICATION_SAFETY_CRITICAL_REDLINE_PHYSICIAN_CONFIRMATION",
   },
+  {
+    code: "S28__HIGH_RISK",
+    scenarioCode: "S28",
+    condition: "HIGH_RISK",
+    source: "SPECIAL_POPULATION_MEDICATION_CONTRAINDICATION_PHYSICIAN_CONFIRMATION",
+  },
 ] as const;
 const qualityManagementScenarioConditionRows = [
   {
@@ -973,6 +977,7 @@ const reportInterpretationScenarioConditionRows = [
 ] as const;
 const requiredCdssDeclarativeRuntimeAssetScenarioCodes = ["S5"];
 const requiredMedicationSafetyFrontdeskScenarioCodes = ["S5"];
+const allowedMedicationSafetyFrontdeskScenarioCodes = ["S5", "S28"];
 const requiredDiagnosticCriticalValueFrontdeskScenarioCodes = ["S36"];
 const requiredRegionalDiagnosticMutualRecognitionScenarioCodes = ["S40"];
 const requiredNursingContinuityFrontdeskScenarioCodes = ["S20", "S35"];
@@ -1019,6 +1024,13 @@ const requiredMedicationSafetyFrontdeskScenarioEvidence: Record<string, string[]
     "当前机构生效版本包含 SAFETY、CDSS_RISK 与 RULE",
     "临床用户从患者 360 建立 Medication 与 AllergyIntolerance 上下文",
     "临床用户从真实前台开立用药触发推荐评估",
+    "药师登记红线复核且不关闭医生确认链路",
+    "医生逐条确认采纳，系统不自动开嘱",
+  ],
+  S28: [
+    "临床用户从患者 360 建立特殊人群用药上下文",
+    "当前机构生效版本包含特殊人群用药禁忌 SAFETY 红线",
+    "临床用户触发特殊人群用药高风险推荐评估",
     "药师登记红线复核且不关闭医生确认链路",
     "医生逐条确认采纳，系统不自动开嘱",
   ],
@@ -5091,7 +5103,11 @@ function collectMedicationSafetyScenarioConditionClaimsFromTest(test: BrowserE2e
           rows.has(expected.code) &&
           medicationSafetyScenarioConditionBackedByEvidence(expected.code, parsed),
       )
-      .map((row) => `scenarioConditionRows:${row.code}`);
+      .flatMap((row) =>
+        row.code === "S28__HIGH_RISK"
+          ? [`scenarios:${row.scenarioCode}`, `scenarioConditionRows:${row.code}`]
+          : [`scenarioConditionRows:${row.code}`],
+      );
   } catch {
     return [];
   }
@@ -5101,6 +5117,7 @@ function medicationSafetyScenarioConditionBackedByEvidence(
   code: (typeof medicationSafetyScenarioConditionRows)[number]["code"],
   parsed: Record<string, unknown>,
 ) {
+  const assets = parseMedicationSafetyRuntimeEvidence(parsed.runtime);
   switch (code) {
     case "S5__HIGH_RISK":
       return (
@@ -5119,6 +5136,36 @@ function medicationSafetyScenarioConditionBackedByEvidence(
           parsed.safetyRedline,
         ) &&
         hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback)
+      );
+    case "S28__HIGH_RISK":
+      return (
+        hasCompleteMedicationSafetyApiEvidence(parsed.apiEvidence) &&
+        hasCompleteMedicationSafetyRiskMatrix(parsed.riskMatrix) &&
+        hasCompleteMedicationSafetyClinicalContext(
+          parsed.clinicalContext,
+          String(recordValue(parsed.runtime)?.releaseId ?? ""),
+        ) &&
+        hasCompleteMedicationSafetySpecialPopulationBoundary(parsed.scopeStatement) &&
+        hasCompleteMedicationSafetySpecialPopulationClinicalContext(parsed.clinicalContext) &&
+        hasCompleteMedicationSafetySpecialPopulationRedline(
+          parsed.specialPopulationRedline,
+          parsed.riskMatrix,
+          assets ?? undefined,
+          parsed.activationRequest,
+        ) &&
+        hasCompleteMedicationSafetySpecialPopulationRecommendation(
+          parsed.specialPopulationRecommendation,
+          { releaseId: String(recordValue(parsed.runtime)?.releaseId ?? "") },
+          parsed.clinicalTrigger,
+          parsed.riskMatrix,
+          parsed.specialPopulationRedline,
+        ) &&
+        hasMedicationSafetyScenarioEvidence(parsed.scenarioEvidence, "S28") &&
+        hasCompleteMedicationSafetyFeedbackEvidence(
+          parsed.specialPopulationFeedback,
+          undefined,
+          textValue(recordValue(parsed.specialPopulationRecommendation)?.cardId),
+        )
       );
     default:
       return false;
@@ -6402,7 +6449,7 @@ function hasRequiredMedicationSafetyFrontdeskAttachment(test: BrowserE2eTestResu
     };
     const assets = parseMedicationSafetyRuntimeEvidence(parsed.runtime);
     if (
-      !arrayEquals(parsed.scenarioCodes, requiredMedicationSafetyFrontdeskScenarioCodes) ||
+      !medicationSafetyScenarioCodesAllowed(parsed.scenarioCodes) ||
       !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
       !arrayEquals(parsed.versionedAssets, ["SAFETY", "CDSS_RISK", "RULE"]) ||
       !arrayEquals(parsed.serviceCombinations, ["CLINICAL_RUNTIME"]) ||
@@ -6463,6 +6510,24 @@ function hasRequiredMedicationSafetyFrontdeskAttachment(test: BrowserE2eTestResu
   } catch {
     return false;
   }
+}
+
+function medicationSafetyScenarioCodesAllowed(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const codes = value.filter((item): item is string => typeof item === "string");
+  return (
+    arrayEquals(codes, requiredMedicationSafetyFrontdeskScenarioCodes) ||
+    arrayEquals(codes, allowedMedicationSafetyFrontdeskScenarioCodes)
+  );
+}
+
+function hasMedicationSafetyScenarioEvidence(value: unknown, code: string) {
+  if (!Array.isArray(value)) return false;
+  const item = recordValue(value.find((entry) => recordValue(entry)?.code === code));
+  const rawStages = Array.isArray(item?.observedStages) ? item.observedStages : [];
+  const observedStages = rawStages.filter((stage): stage is string => typeof stage === "string");
+  const requiredStages = requiredMedicationSafetyFrontdeskScenarioEvidence[code] ?? [];
+  return requiredStages.every((stage) => observedStages.includes(stage));
 }
 
 function hasRequiredDiagnosticCriticalValueFrontdeskAttachment(test: BrowserE2eTestResult) {
@@ -7605,9 +7670,7 @@ function hasRequiredDomainFacadeB0EvidenceAttachment(test: BrowserE2eTestResult)
     const readback = recordValue(apiEvidence?.b0EvidenceReadFromFrontdesk);
     return (
       arrayEquals(parsed.domainFacadeCodes, requiredDomainFacadeB0Codes) &&
-      arrayEquals(parsed.domainFacadeB0Coverage, [
-        "CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG",
-      ]) &&
+      arrayEquals(parsed.domainFacadeB0Coverage, ["CLINICAL_SPECIALTY_DOMAIN_B0_FACADE_CATALOG"]) &&
       readback?.operation === "GET /engine/domain-facades/b0-evidence" &&
       is2xxStatus(readback.status) &&
       hasDomainFacadeB0ScopeBoundary(parsed.scopeStatement) &&
@@ -7627,7 +7690,11 @@ function hasCompleteDomainFacadeB0Rows(value: unknown) {
     if (!row || !code || rows.has(code)) return false;
     rows.set(code, row);
   }
-  if (![...rows.keys()].every((code) => (requiredDomainFacadeB0Codes as readonly string[]).includes(code))) {
+  if (
+    ![...rows.keys()].every((code) =>
+      (requiredDomainFacadeB0Codes as readonly string[]).includes(code),
+    )
+  ) {
     return false;
   }
   return requiredDomainFacadeB0Codes.every((code) => {
@@ -7635,8 +7702,7 @@ function hasCompleteDomainFacadeB0Rows(value: unknown) {
     if (!row || !hasCompleteDomainFacadeB0Row(code, row)) return false;
     if (code === "SPECIALTY-EXT-01") {
       return (
-        row.honestEmptyWhenAssetsMissing === true &&
-        row.assetSeedPolicy === "NO_SEED_HONEST_EMPTY"
+        row.honestEmptyWhenAssetsMissing === true && row.assetSeedPolicy === "NO_SEED_HONEST_EMPTY"
       );
     }
     if (code === "SVC-DOMAIN-01") {
@@ -8699,6 +8765,10 @@ function parseMedicationSafetyRuntimeEvidence(value: unknown) {
     return null;
   }
   const safetyAsset = parseMedicationSafetyRuntimeAsset(runtime.safetyAsset, "SAFETY");
+  const specialPopulationSafetyAsset = parseMedicationSafetyRuntimeAsset(
+    runtime.specialPopulationSafetyAsset,
+    "SAFETY",
+  );
   const cdssRiskAsset = parseMedicationSafetyRuntimeAsset(runtime.cdssRiskAsset, "CDSS_RISK");
   const ruleAsset = parseMedicationSafetyRuntimeAsset(runtime.ruleAsset, "RULE");
   if (!safetyAsset || !cdssRiskAsset || !ruleAsset) return null;
@@ -8707,6 +8777,7 @@ function parseMedicationSafetyRuntimeEvidence(value: unknown) {
     revisionNo: runtime.revisionNo,
     manifestSha256: String(runtime.manifestSha256),
     safetyAsset,
+    specialPopulationSafetyAsset,
     cdssRiskAsset,
     ruleAsset,
   };
@@ -8903,6 +8974,143 @@ function hasCompleteMedicationSafetyClinicalContext(value: unknown, runtimeRelea
   );
 }
 
+function hasCompleteMedicationSafetySpecialPopulationBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("特殊人群") &&
+    statement.includes("代表切片") &&
+    hasNegatedScopeTerm(statement, "完整妇产儿科老年特殊人群") &&
+    hasNegatedScopeTerm(statement, "完整 S28") &&
+    !hasScopeCompletionClaimWithoutNegation(statement, "完整 S28") &&
+    !hasScopeCompletionClaimWithoutNegation(statement, "完整妇产儿科老年特殊人群")
+  );
+}
+
+function hasCompleteMedicationSafetySpecialPopulationClinicalContext(value: unknown) {
+  const context = recordValue(value);
+  const resources = recordValue(context?.resources);
+  const patient = recordValue(resources?.patient);
+  const contextPopulations = Array.isArray(context?.specialPopulations)
+    ? context.specialPopulations
+    : [];
+  const patientPopulations = Array.isArray(patient?.specialPopulations)
+    ? patient.specialPopulations
+    : [];
+  return (
+    hasText(context?.patientId) &&
+    hasText(patient?.mpi) &&
+    medicationSafetyPopulationCodesComplete(contextPopulations) &&
+    medicationSafetyPopulationCodesComplete(patientPopulations)
+  );
+}
+
+function hasCompleteMedicationSafetySpecialPopulationRedline(
+  value: unknown,
+  riskMatrixValue: unknown,
+  assets?: {
+    specialPopulationSafetyAsset: MedicationSafetyRuntimeAsset | null;
+  },
+  activationRequestValue?: unknown,
+) {
+  const redline = recordValue(value);
+  const risk = recordValue(riskMatrixValue);
+  const runtimeAsset = assets?.specialPopulationSafetyAsset;
+  return (
+    redline?.assetType === "SAFETY" &&
+    hasText(redline.assetIdentity) &&
+    String(redline.assetIdentity).startsWith("SAFETY.RDL-MED-SPECIAL-POPULATION-") &&
+    hasText(redline.redlineId) &&
+    hasText(redline.redlineKey) &&
+    String(redline.redlineKey).startsWith("RDL-MED-SPECIAL-POPULATION-") &&
+    redline.category === "SPECIAL_POPULATION_CONTRAINDICATION" &&
+    redline.hazardSeverity === "CRITICAL" &&
+    redline.reviewRequirement === "PHYSICIAN_CONFIRMATION" &&
+    redline.lowerTenantOverrideAllowed === false &&
+    redline.riskMatrixId === risk?.matrixId &&
+    redline.riskMatrixVersion === risk?.matrixVersion &&
+    redline.doseReviewRequired === true &&
+    redline.contraindicationReviewRequired === true &&
+    medicationSafetyPopulationCodesComplete(redline.populationCodes) &&
+    hasText(redline.conditionDsl) &&
+    String(redline.conditionDsl).includes("patient.specialPopulations") &&
+    String(redline.conditionDsl).includes("medications[].code") &&
+    hasText(redline.trialId) &&
+    (runtimeAsset === undefined ||
+      (runtimeAsset !== null &&
+        medicationSafetyAssetMatchesRuntime(redline, runtimeAsset) &&
+        runtimeReleasePayloadContainsCandidate(activationRequestValue, "activeAssets", {
+          assetType: runtimeAsset.assetType,
+          assetIdentity: runtimeAsset.assetIdentity,
+          versionId: runtimeAsset.versionId,
+        })))
+  );
+}
+
+function hasCompleteMedicationSafetySpecialPopulationRecommendation(
+  value: unknown,
+  runtime: {
+    releaseId: string;
+  },
+  triggerValue: unknown,
+  riskMatrixValue: unknown,
+  redlineValue: unknown,
+) {
+  const recommendation = recordValue(value);
+  const trigger = recordValue(triggerValue);
+  const risk = recordValue(riskMatrixValue);
+  const redline = recordValue(redlineValue);
+  if (
+    !recommendation ||
+    !trigger ||
+    !hasText(recommendation.cardId) ||
+    recommendation.triggerRuntimeReleaseId !== runtime.releaseId ||
+    recommendation.cardStatus !== "PENDING" ||
+    recommendation.requiresPhysicianConfirmation !== true ||
+    recommendation.noAutoOrder !== true
+  ) {
+    return false;
+  }
+  const relatedCardIds = Array.isArray(trigger.relatedCardIds)
+    ? trigger.relatedCardIds.filter((cardId): cardId is string => hasText(cardId))
+    : [];
+  if (!relatedCardIds.includes(String(recommendation.cardId))) {
+    return false;
+  }
+  const explanation = recordValue(recommendation.explanation);
+  const redlineExplanation = recordValue(explanation?.redlineExplanation);
+  const specialPopulation = recordValue(explanation?.specialPopulation);
+  const conditionEvidence = Array.isArray(redlineExplanation?.conditionEvidence)
+    ? redlineExplanation.conditionEvidence
+    : [];
+  const riskMatrixExplanation = recommendation.riskMatrixExplanation;
+  return (
+    explanation?.matchType === "CLINICAL_REDLINE" &&
+    explanation.redlineId === redline?.redlineId &&
+    explanation.redlineKey === redline?.redlineKey &&
+    explanation.riskMatrixId === risk?.matrixId &&
+    explanation.riskMatrixVersion === risk?.matrixVersion &&
+    hasText(riskMatrixExplanation) &&
+    String(riskMatrixExplanation).includes("医师") &&
+    String(riskMatrixExplanation).includes("确认") &&
+    String(riskMatrixExplanation).includes("不自动开嘱") &&
+    specialPopulation?.doseReviewRequired === true &&
+    specialPopulation.contraindicationReviewRequired === true &&
+    medicationSafetyPopulationCodesComplete(specialPopulation.populationCodes) &&
+    medicationSafetyRuleConditionMatched(conditionEvidence, "patient.specialPopulations") &&
+    medicationSafetyRuleConditionMatched(conditionEvidence, "medications[].code")
+  );
+}
+
+function medicationSafetyPopulationCodesComplete(value: unknown) {
+  return (
+    Array.isArray(value) &&
+    value.includes("PREGNANCY") &&
+    value.includes("GERIATRIC") &&
+    value.every((item) => typeof item === "string" && item.trim().length > 0)
+  );
+}
+
 function hasCompleteMedicationSafetyTriggerEvidence(value: unknown, runtimeReleaseId: string) {
   const trigger = recordValue(value);
   if (!trigger) return false;
@@ -9030,6 +9238,7 @@ function medicationSafetyRuleConditionMatched(values: unknown[], fact: string) {
 function hasCompleteMedicationSafetyFeedbackEvidence(
   value: unknown,
   actionCardAsset?: PharmacyReviewRuntimeAsset,
+  expectedCardId?: string | null,
 ) {
   const feedback = recordValue(value);
   const pharmacist = recordValue(feedback?.pharmacist);
@@ -9040,6 +9249,10 @@ function hasCompleteMedicationSafetyFeedbackEvidence(
   return (
     pharmacist !== null &&
     hasText(pharmacist.feedbackId) &&
+    (expectedCardId === undefined ||
+      (hasText(expectedCardId) &&
+        pharmacist.cardId === expectedCardId &&
+        pharmacistPersisted?.cardId === expectedCardId)) &&
     pharmacist.cardStatus === "PENDING" &&
     pharmacist.canonicalSessionRole === "clinical-user" &&
     pharmacist.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
@@ -9050,6 +9263,10 @@ function hasCompleteMedicationSafetyFeedbackEvidence(
     pharmacistPersisted.reasonCode === "PHARMACIST_REVIEWED" &&
     physician !== null &&
     hasText(physician.feedbackId) &&
+    (expectedCardId === undefined ||
+      (hasText(expectedCardId) &&
+        physician.cardId === expectedCardId &&
+        physicianPersisted?.cardId === expectedCardId)) &&
     physician.cardStatus === "ACCEPTED" &&
     physician.canonicalSessionRole === "clinical-user" &&
     physician.roleEvidence === "BUSINESS_FEEDBACK_ROLE_ONLY" &&
