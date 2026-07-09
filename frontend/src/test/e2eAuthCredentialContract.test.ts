@@ -555,6 +555,8 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain(
       "requiresPublicHealthInfectionRegulatoryConsumerSliceAttachment",
     );
+    expect(coverageParser).toContain("PUBLIC_HEALTH_SAFETY_EVENT_HIGH_RISK_RECTIFICATION_REVIEW");
+    expect(coverageParser).toContain("hasHighRiskInfectionPublicHealthRectification");
     expect(coverageParser).toContain("hasCompleteNursingAnesthesiaTransfusionIcuConsumerSlice");
     expect(coverageParser).toContain("nursingAnesthesiaTransfusionIcuConsumerSlice");
     expect(coverageParser).toContain("requiresSurgeryAnesthesiaTransfusionConsumerSliceAttachment");
@@ -588,6 +590,23 @@ describe("E2E credential contract", () => {
     expect(infectionSource).toContain("infection-public-health-safety-frontdesk-codes");
     expect(infectionSource).toContain('"PUBLIC_HEALTH_INFECTION_REGULATORY"');
     expect(infectionSource).toContain("publicHealthInfectionRegulatoryConsumerSlice");
+    expect(infectionSource).toContain("PUBLIC_HEALTH_SAFETY_EVENT_HIGH_RISK_RECTIFICATION_REVIEW");
+    expect(infectionSource).toContain("readRectificationAuditEvidence");
+    expect(infectionSource).toContain("waitForAuditEvent");
+    expect(infectionSource).toContain("auditEvidence");
+    expect(infectionSource).toContain("permissionEvidence");
+    expect(infectionSource).toContain("sixStateEvidence");
+    expect(infectionSource).not.toContain("auditVerified: true");
+    expect(infectionSource).not.toContain("permissionVerified: true");
+    expect(infectionSource).not.toContain("sixStateBoundaryVerified: true");
+    expect(coverageParser).toContain("hasCompleteInfectionPublicHealthRectificationAuditEvidence");
+    expect(coverageParser).toContain(
+      "hasCompleteInfectionPublicHealthRectificationPermissionEvidence",
+    );
+    expect(coverageParser).toContain(
+      "hasCompleteInfectionPublicHealthRectificationSixStateEvidence",
+    );
+    expect(coverageParser).not.toContain("rectification?.auditVerified === true");
     expect(infectionSource).toContain('expect(["NOT_CONNECTED", "RETRYING"].includes(status)');
     expect(infectionSource).toContain('textField(compensation, "status") === "NOT_CONNECTED"');
     expect(infectionSource).not.toContain("完整公卫法定上报已上线");

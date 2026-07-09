@@ -428,6 +428,54 @@
   完整 S0-S40、34 / 35 个入口全部业务动作闭环、134 清库、目标环境部署或完整上线验收。两个只读 explorer 已关闭，
   均未编辑、未暂存、未提交、未启动服务、未外调。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
   仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百四十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增第三方系统族消费者切片、不新增完整 S32；只在既有院感公卫与医疗安全事件真实前台链路中，把
+  `S32__HIGH_RISK` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `infection-public-health-safety-frontdesk.spec.ts` 的 `infection-public-health-safety-frontdesk-codes` 附件：
+  入站安全事件风险等级为 `HIGH`、根因为 `ISOLATION_PROTOCOL_GAP`，签名入站已处理到临床事件，临床人工上报复核不替代法定上报，
+  本轮安全事件整改由固定职责账号提交并复核关闭，且审计 / 权限 / 六态边界成立。明确不声明完整医疗安全事件系统、
+  完整公卫法定上报、完整院感系统、完整公卫院感监管系统族、完整 S32、完整 S0-S40、完整第三方系统族、134 清库、
+  目标环境部署或完整上线验收。
+- 第二百四十八批实现细节：`frontend/e2e/infection-public-health-safety-frontdesk.spec.ts` 的
+  `qualityRectification` 附件新增结构化 `auditEvidence/permissionEvidence/sixStateEvidence`，由审计员视角通过
+  `/large-lists/audit-events/list` 回读本轮 `quality_finding` 与 `rectification_task` 审计事件，并记录固定职责提交 /
+  复核角色和 `ASSIGNED -> SUBMITTED -> CLOSED/APPROVED` 六态链；不再把
+  `auditVerified/permissionVerified/sixStateBoundaryVerified=true` 作为 S32 高危条件行证据。附件同时在
+  `scenarioConditionEvidence` 显式写入 `S32__HIGH_RISK`、
+  `source=PUBLIC_HEALTH_SAFETY_EVENT_HIGH_RISK_RECTIFICATION_REVIEW`。`frontend/e2e/support/launchCoverageEvidence.ts`
+  将 `S32__HIGH_RISK` 纳入 `infectionPublicHealthSafetyScenarioConditionRows`，新增
+  `hasHighRiskInfectionPublicHealthRectification()`，要求高危上下文、高危入站、人工复核不替代法定上报、整改关闭以及审计 /
+  权限 / 六态结构对象同时成立才声明该行；既有 `S32__ABNORMAL` 仍只代表安全事件整改异常闭环，不因缺高危三边界被抹掉。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `S21__HIGH_RISK/S21__DEGRADATION/S32__ABNORMAL/S32__HIGH_RISK`；缺显式条件、未知行、来源错、空证据、非 U07.100、
+  缺可报告病种、推荐不要求医生确认、允许自动法定上报、出站未诚实断连、断连阻断主链路、风险非 HIGH、根因不符、整改未批准、
+  整改未绑定推荐卡均不得声明本组行；缺审计资源回读、审计资源 ID 错配、仅有静态布尔、固定职责权限不成立或六态链不成立时，
+  只拒绝 `S32__HIGH_RISK`，不抹掉已证明的 `S21__HIGH_RISK/S21__DEGRADATION/S32__ABNORMAL`。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定 E2E 附件和 parser 源码锚点。
+- 第二百四十八批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 2 个正例（旧 parser 不认识
+  `S32__HIGH_RISK` 后拒绝整组条件行），再补结构化对象红灯，红在旧 parser 仍信静态布尔；实现后当前已通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（969 tests）和
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1036 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听）；第一次
+  `/tmp/medkernel-e2e-s32-high-risk-20260710-r2` 失败在详情接口真实字段为 `rectificationTask.status` 而非
+  `rectificationTask.taskStatus`，已按真实接口修正并让提交状态来自 submit 响应。复跑
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s32-high-risk-20260710-r3 npm --prefix frontend run e2e -- --project=chromium infection-public-health-safety-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s32-high-risk-20260710-r3/report/results.json` 读回 `status=PASSED`、`expected=1`、
+  `unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 包含
+  `[S21__HIGH_RISK,S21__DEGRADATION,S32__ABNORMAL,S32__HIGH_RISK]`，`thirdPartySystemFamilyConsumerSlices`
+  仍仅为 `[PUBLIC_HEALTH_INFECTION_REGULATORY]`。附件抽查：`qualityRectification.auditEvidence` 回读
+  `quality_finding` 与 `rectification_task` 资源并匹配本轮 `findingId/taskId`，`permissionEvidence.submittedByRole`
+  与 `reviewedByRole` 均为 `engine-operator`，`sixStateEvidence` 为
+  `ASSIGNED/ASSIGNED/SUBMITTED/CLOSED/CLOSED/APPROVED`，且 `qualityRectification` 不再携带
+  `auditVerified/permissionVerified/sixStateBoundaryVerified` 三个静态布尔。只读审计代理建议后续 LAUNCH-06 可继续评估
+  `S31__HIGH_RISK` 或 `S19__DEGRADATION`，LAUNCH-12 剩余
+  `CA_OIDC_SSO_HR/SPD_UDI_DEVICE/RESEARCH_ETHICS_DATA/MODEL_DIFY_AGENT` 仍需真实消费者证据；不能把登记、缺数或
+  `NOT_CONNECTED` 冒领为完整消费者。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、
+  不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

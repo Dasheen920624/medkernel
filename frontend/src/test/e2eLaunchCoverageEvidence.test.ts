@@ -4339,6 +4339,28 @@ const infectionPublicHealthSafetyEvidence = {
     roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
     submittedEvidenceRef: "public-health-safety-evidence",
     reviewDecision: "APPROVED",
+    auditEvidence: {
+      findingAuditReadbackVerified: true,
+      findingAuditResourceType: "quality_finding",
+      findingAuditResourceId: "finding-public-health-safety",
+      taskAuditReadbackVerified: true,
+      taskAuditResourceType: "rectification_task",
+      taskAuditResourceId: "task-public-health-safety",
+    },
+    permissionEvidence: {
+      submittedByRole: "engine-operator",
+      reviewedByRole: "engine-operator",
+      canonicalFixedRoleVerified: true,
+      clinicalUserPrivilegeEscalation: false,
+    },
+    sixStateEvidence: {
+      findingAssignedStatus: "ASSIGNED",
+      taskAssignedStatus: "ASSIGNED",
+      taskSubmittedStatus: "SUBMITTED",
+      taskClosedStatus: "CLOSED",
+      findingClosedStatus: "CLOSED",
+      reviewDecision: "APPROVED",
+    },
   },
   scenarioConditionEvidence: [
     {
@@ -4370,6 +4392,17 @@ const infectionPublicHealthSafetyEvidence = {
       evidence: [
         "入站安全事件为 HIGH 风险职业暴露且要求整改复核",
         "固定职责账号提交并复核关闭本轮安全事件整改任务",
+      ],
+    },
+    {
+      code: "S32__HIGH_RISK",
+      scenarioCode: "S32",
+      condition: "HIGH_RISK",
+      source: "PUBLIC_HEALTH_SAFETY_EVENT_HIGH_RISK_RECTIFICATION_REVIEW",
+      evidence: [
+        "安全事件风险等级为 HIGH 且根因为隔离流程缺口",
+        "本轮安全事件整改由固定职责账号提交并复核关闭",
+        "审计、权限、六态边界成立且未替代法定上报",
       ],
     },
   ],
@@ -14124,6 +14157,7 @@ describe("browser E2E launch coverage evidence", () => {
       "S21__HIGH_RISK",
       "S21__DEGRADATION",
       "S32__ABNORMAL",
+      "S32__HIGH_RISK",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
@@ -14177,6 +14211,21 @@ describe("browser E2E launch coverage evidence", () => {
             condition: "DEGRADATION",
             source: "PUBLIC_HEALTH_OUTBOUND_NOT_CONNECTED",
             evidence: [],
+          },
+        ],
+      },
+    },
+    {
+      name: "S32 高危条件行来源错配",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        scenarioConditionEvidence: [
+          {
+            code: "S32__HIGH_RISK",
+            scenarioCode: "S32",
+            condition: "HIGH_RISK",
+            source: "PUBLIC_HEALTH_SAFETY_EVENT_RECTIFICATION_REVIEW",
+            evidence: ["高危条件行必须使用显式高风险整改复核来源"],
           },
         ],
       },
@@ -14286,6 +14335,16 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
+      name: "高危安全事件允许自动法定上报",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        manualReview: {
+          ...infectionPublicHealthSafetyEvidence.manualReview,
+          noLegalAutoSubmit: false,
+        },
+      },
+    },
+    {
       name: "安全事件根因不是隔离流程缺口",
       body: {
         ...infectionPublicHealthSafetyEvidence,
@@ -14331,6 +14390,98 @@ describe("browser E2E launch coverage evidence", () => {
     const evidence = infectionPublicHealthSafetyEvidenceResult(body);
 
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "高危整改缺少审计边界",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          auditEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.auditEvidence,
+            findingAuditReadbackVerified: false,
+          },
+        },
+      },
+    },
+    {
+      name: "高危整改审计资源未绑定质量问题",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          auditEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.auditEvidence,
+            findingAuditResourceId: "other-finding",
+          },
+        },
+      },
+    },
+    {
+      name: "高危整改只有静态布尔没有真实审计回读对象",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          auditEvidence: undefined,
+          auditVerified: true,
+          permissionVerified: true,
+          sixStateBoundaryVerified: true,
+        },
+      },
+    },
+    {
+      name: "高危整改缺少权限边界",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          permissionEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.permissionEvidence,
+            canonicalFixedRoleVerified: false,
+          },
+        },
+      },
+    },
+    {
+      name: "高危整改提交角色不是固定运营职责",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          permissionEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.permissionEvidence,
+            submittedByRole: "clinical-user",
+          },
+        },
+      },
+    },
+    {
+      name: "高危整改缺少六态边界",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          sixStateEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.sixStateEvidence,
+            taskClosedStatus: "SUBMITTED",
+          },
+        },
+      },
+    },
+  ])("does not declare S32 high-risk condition row when $name", ({ body }) => {
+    const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? []).toEqual([
+      "S21__HIGH_RISK",
+      "S21__DEGRADATION",
+      "S32__ABNORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S32__HIGH_RISK");
   });
 
   it("declares S21/S32 coverage when legal auto-submit evidence is carried by action card and manual review", () => {
@@ -14381,6 +14532,7 @@ describe("browser E2E launch coverage evidence", () => {
       "S21__HIGH_RISK",
       "S21__DEGRADATION",
       "S32__ABNORMAL",
+      "S32__HIGH_RISK",
     ]);
   });
 

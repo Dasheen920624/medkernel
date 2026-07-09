@@ -995,6 +995,12 @@ const infectionPublicHealthSafetyScenarioConditionRows = [
     condition: "ABNORMAL",
     source: "PUBLIC_HEALTH_SAFETY_EVENT_RECTIFICATION_REVIEW",
   },
+  {
+    code: "S32__HIGH_RISK",
+    scenarioCode: "S32",
+    condition: "HIGH_RISK",
+    source: "PUBLIC_HEALTH_SAFETY_EVENT_HIGH_RISK_RECTIFICATION_REVIEW",
+  },
 ] as const;
 const criticalEmergencyIcuScenarioConditionRows = [
   {
@@ -6583,6 +6589,28 @@ function infectionPublicHealthSafetyScenarioConditionBackedByEvidence(
           runtime.releaseId,
         ) &&
         hasCompleteInfectionPublicHealthRectification(
+          parsed.qualityRectification,
+          parsed.recommendation,
+        )
+      );
+    case "S32__HIGH_RISK":
+      return (
+        hasHighRiskInfectionPublicHealthClinicalContext(
+          parsed.clinicalContext,
+          runtime.releaseId,
+        ) &&
+        hasHighRiskInfectionPublicHealthInbound(
+          parsed.inboundReport,
+          parsed.adapter,
+          parsed.webhookSignature,
+          parsed.outboundPrefill,
+          runtime.releaseId,
+        ) &&
+        hasCompleteInfectionPublicHealthManualReview(
+          parsed.manualReview,
+          runtime.actionCardAsset,
+        ) &&
+        hasHighRiskInfectionPublicHealthRectification(
           parsed.qualityRectification,
           parsed.recommendation,
         )
@@ -13097,6 +13125,65 @@ function hasCompleteInfectionPublicHealthRectification(
     rectification.roleEvidence === "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW" &&
     hasText(rectification.submittedEvidenceRef) &&
     rectification.reviewDecision === "APPROVED"
+  );
+}
+
+function hasHighRiskInfectionPublicHealthRectification(
+  value: unknown,
+  recommendationValue: unknown,
+) {
+  const rectification = recordValue(value);
+  return (
+    hasCompleteInfectionPublicHealthRectification(value, recommendationValue) &&
+    hasCompleteInfectionPublicHealthRectificationAuditEvidence(
+      rectification?.auditEvidence,
+      rectification,
+    ) &&
+    hasCompleteInfectionPublicHealthRectificationPermissionEvidence(
+      rectification?.permissionEvidence,
+    ) &&
+    hasCompleteInfectionPublicHealthRectificationSixStateEvidence(rectification?.sixStateEvidence)
+  );
+}
+
+function hasCompleteInfectionPublicHealthRectificationAuditEvidence(
+  value: unknown,
+  rectification: Record<string, unknown> | null,
+) {
+  const audit = recordValue(value);
+  return (
+    audit !== null &&
+    rectification !== null &&
+    audit.findingAuditReadbackVerified === true &&
+    audit.findingAuditResourceType === "quality_finding" &&
+    audit.findingAuditResourceId === rectification.findingId &&
+    audit.taskAuditReadbackVerified === true &&
+    audit.taskAuditResourceType === "rectification_task" &&
+    audit.taskAuditResourceId === rectification.taskId
+  );
+}
+
+function hasCompleteInfectionPublicHealthRectificationPermissionEvidence(value: unknown) {
+  const permission = recordValue(value);
+  return (
+    permission !== null &&
+    permission.submittedByRole === "engine-operator" &&
+    permission.reviewedByRole === "engine-operator" &&
+    permission.canonicalFixedRoleVerified === true &&
+    permission.clinicalUserPrivilegeEscalation === false
+  );
+}
+
+function hasCompleteInfectionPublicHealthRectificationSixStateEvidence(value: unknown) {
+  const sixState = recordValue(value);
+  return (
+    sixState !== null &&
+    sixState.findingAssignedStatus === "ASSIGNED" &&
+    sixState.taskAssignedStatus === "ASSIGNED" &&
+    sixState.taskSubmittedStatus === "SUBMITTED" &&
+    sixState.taskClosedStatus === "CLOSED" &&
+    sixState.findingClosedStatus === "CLOSED" &&
+    sixState.reviewDecision === "APPROVED"
   );
 }
 
