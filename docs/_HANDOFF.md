@@ -389,6 +389,39 @@
   不是 134 清库重部署。下一批可继续沿 `LAUNCH-06` 选择 `S6__NORMAL`（仅限专病路径正常主链路消费当前机构生效
   ORDER_SET，不得解释为无变异 / 无异常路径或自动开嘱）或回到全局总账中更高收益缺口；当前无关
   `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百一十二批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态矩阵，
+  本批只收口专病路径 S6 代表切片已有真实前台强链路，新增 1 条显式背书行：`S6__NORMAL`
+  （运营员真实前台创建 PATHWAY 与 ORDER_SET，激活到当前机构生效版本；临床用户读取入径候选、办理入径并标准推进；
+  推进到医嘱套餐节点时消费当前机构生效 ORDER_SET，且决策证据要求医师确认）。不声明
+  `S6__ABNORMAL/MISSING_DATA/HIGH_RISK/DEGRADATION`，不把十阶段配置矩阵冒领为正常态，不把“正常主链路”解释为无变异、
+  无异常路径或自动开嘱，也不冒领完整专病路径体系、完整 S0-S40 或完整上线。
+- 第二百一十二批实现细节：`frontend/e2e/pathway-lifecycle-frontdesk.spec.ts` 的
+  `pathway-lifecycle-scenario-codes` 附件新增 `scenarioConditionEvidence`，只声明
+  `S6__NORMAL` 来源 `SPECIAL_DISEASE_PATHWAY_ORDER_SET_RUNTIME_CONSUMPTION`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增 S6 条件行白名单和 collector，必须先通过完整
+  `hasRequiredPathwayLifecycleAttachment()`，再严格校验 `code/scenarioCode/condition/source/evidence`，
+  并复用完整 `apiEvidence` 与 `orderSetRuntimeConsumer` 背书：`orderSetRuntimeConsumed=true`、runtime release 包含本轮
+  ORDER_SET、患者路径 runtime 与当前生效 release 一致、推进节点为 `ORDER_SET`、版本 / hash 一致、`requiresPhysicianConfirmation=true`、
+  医嘱套餐项目数大于 0 且明细数量一致。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：
+  缺显式条件附件、未知行、来源错配、空证据、未消费 ORDER_SET、患者路径 runtime 不一致、推进节点不是 ORDER_SET、
+  不要求医师确认、医嘱套餐项目为空，均不声明 `S6__NORMAL`。
+- 第二百一十二批真实 E2E：临时启动后端 18102（dev/H2，既有 jar）和前端 5175（本批启动，已停止；复核
+  18102/5175 无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s6-condition-row-20260709-r1 E2E_EXPECT_MFA_DISABLED=1 npm --prefix frontend run e2e -- --project=chromium pathway-lifecycle-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s6-condition-row-20260709-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S6__NORMAL]`，`launchCoverage.scenarios` 为 `[S6]`，`versionedAssets` 为 `[ORDER_SET]`，
+  `serviceCombinations` 为 `[SPECIAL_DISEASE_PATHWAY]`，`specialDiseaseStages` 为十阶段全量。
+- 第二百一十二批验证证据：已先让 `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`
+  红在新增正例缺 `S6__NORMAL`，随后实现并复跑通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（516 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  提交前仍需在更新本文件后复跑 `git diff --check`。
+- 第二百一十二批边界与下一步：本批只是把专病路径 S6 已有强链路接入 1 条五态总账行，仍不是完整上线完成、
+  不是完整 205 行五态矩阵完成、不是 34 入口全部业务深度完成、不是全医学知识生产完成、不是自动医嘱闭环完成、
+  不是 134 清库重部署。下一批应回到全局总账中挑选剩余强链路缺口，或转 `LAUNCH-13` 真实九层组织证据模型；
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百零一批本地推进：接用户要求“需要加快进度，能并行的并行处理，能子代理的子代处理”，本批使用 2 个只读子代理并行审计
   `system-providers` 与平台管理员 P1 系统运维入口证据，两个子代理均已关闭，未编辑、未暂存、未提交、未启动服务。
   主线程按 TDD 继续减少 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态总账缺口：系统运维真实前台附件现在显式产出

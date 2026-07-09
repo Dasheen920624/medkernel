@@ -6175,6 +6175,18 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
         },
       },
     },
+    scenarioConditionEvidence: [
+      {
+        code: "S6__NORMAL",
+        scenarioCode: "S6",
+        condition: "NORMAL",
+        source: "SPECIAL_DISEASE_PATHWAY_ORDER_SET_RUNTIME_CONSUMPTION",
+        evidence: [
+          "专病路径正常主链路消费当前机构生效 ORDER_SET",
+          "推进到医嘱套餐节点仅生成需医师确认的建议，不自动开嘱",
+        ],
+      },
+    ],
     context: {
       templateCode: "PATHWAY.S6.COPD",
       patientPathwayId: "pp-s6-copd",
@@ -6238,6 +6250,33 @@ function pathwayLifecycleEvidence(overrides: Record<string, unknown> = {}) {
 }
 
 const requiredSpecialDiseaseStages = pathwayLifecycleEvidence().specialDiseaseStages as string[];
+
+function pathwayLifecycleEvidenceResult(body: Record<string, unknown>) {
+  return buildBrowserE2eLaunchEvidence({
+    stats: passedStats,
+    tests: [
+      {
+        file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
+        title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+        status: "passed",
+        attachments: [
+          {
+            name: "pathway-lifecycle-scenario-codes",
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function expectNoPathwayLifecycleScenarioConditionCoverage(body: Record<string, unknown>) {
+  const evidence = pathwayLifecycleEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S6__NORMAL");
+}
 
 function versionedAssetSupplyChainMatrixTests(
   options: {
@@ -12374,120 +12413,7 @@ describe("browser E2E launch coverage evidence", () => {
   });
 
   it("declares S6 pathway lifecycle evidence slice without packaging milestone config as ten-stage runtime coverage", () => {
-    const evidence = buildBrowserE2eLaunchEvidence({
-      stats: passedStats,
-      tests: [
-        {
-          file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
-          title:
-            "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
-          status: "passed",
-          attachments: [
-            {
-              name: "pathway-lifecycle-scenario-codes",
-              contentType: "application/json",
-              body: JSON.stringify({
-                scenarioCodes: ["S6"],
-                productLayers: ["CLINICAL_EXECUTION"],
-                versionedAssets: ["PATHWAY", "ORDER_SET"],
-                serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
-                specialDiseaseStages: [
-                  "SCREENING_TRIAGE",
-                  "DIAGNOSIS_DIFFERENTIAL",
-                  "RISK_STRATIFICATION",
-                  "TREATMENT_DECISION",
-                  "EXECUTION_CANDIDATE",
-                  "MONITORING_WARNING",
-                  "DISCHARGE_REFERRAL",
-                  "REHAB_EDUCATION_FOLLOWUP",
-                  "OUTCOME_EVALUATION",
-                  "QUALITY_ITERATION",
-                ],
-                apiEvidence: {
-                  templateSaved: true,
-                  templateReadback: true,
-                  draftPreviewRun: true,
-                  templateSimulated: true,
-                  entryCandidatesRead: true,
-                  patientEntered: true,
-                  standardAdvanced: true,
-                  orderSetRuntimeConsumed: true,
-                  varianceRecorded: true,
-                  followupHandoffCreated: true,
-                  clocksRead: true,
-                  variancesRead: true,
-                  followupHandoffObserved: true,
-                },
-                orderSetRuntimeConsumer: {
-                  asset: {
-                    assetType: "ORDER_SET",
-                    assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
-                    versionId: "av-order-set-s6",
-                    versionNo: "V1",
-                    contentHash: "a".repeat(64),
-                  },
-                  runtimeRelease: {
-                    releaseId: "runtime-s6",
-                    assetPresent: true,
-                    assets: [
-                      {
-                        assetType: "ORDER_SET",
-                        assetIdentity: "ORDER_SET.S6.COPD.RECHECK",
-                        versionId: "av-order-set-s6",
-                      },
-                    ],
-                  },
-                  patientPathway: {
-                    runtimeReleaseId: "runtime-s6",
-                  },
-                  advanceResponse: {
-                    previousNodeCode: "ASSESS",
-                    nextNodeCode: "FOLLOWUP",
-                    status: "NODE_EXECUTING",
-                    decisionEvidence: {
-                      "pathway.currentNodeType": "ORDER_SET",
-                      "pathway.orderSetRef": "ORDER_SET.S6.COPD.RECHECK",
-                      "pathway.orderSetVersion": "V1",
-                      "pathway.orderSetHash": "a".repeat(64),
-                      "pathway.orderSetRequiresPhysicianConfirmation": true,
-                      "pathway.orderSetItemCount": 1,
-                      "pathway.orderSetItems": [
-                        {
-                          itemType: "LAB",
-                          codeSystem: "LOCAL-E2E",
-                          code: "COPD-ABG",
-                          display: "血气分析复查",
-                          required: true,
-                        },
-                      ],
-                    },
-                  },
-                },
-                scenarioEvidence: [
-                  {
-                    code: "S6",
-                    observedStages: [
-                      "前台创建专病路径草稿并保存节点边时钟",
-                      "后端回读路径节点边时钟与十阶段里程碑",
-                      "前台使用真实 ACTIVE 快照完成草稿试运行",
-                      "真实服务链路对已保存路径执行仿真",
-                      "临床用户基于当前机构生效版本读取入径候选",
-                      "临床用户办理患者入径并生成首个关键时钟",
-                      "临床用户完成当前节点并标准推进",
-                      "临床用户推进到医嘱套餐节点并消费当前机构生效版本 ORDER_SET",
-                      "真实后端登记路径变异与处置决策",
-                      "真实后端完成随访接续终点节点",
-                      "后端回读关键时钟和变异事实",
-                      "路径完成后生成随访接续证据",
-                    ],
-                  },
-                ],
-              }),
-            },
-          ],
-        },
-      ],
-    });
+    const evidence = pathwayLifecycleEvidenceResult(pathwayLifecycleEvidence());
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S6"]);
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
@@ -12502,6 +12428,148 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.specialDiseaseStages?.map((item) => item.code)).toEqual(
       requiredSpecialDiseaseStages,
     );
+  });
+
+  it("declares S6 normal condition row only from explicit pathway ORDER_SET runtime consumption evidence", () => {
+    const evidence = pathwayLifecycleEvidenceResult(pathwayLifecycleEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S6__NORMAL",
+    ]);
+  });
+
+  it("does not declare S6 normal condition row without explicit condition evidence", () => {
+    const { scenarioConditionEvidence: _omitted, ...body } = pathwayLifecycleEvidence();
+    const evidence = pathwayLifecycleEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S6"]);
+    expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "条件行代码未知",
+      body: pathwayLifecycleEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S6__ABNORMAL",
+            scenarioCode: "S6",
+            condition: "ABNORMAL",
+            source: "SPECIAL_DISEASE_PATHWAY_ORDER_SET_RUNTIME_CONSUMPTION",
+            evidence: ["专病路径正常主链路不能冒领异常态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行来源错配",
+      body: pathwayLifecycleEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S6__NORMAL",
+            scenarioCode: "S6",
+            condition: "NORMAL",
+            source: "PATHWAY_TEMPLATE_MILESTONE_MATRIX",
+            evidence: ["不能只靠十阶段配置矩阵冒领 S6 正常态"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "条件行证据为空",
+      body: pathwayLifecycleEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S6__NORMAL",
+            scenarioCode: "S6",
+            condition: "NORMAL",
+            source: "SPECIAL_DISEASE_PATHWAY_ORDER_SET_RUNTIME_CONSUMPTION",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "未消费 ORDER_SET 运行资产",
+      body: pathwayLifecycleEvidence({
+        apiEvidence: {
+          ...(pathwayLifecycleEvidence().apiEvidence as Record<string, unknown>),
+          orderSetRuntimeConsumed: false,
+        },
+      }),
+    },
+    {
+      name: "患者路径 runtime 与机构生效版本不一致",
+      body: pathwayLifecycleEvidence({
+        orderSetRuntimeConsumer: {
+          ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer as Record<string, unknown>),
+          patientPathway: {
+            patientPathwayId: "pp-s6-copd",
+            runtimeReleaseId: "runtime-other",
+          },
+        },
+      }),
+    },
+    {
+      name: "推进节点不是 ORDER_SET 节点",
+      body: pathwayLifecycleEvidence({
+        orderSetRuntimeConsumer: {
+          ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer as Record<string, unknown>),
+          advanceResponse: {
+            ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer.advanceResponse as Record<
+              string,
+              unknown
+            >),
+            decisionEvidence: {
+              ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer.advanceResponse
+                .decisionEvidence as Record<string, unknown>),
+              "pathway.currentNodeType": "FOLLOWUP",
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "医嘱套餐不要求医师确认",
+      body: pathwayLifecycleEvidence({
+        orderSetRuntimeConsumer: {
+          ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer as Record<string, unknown>),
+          advanceResponse: {
+            ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer.advanceResponse as Record<
+              string,
+              unknown
+            >),
+            decisionEvidence: {
+              ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer.advanceResponse
+                .decisionEvidence as Record<string, unknown>),
+              "pathway.orderSetRequiresPhysicianConfirmation": false,
+            },
+          },
+        },
+      }),
+    },
+    {
+      name: "医嘱套餐项目为空",
+      body: pathwayLifecycleEvidence({
+        orderSetRuntimeConsumer: {
+          ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer as Record<string, unknown>),
+          advanceResponse: {
+            ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer.advanceResponse as Record<
+              string,
+              unknown
+            >),
+            decisionEvidence: {
+              ...(pathwayLifecycleEvidence().orderSetRuntimeConsumer.advanceResponse
+                .decisionEvidence as Record<string, unknown>),
+              "pathway.orderSetItemCount": 0,
+              "pathway.orderSetItems": [],
+            },
+          },
+        },
+      }),
+    },
+  ])("does not declare S6 normal condition row when $name", ({ body }) => {
+    expectNoPathwayLifecycleScenarioConditionCoverage(body);
   });
 
   it("does not declare special disease stage coverage when the pathway milestone matrix is incomplete", () => {

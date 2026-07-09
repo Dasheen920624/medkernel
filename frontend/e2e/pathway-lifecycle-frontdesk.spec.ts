@@ -1418,6 +1418,18 @@ async function attachPathwayLifecycleScenarioEvidence(
         specialDiseaseStages,
         apiEvidence,
         orderSetRuntimeConsumer: context.orderSetRuntimeConsumer,
+        scenarioConditionEvidence: [
+          {
+            code: "S6__NORMAL",
+            scenarioCode: "S6",
+            condition: "NORMAL",
+            source: "SPECIAL_DISEASE_PATHWAY_ORDER_SET_RUNTIME_CONSUMPTION",
+            evidence: [
+              "专病路径正常主链路消费当前机构生效 ORDER_SET",
+              "推进到医嘱套餐节点仅生成需医师确认的建议，不自动开嘱",
+            ],
+          },
+        ],
         rollbackNegativeEvidence: context.rollbackNegativeEvidence,
         dedicatedReleaseContractEvidence: {
           assetType: "PATHWAY",

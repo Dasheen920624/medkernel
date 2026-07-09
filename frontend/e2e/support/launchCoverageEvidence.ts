@@ -624,6 +624,14 @@ const diagnosisKnowledgeScenarioConditionRows = [
     source: "DIAGNOSIS_KNOWLEDGE_ASSET_STANDARD_CASE_MAINTENANCE",
   },
 ] as const;
+const pathwayLifecycleScenarioConditionRows = [
+  {
+    code: "S6__NORMAL",
+    scenarioCode: "S6",
+    condition: "NORMAL",
+    source: "SPECIAL_DISEASE_PATHWAY_ORDER_SET_RUNTIME_CONSUMPTION",
+  },
+] as const;
 const requiredS2S4RuntimeMappingScenarioCodes = ["S2", "S4"];
 const s2s4ScenarioConditionRows = [
   {
@@ -3955,6 +3963,9 @@ function collectFrontdeskScenarioConditionClaims(tests: BrowserE2eTestResult[]) 
     for (const claim of collectDiagnosisKnowledgeScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
+    for (const claim of collectPathwayLifecycleScenarioConditionClaimsFromTest(test)) {
+      claims.add(claim);
+    }
     for (const claim of collectMedicationSafetyScenarioConditionClaimsFromTest(test)) {
       claims.add(claim);
     }
@@ -4082,6 +4093,52 @@ function diagnosisKnowledgeScenarioConditionBackedByEvidence(
   switch (code) {
     case "S3__NORMAL":
       return hasCompleteDiagnosisKnowledgeStructuredEvidence(parsed);
+    default:
+      return false;
+  }
+}
+
+function collectPathwayLifecycleScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {
+  if (
+    path.basename(test.file) !== "pathway-lifecycle-frontdesk.spec.ts" ||
+    test.status !== "passed" ||
+    (test.outcome ?? "expected") !== "expected"
+  ) {
+    return [];
+  }
+  const attachment = test.attachments?.find(
+    (item) => item.name === "pathway-lifecycle-scenario-codes",
+  );
+  if (!attachment?.body || !hasRequiredPathwayLifecycleAttachment(test)) return [];
+  try {
+    const parsed = recordValue(JSON.parse(attachment.body));
+    const rows = collectStrictScenarioConditionRows(
+      parsed?.scenarioConditionEvidence,
+      pathwayLifecycleScenarioConditionRows,
+    );
+    if (!parsed || rows === null) return [];
+    return pathwayLifecycleScenarioConditionRows
+      .filter(
+        (expected) =>
+          rows.has(expected.code) &&
+          pathwayLifecycleScenarioConditionBackedByEvidence(expected.code, parsed),
+      )
+      .map((row) => `scenarioConditionRows:${row.code}`);
+  } catch {
+    return [];
+  }
+}
+
+function pathwayLifecycleScenarioConditionBackedByEvidence(
+  code: (typeof pathwayLifecycleScenarioConditionRows)[number]["code"],
+  parsed: Record<string, unknown>,
+) {
+  switch (code) {
+    case "S6__NORMAL":
+      return (
+        hasCompletePathwayLifecycleApiEvidence(parsed.apiEvidence) &&
+        hasCompletePathwayOrderSetRuntimeConsumerEvidence(parsed.orderSetRuntimeConsumer)
+      );
     default:
       return false;
   }
