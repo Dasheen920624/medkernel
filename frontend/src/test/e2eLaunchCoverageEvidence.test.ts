@@ -3784,6 +3784,66 @@ function expectNoPharmacyReviewAntimicrobialCoverage(body: Record<string, unknow
   ).not.toContain("PHARMACY_REVIEW");
 }
 
+function pharmacyReviewAntimicrobialConsumerSliceEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...structuredClone(pharmacyReviewAntimicrobialEvidence),
+    pharmacyReviewConsumerSlice: {
+      systemFamilyCode: "PHARMACY_REVIEW",
+      familyName: "第三方药房审方系统族",
+      consumer: "ANTIMICROBIAL_REVIEW_RECOMMENDATION_RECTIFICATION",
+      canonicalResources: [
+        "Patient",
+        "Encounter",
+        "Medication",
+        "AllergyIntolerance",
+        "Condition",
+        "Observation",
+      ],
+      sourceSystems: ["MEDKERNEL_FRONTDESK", "PHARMACY_REVIEW"],
+      adapterVerified: true,
+      webhookSignatureVerified: true,
+      outboundDegradationVerified: true,
+      inboundReviewVerified: true,
+      runtimeConsumerVerified: true,
+      pharmacistReviewVerified: true,
+      physicianConfirmationVerified: true,
+      rectificationClosedVerified: true,
+      auditVerified: true,
+      permissionVerified: true,
+      sixStateBoundaryVerified: true,
+      requiresPhysicianConfirmation: true,
+      noAutoOrder: true,
+      noExternalSuccessClaim: true,
+      patientId: "mpi-pharmacy-review",
+      encounterId: "enc-pharmacy-review",
+      contextSnapshotId: "ctx-pharmacy-review",
+      runtimeReleaseId: "runtime-pharmacy-review",
+      recommendationCardId: "card-pharmacy-review",
+      ruleRecommendationCardId: "card-rule-pharmacy-review",
+      pharmacistFeedbackId: "rf-pharmacy-pharmacist",
+      physicianFeedbackId: "rf-pharmacy-physician",
+      findingId: "finding-pharmacy-review",
+      taskId: "task-pharmacy-review",
+      outboundPath: "outboundReview",
+      inboundPath: "inboundReview",
+      feedbackPath: "feedback",
+      rectificationPath: "qualityRectification",
+      scopeStatement:
+        "第三方药房审方系统族真实消费者代表切片：真实前台用 Medication、AllergyIntolerance、Condition、Observation 标准资源驱动 PHARMACY_REVIEW 抗菌药物审方断连补偿、签名入站审方结果、当前机构生效版本推荐消费、药师复核、医生人工确认和药事治理整改闭环；不代表完整药房审方系统族覆盖，不代表完整药事治理，不代表完整抗菌药物分级管理，不代表真实外部药房审方成功联通，不代表自动开嘱，不代表完整 S18，不代表完整 S31，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+    },
+    ...overrides,
+  };
+}
+
+function expectNoPharmacyReviewConsumerSlice(body: Record<string, unknown>) {
+  const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code) ?? [],
+  ).not.toContain("PHARMACY_REVIEW");
+}
+
 const infectionPublicHealthSafetyEvidence = {
   scenarioCodes: ["S21", "S32"],
   productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
@@ -12680,6 +12740,22 @@ describe("browser E2E launch coverage evidence", () => {
     ]);
     expect(
       evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toBeUndefined();
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S18__HIGH_RISK",
+      "S31__DEGRADATION",
+      "S31__ABNORMAL",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("declares PHARMACY_REVIEW representative consumer slice only from explicit bidirectional review, manual confirmation and rectification evidence", () => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(
+      pharmacyReviewAntimicrobialConsumerSliceEvidence(),
+    );
+
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
     ).toEqual(["PHARMACY_REVIEW"]);
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S18__HIGH_RISK",
@@ -12687,6 +12763,182 @@ describe("browser E2E launch coverage evidence", () => {
       "S31__ABNORMAL",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare PHARMACY_REVIEW consumer slice from complete scenario evidence without explicit slice", () => {
+    expectNoPharmacyReviewConsumerSlice(pharmacyReviewAntimicrobialEvidence);
+  });
+
+  it.each([
+    {
+      name: "系统族代码错配",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整药房审方系统族",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          scopeStatement: "第三方药房审方系统族真实消费者代表切片，完整药房审方系统族覆盖已完成。",
+        },
+      }),
+    },
+    {
+      name: "缺 Medication 标准资源",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          canonicalResources: ["AllergyIntolerance", "Condition", "Observation"],
+        },
+      }),
+    },
+    {
+      name: "缺 AllergyIntolerance 标准资源",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          canonicalResources: ["Medication", "Condition", "Observation"],
+        },
+      }),
+    },
+    {
+      name: "缺 Condition 标准资源",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          canonicalResources: ["Medication", "AllergyIntolerance", "Observation"],
+        },
+      }),
+    },
+    {
+      name: "缺 Observation 标准资源",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          canonicalResources: ["Medication", "AllergyIntolerance", "Condition"],
+        },
+      }),
+    },
+    {
+      name: "出站断连被伪造成真实外部成功",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+    {
+      name: "缺入站审方结果",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({ inboundReview: undefined }),
+    },
+    {
+      name: "入站审方来源不是 PHARMACY_REVIEW",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        inboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.inboundReview,
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        recommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.recommendation,
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "缺药师复核",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          pharmacist: undefined,
+        },
+      }),
+    },
+    {
+      name: "医生未人工确认",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          physician: {
+            ...pharmacyReviewAntimicrobialEvidence.feedback.physician,
+            cardStatus: "PENDING",
+          },
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "整改未关闭",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          findingStatus: "OPEN",
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: pharmacyReviewAntimicrobialConsumerSliceEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialConsumerSliceEvidence()
+            .pharmacyReviewConsumerSlice as Record<string, unknown>),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+  ])("does not declare PHARMACY_REVIEW consumer slice when $name", ({ body }) => {
+    expectNoPharmacyReviewConsumerSlice(body);
   });
 
   it("does not declare S18/S31 condition rows without explicit condition evidence", () => {

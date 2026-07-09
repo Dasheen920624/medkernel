@@ -64,6 +64,7 @@ type CoverageProof = {
   requiresNursingContinuityFrontdeskAttachment?: boolean;
   requiresRegionalDiagnosticMutualRecognitionFrontdeskAttachment?: boolean;
   requiresPharmacyReviewAntimicrobialFrontdeskAttachment?: boolean;
+  requiresPharmacyReviewConsumerSliceAttachment?: boolean;
   requiresInfectionPublicHealthSafetyFrontdeskAttachment?: boolean;
   requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment?: boolean;
   requiresCriticalEmergencyIcuFrontdeskAttachment?: boolean;
@@ -356,8 +357,9 @@ const pharmacyReviewAntimicrobialFrontdeskClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:PROFESSIONAL_COLLABORATION",
   "serviceCombinations:QUALITY_IMPROVEMENT",
-  "thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW",
 ];
+
+const pharmacyReviewConsumerSliceClaims = ["thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW"];
 
 const infectionPublicHealthSafetyFrontdeskClaims = [
   "scenarios:S21",
@@ -1446,6 +1448,14 @@ const coverageProofs: CoverageProof[] = [
     requiresPharmacyReviewAntimicrobialFrontdeskAttachment: true,
   },
   {
+    file: "pharmacy-review-antimicrobial-frontdesk.spec.ts",
+    titleIncludes:
+      "临床用户按医生和药师业务任职与运营员、平台管理员完成本轮抗菌药物审方代表切片回传、推荐确认和整改闭环",
+    claims: pharmacyReviewConsumerSliceClaims,
+    requiresPharmacyReviewAntimicrobialFrontdeskAttachment: true,
+    requiresPharmacyReviewConsumerSliceAttachment: true,
+  },
+  {
     file: "infection-public-health-safety-frontdesk.spec.ts",
     titleIncludes: "临床用户与运营员、平台管理员完成院感公卫上报预填和医疗安全事件整改代表闭环",
     claims: infectionPublicHealthSafetyFrontdeskClaims,
@@ -1769,6 +1779,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
         hasRequiredNursingContinuityFrontdeskAttachment(test)) &&
       (!proof.requiresPharmacyReviewAntimicrobialFrontdeskAttachment ||
         hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test)) &&
+      (!proof.requiresPharmacyReviewConsumerSliceAttachment ||
+        hasRequiredPharmacyReviewConsumerSliceAttachment(test)) &&
       (!proof.requiresInfectionPublicHealthSafetyFrontdeskAttachment ||
         hasRequiredInfectionPublicHealthSafetyFrontdeskAttachment(test)) &&
       (!proof.requiresSurgeryAnesthesiaTransfusionFrontdeskAttachment ||
@@ -3569,6 +3581,19 @@ function hasRequiredHisEmrCdrConsumerSliceAttachment(test: BrowserE2eTestResult)
   try {
     const body = recordValue(JSON.parse(attachment.body));
     return body !== null && hasCompleteHisEmrCdrConsumerSlice(body);
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredPharmacyReviewConsumerSliceAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "pharmacy-review-antimicrobial-frontdesk-codes",
+  );
+  if (!attachment?.body || attachment.contentType !== "application/json") return false;
+  try {
+    const body = recordValue(JSON.parse(attachment.body));
+    return body !== null && hasCompletePharmacyReviewConsumerSlice(body);
   } catch {
     return false;
   }
@@ -11693,6 +11718,179 @@ function hasCompletePharmacyReviewRectification(value: unknown, recommendationVa
     hasText(rectification.submittedEvidenceRef) &&
     rectification.reviewDecision === "APPROVED"
   );
+}
+
+function hasCompletePharmacyReviewConsumerSlice(body: Record<string, unknown>) {
+  const runtime = parsePharmacyReviewRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const slice = recordValue(body.pharmacyReviewConsumerSlice);
+  const context = recordValue(body.clinicalContext);
+  const outbound = recordValue(body.outboundReview);
+  const inbound = recordValue(body.inboundReview);
+  const recommendation = recordValue(body.recommendation);
+  const ruleRecommendation = recordValue(body.ruleRecommendation);
+  const feedback = recordValue(body.feedback);
+  const pharmacist = recordValue(feedback?.pharmacist);
+  const physician = recordValue(feedback?.physician);
+  const rectification = recordValue(body.qualityRectification);
+  const actionCard = recordValue(body.actionCard);
+  const rule = recordValue(body.ruleAsset);
+  return (
+    slice !== null &&
+    context !== null &&
+    outbound !== null &&
+    inbound !== null &&
+    recommendation !== null &&
+    ruleRecommendation !== null &&
+    pharmacist !== null &&
+    physician !== null &&
+    rectification !== null &&
+    actionCard !== null &&
+    rule !== null &&
+    slice.systemFamilyCode === "PHARMACY_REVIEW" &&
+    hasText(slice.familyName) &&
+    String(slice.familyName).includes("药房审方") &&
+    slice.consumer === "ANTIMICROBIAL_REVIEW_RECOMMENDATION_RECTIFICATION" &&
+    arrayEquals(slice.canonicalResources, [
+      "Patient",
+      "Encounter",
+      "Medication",
+      "AllergyIntolerance",
+      "Condition",
+      "Observation",
+    ]) &&
+    arrayEquals(slice.sourceSystems, ["MEDKERNEL_FRONTDESK", "PHARMACY_REVIEW"]) &&
+    (slice.adapterVerified === true || slice.adapterCreatedThroughRealService === true) &&
+    (slice.webhookSignatureVerified === true ||
+      slice.webhookCreatedThroughRealService === true ||
+      slice.signaturePreviewGenerated === true) &&
+    (slice.outboundDegradationVerified === true || slice.outboundNotConnectedVerified === true) &&
+    (slice.inboundReviewVerified === true ||
+      slice.signedInboundProcessedVerified === true ||
+      slice.clinicalEventProcessedVerified === true) &&
+    (slice.runtimeConsumerVerified === true || slice.recommendationConsumerVerified === true) &&
+    slice.pharmacistReviewVerified === true &&
+    slice.physicianConfirmationVerified === true &&
+    slice.rectificationClosedVerified === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    slice.requiresPhysicianConfirmation === true &&
+    slice.noAutoOrder === true &&
+    slice.noExternalSuccessClaim === true &&
+    slice.aiGenerated !== true &&
+    slice.patientId === context.patientId &&
+    slice.encounterId === context.encounterId &&
+    slice.contextSnapshotId === context.contextSnapshotId &&
+    slice.runtimeReleaseId === runtime.releaseId &&
+    slice.recommendationCardId === recommendation.cardId &&
+    slice.ruleRecommendationCardId === ruleRecommendation.cardId &&
+    slice.pharmacistFeedbackId === pharmacist.feedbackId &&
+    slice.physicianFeedbackId === physician.feedbackId &&
+    slice.findingId === rectification.findingId &&
+    slice.taskId === rectification.taskId &&
+    (!hasText(slice.adapterId) || slice.adapterId === recordValue(body.adapter)?.adapterId) &&
+    (!hasText(slice.webhookId) ||
+      slice.webhookId === recordValue(body.webhookSignature)?.webhookId) &&
+    (!hasText(slice.clinicalEventId) ||
+      slice.clinicalEventId === recordValue(inbound.clinicalEvent)?.eventId) &&
+    (!hasText(slice.actionCardAssetIdentity) ||
+      slice.actionCardAssetIdentity === actionCard.assetIdentity) &&
+    (!hasText(slice.ruleAssetIdentity) || slice.ruleAssetIdentity === rule.assetIdentity) &&
+    slice.outboundPath === "outboundReview" &&
+    slice.inboundPath === "inboundReview" &&
+    slice.feedbackPath === "feedback" &&
+    slice.rectificationPath === "qualityRectification" &&
+    hasPharmacyReviewConsumerSliceScopeBoundary(slice.scopeStatement) &&
+    hasCompletePharmacyReviewApiEvidence(body.apiEvidence) &&
+    hasCompletePharmacyReviewAdapterEvidence(body.adapter) &&
+    hasCompletePharmacyReviewWebhookEvidence(body.webhookSignature, body.adapter) &&
+    pharmacyReviewRuntimeAssetMatches(body.terminologyGate, runtime.terminologyAsset) &&
+    pharmacyReviewRuntimeAssetMatches(body.riskMatrix, runtime.cdssRiskAsset) &&
+    pharmacyReviewRuntimeAssetMatches(body.safetyRedline, runtime.safetyAsset) &&
+    pharmacyReviewRuntimeAssetMatches(body.ruleAsset, runtime.ruleAsset) &&
+    pharmacyReviewRuntimeAssetMatches(body.actionCard, runtime.actionCardAsset) &&
+    hasCompletePharmacyReviewRiskMatrix(body.riskMatrix) &&
+    hasCompletePharmacyReviewSafetyRedline(body.safetyRedline, body.riskMatrix) &&
+    hasCompletePharmacyReviewActionCard(body.actionCard) &&
+    hasCompletePharmacyReviewRuleAsset(body.ruleAsset) &&
+    hasCompletePharmacyReviewActivationRequest(body.activationRequest, runtime) &&
+    hasCompletePharmacyReviewTerminologyGate(
+      body.terminologyGate,
+      body.runtime,
+      body.activationRequest,
+    ) &&
+    hasCompletePharmacyReviewClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompletePharmacyReviewOutbound(body.outboundReview, body.adapter, body.clinicalContext) &&
+    hasCompletePharmacyReviewInbound(
+      body.inboundReview,
+      body.adapter,
+      body.webhookSignature,
+      body.outboundReview,
+      runtime.releaseId,
+    ) &&
+    hasCompletePharmacyReviewTrigger(body.clinicalTrigger, runtime.releaseId) &&
+    hasCompletePharmacyReviewRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.riskMatrix,
+      body.safetyRedline,
+    ) &&
+    hasCompletePharmacyReviewRuleRecommendation(
+      body.ruleRecommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteMedicationSafetyFeedbackEvidence(body.feedback, runtime.actionCardAsset) &&
+    hasCompletePharmacyReviewRectification(body.qualityRectification, body.recommendation) &&
+    evidencePathsResolve(body, [
+      slice.outboundPath,
+      slice.inboundPath,
+      slice.feedbackPath,
+      slice.rectificationPath,
+    ])
+  );
+}
+
+function hasPharmacyReviewConsumerSliceScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表切片") &&
+    !hasUnnegatedPharmacyReviewConsumerSliceScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整药房审方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整药事治理") &&
+    hasNegatedScopeTerm(statement, "完整抗菌药物分级管理") &&
+    hasNegatedScopeTerm(statement, "真实外部药房审方成功联通") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "完整 S18") &&
+    hasNegatedScopeTerm(statement, "完整 S31") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedPharmacyReviewConsumerSliceScopeClaim(statement: string) {
+  return [
+    "完整药房审方系统族覆盖",
+    "完整药房审方系统族",
+    "完整药事治理",
+    "完整抗菌药物分级管理",
+    "真实外部药房审方成功联通",
+    "自动开嘱",
+    "完整 S18",
+    "完整S18",
+    "完整 S31",
+    "完整S31",
+    "完整第三方系统族覆盖",
+    "完整上线验收",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 type InfectionPublicHealthRuntimeAsset = {

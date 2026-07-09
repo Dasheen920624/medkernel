@@ -23,6 +23,53 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
+  本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
+  `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`
+  代表消费者切片。证据固定来源于 `pharmacy-review-antimicrobial-frontdesk.spec.ts` 的
+  `pharmacy-review-antimicrobial-frontdesk-codes` 附件：真实前台创建 PHARMACY_REVIEW 适配器 / 回调通道 / 签名预览、
+  出站审方请求诚实收敛到 `NOT_CONNECTED` 且不阻断主流程、签名入站审方结果处理为临床事件、当前机构生效版本消费
+  TERMINOLOGY / SAFETY / CDSS_RISK / RULE / ACTION_CARD、临床用户触发推荐、药师复核、医生人工确认、药事治理整改关闭，
+  并显式绑定 `Patient/Encounter/Medication/AllergyIntolerance/Condition/Observation` 标准资源。明确不声明完整药事治理、
+  完整抗菌药物分级管理、完整第三方药房审方系统族、完整审方平台、完整医嘱闭环、真实外部药房审方成功联通、
+  自动开嘱、全药品 / 全诊断审方覆盖、完整 S18、完整 S31、完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百三十八批实现细节：`frontend/e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts` 的附件新增
+  `pharmacyReviewConsumerSlice`，固定 `systemFamilyCode=PHARMACY_REVIEW`、
+  `consumer=ANTIMICROBIAL_REVIEW_RECOMMENDATION_RECTIFICATION`、
+  `canonicalResources=[Patient,Encounter,Medication,AllergyIntolerance,Condition,Observation]`、
+  `sourceSystems=[MEDKERNEL_FRONTDESK,PHARMACY_REVIEW]`，并绑定本轮
+  `patientId/encounterId/contextSnapshotId/runtimeReleaseId/recommendationCardId/ruleRecommendationCardId/`
+  `pharmacistFeedbackId/physicianFeedbackId/findingId/taskId`。切片显式要求适配器 / 回调 / 签名预览来自真实服务，
+  出站断连补偿、签名入站处理、术语映射、上下文回读、推荐消费、规则消费、药师复核、医生确认、整改关闭、审计 / 权限 / 六态边界成立，
+  且 `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、`noExternalSuccessClaim=true`、`aiGenerated=false`。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 新增单独 proof 和严格 `hasCompletePharmacyReviewConsumerSlice()`：
+  药事基础 proof 仍只声明 S18/S31、产品层、资产、服务组合和既有三条条件行；`PHARMACY_REVIEW` 消费者切片必须有显式
+  `pharmacyReviewConsumerSlice` 才会声明。collector 复用药事双向审方、runtime、上下文、出站、入站、推荐、规则推荐、
+  药师 / 医生反馈和整改强校验，并要求 slice scope 明确否定完整药房审方系统族 / 药事治理 / 抗菌药物分级管理 /
+  真实外部成功联通 / 自动开嘱 / 完整 S18 / 完整 S31 / S0-S40 / 上线验收。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖正例和负例：缺显式 slice、系统族错配、scope 冒领、
+  缺 Medication / AllergyIntolerance / Condition / Observation 标准资源、出站断连伪造成真实外部成功、缺入站审方结果、
+  入站来源不是 PHARMACY_REVIEW、推荐未绑定当前 runtime、缺药师复核、医生未人工确认、允许自动开嘱、整改未关闭、
+  缺审计 / 权限 / 六态边界，均不声明 `PHARMACY_REVIEW`。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  同步锁定 E2E 附件、parser 和 release 门禁源码契约。
+- 第二百三十八批真实 E2E：临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175
+  无监听）。执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pharmacy-review-consumer-slice-20260710-r1 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-pharmacy-review-consumer-slice-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，
+  `launchCoverage.thirdPartySystemFamilyConsumerSlices=[PHARMACY_REVIEW]`，且只保留既有
+  `scenarioConditionRows=[S18__HIGH_RISK,S31__DEGRADATION,S31__ABNORMAL]`，未新增 S18/S31 其他状态或任何新 S0-S40 行。
+- 第二百三十八批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在旧基础药事 proof 仍声明 `PHARMACY_REVIEW`
+  和显式消费者切片正例缺声明；随后实现并通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（860 tests）、
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -- --run`（67 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（927 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）、
+  `git diff --check` 和真实 E2E。本批使用 1 个受限写集子代理，只编辑
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 补契约断言；主线程审核并整体验证。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十七批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有急诊分诊与 ICU 生命支持真实前台链路中“前台创建 Patient / Encounter 急诊上下文、
   Condition / Observation / Procedure 标准资源回读、当前机构生效版本推荐消费、医生人工确认、升级待办完成、审计 / 权限 / 六态边界”
