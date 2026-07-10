@@ -2050,6 +2050,38 @@ async function attachCriticalEmergencyIcuEvidence(
           scopeStatement:
             "HIS/EMR/CDR 急诊分诊上下文真实消费者代表切片：真实前台用 Patient、Encounter、Condition、Observation、Procedure 标准资源建立 ED LEVEL_1 急诊分诊上下文，当前机构生效版本只消费为 ICU 升级人工确认候选；不代表完整 HIS/EMR/CDR 系统族覆盖，不代表完整急诊系统覆盖，不代表完整 ICU 系统覆盖，不代表完整病历归档，不代表医嘱闭环，不代表费用病案 CDR 全量同步，不代表生命支持设备控制，不代表完整第三方系统族覆盖，不代表完整 S19/S24/S27，不代表完整 S0-S40，不代表完整上线验收。",
         },
+        emergencyTriageDegradationEvidence: {
+          source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+          onboardingHealthStatus: textField(evidence.emergencyOnboarding, "healthStatus"),
+          systemFamilyCode: textField(evidence.emergencyOnboarding, "systemFamilyCode"),
+          runtimeReleaseId: textField(evidence.runtime, "releaseId"),
+          contextSnapshotId: textField(evidence.clinicalContext, "contextSnapshotId"),
+          triageLevel: textFieldAtPath(
+            evidence.clinicalContext,
+            "resources.extensions.local.emergencyTriage.triageLevel",
+          ),
+          destinationCandidate: textFieldAtPath(
+            evidence.clinicalContext,
+            "resources.extensions.local.emergencyTriage.destinationCandidate",
+          ),
+          manualEscalationRequired: booleanFieldAtPath(
+            evidence.clinicalContext,
+            "resources.extensions.local.emergencyTriage.manualEscalationRequired",
+          ),
+          recommendationCardId: textField(evidence.recommendation, "cardId"),
+          feedbackId: textField(evidence.manualEscalation, "feedbackId"),
+          todoId: textField(evidence.escalationTodo, "todoId"),
+          requiresPhysicianConfirmation: true,
+          noAutoOrder: true,
+          noAutoTransfer: true,
+          noDeviceControl: true,
+          noExternalSuccessClaim: true,
+          auditVerified: true,
+          permissionVerified: true,
+          sixStateBoundaryVerified: true,
+          scopeStatement:
+            "S24 门急诊降级代表行：LIS_MONITORING_CRITICAL 接入断连时，真实前台急诊 LEVEL_1 分诊、ICU 去向候选、当前机构生效版本推荐、医生人工确认和升级待办继续闭环；不代表完整 S24，不代表完整急诊系统，不代表完整 ICU 系统，不代表完整 LIS 系统，不代表完整监护设备平台，不代表真实外部成功联通，不代表自动开嘱，不代表自动转 ICU，不代表设备控制，不代表完整 S0-S40，不代表完整上线验收。",
+        },
         rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
         scenarioConditionEvidence: [
           {
@@ -2083,6 +2115,17 @@ async function attachCriticalEmergencyIcuEvidence(
               "急诊分诊 LEVEL_1 且 ICU 去向仅作为人工确认候选",
               "系统不自动转 ICU、不自动开嘱",
               "临床用户完成升级协同待办",
+            ],
+          },
+          {
+            code: "S24__DEGRADATION",
+            scenarioCode: "S24",
+            condition: "DEGRADATION",
+            source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+            evidence: [
+              "LIS_MONITORING_CRITICAL 接入申请保持 NOT_CONNECTED 诚实断连状态",
+              "急诊 LEVEL_1 分诊和 ICU 去向候选继续由当前机构生效版本推荐承接",
+              "医生人工确认升级待办完成，系统不自动开嘱、不自动转 ICU、不控制设备",
             ],
           },
           {

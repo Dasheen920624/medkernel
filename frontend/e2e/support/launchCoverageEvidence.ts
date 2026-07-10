@@ -1034,6 +1034,12 @@ const criticalEmergencyIcuScenarioConditionRows = [
     source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
   },
   {
+    code: "S24__DEGRADATION",
+    scenarioCode: "S24",
+    condition: "DEGRADATION",
+    source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+  },
+  {
     code: "S27__HIGH_RISK",
     scenarioCode: "S27",
     condition: "HIGH_RISK",
@@ -6716,6 +6722,8 @@ function criticalEmergencyIcuScenarioConditionBackedByEvidence(
       );
     case "S19__DEGRADATION":
       return hasCompleteCriticalEmergencyIcuS19DegradationEvidence(parsed);
+    case "S24__DEGRADATION":
+      return hasCompleteCriticalEmergencyIcuS24DegradationEvidence(parsed);
     default:
       return false;
   }
@@ -14923,6 +14931,82 @@ function hasCompleteCriticalEmergencyIcuS19DegradationEvidence(body: Record<stri
   );
 }
 
+function hasCompleteCriticalEmergencyIcuS24DegradationEvidence(body: Record<string, unknown>) {
+  const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const evidence = recordValue(body.emergencyTriageDegradationEvidence);
+  const onboarding = recordValue(body.emergencyOnboarding);
+  const context = recordValue(body.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const emergencyTriage = recordValue(local?.emergencyTriage);
+  const recommendation = recordValue(body.recommendation);
+  const manualEscalation = recordValue(body.manualEscalation);
+  const todo = recordValue(body.escalationTodo);
+  return (
+    evidence !== null &&
+    onboarding !== null &&
+    context !== null &&
+    emergencyTriage !== null &&
+    recommendation !== null &&
+    manualEscalation !== null &&
+    todo !== null &&
+    evidence.source === "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES" &&
+    evidence.onboardingHealthStatus === onboarding.healthStatus &&
+    evidence.onboardingHealthStatus === "NOT_CONNECTED" &&
+    evidence.systemFamilyCode === onboarding.systemFamilyCode &&
+    evidence.systemFamilyCode === "LIS_MONITORING_CRITICAL" &&
+    evidence.runtimeReleaseId === runtime.releaseId &&
+    evidence.contextSnapshotId === context.contextSnapshotId &&
+    evidence.triageLevel === emergencyTriage.triageLevel &&
+    evidence.triageLevel === "LEVEL_1" &&
+    evidence.destinationCandidate === emergencyTriage.destinationCandidate &&
+    evidence.destinationCandidate === "ICU" &&
+    evidence.manualEscalationRequired === emergencyTriage.manualEscalationRequired &&
+    evidence.manualEscalationRequired === true &&
+    evidence.recommendationCardId === recommendation.cardId &&
+    evidence.feedbackId === manualEscalation.feedbackId &&
+    evidence.todoId === todo.todoId &&
+    evidence.requiresPhysicianConfirmation === true &&
+    evidence.noAutoOrder === true &&
+    evidence.noAutoTransfer === true &&
+    evidence.noDeviceControl === true &&
+    evidence.noExternalSuccessClaim === true &&
+    evidence.auditVerified === true &&
+    evidence.permissionVerified === true &&
+    evidence.sixStateBoundaryVerified === true &&
+    hasCriticalEmergencyIcuS24DegradationScopeBoundary(evidence.scopeStatement) &&
+    hasCompleteLisMonitoringCriticalConsumerSlice(body) &&
+    hasCompleteCriticalEmergencyIcuApiEvidence(body.apiEvidence) &&
+    hasCompleteCriticalEmergencyIcuOnboarding(body.emergencyOnboarding, body.monitoringAdapter) &&
+    hasCompleteCriticalEmergencyIcuClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteCriticalEmergencyIcuInbound(
+      body.inboundMonitoringEvent,
+      body.monitoringAdapter,
+      body.webhookSignature,
+      body.clinicalContext,
+      runtime.releaseId,
+    ) &&
+    hasCompleteCriticalEmergencyIcuRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteCriticalEmergencyIcuManualEscalation(
+      body.manualEscalation,
+      runtime.actionCardAsset,
+      body.recommendation,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTodo(
+      body.escalationTodo,
+      body.recommendation,
+      body.clinicalContext,
+    )
+  );
+}
+
 function hasCompleteLisMonitoringCriticalConsumerSlice(body: Record<string, unknown>) {
   const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
   if (!runtime) return false;
@@ -15079,6 +15163,48 @@ function hasUnnegatedLisMonitoringCriticalConsumerSliceScopeClaim(statement: str
     "完整S19/S24/S27",
     "完整第三方系统族覆盖",
     "所有第三方系统族完整覆盖",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCriticalEmergencyIcuS24DegradationScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表行") &&
+    !hasUnnegatedCriticalEmergencyIcuS24DegradationScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 S24") &&
+    hasNegatedScopeTerm(statement, "完整急诊系统") &&
+    hasNegatedScopeTerm(statement, "完整 ICU 系统") &&
+    hasNegatedScopeTerm(statement, "完整 LIS 系统") &&
+    hasNegatedScopeTerm(statement, "完整监护设备平台") &&
+    hasNegatedScopeTerm(statement, "真实外部成功联通") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "自动转 ICU") &&
+    hasNegatedScopeTerm(statement, "设备控制") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedCriticalEmergencyIcuS24DegradationScopeClaim(statement: string) {
+  return [
+    "完整 S24",
+    "完整S24",
+    "完整急诊系统",
+    "完整 ICU 系统",
+    "完整ICU系统",
+    "完整 LIS 系统",
+    "完整LIS系统",
+    "完整监护设备平台",
+    "真实外部成功联通",
+    "自动开嘱",
+    "自动转 ICU",
+    "自动转ICU",
+    "设备控制",
     "完整 S0-S40",
     "完整S0-S40",
     "完整上线验收",

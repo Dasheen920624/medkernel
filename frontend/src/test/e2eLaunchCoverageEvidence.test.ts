@@ -5761,6 +5761,50 @@ function criticalEmergencyIcuS19DegradationEvidence(
   return { ...body, ...overrides };
 }
 
+function criticalEmergencyIcuS24DegradationEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence();
+  body.emergencyTriageDegradationEvidence = {
+    source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+    onboardingHealthStatus: "NOT_CONNECTED",
+    systemFamilyCode: "LIS_MONITORING_CRITICAL",
+    runtimeReleaseId: "runtime-critical",
+    contextSnapshotId: "ctx-critical",
+    triageLevel: "LEVEL_1",
+    destinationCandidate: "ICU",
+    manualEscalationRequired: true,
+    recommendationCardId: "card-critical",
+    feedbackId: "rf-critical",
+    todoId: "todo-critical",
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoTransfer: true,
+    noDeviceControl: true,
+    noExternalSuccessClaim: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    scopeStatement:
+      "S24 门急诊降级代表行：LIS_MONITORING_CRITICAL 接入断连时，真实前台急诊 LEVEL_1 分诊、ICU 去向候选、当前机构生效版本推荐、医生人工确认和升级待办继续闭环；不代表完整 S24，不代表完整急诊系统，不代表完整 ICU 系统，不代表完整 LIS 系统，不代表完整监护设备平台，不代表真实外部成功联通，不代表自动开嘱，不代表自动转 ICU，不代表设备控制，不代表完整 S0-S40，不代表完整上线验收。",
+  };
+  body.scenarioConditionEvidence = [
+    ...(body.scenarioConditionEvidence as unknown[]),
+    {
+      code: "S24__DEGRADATION",
+      scenarioCode: "S24",
+      condition: "DEGRADATION",
+      source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+      evidence: [
+        "LIS_MONITORING_CRITICAL 接入保持 NOT_CONNECTED 诚实断连状态",
+        "急诊 LEVEL_1 分诊和 ICU 去向候选继续由当前机构生效版本推荐承接",
+        "医生人工确认升级待办完成，系统不自动开嘱、不自动转 ICU、不控制设备",
+      ],
+    },
+  ];
+  return { ...body, ...overrides };
+}
+
 function lisMonitoringCriticalConsumerSlice(): Record<string, unknown> {
   return {
     systemFamilyCode: "LIS_MONITORING_CRITICAL",
@@ -15823,6 +15867,23 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares S24 degradation row only when disconnected emergency access still keeps local triage escalation running", () => {
+    const evidence = criticalEmergencyIcuEvidenceResult(
+      criticalEmergencyIcuS24DegradationEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S19__HIGH_RISK",
+      "S24__HIGH_RISK",
+      "S24__DEGRADATION",
+      "S27__HIGH_RISK",
+    ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["LIS_MONITORING_CRITICAL"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("declares HIS/EMR/CDR representative consumer slice only from explicit ED triage context, manual escalation and completed todo evidence", () => {
     const evidence = criticalEmergencyIcuEvidenceResult(
       criticalEmergencyIcuHisEmrCdrConsumerEvidence(),
@@ -16232,6 +16293,303 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
     ).not.toContain("S19__DEGRADATION");
+  });
+
+  it.each([
+    {
+      name: "缺显式 S24 降级条件附件",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+        ],
+      }),
+    },
+    {
+      name: "S24 降级条件来源错配",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+          {
+            code: "S24__DEGRADATION",
+            scenarioCode: "S24",
+            condition: "DEGRADATION",
+            source: "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+            evidence: ["不能复用 S19 降级来源冒领 S24 降级"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "S24 降级条件证据为空",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+          {
+            code: "S24__DEGRADATION",
+            scenarioCode: "S24",
+            condition: "DEGRADATION",
+            source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "缺少 S24 降级结构化证据",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: undefined,
+      }),
+    },
+    {
+      name: "结构化证据 source 错配",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          source: "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+        },
+      }),
+    },
+    {
+      name: "接入健康状态不是 NOT_CONNECTED",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyOnboarding: {
+          ...structuredClone(criticalEmergencyIcuEvidence.emergencyOnboarding),
+          healthStatus: "HEALTHY",
+        },
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          onboardingHealthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "接入系统族不是 LIS_MONITORING_CRITICAL",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "缺 LEVEL_1 急诊分诊",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                emergencyTriage: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .emergencyTriage,
+                  ),
+                  triageLevel: "LEVEL_3",
+                },
+              },
+            },
+          },
+        },
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          triageLevel: "LEVEL_3",
+        },
+      }),
+    },
+    {
+      name: "缺 ICU 去向候选",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                emergencyTriage: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .emergencyTriage,
+                  ),
+                  destinationCandidate: "WARD",
+                },
+              },
+            },
+          },
+        },
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          destinationCandidate: "WARD",
+        },
+      }),
+    },
+    {
+      name: "缺人工升级要求",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                emergencyTriage: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .emergencyTriage,
+                  ),
+                  manualEscalationRequired: false,
+                },
+              },
+            },
+          },
+        },
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          manualEscalationRequired: false,
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        recommendation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "结构化证据推荐卡错绑",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          recommendationCardId: "card-other",
+        },
+      }),
+    },
+    {
+      name: "反馈不是医生人工确认",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          persisted: {
+            ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation.persisted),
+            operatorRole: "SYSTEM",
+          },
+        },
+      }),
+    },
+    {
+      name: "待办未完成",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动转 ICU",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          noAutoTransfer: false,
+        },
+      }),
+    },
+    {
+      name: "允许设备控制",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          noDeviceControl: false,
+        },
+      }),
+    },
+    {
+      name: "伪造真实外部成功联通",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 S24",
+      body: criticalEmergencyIcuS24DegradationEvidence({
+        emergencyTriageDegradationEvidence: {
+          ...(criticalEmergencyIcuS24DegradationEvidence()
+            .emergencyTriageDegradationEvidence as Record<string, unknown>),
+          scopeStatement: "S24 门急诊降级代表行：断连时本地分诊升级继续，完整 S24 已上线。",
+        },
+      }),
+    },
+  ])("does not declare S24 degradation condition row when $name", ({ body }) => {
+    const evidence = criticalEmergencyIcuEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S24__DEGRADATION");
   });
 
   it.each([

@@ -577,6 +577,11 @@ describe("E2E credential contract", () => {
       "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
     );
     expect(coverageParser).toContain("hasCompleteCriticalEmergencyIcuS19DegradationEvidence");
+    expect(coverageParser).toContain("S24__DEGRADATION");
+    expect(coverageParser).toContain(
+      "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+    );
+    expect(coverageParser).toContain("hasCompleteCriticalEmergencyIcuS24DegradationEvidence");
     expect(coverageParser).toContain("CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION");
     expect(coverageParser).toContain("noExternalSuccessClaim");
     expect(coverageParser).toContain("noAutoTransfusion");
@@ -2175,6 +2180,11 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('encounterType: "ED"');
     expect(e2eSource).not.toContain('encounterType: "EMERGENCY"');
     expect(e2eSource).toContain("extensions.local.emergencyTriage");
+    expect(e2eSource).toContain("emergencyTriageDegradationEvidence");
+    expect(e2eSource).toContain("S24__DEGRADATION");
+    expect(e2eSource).toContain(
+      "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+    );
     expect(e2eSource).toContain("extensions.local.criticalCare");
     expect(e2eSource).toContain("noAutoOrder: true");
     expect(e2eSource).toContain("noAutoTransfer: true");
