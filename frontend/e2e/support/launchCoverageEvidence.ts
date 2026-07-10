@@ -1016,6 +1016,12 @@ const criticalEmergencyIcuScenarioConditionRows = [
     source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
   },
   {
+    code: "S19__DEGRADATION",
+    scenarioCode: "S19",
+    condition: "DEGRADATION",
+    source: "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+  },
+  {
     code: "S24__HIGH_RISK",
     scenarioCode: "S24",
     condition: "HIGH_RISK",
@@ -6700,6 +6706,8 @@ function criticalEmergencyIcuScenarioConditionBackedByEvidence(
           parsed.clinicalContext,
         )
       );
+    case "S19__DEGRADATION":
+      return hasCompleteCriticalEmergencyIcuS19DegradationEvidence(parsed);
     default:
       return false;
   }
@@ -14754,6 +14762,53 @@ function hasCompleteCriticalEmergencyIcuTodo(
     String(todo.completionReason).includes("不控制设备") &&
     todo.patientId === context.patientId &&
     todo.encounterId === context.encounterId
+  );
+}
+
+function hasCompleteCriticalEmergencyIcuS19DegradationEvidence(body: Record<string, unknown>) {
+  const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const onboarding = recordValue(body.emergencyOnboarding);
+  const slice = recordValue(body.lisMonitoringCriticalConsumerSlice);
+  return (
+    onboarding !== null &&
+    slice !== null &&
+    onboarding.healthStatus === "NOT_CONNECTED" &&
+    slice.onboardingNotConnectedVerified === true &&
+    slice.noExternalSuccessClaim === true &&
+    slice.noAutoOrder === true &&
+    slice.noAutoTransfer === true &&
+    slice.noDeviceControl === true &&
+    slice.noAutoVentilatorChange === true &&
+    slice.auditVerified === true &&
+    slice.permissionVerified === true &&
+    slice.sixStateBoundaryVerified === true &&
+    hasCompleteLisMonitoringCriticalConsumerSlice(body) &&
+    hasCompleteCriticalEmergencyIcuApiEvidence(body.apiEvidence) &&
+    hasCompleteCriticalEmergencyIcuOnboarding(body.emergencyOnboarding, body.monitoringAdapter) &&
+    hasCompleteCriticalEmergencyIcuInbound(
+      body.inboundMonitoringEvent,
+      body.monitoringAdapter,
+      body.webhookSignature,
+      body.clinicalContext,
+      runtime.releaseId,
+    ) &&
+    hasCompleteCriticalEmergencyIcuRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteCriticalEmergencyIcuManualEscalation(
+      body.manualEscalation,
+      runtime.actionCardAsset,
+      body.recommendation,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTodo(
+      body.escalationTodo,
+      body.recommendation,
+      body.clinicalContext,
+    )
   );
 }
 

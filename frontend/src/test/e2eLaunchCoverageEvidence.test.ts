@@ -5690,6 +5690,27 @@ function criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence(
   };
 }
 
+function criticalEmergencyIcuS19DegradationEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence();
+  body.scenarioConditionEvidence = [
+    ...(body.scenarioConditionEvidence as unknown[]),
+    {
+      code: "S19__DEGRADATION",
+      scenarioCode: "S19",
+      condition: "DEGRADATION",
+      source: "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+      evidence: [
+        "LIS_MONITORING_CRITICAL 接入保持 NOT_CONNECTED 诚实断连状态",
+        "本地签名入站、当前机构生效版本推荐和医生人工升级确认继续闭环",
+        "系统不声明外部监护或检验系统成功联通，也不自动开嘱、转 ICU 或控制设备",
+      ],
+    },
+  ];
+  return { ...body, ...overrides };
+}
+
 function lisMonitoringCriticalConsumerSlice(): Record<string, unknown> {
   return {
     systemFamilyCode: "LIS_MONITORING_CRITICAL",
@@ -15515,6 +15536,23 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares S19 degradation row only when NOT_CONNECTED monitoring access still keeps local escalation chain running", () => {
+    const evidence = criticalEmergencyIcuEvidenceResult(
+      criticalEmergencyIcuS19DegradationEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S19__HIGH_RISK",
+      "S19__DEGRADATION",
+      "S24__HIGH_RISK",
+      "S27__HIGH_RISK",
+    ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["LIS_MONITORING_CRITICAL"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("declares HIS/EMR/CDR representative consumer slice only from explicit ED triage context, manual escalation and completed todo evidence", () => {
     const evidence = criticalEmergencyIcuEvidenceResult(
       criticalEmergencyIcuHisEmrCdrConsumerEvidence(),
@@ -15711,6 +15749,219 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare LIS_MONITORING_CRITICAL consumer slice when $name", ({ body }) => {
     expectNoLisMonitoringCriticalConsumerSlice(body);
+  });
+
+  it.each([
+    {
+      name: "缺显式 S19 降级条件附件",
+      body: criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence(),
+    },
+    {
+      name: "条件行来源错配",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+          {
+            code: "S19__DEGRADATION",
+            scenarioCode: "S19",
+            condition: "DEGRADATION",
+            source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
+            evidence: ["错误来源不能声明 S19 降级行"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "降级行证据为空",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+          {
+            code: "S19__DEGRADATION",
+            scenarioCode: "S19",
+            condition: "DEGRADATION",
+            source: "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "接入健康状态不是 NOT_CONNECTED",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        emergencyOnboarding: {
+          ...structuredClone(criticalEmergencyIcuEvidence.emergencyOnboarding),
+          healthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "接入未绑定本轮监护适配器",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        emergencyOnboarding: {
+          ...structuredClone(criticalEmergencyIcuEvidence.emergencyOnboarding),
+          adapterId: "adapter-other",
+        },
+      }),
+    },
+    {
+      name: "入站监护事件未处理完成",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          clinicalEvent: {
+            ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent.clinicalEvent),
+            status: "FAILED",
+            errorCode: "ENG-API-002",
+          },
+        },
+      }),
+    },
+    {
+      name: "入站来源不是 LIS_MONITORING_CRITICAL",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          sourceSystem: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "缺 LOINC 乳酸映射",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        inboundMonitoringEvent: {
+          ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent),
+          mappedPayload: {
+            ...structuredClone(criticalEmergencyIcuEvidence.inboundMonitoringEvent.mappedPayload),
+            observations: [
+              {
+                code: "SHOCK_INDEX",
+                valueNumeric: 1.4,
+                criticalFlag: "HIGH",
+              },
+            ],
+          },
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        recommendation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "反馈不是医生人工确认",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          persisted: {
+            ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation.persisted),
+            operatorRole: "SYSTEM",
+          },
+        },
+      }),
+    },
+    {
+      name: "待办未完成",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动转 ICU",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noAutoTransfer: false,
+        },
+      }),
+    },
+    {
+      name: "允许设备控制",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noDeviceControl: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动调整呼吸机",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noAutoVentilatorChange: false,
+        },
+      }),
+    },
+    {
+      name: "伪造真实外部成功联通",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 LIS 系统",
+      body: criticalEmergencyIcuS19DegradationEvidence({
+        lisMonitoringCriticalConsumerSlice: {
+          ...lisMonitoringCriticalConsumerSlice(),
+          scopeStatement:
+            "LIS_MONITORING_CRITICAL 检验监护入站真实消费者代表切片，完整 LIS 系统已上线。",
+        },
+      }),
+    },
+  ])("does not declare S19 degradation condition row when $name", ({ body }) => {
+    const evidence = criticalEmergencyIcuEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S19__DEGRADATION");
   });
 
   it.each([

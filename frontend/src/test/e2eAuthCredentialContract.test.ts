@@ -567,6 +567,11 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain("hasCompleteLisMonitoringCriticalConsumerSlice");
     expect(coverageParser).toContain("lisMonitoringCriticalConsumerSlice");
     expect(coverageParser).toContain("requiresLisMonitoringCriticalConsumerSliceAttachment");
+    expect(coverageParser).toContain("S19__DEGRADATION");
+    expect(coverageParser).toContain(
+      "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+    );
+    expect(coverageParser).toContain("hasCompleteCriticalEmergencyIcuS19DegradationEvidence");
     expect(coverageParser).toContain("CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION");
     expect(coverageParser).toContain("noExternalSuccessClaim");
     expect(coverageParser).toContain("noAutoTransfusion");
@@ -627,6 +632,10 @@ describe("E2E credential contract", () => {
     expect(criticalSource).toContain("critical-emergency-icu-frontdesk-codes");
     expect(criticalSource).toContain('"LIS_MONITORING_CRITICAL"');
     expect(criticalSource).toContain("lisMonitoringCriticalConsumerSlice");
+    expect(criticalSource).toContain('"S19__DEGRADATION"');
+    expect(criticalSource).toContain(
+      "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+    );
     expect(criticalSource).toContain("CRITICAL_MONITORING_OBSERVATION_INBOUND_RISK_ESCALATION");
     expect(criticalSource).toContain("noExternalSuccessClaim");
     expect(criticalSource).toContain("不代表完整 LIS 系统");

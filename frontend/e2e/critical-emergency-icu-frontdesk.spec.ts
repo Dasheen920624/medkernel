@@ -2064,6 +2064,17 @@ async function attachCriticalEmergencyIcuEvidence(
             ],
           },
           {
+            code: "S19__DEGRADATION",
+            scenarioCode: "S19",
+            condition: "DEGRADATION",
+            source: "CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+            evidence: [
+              "LIS_MONITORING_CRITICAL 接入申请保持 NOT_CONNECTED 诚实断连状态",
+              "本地签名入站、当前机构生效版本推荐和医生人工确认继续闭环",
+              "系统不声明外部检验监护成功联通，不自动开嘱、转 ICU 或控制设备",
+            ],
+          },
+          {
             code: "S24__HIGH_RISK",
             scenarioCode: "S24",
             condition: "HIGH_RISK",

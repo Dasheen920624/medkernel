@@ -23,6 +23,46 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百五十批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增第三方系统族消费者切片、不新增完整 S19；只在既有急诊分诊与 ICU 生命支持真实前台链路中，把
+  `S19__DEGRADATION` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `critical-emergency-icu-frontdesk.spec.ts` 的 `critical-emergency-icu-frontdesk-codes` 附件：
+  `LIS_MONITORING_CRITICAL` 接入申请保持 `NOT_CONNECTED` 诚实断连状态，但本地签名入站 Observation、当前机构生效版本风险推荐、
+  医生人工确认和升级待办闭环继续成立，且明确不声明外部检验监护成功联通、不自动开嘱、不自动转 ICU、不控制设备、
+  不自动调整呼吸机。明确不声明完整 S19、完整急诊系统、完整 ICU 系统、完整 LIS 系统、完整监护设备平台、
+  真实外部成功联通、完整 S24/S27 其他状态、完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百五十批实现细节：`frontend/e2e/critical-emergency-icu-frontdesk.spec.ts` 的 `scenarioConditionEvidence`
+  新增 `S19__DEGRADATION`，固定
+  `source=CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES`，证据文本绑定
+  `emergencyOnboarding.healthStatus=NOT_CONNECTED`、本地签名入站、当前 runtime 推荐、医生人工确认和升级待办继续。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 将 `S19__DEGRADATION` 纳入
+  `criticalEmergencyIcuScenarioConditionRows`，新增 `hasCompleteCriticalEmergencyIcuS19DegradationEvidence()`，
+  要求显式条件附件、完整 `lisMonitoringCriticalConsumerSlice`、`emergencyOnboarding.healthStatus=NOT_CONNECTED`、
+  LIS 监护入站 Observation / LOINC 乳酸映射、当前 runtime 推荐、医生人工确认、待办完成、审计 / 权限 / 六态边界和
+  `noExternalSuccessClaim/noAutoOrder/noAutoTransfer/noDeviceControl/noAutoVentilatorChange` 同时成立才声明该行。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `S19__HIGH_RISK/S19__DEGRADATION/S24__HIGH_RISK/S27__HIGH_RISK`；缺显式 S19 降级附件、source 错、证据为空、
+  接入健康状态不是 `NOT_CONNECTED`、接入未绑定本轮监护适配器、入站未处理、入站来源错、缺 LOINC 乳酸映射、
+  推荐未绑定当前 runtime、反馈不是医生人工确认、待办未完成、允许自动开嘱 / 自动转 ICU / 设备控制 / 自动调整呼吸机、
+  伪造外部成功、缺审计 / 权限 / 六态、scope 冒领完整 LIS，均不得声明 `S19__DEGRADATION`。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定 E2E 附件和 parser 源码锚点。
+- 第二百五十批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识
+  `S19__DEGRADATION`，`scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（999 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1066 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s19-degradation-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium critical-emergency-icu-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s19-degradation-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S19__HIGH_RISK,S19__DEGRADATION,S24__HIGH_RISK,S27__HIGH_RISK]`，`thirdPartySystemFamilyConsumerSlices` 为
+  `[LIS_MONITORING_CRITICAL,HIS_EMR_CDR]`，未新增完整第三方系统族或完整上线声明。
+  并行只读 explorer 已返回后续候选：优先 `S18__DEGRADATION`（药房审方断连但本地用药安全推荐 / 医生确认继续）、
+  其次 `S24__DEGRADATION`（急诊接入断连但本地分诊升级继续）、`S20__ABNORMAL`（护理连续照护异常回院 / 结果回流）。
+  后续仍必须新增显式 `scenarioConditionEvidence` 和结构化强字段，不得把普通 `scenarioEvidence`、菜单、路由、文案或代表切片冒领为完整上线。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十九批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有院感公卫与医疗安全事件真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PUBLIC_HEALTH_INFECTION_REGULATORY` 隐式 claim 升级为显式
