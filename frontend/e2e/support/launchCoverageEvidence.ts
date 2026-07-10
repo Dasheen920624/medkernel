@@ -964,6 +964,12 @@ const pharmacyReviewAntimicrobialScenarioConditionRows = [
     source: "PHARMACY_REVIEW_ANTIMICROBIAL_CRITICAL_MANUAL_CONFIRMATION",
   },
   {
+    code: "S18__DEGRADATION",
+    scenarioCode: "S18",
+    condition: "DEGRADATION",
+    source: "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+  },
+  {
     code: "S31__DEGRADATION",
     scenarioCode: "S31",
     condition: "DEGRADATION",
@@ -6484,6 +6490,8 @@ function pharmacyReviewAntimicrobialScenarioConditionBackedByEvidence(
         ) &&
         hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback, runtime.actionCardAsset)
       );
+    case "S18__DEGRADATION":
+      return hasCompletePharmacyReviewS18DegradationEvidence(parsed, runtime);
     case "S31__DEGRADATION":
       return (
         hasCompletePharmacyReviewOutbound(
@@ -12363,10 +12371,113 @@ function hasHighRiskPharmacyReviewGovernance(
     ) &&
     hasCompleteMedicationSafetyFeedbackEvidence(body.feedback, runtime.actionCardAsset) &&
     hasCompletePharmacyReviewRectification(body.qualityRectification, body.recommendation) &&
-    hasCompletePharmacyReviewRectificationAuditEvidence(rectification.auditEvidence, rectification) &&
+    hasCompletePharmacyReviewRectificationAuditEvidence(
+      rectification.auditEvidence,
+      rectification,
+    ) &&
     hasCompletePharmacyReviewRectificationPermissionEvidence(rectification.permissionEvidence) &&
     hasCompletePharmacyReviewRectificationSixStateEvidence(rectification.sixStateEvidence)
   );
+}
+
+function hasCompletePharmacyReviewS18DegradationEvidence(
+  body: Record<string, unknown>,
+  runtime: {
+    releaseId: string;
+    ruleAsset: PharmacyReviewRuntimeAsset;
+    actionCardAsset: PharmacyReviewRuntimeAsset;
+  },
+) {
+  const evidence = recordValue(body.medicationSafetyDegradationEvidence);
+  const outbound = recordValue(body.outboundReview);
+  const recommendation = recordValue(body.recommendation);
+  const ruleRecommendation = recordValue(body.ruleRecommendation);
+  const feedback = recordValue(body.feedback);
+  const pharmacist = recordValue(feedback?.pharmacist);
+  const physician = recordValue(feedback?.physician);
+  return (
+    evidence !== null &&
+    outbound !== null &&
+    recommendation !== null &&
+    ruleRecommendation !== null &&
+    pharmacist !== null &&
+    physician !== null &&
+    evidence.source ===
+      "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES" &&
+    evidence.runtimeReleaseId === runtime.releaseId &&
+    evidence.outboundMessageId === outbound.messageId &&
+    evidence.compensationMessageId === outbound.compensationMessageId &&
+    evidence.recommendationCardId === recommendation.cardId &&
+    evidence.ruleRecommendationCardId === ruleRecommendation.cardId &&
+    evidence.pharmacistFeedbackId === pharmacist.feedbackId &&
+    evidence.physicianFeedbackId === physician.feedbackId &&
+    evidence.outboundStatus === outbound.status &&
+    ["NOT_CONNECTED", "RETRYING"].includes(String(evidence.outboundStatus)) &&
+    evidence.compensationStatus === outbound.compensationStatus &&
+    evidence.compensationStatus === "NOT_CONNECTED" &&
+    evidence.blocksMainFlow === false &&
+    outbound.blocksMainFlow === false &&
+    evidence.requiresPhysicianConfirmation === true &&
+    evidence.noAutoOrder === true &&
+    evidence.noExternalSuccessClaim === true &&
+    evidence.aiGenerated === false &&
+    hasPharmacyReviewS18DegradationScopeBoundary(evidence.scopeStatement) &&
+    hasCompletePharmacyReviewApiEvidence(body.apiEvidence) &&
+    hasCompletePharmacyReviewOutbound(body.outboundReview, body.adapter, body.clinicalContext) &&
+    hasCompletePharmacyReviewClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompletePharmacyReviewRiskMatrix(body.riskMatrix) &&
+    hasCompletePharmacyReviewSafetyRedline(body.safetyRedline, body.riskMatrix) &&
+    hasCompletePharmacyReviewRecommendation(
+      body.recommendation,
+      {
+        releaseId: runtime.releaseId,
+        actionCardAsset: runtime.actionCardAsset,
+      },
+      body.clinicalTrigger,
+      body.riskMatrix,
+      body.safetyRedline,
+    ) &&
+    hasCompletePharmacyReviewRuleRecommendation(
+      body.ruleRecommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteMedicationSafetyFeedbackEvidence(body.feedback, runtime.actionCardAsset)
+  );
+}
+
+function hasPharmacyReviewS18DegradationScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表行") &&
+    !hasUnnegatedPharmacyReviewS18DegradationScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 S18") &&
+    hasNegatedScopeTerm(statement, "完整药事治理") &&
+    hasNegatedScopeTerm(statement, "完整抗菌药物分级管理") &&
+    hasNegatedScopeTerm(statement, "完整药房审方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "真实外部药房审方成功联通") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedPharmacyReviewS18DegradationScopeClaim(statement: string) {
+  return [
+    "完整 S18",
+    "完整S18",
+    "完整药事治理",
+    "完整抗菌药物分级管理",
+    "完整药房审方系统族覆盖",
+    "真实外部药房审方成功联通",
+    "自动开嘱",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasCompletePharmacyReviewRectificationAuditEvidence(

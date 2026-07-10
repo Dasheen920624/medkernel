@@ -553,6 +553,11 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain("S31__HIGH_RISK");
     expect(coverageParser).toContain("PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW");
     expect(coverageParser).toContain("hasHighRiskPharmacyReviewGovernance");
+    expect(coverageParser).toContain("S18__DEGRADATION");
+    expect(coverageParser).toContain(
+      "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+    );
+    expect(coverageParser).toContain("hasCompletePharmacyReviewS18DegradationEvidence");
     expect(coverageParser).toContain("hasCompletePharmacyReviewRectificationAuditEvidence");
     expect(coverageParser).toContain("hasCompletePublicHealthInfectionRegulatoryConsumerSlice");
     expect(coverageParser).toContain("publicHealthInfectionRegulatoryConsumerSlice");
@@ -1865,6 +1870,10 @@ describe("E2E credential contract", () => {
     const mpiSource = readFileSync("src/pages/clinical/Mpi.tsx", "utf8");
     const hooksSource = readFileSync("src/shared/api/hooks.ts", "utf8");
     const e2eSource = readFileSync("e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts", "utf8");
+    const pharmacyInboundWebhookSource = e2eSource.slice(
+      e2eSource.indexOf("async function postSignedPharmacyReviewInbound"),
+      e2eSource.indexOf("async function waitForClinicalEventProcessed"),
+    );
     const qualityRunPayload = e2eSource.slice(
       e2eSource.indexOf('const run = await postApi(page, "/engine/evaluation/runs"'),
       e2eSource.indexOf('await expectOk(run, "创建药事治理质量问题")'),
@@ -1942,8 +1951,8 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("waitForClinicalEventProcessed");
     expect(e2eSource).toContain('lastDetail.status === "PROCESSED"');
     expect(e2eSource).toContain('runtimeReleaseId: textField(data, "runtimeReleaseId")');
-    expect(e2eSource).not.toContain("linkedOutboundMessageId");
-    expect(e2eSource).not.toContain("outboundMessageId");
+    expect(pharmacyInboundWebhookSource).not.toContain("linkedOutboundMessageId");
+    expect(pharmacyInboundWebhookSource).not.toContain("outboundMessageId");
     expect(e2eSource).toContain("signedPayload: request.payload");
     expect(e2eSource).not.toContain("const sourcePayload = request.payload");
     expect(e2eSource).not.toContain("pharmacyReview: sourcePayload.pharmacyReview");
@@ -1961,6 +1970,11 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('canonicalSessionRole: "clinical-user"');
     expect(e2eSource).toContain("PHYSICIAN_CONFIRMATION");
     expect(e2eSource).toContain("qualityRectification");
+    expect(e2eSource).toContain("medicationSafetyDegradationEvidence");
+    expect(e2eSource).toContain("S18__DEGRADATION");
+    expect(e2eSource).toContain(
+      "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+    );
     expect(e2eSource).toContain("pharmacyHighRiskGovernanceEvidence");
     expect(e2eSource).toContain("readRectificationAuditEvidence");
     expect(e2eSource).toContain("/large-lists/audit-events/list");

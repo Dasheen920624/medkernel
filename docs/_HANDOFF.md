@@ -23,6 +23,48 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百五十一批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增第三方系统族消费者切片、不新增完整 S18 / S31；只在既有药房审方与抗菌药物治理真实前台链路中，把
+  `S18__DEGRADATION` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `pharmacy-review-antimicrobial-frontdesk.spec.ts` 的 `pharmacy-review-antimicrobial-frontdesk-codes` 附件：
+  `PHARMACY_REVIEW` 出站审方请求保持 `RETRYING/NOT_CONNECTED` 与 `compensationStatus=NOT_CONNECTED` 诚实断连，
+  但本地当前机构生效版本的抗菌药物 SAFETY 红线、规则推荐、药师复核和医生人工确认主链路继续成立。明确不声明完整
+  S18、完整药事治理、完整抗菌药物分级管理、完整药房审方系统族覆盖、真实外部药房审方成功联通、自动开嘱、完整 S31、
+  完整第三方系统族、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百五十一批实现细节：`frontend/e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts` 的附件新增
+  `medicationSafetyDegradationEvidence`，固定
+  `source=MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES`，并绑定本轮
+  `runtimeReleaseId/outboundMessageId/compensationMessageId/recommendationCardId/ruleRecommendationCardId/`
+  `pharmacistFeedbackId/physicianFeedbackId/outboundStatus/compensationStatus/blocksMainFlow`，同时要求
+  `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、`noExternalSuccessClaim=true`、`aiGenerated=false` 和
+  明确 scope 边界。`frontend/e2e/support/launchCoverageEvidence.ts` 将 `S18__DEGRADATION` 纳入
+  `pharmacyReviewAntimicrobialScenarioConditionRows`，新增
+  `hasCompletePharmacyReviewS18DegradationEvidence()` 与 `hasPharmacyReviewS18DegradationScopeBoundary()`：
+  只有显式条件行、结构化降级证据、出站断连补偿、本地上下文、风险矩阵、SAFETY 红线、红线推荐、规则推荐、
+  药师复核和医生人工确认同时成立，才声明该行。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：
+  正例声明 `[S18__HIGH_RISK,S18__DEGRADATION,S31__DEGRADATION,S31__HIGH_RISK,S31__ABNORMAL]`；缺显式 S18 降级条件附件、
+  source 错、证据为空、缺结构化证据、结构化 source 错、出站伪造成外部成功、补偿状态不是 `NOT_CONNECTED`、缺补偿消息、
+  断连阻断主链路、推荐未绑定当前 runtime、规则推荐卡错绑、缺药师复核、医生未人工确认、允许自动开嘱、伪造外部成功、
+  推荐卡 AI 自动生成、scope 冒领完整 S18，均不得声明 `S18__DEGRADATION`。`frontend/src/test/e2eAuthCredentialContract.test.ts`
+  同步锁定 E2E 附件和 parser 源码锚点，并把旧的 `outboundMessageId` 禁词收窄到入站 webhook 函数片段，允许 S18 降级对象合法绑定出站消息。
+- 第二百五十一批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识
+  `S18__DEGRADATION`，`scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1017 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1084 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s18-degradation-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s18-degradation-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S18__HIGH_RISK,S18__DEGRADATION,S31__DEGRADATION,S31__HIGH_RISK,S31__ABNORMAL]`，
+  `thirdPartySystemFamilyConsumerSlices` 仍为 `[PHARMACY_REVIEW]`，未新增完整第三方系统族或完整上线声明。
+  并行只读 explorer 已返回后续候选：优先 `S24__DEGRADATION`（急诊接入断连但本地分诊升级继续）、
+  `S20__ABNORMAL`（护理连续照护异常回院 / 结果回流），后续候选池还包括 `S27__DEGRADATION`、`S36__ABNORMAL`、
+  `S21__ABNORMAL`。后续仍必须新增显式 `scenarioConditionEvidence` 和结构化强字段，不得把普通 `scenarioEvidence`、
+  菜单、路由、文案、消费者代表切片或已有 `scenarioCodes` 冒领为完整上线。当前无关
+  `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百五十批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增第三方系统族消费者切片、不新增完整 S19；只在既有急诊分诊与 ICU 生命支持真实前台链路中，把
   `S19__DEGRADATION` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于

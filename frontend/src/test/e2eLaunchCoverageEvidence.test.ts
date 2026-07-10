@@ -3978,6 +3978,56 @@ function expectNoPharmacyReviewConsumerSlice(body: Record<string, unknown>) {
   ).not.toContain("PHARMACY_REVIEW");
 }
 
+function pharmacyReviewAntimicrobialS18DegradationEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = structuredClone(pharmacyReviewAntimicrobialEvidence) as Record<string, unknown>;
+  return {
+    ...body,
+    medicationSafetyDegradationEvidence: {
+      source: "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+      runtimeReleaseId: "runtime-pharmacy-review",
+      outboundMessageId: "out-pharmacy-review",
+      compensationMessageId: "out-pharmacy-review",
+      recommendationCardId: "card-pharmacy-review",
+      ruleRecommendationCardId: "card-rule-pharmacy-review",
+      pharmacistFeedbackId: "rf-pharmacy-pharmacist",
+      physicianFeedbackId: "rf-pharmacy-physician",
+      outboundStatus: "RETRYING",
+      compensationStatus: "NOT_CONNECTED",
+      blocksMainFlow: false,
+      requiresPhysicianConfirmation: true,
+      noAutoOrder: true,
+      noExternalSuccessClaim: true,
+      aiGenerated: false,
+      scopeStatement:
+        "S18 用药安全降级代表行：PHARMACY_REVIEW 出站审方断连时，本地抗菌药物安全红线、规则推荐、药师复核和医生人工确认继续；不代表完整 S18，不代表完整药事治理，不代表完整抗菌药物分级管理，不代表完整药房审方系统族覆盖，不代表真实外部药房审方成功联通，不代表自动开嘱，不代表完整 S0-S40，不代表完整上线验收。",
+    },
+    scenarioConditionEvidence: [
+      ...((body.scenarioConditionEvidence as Record<string, unknown>[]) ?? []),
+      {
+        code: "S18__DEGRADATION",
+        scenarioCode: "S18",
+        condition: "DEGRADATION",
+        source: "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+        evidence: [
+          "PHARMACY_REVIEW 出站审方请求收敛到 RETRYING/NOT_CONNECTED，补偿状态为 NOT_CONNECTED",
+          "断连不阻断当前机构生效版本的抗菌药物安全推荐、规则推荐、药师复核和医生确认",
+          "保持 noAutoOrder=true 与 noExternalSuccessClaim=true，不声明外部审方成功联通",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function expectNoPharmacyReviewS18DegradationConditionRow(body: Record<string, unknown>) {
+  const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+  expect(
+    evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+  ).not.toContain("S18__DEGRADATION");
+}
+
 const infectionPublicHealthSafetyEvidence = {
   scenarioCodes: ["S21", "S32"],
   productLayers: ["CLINICAL_EXECUTION", "DATA_INTEROPERABILITY"],
@@ -13554,6 +13604,226 @@ describe("browser E2E launch coverage evidence", () => {
 
   it("does not declare PHARMACY_REVIEW consumer slice from complete scenario evidence without explicit slice", () => {
     expectNoPharmacyReviewConsumerSlice(pharmacyReviewAntimicrobialEvidence);
+  });
+
+  it("declares S18 degradation condition row only when PHARMACY_REVIEW is disconnected and local medication-safety recommendation continues", () => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(
+      pharmacyReviewAntimicrobialS18DegradationEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S18__HIGH_RISK",
+      "S18__DEGRADATION",
+      "S31__DEGRADATION",
+      "S31__HIGH_RISK",
+      "S31__ABNORMAL",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺显式 S18 降级条件附件",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        scenarioConditionEvidence:
+          pharmacyReviewAntimicrobialEvidence.scenarioConditionEvidence.filter(
+            (row) => row.code !== "S18__DEGRADATION",
+          ),
+      }),
+    },
+    {
+      name: "S18 降级条件来源错配",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...pharmacyReviewAntimicrobialEvidence.scenarioConditionEvidence,
+          {
+            code: "S18__DEGRADATION",
+            scenarioCode: "S18",
+            condition: "DEGRADATION",
+            source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
+            evidence: ["不能复用 S31 降级来源冒领 S18 降级"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "S18 降级条件证据为空",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...pharmacyReviewAntimicrobialEvidence.scenarioConditionEvidence,
+          {
+            code: "S18__DEGRADATION",
+            scenarioCode: "S18",
+            condition: "DEGRADATION",
+            source:
+              "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "缺少 S18 降级结构化证据",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        medicationSafetyDegradationEvidence: undefined,
+      }),
+    },
+    {
+      name: "结构化证据 source 错配",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
+        },
+      }),
+    },
+    {
+      name: "出站状态伪造成外部成功",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          status: "SUCCESS",
+          compensationStatus: "CONNECTED",
+          compensationRequired: false,
+        },
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          outboundStatus: "SUCCESS",
+          compensationStatus: "CONNECTED",
+        },
+      }),
+    },
+    {
+      name: "补偿状态不是 NOT_CONNECTED",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          compensationStatus: "RETRYING",
+        },
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          compensationStatus: "RETRYING",
+        },
+      }),
+    },
+    {
+      name: "缺少补偿消息绑定",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          compensationMessageId: "",
+        },
+      }),
+    },
+    {
+      name: "断连阻断主链路",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        outboundReview: {
+          ...pharmacyReviewAntimicrobialEvidence.outboundReview,
+          blocksMainFlow: true,
+        },
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          blocksMainFlow: true,
+        },
+      }),
+    },
+    {
+      name: "本地推荐未绑定当前 runtime",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        recommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.recommendation,
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "规则推荐卡未绑定结构化证据",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          ruleRecommendationCardId: "card-other",
+        },
+      }),
+    },
+    {
+      name: "缺药师复核",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          pharmacist: undefined,
+        },
+      }),
+    },
+    {
+      name: "医生未人工确认",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          physician: {
+            ...pharmacyReviewAntimicrobialEvidence.feedback.physician,
+            cardStatus: "PENDING",
+          },
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        feedback: {
+          ...pharmacyReviewAntimicrobialEvidence.feedback,
+          noAutoOrder: false,
+        },
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "伪造外部审方成功联通",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+    {
+      name: "推荐卡被标记为 AI 自动生成",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        recommendation: {
+          ...pharmacyReviewAntimicrobialEvidence.recommendation,
+          aiGenerated: true,
+        },
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          aiGenerated: true,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 S18",
+      body: pharmacyReviewAntimicrobialS18DegradationEvidence({
+        medicationSafetyDegradationEvidence: {
+          ...(pharmacyReviewAntimicrobialS18DegradationEvidence()
+            .medicationSafetyDegradationEvidence as Record<string, unknown>),
+          scopeStatement:
+            "S18 用药安全降级代表行：PHARMACY_REVIEW 断连时本地推荐继续，完整 S18 已上线。",
+        },
+      }),
+    },
+  ])("does not declare S18 degradation condition row when $name", ({ body }) => {
+    expectNoPharmacyReviewS18DegradationConditionRow(body);
   });
 
   it.each([

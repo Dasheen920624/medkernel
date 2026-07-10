@@ -2274,6 +2274,25 @@ async function attachPharmacyReviewAntimicrobialEvidence(
         ruleRecommendation: evidence.ruleRecommendation,
         feedback: evidence.feedback,
         qualityRectification: evidence.qualityRectification,
+        medicationSafetyDegradationEvidence: {
+          source: "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+          runtimeReleaseId: evidence.runtime.releaseId,
+          outboundMessageId: textField(evidence.outboundReview, "messageId"),
+          compensationMessageId: textField(evidence.outboundReview, "compensationMessageId"),
+          recommendationCardId: textField(evidence.recommendation, "cardId"),
+          ruleRecommendationCardId: textField(evidence.ruleRecommendation, "cardId"),
+          pharmacistFeedbackId: textFieldAtPath(evidence.feedback, "pharmacist.feedbackId"),
+          physicianFeedbackId: textFieldAtPath(evidence.feedback, "physician.feedbackId"),
+          outboundStatus: textField(evidence.outboundReview, "status"),
+          compensationStatus: textField(evidence.outboundReview, "compensationStatus"),
+          blocksMainFlow: booleanField(evidence.outboundReview, "blocksMainFlow"),
+          requiresPhysicianConfirmation: true,
+          noAutoOrder: true,
+          noExternalSuccessClaim: true,
+          aiGenerated: false,
+          scopeStatement:
+            "S18 用药安全降级代表行：PHARMACY_REVIEW 出站审方断连时，本地抗菌药物安全红线、规则推荐、药师复核和医生人工确认继续；不代表完整 S18，不代表完整药事治理，不代表完整抗菌药物分级管理，不代表完整药房审方系统族覆盖，不代表真实外部药房审方成功联通，不代表自动开嘱，不代表完整 S0-S40，不代表完整上线验收。",
+        },
         pharmacyHighRiskGovernanceEvidence: {
           source: "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW",
           runtimeReleaseId: evidence.runtime.releaseId,
@@ -2298,6 +2317,18 @@ async function attachPharmacyReviewAntimicrobialEvidence(
               "抗菌药物 SAFETY 红线和风险矩阵均为 CRITICAL",
               "推荐卡要求医生确认且药师复核不关闭医生确认链路",
               "医生逐条确认采纳并保持 noAutoOrder=true",
+            ],
+          },
+          {
+            code: "S18__DEGRADATION",
+            scenarioCode: "S18",
+            condition: "DEGRADATION",
+            source:
+              "MEDICATION_SAFETY_PHARMACY_REVIEW_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+            evidence: [
+              "PHARMACY_REVIEW 出站审方请求收敛到 RETRYING/NOT_CONNECTED，补偿状态为 NOT_CONNECTED",
+              "断连不阻断当前机构生效版本的抗菌药物安全推荐、规则推荐、药师复核和医生确认",
+              "保持 noAutoOrder=true 与 noExternalSuccessClaim=true，不声明外部审方成功联通",
             ],
           },
           {
