@@ -550,6 +550,10 @@ describe("E2E credential contract", () => {
     expect(coverageParser).toContain("hasCompletePharmacyReviewConsumerSlice");
     expect(coverageParser).toContain("pharmacyReviewConsumerSlice");
     expect(coverageParser).toContain("requiresPharmacyReviewConsumerSliceAttachment");
+    expect(coverageParser).toContain("S31__HIGH_RISK");
+    expect(coverageParser).toContain("PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW");
+    expect(coverageParser).toContain("hasHighRiskPharmacyReviewGovernance");
+    expect(coverageParser).toContain("hasCompletePharmacyReviewRectificationAuditEvidence");
     expect(coverageParser).toContain("hasCompletePublicHealthInfectionRegulatoryConsumerSlice");
     expect(coverageParser).toContain("publicHealthInfectionRegulatoryConsumerSlice");
     expect(coverageParser).toContain(
@@ -1948,6 +1952,16 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain('canonicalSessionRole: "clinical-user"');
     expect(e2eSource).toContain("PHYSICIAN_CONFIRMATION");
     expect(e2eSource).toContain("qualityRectification");
+    expect(e2eSource).toContain("pharmacyHighRiskGovernanceEvidence");
+    expect(e2eSource).toContain("readRectificationAuditEvidence");
+    expect(e2eSource).toContain("/large-lists/audit-events/list");
+    expect(e2eSource).toContain('resourceType: "quality_finding"');
+    expect(e2eSource).toContain('resourceType: "rectification_task"');
+    expect(e2eSource).toContain("auditEvidence");
+    expect(e2eSource).toContain("permissionEvidence");
+    expect(e2eSource).toContain("sixStateEvidence");
+    expect(e2eSource).toContain('"S31__HIGH_RISK"');
+    expect(e2eSource).toContain("PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW");
     expect(e2eSource).toContain("/engine/rectifications");
     expect(e2eSource).toContain("localRehearsalQualityDepartmentId");
     expect(e2eSource).toContain("level=DEPARTMENT");

@@ -3780,6 +3780,42 @@ const pharmacyReviewAntimicrobialEvidence = {
     roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
     submittedEvidenceRef: "pharmacy-review-antimicrobial-evidence",
     reviewDecision: "APPROVED",
+    auditEvidence: {
+      findingAuditReadbackVerified: true,
+      findingAuditResourceType: "quality_finding",
+      findingAuditResourceId: "finding-pharmacy-review",
+      taskAuditReadbackVerified: true,
+      taskAuditResourceType: "rectification_task",
+      taskAuditResourceId: "task-pharmacy-review",
+    },
+    permissionEvidence: {
+      submittedByRole: "engine-operator",
+      reviewedByRole: "engine-operator",
+      canonicalFixedRoleVerified: true,
+      clinicalUserPrivilegeEscalation: false,
+    },
+    sixStateEvidence: {
+      findingAssignedStatus: "ASSIGNED",
+      taskAssignedStatus: "ASSIGNED",
+      taskSubmittedStatus: "SUBMITTED",
+      taskClosedStatus: "CLOSED",
+      findingClosedStatus: "CLOSED",
+      reviewDecision: "APPROVED",
+    },
+  },
+  pharmacyHighRiskGovernanceEvidence: {
+    source: "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW",
+    runtimeReleaseId: "runtime-pharmacy-review",
+    recommendationCardId: "card-pharmacy-review",
+    ruleRecommendationCardId: "card-rule-pharmacy-review",
+    pharmacistFeedbackId: "rf-pharmacy-pharmacist",
+    physicianFeedbackId: "rf-pharmacy-physician",
+    findingId: "finding-pharmacy-review",
+    taskId: "task-pharmacy-review",
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noExternalSuccessClaim: true,
+    aiGenerated: false,
   },
   scenarioConditionEvidence: [
     {
@@ -3801,6 +3837,17 @@ const pharmacyReviewAntimicrobialEvidence = {
       evidence: [
         "PHARMACY_REVIEW 出站审方请求收敛到 NOT_CONNECTED",
         "断连补偿不阻断本地推荐、药师复核和医生确认主链路",
+      ],
+    },
+    {
+      code: "S31__HIGH_RISK",
+      scenarioCode: "S31",
+      condition: "HIGH_RISK",
+      source: "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW",
+      evidence: [
+        "PHARMACY_REVIEW 入站审方结果、抗菌药物红线和风险矩阵均要求医生确认",
+        "药师复核不关闭医生确认链路，医生人工确认且 noAutoOrder=true",
+        "本轮药事治理整改审计、权限、六态边界成立",
       ],
     },
     {
@@ -13461,6 +13508,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S18__HIGH_RISK",
       "S31__DEGRADATION",
+      "S31__HIGH_RISK",
       "S31__ABNORMAL",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
@@ -13477,6 +13525,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S18__HIGH_RISK",
       "S31__DEGRADATION",
+      "S31__HIGH_RISK",
       "S31__ABNORMAL",
     ]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
@@ -13813,6 +13862,119 @@ describe("browser E2E launch coverage evidence", () => {
     const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
 
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "高危药事治理缺少结构化证据",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        pharmacyHighRiskGovernanceEvidence: undefined,
+      },
+    },
+    {
+      name: "高危药事治理未绑定当前 runtime",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        pharmacyHighRiskGovernanceEvidence: {
+          ...pharmacyReviewAntimicrobialEvidence.pharmacyHighRiskGovernanceEvidence,
+          runtimeReleaseId: "runtime-other",
+        },
+      },
+    },
+    {
+      name: "高危药事治理缺少医生确认边界",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        pharmacyHighRiskGovernanceEvidence: {
+          ...pharmacyReviewAntimicrobialEvidence.pharmacyHighRiskGovernanceEvidence,
+          requiresPhysicianConfirmation: false,
+        },
+      },
+    },
+    {
+      name: "高危药事治理允许自动开嘱",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        pharmacyHighRiskGovernanceEvidence: {
+          ...pharmacyReviewAntimicrobialEvidence.pharmacyHighRiskGovernanceEvidence,
+          noAutoOrder: false,
+        },
+      },
+    },
+    {
+      name: "高危药事治理伪造外部成功",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        pharmacyHighRiskGovernanceEvidence: {
+          ...pharmacyReviewAntimicrobialEvidence.pharmacyHighRiskGovernanceEvidence,
+          noExternalSuccessClaim: false,
+        },
+      },
+    },
+    {
+      name: "高危药事治理整改缺少审计边界",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          auditEvidence: undefined,
+          auditVerified: true,
+          permissionVerified: true,
+          sixStateBoundaryVerified: true,
+        },
+      },
+    },
+    {
+      name: "高危药事治理审计资源未绑定质量问题",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          auditEvidence: {
+            ...pharmacyReviewAntimicrobialEvidence.qualityRectification.auditEvidence,
+            findingAuditResourceId: "other-finding",
+          },
+        },
+      },
+    },
+    {
+      name: "高危药事治理提交角色不是固定运营职责",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          permissionEvidence: {
+            ...pharmacyReviewAntimicrobialEvidence.qualityRectification.permissionEvidence,
+            submittedByRole: "clinical-user",
+          },
+        },
+      },
+    },
+    {
+      name: "高危药事治理六态链未关闭",
+      body: {
+        ...pharmacyReviewAntimicrobialEvidence,
+        qualityRectification: {
+          ...pharmacyReviewAntimicrobialEvidence.qualityRectification,
+          sixStateEvidence: {
+            ...pharmacyReviewAntimicrobialEvidence.qualityRectification.sixStateEvidence,
+            taskClosedStatus: "SUBMITTED",
+          },
+        },
+      },
+    },
+  ])("does not declare S31 high-risk condition row when $name", ({ body }) => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? []).toEqual([
+      "S18__HIGH_RISK",
+      "S31__DEGRADATION",
+      "S31__ABNORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S31__HIGH_RISK");
   });
 
   it.each([

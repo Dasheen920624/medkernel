@@ -970,6 +970,12 @@ const pharmacyReviewAntimicrobialScenarioConditionRows = [
     source: "PHARMACY_REVIEW_OUTBOUND_NOT_CONNECTED",
   },
   {
+    code: "S31__HIGH_RISK",
+    scenarioCode: "S31",
+    condition: "HIGH_RISK",
+    source: "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW",
+  },
+  {
     code: "S31__ABNORMAL",
     scenarioCode: "S31",
     condition: "ABNORMAL",
@@ -6482,6 +6488,8 @@ function pharmacyReviewAntimicrobialScenarioConditionBackedByEvidence(
         hasCompletePharmacyReviewClinicalContext(parsed.clinicalContext, runtime.releaseId) &&
         hasCompleteMedicationSafetyFeedbackEvidence(parsed.feedback, runtime.actionCardAsset)
       );
+    case "S31__HIGH_RISK":
+      return hasHighRiskPharmacyReviewGovernance(parsed, runtime);
     case "S31__ABNORMAL":
       return hasCompletePharmacyReviewRectification(
         parsed.qualityRectification,
@@ -7630,6 +7638,7 @@ function hasRequiredPharmacyReviewAntimicrobialFrontdeskAttachment(test: Browser
       ruleRecommendation?: unknown;
       feedback?: unknown;
       qualityRectification?: unknown;
+      pharmacyHighRiskGovernanceEvidence?: unknown;
       scenarioEvidence?: unknown;
     };
     const runtime = parsePharmacyReviewRuntimeEvidence(parsed.runtime);
@@ -12281,6 +12290,115 @@ function hasCompletePharmacyReviewRectification(value: unknown, recommendationVa
     rectification.roleEvidence === "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW" &&
     hasText(rectification.submittedEvidenceRef) &&
     rectification.reviewDecision === "APPROVED"
+  );
+}
+
+function hasHighRiskPharmacyReviewGovernance(
+  body: Record<string, unknown>,
+  runtime: {
+    releaseId: string;
+    ruleAsset: PharmacyReviewRuntimeAsset;
+    actionCardAsset: PharmacyReviewRuntimeAsset;
+  },
+) {
+  const evidence = recordValue(body.pharmacyHighRiskGovernanceEvidence);
+  const recommendation = recordValue(body.recommendation);
+  const ruleRecommendation = recordValue(body.ruleRecommendation);
+  const feedback = recordValue(body.feedback);
+  const pharmacist = recordValue(feedback?.pharmacist);
+  const physician = recordValue(feedback?.physician);
+  const rectification = recordValue(body.qualityRectification);
+  return (
+    evidence !== null &&
+    recommendation !== null &&
+    ruleRecommendation !== null &&
+    feedback !== null &&
+    pharmacist !== null &&
+    physician !== null &&
+    rectification !== null &&
+    evidence.source === "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW" &&
+    evidence.runtimeReleaseId === runtime.releaseId &&
+    evidence.recommendationCardId === recommendation.cardId &&
+    evidence.ruleRecommendationCardId === ruleRecommendation.cardId &&
+    evidence.pharmacistFeedbackId === pharmacist.feedbackId &&
+    evidence.physicianFeedbackId === physician.feedbackId &&
+    evidence.findingId === rectification.findingId &&
+    evidence.taskId === rectification.taskId &&
+    evidence.requiresPhysicianConfirmation === true &&
+    evidence.noAutoOrder === true &&
+    evidence.noExternalSuccessClaim === true &&
+    evidence.aiGenerated === false &&
+    hasCompletePharmacyReviewInbound(
+      body.inboundReview,
+      body.adapter,
+      body.webhookSignature,
+      body.outboundReview,
+      runtime.releaseId,
+    ) &&
+    hasCompletePharmacyReviewRiskMatrix(body.riskMatrix) &&
+    hasCompletePharmacyReviewSafetyRedline(body.safetyRedline, body.riskMatrix) &&
+    hasCompletePharmacyReviewRecommendation(
+      body.recommendation,
+      {
+        releaseId: runtime.releaseId,
+        actionCardAsset: runtime.actionCardAsset,
+      },
+      body.clinicalTrigger,
+      body.riskMatrix,
+      body.safetyRedline,
+    ) &&
+    hasCompletePharmacyReviewRuleRecommendation(
+      body.ruleRecommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteMedicationSafetyFeedbackEvidence(body.feedback, runtime.actionCardAsset) &&
+    hasCompletePharmacyReviewRectification(body.qualityRectification, body.recommendation) &&
+    hasCompletePharmacyReviewRectificationAuditEvidence(rectification.auditEvidence, rectification) &&
+    hasCompletePharmacyReviewRectificationPermissionEvidence(rectification.permissionEvidence) &&
+    hasCompletePharmacyReviewRectificationSixStateEvidence(rectification.sixStateEvidence)
+  );
+}
+
+function hasCompletePharmacyReviewRectificationAuditEvidence(
+  value: unknown,
+  rectification: Record<string, unknown> | null,
+) {
+  const audit = recordValue(value);
+  return (
+    audit !== null &&
+    rectification !== null &&
+    audit.findingAuditReadbackVerified === true &&
+    audit.findingAuditResourceType === "quality_finding" &&
+    audit.findingAuditResourceId === rectification.findingId &&
+    audit.taskAuditReadbackVerified === true &&
+    audit.taskAuditResourceType === "rectification_task" &&
+    audit.taskAuditResourceId === rectification.taskId
+  );
+}
+
+function hasCompletePharmacyReviewRectificationPermissionEvidence(value: unknown) {
+  const permission = recordValue(value);
+  return (
+    permission !== null &&
+    permission.submittedByRole === "engine-operator" &&
+    permission.reviewedByRole === "engine-operator" &&
+    permission.canonicalFixedRoleVerified === true &&
+    permission.clinicalUserPrivilegeEscalation === false
+  );
+}
+
+function hasCompletePharmacyReviewRectificationSixStateEvidence(value: unknown) {
+  const sixState = recordValue(value);
+  return (
+    sixState !== null &&
+    sixState.findingAssignedStatus === "ASSIGNED" &&
+    sixState.taskAssignedStatus === "ASSIGNED" &&
+    sixState.taskSubmittedStatus === "SUBMITTED" &&
+    sixState.taskClosedStatus === "CLOSED" &&
+    sixState.findingClosedStatus === "CLOSED" &&
+    sixState.reviewDecision === "APPROVED"
   );
 }
 

@@ -476,6 +476,58 @@
   `CA_OIDC_SSO_HR/SPD_UDI_DEVICE/RESEARCH_ETHICS_DATA/MODEL_DIFY_AGENT` 仍需真实消费者证据；不能把登记、缺数或
   `NOT_CONNECTED` 冒领为完整消费者。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、
   不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百四十九批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增第三方系统族消费者切片、不新增完整 S31；只在既有药房审方与抗菌药物治理真实前台链路中，把
+  `S31__HIGH_RISK` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `pharmacy-review-antimicrobial-frontdesk.spec.ts` 的 `pharmacy-review-antimicrobial-frontdesk-codes` 附件：
+  `PHARMACY_REVIEW` 签名入站审方结果、抗菌药物 SAFETY 红线与 CDSS 风险矩阵均要求医生确认，药师复核不关闭医生确认链路，
+  医生人工确认且 `noAutoOrder=true`，本轮药事治理整改由固定职责账号提交并复核关闭，且审计 / 权限 / 六态边界成立。
+  明确不声明完整 S31、完整药事治理、完整抗菌药物分级管理、完整第三方药房审方系统族、完整审方平台、完整医嘱闭环、
+  真实外部药房审方成功联通、自动开嘱、全药品 / 全诊断审方覆盖、完整 S0-S40、134 清库、目标环境部署或完整上线验收。
+- 第二百四十九批实现细节：`frontend/e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts` 的
+  `qualityRectification` 附件新增结构化 `auditEvidence/permissionEvidence/sixStateEvidence`，由审计员视角通过
+  `/large-lists/audit-events/list` 回读本轮 `quality_finding` 与 `rectification_task` 审计事件，并记录固定职责提交 /
+  复核角色和 `ASSIGNED -> SUBMITTED -> CLOSED/APPROVED` 六态链。附件新增
+  `pharmacyHighRiskGovernanceEvidence`，绑定本轮 `runtimeReleaseId/recommendationCardId/ruleRecommendationCardId/`
+  `pharmacistFeedbackId/physicianFeedbackId/findingId/taskId`，并要求
+  `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、`noExternalSuccessClaim=true`、`aiGenerated=false`。
+  `scenarioConditionEvidence` 显式写入 `S31__HIGH_RISK`、
+  `source=PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW`。`frontend/e2e/support/launchCoverageEvidence.ts`
+  将 `S31__HIGH_RISK` 纳入 `pharmacyReviewAntimicrobialScenarioConditionRows`，新增
+  `hasHighRiskPharmacyReviewGovernance()`，要求入站审方、风险矩阵、安全红线、推荐、规则推荐、药师 / 医生反馈、整改关闭、
+  审计 / 权限 / 六态结构对象和高危治理绑定对象同时成立才声明该行；既有 `S18__HIGH_RISK`、`S31__DEGRADATION`、
+  `S31__ABNORMAL` 仍保持各自独立证据，不因缺高危三边界被抹掉。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `S18__HIGH_RISK/S31__DEGRADATION/S31__HIGH_RISK/S31__ABNORMAL`；缺显式条件、未知行、来源错、空证据、风险矩阵允许自动执行、
+  红线非 CRITICAL、药师复核直接关闭医生确认链路、医生未确认、反馈允许自动开嘱、出站未诚实断连、断连阻断主链路、
+  整改未批准 / 未绑定推荐卡均不得声明本组行；缺 `pharmacyHighRiskGovernanceEvidence`、runtime 错配、缺医生确认边界、
+  允许自动开嘱、伪造外部成功、缺审计资源回读、审计资源 ID 错配、仅有静态布尔、固定职责权限不成立或六态链不成立时，
+  只拒绝 `S31__HIGH_RISK`，不抹掉已证明的 `S18__HIGH_RISK/S31__DEGRADATION/S31__ABNORMAL`。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定 E2E 附件和 parser 源码锚点。
+- 第二百四十九批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在 11 个正例 / 负例（旧 parser 不认识
+  `S31__HIGH_RISK` 后拒绝整组条件行，且高危结构缺失时没有只拒绝新增行）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（978 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1045 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s31-high-risk-20260710-r1 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s31-high-risk-20260710-r1/report/results.json` 读回 `status=PASSED`、`expected=1`、
+  `unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S18__HIGH_RISK,S31__DEGRADATION,S31__HIGH_RISK,S31__ABNORMAL]`，`thirdPartySystemFamilyConsumerSlices`
+  仍仅为 `[PHARMACY_REVIEW]`。附件抽查：`pharmacyHighRiskGovernanceEvidence` 绑定本轮
+  `runtimeReleaseId/recommendationCardId/ruleRecommendationCardId/pharmacistFeedbackId/physicianFeedbackId/findingId/taskId`，
+  `qualityRectification.auditEvidence` 回读 `quality_finding` 与 `rectification_task` 资源并匹配本轮 `findingId/taskId`，
+  `permissionEvidence.submittedByRole` 与 `reviewedByRole` 均为 `engine-operator`，`sixStateEvidence` 为
+  `ASSIGNED/ASSIGNED/SUBMITTED/CLOSED/CLOSED/APPROVED`。本批使用 1 个只读 explorer 预研下一批候选：`S19__DEGRADATION`
+  可作为“LIS/监护接入未连接但本地急危重风险升级主链路继续”的窄口径候选，必须新增显式
+  `scenarioConditionEvidence`，建议 source 为 `CRITICAL_MONITORING_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES`，并强校验
+  `emergencyOnboarding.healthStatus=NOT_CONNECTED`、LIS 监护入站 Observation、当前 runtime 推荐、医生人工确认、待办闭环、
+  审计 / 权限 / 六态和 `noExternalSuccessClaim/noAutoOrder/noAutoTransfer/noDeviceControl/noAutoVentilatorChange`；不得声明完整
+  S19、完整急诊 / ICU、完整 LIS / 监护设备平台、完整 S24/S27 其他状态、完整第三方系统族、完整 S0-S40、134 清库、
+  目标环境部署、真实外部系统联通成功或上线验收。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`
+  仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百三十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 12 项第三方系统族真实消费者总账。
   本批不新增 S0-S40 五态行；只把既有药房审方与抗菌药物治理真实前台链路从旧式
   `thirdPartySystemFamilyConsumerSlices:PHARMACY_REVIEW` 隐式 claim 升级为显式 `pharmacyReviewConsumerSlice`

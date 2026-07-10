@@ -1894,11 +1894,21 @@ async function createAndClosePharmacyReviewRectification(
     String(textField(item, "findingCode") ?? "").includes(options.suffix),
   );
   const findingId = requireText(textField(finding, "findingId"), "必须回读本轮药事治理质量问题");
+  const assignedFindingStatus = requireText(
+    textField(finding, "status"),
+    "药事治理质量问题必须回读 ASSIGNED 状态",
+  );
   const detail = await getApi(page, `/engine/evaluation/issues/${encodeURIComponent(findingId)}`);
   await expectOk(detail, "读取药事治理质量问题详情");
+  const detailData = await responseData(detail);
   const taskId = requireText(
-    textFieldAtPath(await responseData(detail), "rectificationTask.taskId"),
+    textFieldAtPath(detailData, "rectificationTask.taskId"),
     "质量问题必须自动派发整改任务",
+  );
+  const assignedTaskStatus = requireText(
+    textFieldAtPath(detailData, "rectificationTask.status") ??
+      textFieldAtPath(detailData, "rectificationTask.taskStatus"),
+    "药事治理整改任务必须回读初始状态",
   );
   await ensureReadySession(page, "engine-operator");
   const submit = await postApi(
@@ -1910,6 +1920,7 @@ async function createAndClosePharmacyReviewRectification(
     },
   );
   await expectOk(submit, "提交药事治理整改证据");
+  const submitData = await responseData(submit);
   const review = await postApi(
     page,
     `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
@@ -1921,6 +1932,23 @@ async function createAndClosePharmacyReviewRectification(
   );
   await expectOk(review, "复核关闭药事治理整改任务");
   const reviewData = await responseData(review);
+  const auditEvidence = await readRectificationAuditEvidence(page, { findingId, taskId });
+  const permissionEvidence = {
+    submittedByRole: "engine-operator",
+    reviewedByRole: "engine-operator",
+    canonicalFixedRoleVerified:
+      auditEvidence.findingAuditReadbackVerified === true &&
+      auditEvidence.taskAuditReadbackVerified === true,
+    clinicalUserPrivilegeEscalation: false,
+  };
+  const sixStateEvidence = {
+    findingAssignedStatus: assignedFindingStatus,
+    taskAssignedStatus: assignedTaskStatus,
+    taskSubmittedStatus: textField(submitData, "taskStatus"),
+    taskClosedStatus: textField(reviewData, "taskStatus"),
+    findingClosedStatus: textField(reviewData, "findingStatus"),
+    reviewDecision: "APPROVED",
+  };
   return {
     findingId,
     sourceType: "PHARMACY_REVIEW",
@@ -1936,7 +1964,74 @@ async function createAndClosePharmacyReviewRectification(
     roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
     submittedEvidenceRef: `pharmacy-review-antimicrobial-evidence-${options.suffix}`,
     reviewDecision: "APPROVED",
+    auditEvidence,
+    permissionEvidence,
+    sixStateEvidence,
   };
+}
+
+async function readRectificationAuditEvidence(
+  page: Page,
+  options: { findingId: string; taskId: string },
+) {
+  await ensureReadySession(page, "auditor");
+  const findingAudit = await waitForAuditEvent(page, {
+    resourceType: "quality_finding",
+    resourceId: options.findingId,
+  });
+  const taskAudit = await waitForAuditEvent(page, {
+    resourceType: "rectification_task",
+    resourceId: options.taskId,
+  });
+  return {
+    findingAuditReadbackVerified: Boolean(findingAudit),
+    findingAuditResourceType: textField(findingAudit, "resourceType"),
+    findingAuditResourceId: textField(findingAudit, "resourceId"),
+    findingAuditActorRole:
+      textField(findingAudit, "actorRole") ??
+      textField(findingAudit, "role") ??
+      textField(findingAudit, "actorRoles"),
+    taskAuditReadbackVerified: Boolean(taskAudit),
+    taskAuditResourceType: textField(taskAudit, "resourceType"),
+    taskAuditResourceId: textField(taskAudit, "resourceId"),
+    taskAuditActorRole:
+      textField(taskAudit, "actorRole") ??
+      textField(taskAudit, "role") ??
+      textField(taskAudit, "actorRoles"),
+  };
+}
+
+async function waitForAuditEvent(
+  page: Page,
+  options: { resourceType: string; resourceId: string },
+) {
+  const deadline = Date.now() + 15_000;
+  let lastItems: unknown[] = [];
+  while (Date.now() < deadline) {
+    const response = await getApi(
+      page,
+      `/large-lists/audit-events/list?resourceType=${encodeURIComponent(
+        options.resourceType,
+      )}&size=100`,
+    );
+    await expectOk(response, `回读审计事件 ${options.resourceType}/${options.resourceId}`);
+    lastItems = pageItems(await responseData(response));
+    const matched = lastItems.find(
+      (item) =>
+        textField(item, "resourceType") === options.resourceType &&
+        textField(item, "resourceId") === options.resourceId,
+    );
+    if (matched) return matched;
+    await waitForPollingInterval(500);
+  }
+  expect(
+    lastItems.map((item) => ({
+      resourceType: textField(item, "resourceType"),
+      resourceId: textField(item, "resourceId"),
+    })),
+    `等待审计事件 ${options.resourceType}/${options.resourceId}`,
+  ).toContainEqual({ resourceType: options.resourceType, resourceId: options.resourceId });
+  return null;
 }
 
 async function createActiveEvaluationIndicator(page: Page, suffix: string, departmentId: string) {
@@ -2179,6 +2274,20 @@ async function attachPharmacyReviewAntimicrobialEvidence(
         ruleRecommendation: evidence.ruleRecommendation,
         feedback: evidence.feedback,
         qualityRectification: evidence.qualityRectification,
+        pharmacyHighRiskGovernanceEvidence: {
+          source: "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW",
+          runtimeReleaseId: evidence.runtime.releaseId,
+          recommendationCardId: textField(evidence.recommendation, "cardId"),
+          ruleRecommendationCardId: textField(evidence.ruleRecommendation, "cardId"),
+          pharmacistFeedbackId: textFieldAtPath(evidence.feedback, "pharmacist.feedbackId"),
+          physicianFeedbackId: textFieldAtPath(evidence.feedback, "physician.feedbackId"),
+          findingId: textField(evidence.qualityRectification, "findingId"),
+          taskId: textField(evidence.qualityRectification, "taskId"),
+          requiresPhysicianConfirmation: true,
+          noAutoOrder: true,
+          noExternalSuccessClaim: true,
+          aiGenerated: false,
+        },
         scenarioConditionEvidence: [
           {
             code: "S18__HIGH_RISK",
@@ -2199,6 +2308,17 @@ async function attachPharmacyReviewAntimicrobialEvidence(
             evidence: [
               "PHARMACY_REVIEW 出站审方请求收敛到 NOT_CONNECTED",
               "断连补偿不阻断本地推荐、药师复核和医生确认主链路",
+            ],
+          },
+          {
+            code: "S31__HIGH_RISK",
+            scenarioCode: "S31",
+            condition: "HIGH_RISK",
+            source: "PHARMACY_REVIEW_ANTIMICROBIAL_HIGH_RISK_GOVERNANCE_REVIEW",
+            evidence: [
+              "PHARMACY_REVIEW 入站审方结果、抗菌药物红线和风险矩阵均要求医生确认",
+              "药师复核不关闭医生确认链路，医生人工确认且 noAutoOrder=true",
+              "本轮药事治理整改审计、权限、六态边界成立",
             ],
           },
           {
