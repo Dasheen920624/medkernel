@@ -1754,6 +1754,7 @@ async function attachInfectionPublicHealthSafetyEvidence(
         clinicalTrigger: evidence.clinicalTrigger,
         recommendation: evidence.recommendation,
         manualReview: evidence.manualReview,
+        publicHealthReportAbnormalEvidence: buildPublicHealthReportAbnormalEvidence(evidence),
         qualityRectification: evidence.qualityRectification,
         publicHealthInfectionRegulatoryConsumerSlice: {
           systemFamilyCode: "PUBLIC_HEALTH_INFECTION_REGULATORY",
@@ -1859,6 +1860,17 @@ async function attachInfectionPublicHealthSafetyEvidence(
             ],
           },
           {
+            code: "S21__ABNORMAL",
+            scenarioCode: "S21",
+            condition: "ABNORMAL",
+            source: "INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE",
+            evidence: [
+              "签名入站生成 U07.100、POSITIVE 与疑似新冠可报告病种上报预填",
+              "上报预填处于 READY_FOR_HUMAN_REVIEW 且必须医生人工复核",
+              "人工确认只关闭本地预填处置线索，不替代法定公卫上报或外部成功联通",
+            ],
+          },
+          {
             code: "S21__DEGRADATION",
             scenarioCode: "S21",
             condition: "DEGRADATION",
@@ -1899,6 +1911,90 @@ async function attachInfectionPublicHealthSafetyEvidence(
       2,
     ),
   });
+}
+
+function buildPublicHealthReportAbnormalEvidence(evidence: {
+  runtime: { releaseId: string; actionCardAsset: RuntimeReleaseItem };
+  clinicalContext: unknown;
+  outboundPrefill: unknown;
+  inboundReport: unknown;
+  recommendation: unknown;
+  manualReview: unknown;
+}) {
+  expect(
+    textFieldAtPath(
+      evidence.clinicalContext,
+      "resources.extensions.local.publicHealthReport.prefillStatus",
+    ),
+    "S21 异常预填必须等待人工复核",
+  ).toBe("READY_FOR_HUMAN_REVIEW");
+  expect(
+    textFieldAtPath(evidence.inboundReport, "mappedPayload.publicHealthReport.prefillStatus"),
+    "S21 入站预填必须等待人工复核",
+  ).toBe("READY_FOR_HUMAN_REVIEW");
+  expect(
+    booleanFieldAtPath(evidence.recommendation, "requiresPhysicianConfirmation"),
+    "S21 异常预填推荐卡必须要求医生确认",
+  ).toBe(true);
+  expect(
+    booleanFieldAtPath(evidence.manualReview, "noLegalAutoSubmit"),
+    "S21 异常预填人工确认不得替代法定上报",
+  ).toBe(true);
+  return {
+    source: "INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE",
+    runtimeReleaseId: evidence.runtime.releaseId,
+    patientId: requireText(
+      textFieldAtPath(evidence.clinicalContext, "patientId"),
+      "S21 异常预填证据必须绑定 patientId",
+    ),
+    encounterId: requireText(
+      textFieldAtPath(evidence.clinicalContext, "encounterId"),
+      "S21 异常预填证据必须绑定 encounterId",
+    ),
+    contextSnapshotId: requireText(
+      textFieldAtPath(evidence.clinicalContext, "contextSnapshotId"),
+      "S21 异常预填证据必须绑定 contextSnapshotId",
+    ),
+    outboundMessageId: requireText(
+      textFieldAtPath(evidence.outboundPrefill, "messageId"),
+      "S21 异常预填证据必须绑定出站预填消息",
+    ),
+    inboundMessageId: requireText(
+      textFieldAtPath(evidence.inboundReport, "messageId"),
+      "S21 异常预填证据必须绑定入站消息",
+    ),
+    clinicalEventId: requireText(
+      textFieldAtPath(evidence.inboundReport, "clinicalEvent.eventId"),
+      "S21 异常预填证据必须绑定临床事件",
+    ),
+    recommendationCardId: requireText(
+      textFieldAtPath(evidence.recommendation, "cardId"),
+      "S21 异常预填证据必须绑定推荐卡",
+    ),
+    manualReviewFeedbackId: requireText(
+      textFieldAtPath(evidence.manualReview, "feedbackId"),
+      "S21 异常预填证据必须绑定人工复核反馈",
+    ),
+    actionCardIdentity: requireText(
+      textFieldAtPath(evidence.runtime.actionCardAsset, "assetIdentity"),
+      "S21 异常预填证据必须绑定动作卡资产",
+    ),
+    standardCode: "U07.100",
+    labResult: "POSITIVE",
+    reportType: "INFECTIOUS_DISEASE_PREFILL",
+    reportableCondition: "SUSPECTED_COVID_19",
+    prefillStatus: "READY_FOR_HUMAN_REVIEW",
+    manualSubmitRequired: true,
+    legalSubmissionDelegated: false,
+    requiresPhysicianConfirmation: true,
+    noLegalAutoSubmit: true,
+    noExternalSuccessClaim: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    scopeStatement:
+      "S21 院感公卫阳性可报告病种上报预填异常代表行：签名入站生成 U07.100 与 POSITIVE 上报预填，当前机构生效版本推荐卡要求医生人工复核，人工确认只关闭本地预填处置线索且不替代法定公卫上报；不代表完整 S21，不代表完整院感系统，不代表完整公卫法定上报，不代表真实外部公卫上报成功联通，不代表自动法定上报，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+  };
 }
 
 function recordStage(stages: Set<string>, stage: string) {

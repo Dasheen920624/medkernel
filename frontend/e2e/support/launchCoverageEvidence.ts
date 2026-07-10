@@ -1002,6 +1002,12 @@ const infectionPublicHealthSafetyScenarioConditionRows = [
     source: "INFECTION_PUBLIC_HEALTH_MANUAL_REPORT_CONFIRMATION",
   },
   {
+    code: "S21__ABNORMAL",
+    scenarioCode: "S21",
+    condition: "ABNORMAL",
+    source: "INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE",
+  },
+  {
     code: "S21__DEGRADATION",
     scenarioCode: "S21",
     condition: "DEGRADATION",
@@ -6598,6 +6604,8 @@ function infectionPublicHealthSafetyScenarioConditionBackedByEvidence(
         ) &&
         hasCompleteInfectionPublicHealthManualReview(parsed.manualReview, runtime.actionCardAsset)
       );
+    case "S21__ABNORMAL":
+      return hasCompleteInfectionPublicHealthS21AbnormalEvidence(parsed, runtime);
     case "S21__DEGRADATION":
       return (
         hasCompleteInfectionPublicHealthOutbound(
@@ -13475,6 +13483,140 @@ function hasCompleteInfectionPublicHealthManualReview(
     actionCardEvidence.requiresHumanReportReview === true &&
     actionCardEvidence.noLegalAutoSubmit === true
   );
+}
+
+function hasCompleteInfectionPublicHealthS21AbnormalEvidence(
+  body: Record<string, unknown>,
+  runtime: {
+    releaseId: string;
+    ruleAsset: InfectionPublicHealthRuntimeAsset;
+    actionCardAsset: InfectionPublicHealthRuntimeAsset;
+  },
+) {
+  const evidence = recordValue(body.publicHealthReportAbnormalEvidence);
+  const context = recordValue(body.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const publicHealthReport = recordValue(local?.publicHealthReport);
+  const outbound = recordValue(body.outboundPrefill);
+  const outboundPayload = recordValue(outbound?.payload);
+  const inbound = recordValue(body.inboundReport);
+  const inboundMapped = recordValue(inbound?.mappedPayload);
+  const inboundReport = recordValue(inboundMapped?.publicHealthReport);
+  const clinicalEvent = recordValue(inbound?.clinicalEvent);
+  const recommendation = recordValue(body.recommendation);
+  const manualReview = recordValue(body.manualReview);
+  const persistedReview = recordValue(manualReview?.persisted);
+  return (
+    evidence !== null &&
+    context !== null &&
+    outbound !== null &&
+    outboundPayload !== null &&
+    inbound !== null &&
+    inboundReport !== null &&
+    clinicalEvent !== null &&
+    recommendation !== null &&
+    manualReview !== null &&
+    persistedReview !== null &&
+    evidence.source === "INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE" &&
+    evidence.runtimeReleaseId === runtime.releaseId &&
+    evidence.runtimeReleaseId === context.runtimeReleaseId &&
+    evidence.patientId === context.patientId &&
+    evidence.encounterId === context.encounterId &&
+    evidence.contextSnapshotId === context.contextSnapshotId &&
+    evidence.outboundMessageId === outbound.messageId &&
+    evidence.inboundMessageId === inbound.messageId &&
+    evidence.clinicalEventId === clinicalEvent.eventId &&
+    evidence.recommendationCardId === recommendation.cardId &&
+    evidence.manualReviewFeedbackId === manualReview.feedbackId &&
+    evidence.actionCardIdentity === runtime.actionCardAsset.assetIdentity &&
+    evidence.standardCode === "U07.100" &&
+    evidence.labResult === "POSITIVE" &&
+    evidence.reportType === "INFECTIOUS_DISEASE_PREFILL" &&
+    evidence.reportableCondition === "SUSPECTED_COVID_19" &&
+    evidence.prefillStatus === "READY_FOR_HUMAN_REVIEW" &&
+    evidence.manualSubmitRequired === true &&
+    evidence.legalSubmissionDelegated === false &&
+    evidence.requiresPhysicianConfirmation === true &&
+    evidence.noLegalAutoSubmit === true &&
+    evidence.noExternalSuccessClaim === true &&
+    evidence.auditVerified === true &&
+    evidence.permissionVerified === true &&
+    evidence.sixStateBoundaryVerified === true &&
+    publicHealthReport?.reportableCondition === "SUSPECTED_COVID_19" &&
+    publicHealthReport.prefillStatus === "READY_FOR_HUMAN_REVIEW" &&
+    publicHealthReport.manualSubmitRequired === true &&
+    publicHealthReport.legalSubmissionDelegated === false &&
+    outboundPayload.reportType === evidence.reportType &&
+    outboundPayload.manualSubmitRequired === true &&
+    outboundPayload.legalSubmissionDelegated === false &&
+    inboundReport.reportType === evidence.reportType &&
+    inboundReport.manualSubmitRequired === true &&
+    inboundReport.legalSubmissionDelegated === false &&
+    inboundReport.prefillStatus === evidence.prefillStatus &&
+    recommendation.requiresPhysicianConfirmation === true &&
+    recommendation.aiGenerated === false &&
+    manualReview.cardStatus === "ACCEPTED" &&
+    persistedReview.feedbackId === manualReview.feedbackId &&
+    persistedReview.feedbackType === "ACCEPT" &&
+    manualReview.noLegalAutoSubmit === true &&
+    hasInfectionPublicHealthS21AbnormalScopeBoundary(evidence.scopeStatement) &&
+    hasCompleteInfectionPublicHealthApiEvidence(body.apiEvidence) &&
+    hasHighRiskInfectionPublicHealthClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteInfectionPublicHealthOutbound(
+      body.outboundPrefill,
+      body.adapter,
+      body.clinicalContext,
+    ) &&
+    hasHighRiskInfectionPublicHealthInbound(
+      body.inboundReport,
+      body.adapter,
+      body.webhookSignature,
+      body.outboundPrefill,
+      runtime.releaseId,
+    ) &&
+    hasCompleteInfectionPublicHealthRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteInfectionPublicHealthManualReview(body.manualReview, runtime.actionCardAsset)
+  );
+}
+
+function hasInfectionPublicHealthS21AbnormalScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表行") &&
+    !hasUnnegatedInfectionPublicHealthS21AbnormalScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 S21") &&
+    hasNegatedScopeTerm(statement, "完整院感系统") &&
+    hasNegatedScopeTerm(statement, "完整公卫法定上报") &&
+    hasNegatedScopeTerm(statement, "真实外部公卫上报成功联通") &&
+    hasNegatedScopeTerm(statement, "自动法定上报") &&
+    hasNegatedScopeTerm(statement, "完整第三方系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedInfectionPublicHealthS21AbnormalScopeClaim(statement: string) {
+  return [
+    "完整 S21",
+    "完整S21",
+    "完整院感系统",
+    "完整公卫法定上报",
+    "真实外部公卫上报成功联通",
+    "自动法定上报",
+    "完整第三方系统族覆盖",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 function hasCompleteInfectionPublicHealthRectification(

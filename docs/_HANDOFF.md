@@ -112,6 +112,46 @@
   LAUNCH-13 组织 / 权限 / 全角色体验可拆 `S1__NORMAL`、`S14__NORMAL/HIGH_RISK` 与四职责体验证据，但不得冒领九层组织完整覆盖、
   35 入口全业务动作完整闭环或完整上线验收。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
   `/tmp` E2E 产物不要提交。
+- 第二百五十五批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增完整 S21、完整院感系统、完整公卫法定上报、真实外部公卫上报成功联通、自动法定上报、完整第三方系统族覆盖、
+  完整 S0-S40、134 清库、目标环境部署或完整上线验收；只在既有 `infection-public-health-safety-frontdesk.spec.ts` 真实前台链路中，
+  把 `S21__ABNORMAL` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `infection-public-health-safety-frontdesk-codes` 附件：签名入站生成 `U07.100`、`POSITIVE` 与疑似新冠可报告病种上报预填，
+  当前机构生效版本推荐卡要求医生人工复核，人工确认只关闭本地预填处置线索且不替代法定公卫上报。
+- 第二百五十五批实现细节：`frontend/e2e/infection-public-health-safety-frontdesk.spec.ts` 的附件新增
+  `publicHealthReportAbnormalEvidence`，固定
+  `source=INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE`，并绑定本轮
+  `runtimeReleaseId/patientId/encounterId/contextSnapshotId/outboundMessageId/inboundMessageId/clinicalEventId/`
+  `recommendationCardId/manualReviewFeedbackId/actionCardIdentity/standardCode/labResult/reportType/reportableCondition/prefillStatus`；同时要求
+  `manualSubmitRequired=true`、`legalSubmissionDelegated=false`、`requiresPhysicianConfirmation=true`、`noLegalAutoSubmit=true`、
+  `noExternalSuccessClaim=true`、`auditVerified=true`、`permissionVerified=true`、`sixStateBoundaryVerified=true` 和明确 scope 边界。
+  `frontend/e2e/support/launchCoverageEvidence.ts` 将 `S21__ABNORMAL` 纳入
+  `infectionPublicHealthSafetyScenarioConditionRows`，新增 `hasCompleteInfectionPublicHealthS21AbnormalEvidence()` 与
+  `hasInfectionPublicHealthS21AbnormalScopeBoundary()`：只有显式条件行、结构化 S21 异常预填证据、院感公卫运行版本、上报预填出站断连、
+  签名入站、高风险临床上下文、规则推荐、医生人工复核和审计 / 权限 / 六态安全边界同时成立，才声明该行。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `[S21__HIGH_RISK,S21__ABNORMAL,S21__DEGRADATION,S32__ABNORMAL,S32__HIGH_RISK]`；缺结构化 S21 异常预填证据、结构化来源错配、
+  未处于人工复核状态、声称外部上报成功、人工复核错绑推荐卡，均不得声明 `S21__ABNORMAL`；原有缺显式条件附件、未知行、source 错、
+  证据为空、诊断 / 可报告病种 / 推荐 / 人工确认 / 出站断连 / 整改闭环不成立等负例仍不得声明对应行。
+- 第二百五十五批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识 `S21__ABNORMAL`，
+  `scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1089 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s21-abnormal-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium infection-public-health-safety-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s21-abnormal-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S21__HIGH_RISK,S21__ABNORMAL,S21__DEGRADATION,S32__ABNORMAL,S32__HIGH_RISK]`。
+  附件抽查 `publicHealthReportAbnormalEvidence.source=INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE`，
+  runtime / patient / encounter / context 均绑定本轮真实对象，`standardCode=U07.100`、`labResult=POSITIVE`、
+  `reportableCondition=SUSPECTED_COVID_19`、`prefillStatus=READY_FOR_HUMAN_REVIEW`、
+  `manualSubmitRequired/requiresPhysicianConfirmation/noLegalAutoSubmit/noExternalSuccessClaim/auditVerified/permissionVerified/sixStateBoundaryVerified=true`，
+  `legalSubmissionDelegated=false`。并行只读 explorer 复核：`S13__NORMAL/S13__DEGRADATION` 与 `S7__NORMAL` 已有严格证据，不应重复；
+  空白场景下一批优先可做 `S30__NORMAL`（随访、消息和患者服务连续随访消费者切片，source 建议
+  `FOLLOWUP_PATIENT_SERVICE_CONTINUITY_BACKFLOW`），但必须明确不声明完整慢病基层双向转诊、完整 S30 或完整上线验收。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百五十二批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增完整急诊系统、完整 ICU 系统、完整 LIS 系统、完整监护设备平台或完整第三方系统族覆盖；只在既有
   `critical-emergency-icu-frontdesk.spec.ts` 真实前台链路中，把 `S24__DEGRADATION` 升级为显式

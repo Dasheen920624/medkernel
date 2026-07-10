@@ -4470,6 +4470,34 @@ const infectionPublicHealthSafetyEvidence = {
       noLegalAutoSubmit: true,
     },
   },
+  publicHealthReportAbnormalEvidence: {
+    source: "INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE",
+    runtimeReleaseId: "runtime-public-health-infection",
+    patientId: "mpi-public-health-infection",
+    encounterId: "enc-public-health-infection",
+    contextSnapshotId: "ctx-public-health-infection",
+    outboundMessageId: "out-public-health-prefill",
+    inboundMessageId: "in-public-health-report",
+    clinicalEventId: "evt-wh-public-health-infection",
+    recommendationCardId: "card-public-health-infection",
+    manualReviewFeedbackId: "rf-public-health-review",
+    actionCardIdentity: "ACTION_CARD.PUBLIC_HEALTH.INFECTION.REPORT_PREFILL",
+    standardCode: "U07.100",
+    labResult: "POSITIVE",
+    reportType: "INFECTIOUS_DISEASE_PREFILL",
+    reportableCondition: "SUSPECTED_COVID_19",
+    prefillStatus: "READY_FOR_HUMAN_REVIEW",
+    manualSubmitRequired: true,
+    legalSubmissionDelegated: false,
+    requiresPhysicianConfirmation: true,
+    noLegalAutoSubmit: true,
+    noExternalSuccessClaim: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    scopeStatement:
+      "S21 院感公卫阳性可报告病种上报预填异常代表行：签名入站生成 U07.100 与 POSITIVE 上报预填，当前机构生效版本推荐卡要求医生人工复核，人工确认只关闭本地预填处置线索且不替代法定公卫上报；不代表完整 S21，不代表完整院感系统，不代表完整公卫法定上报，不代表真实外部公卫上报成功联通，不代表自动法定上报，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
+  },
   qualityRectification: {
     findingId: "finding-public-health-safety",
     sourceType: "SAFETY_EVENT",
@@ -4516,6 +4544,17 @@ const infectionPublicHealthSafetyEvidence = {
         "阳性入站包含 U07.100、POSITIVE 和 SUSPECTED_COVID_19",
         "上报预填必须人工提交且中枢不替代法定上报",
         "推荐卡要求医生确认并由临床用户人工采纳",
+      ],
+    },
+    {
+      code: "S21__ABNORMAL",
+      scenarioCode: "S21",
+      condition: "ABNORMAL",
+      source: "INFECTION_PUBLIC_HEALTH_REPORT_PREFILL_ABNORMAL_MANUAL_CLOSURE",
+      evidence: [
+        "签名入站生成 U07.100、POSITIVE 与疑似新冠可报告病种上报预填",
+        "上报预填处于 READY_FOR_HUMAN_REVIEW 且必须医生人工复核",
+        "人工确认只关闭本地预填处置线索，不替代法定公卫上报或外部成功联通",
       ],
     },
     {
@@ -14978,6 +15017,7 @@ describe("browser E2E launch coverage evidence", () => {
     ).not.toContain("PUBLIC_HEALTH_INFECTION_REGULATORY");
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S21__HIGH_RISK",
+      "S21__ABNORMAL",
       "S21__DEGRADATION",
       "S32__ABNORMAL",
       "S32__HIGH_RISK",
@@ -15217,6 +15257,68 @@ describe("browser E2E launch coverage evidence", () => {
 
   it.each([
     {
+      name: "缺结构化 S21 异常预填证据",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        publicHealthReportAbnormalEvidence: undefined,
+      },
+    },
+    {
+      name: "结构化来源错配",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        publicHealthReportAbnormalEvidence: {
+          ...infectionPublicHealthSafetyEvidence.publicHealthReportAbnormalEvidence,
+          source: "INFECTION_PUBLIC_HEALTH_MANUAL_REPORT_CONFIRMATION",
+        },
+      },
+    },
+    {
+      name: "未处于人工复核状态",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        publicHealthReportAbnormalEvidence: {
+          ...infectionPublicHealthSafetyEvidence.publicHealthReportAbnormalEvidence,
+          prefillStatus: "AUTO_SUBMITTED",
+        },
+      },
+    },
+    {
+      name: "声称外部上报成功",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        publicHealthReportAbnormalEvidence: {
+          ...infectionPublicHealthSafetyEvidence.publicHealthReportAbnormalEvidence,
+          noExternalSuccessClaim: false,
+        },
+      },
+    },
+    {
+      name: "人工复核错绑推荐卡",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        publicHealthReportAbnormalEvidence: {
+          ...infectionPublicHealthSafetyEvidence.publicHealthReportAbnormalEvidence,
+          recommendationCardId: "card-other-public-health",
+        },
+      },
+    },
+  ])("does not declare S21 abnormal condition row when $name", ({ body }) => {
+    const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? []).toEqual([
+      "S21__HIGH_RISK",
+      "S21__DEGRADATION",
+      "S32__ABNORMAL",
+      "S32__HIGH_RISK",
+    ]);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S21__ABNORMAL");
+  });
+
+  it.each([
+    {
       name: "高危整改缺少审计边界",
       body: {
         ...infectionPublicHealthSafetyEvidence,
@@ -15299,6 +15401,7 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? []).toEqual([
       "S21__HIGH_RISK",
+      "S21__ABNORMAL",
       "S21__DEGRADATION",
       "S32__ABNORMAL",
     ]);
@@ -15353,6 +15456,7 @@ describe("browser E2E launch coverage evidence", () => {
     ).toEqual(["PUBLIC_HEALTH_INFECTION_REGULATORY"]);
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S21__HIGH_RISK",
+      "S21__ABNORMAL",
       "S21__DEGRADATION",
       "S32__ABNORMAL",
       "S32__HIGH_RISK",
