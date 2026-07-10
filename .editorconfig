@@ -2,12 +2,15 @@ root = true
 
 [*]
 charset = utf-8
-end_of_line = crlf
+end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
 [*.{md,json,yml,yaml,sql,java,html,js,http}]
 charset = utf-8
+
+[*.{cmd,bat,ps1}]
+end_of_line = crlf
 
 [*.ps1]
 charset = utf-8-bom
