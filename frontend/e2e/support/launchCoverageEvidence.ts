@@ -792,6 +792,12 @@ const sourceLineageScenarioConditionRows = [
     condition: "NORMAL",
     source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
   },
+  {
+    code: "S37__NORMAL",
+    scenarioCode: "S37",
+    condition: "NORMAL",
+    source: "BEDSIDE_KNOWLEDGE_SOURCE_CITATION_PROVENANCE_READBACK",
+  },
 ] as const;
 const embedBusinessHostScenarioConditionRows = [
   {
@@ -5679,9 +5685,28 @@ function sourceLineageScenarioConditionBackedByEvidence(
   switch (code) {
     case "S7__NORMAL":
       return hasCompleteSourceLineageStructuredEvidence(parsed);
+    case "S37__NORMAL":
+      return (
+        hasCompleteSourceLineageStructuredEvidence(parsed) &&
+        hasBedsideKnowledgeS37SourceLineageBoundary(parsed.bedsideKnowledgeS37Boundary)
+      );
     default:
       return false;
   }
+}
+
+function hasBedsideKnowledgeS37SourceLineageBoundary(value: unknown) {
+  const boundary = recordValue(value);
+  return (
+    boundary !== null &&
+    boundary.provesOnly === "床旁知识证据问答权威来源与引用回读切片" &&
+    boundary.notCompleteBedsideQuestionAnswering === true &&
+    boundary.notPatientLinkedExplanation === true &&
+    boundary.notModelAnswerQuality === true &&
+    boundary.notCompleteS37 === true &&
+    boundary.notCompleteS0S40 === true &&
+    boundary.notLaunchAcceptance === true
+  );
 }
 
 function collectEmbedBusinessHostScenarioConditionClaimsFromTest(test: BrowserE2eTestResult) {

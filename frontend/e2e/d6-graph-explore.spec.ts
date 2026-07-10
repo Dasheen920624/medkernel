@@ -730,6 +730,15 @@ async function attachSourceLineageScenarioEvidence(
         apiEvidence,
         ...structuredEvidence,
         context: structuredEvidence,
+        bedsideKnowledgeS37Boundary: {
+          provesOnly: "床旁知识证据问答权威来源与引用回读切片",
+          notCompleteBedsideQuestionAnswering: true,
+          notPatientLinkedExplanation: true,
+          notModelAnswerQuality: true,
+          notCompleteS37: true,
+          notCompleteS0S40: true,
+          notLaunchAcceptance: true,
+        },
         scenarioConditionEvidence: [
           {
             code: "S7__NORMAL",
@@ -739,6 +748,17 @@ async function attachSourceLineageScenarioEvidence(
             evidence: [
               "医疗引擎运营员登记受控来源、版本和锚点并审核激活带来源引用的知识候选",
               "后端回读完整 provenance，前台重建并探索知识关系图且追踪证据可见",
+            ],
+          },
+          {
+            code: "S37__NORMAL",
+            scenarioCode: "S37",
+            condition: "NORMAL",
+            source: "BEDSIDE_KNOWLEDGE_SOURCE_CITATION_PROVENANCE_READBACK",
+            evidence: [
+              "已发布知识绑定权威来源片段、版本哈希和 DERIVED_FROM 引用",
+              "前台探索知识关系图并查看 provenance 追踪证据",
+              "本行仅证明床旁知识证据问答的权威来源与引用回读切片，不声明完整床旁问答或患者关联解释",
             ],
           },
         ],

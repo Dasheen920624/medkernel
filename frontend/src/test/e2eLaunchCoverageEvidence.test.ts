@@ -20507,6 +20507,15 @@ describe("browser E2E launch coverage evidence", () => {
       traceEvidenceVisible: true,
       browserErrors: [],
     },
+    bedsideKnowledgeS37Boundary: {
+      provesOnly: "床旁知识证据问答权威来源与引用回读切片",
+      notCompleteBedsideQuestionAnswering: true,
+      notPatientLinkedExplanation: true,
+      notModelAnswerQuality: true,
+      notCompleteS37: true,
+      notCompleteS0S40: true,
+      notLaunchAcceptance: true,
+    },
     scenarioConditionEvidence: [
       {
         code: "S7__NORMAL",
@@ -20516,6 +20525,17 @@ describe("browser E2E launch coverage evidence", () => {
         evidence: [
           "医疗引擎运营员登记受控来源、版本和锚点并审核激活带来源引用的知识候选",
           "后端回读完整 provenance，前台重建并探索知识关系图且追踪证据可见",
+        ],
+      },
+      {
+        code: "S37__NORMAL",
+        scenarioCode: "S37",
+        condition: "NORMAL",
+        source: "BEDSIDE_KNOWLEDGE_SOURCE_CITATION_PROVENANCE_READBACK",
+        evidence: [
+          "已发布知识绑定权威来源片段、版本哈希和 DERIVED_FROM 引用",
+          "前台探索知识关系图并查看 provenance 追踪证据",
+          "本行仅证明床旁知识证据问答的权威来源与引用回读切片，不声明完整床旁问答或患者关联解释",
         ],
       },
     ],
@@ -20557,7 +20577,7 @@ describe("browser E2E launch coverage evidence", () => {
     const evidence = sourceLineageEvidenceResult(body);
     expect(
       evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
-    ).not.toContain("S7__NORMAL");
+    ).not.toEqual(expect.arrayContaining(["S7__NORMAL", "S37__NORMAL"]));
   }
 
   it("declares S7 source lineage coverage only from a complete graph provenance attachment", () => {
@@ -20575,6 +20595,7 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S7__NORMAL",
+      "S37__NORMAL",
     ]);
   });
 
@@ -20584,6 +20605,72 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S7"]);
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it("does not declare S37 normal condition row when explicit source is wrong", () => {
+    const evidence = sourceLineageEvidenceResult({
+      ...structuredClone(sourceLineageEvidence),
+      scenarioConditionEvidence: [
+        {
+          code: "S37__NORMAL",
+          scenarioCode: "S37",
+          condition: "NORMAL",
+          source: "SOURCE_LINEAGE_GRAPH_PROVENANCE_READBACK",
+          evidence: ["S7 来源不能冒领 S37 床旁知识权威来源切片"],
+        },
+      ],
+    });
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S37__NORMAL");
+  });
+
+  it.each([
+    {
+      name: "缺床旁知识边界声明",
+      body: (() => {
+        const body = structuredClone(sourceLineageEvidence) as Record<string, unknown>;
+        delete body.bedsideKnowledgeS37Boundary;
+        return body;
+      })(),
+    },
+    {
+      name: "冒领完整床旁问答",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        bedsideKnowledgeS37Boundary: {
+          ...structuredClone(sourceLineageEvidence.bedsideKnowledgeS37Boundary),
+          notCompleteBedsideQuestionAnswering: false,
+        },
+      },
+    },
+    {
+      name: "冒领患者关联解释",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        bedsideKnowledgeS37Boundary: {
+          ...structuredClone(sourceLineageEvidence.bedsideKnowledgeS37Boundary),
+          notPatientLinkedExplanation: false,
+        },
+      },
+    },
+    {
+      name: "冒领模型回答质量",
+      body: {
+        ...structuredClone(sourceLineageEvidence),
+        bedsideKnowledgeS37Boundary: {
+          ...structuredClone(sourceLineageEvidence.bedsideKnowledgeS37Boundary),
+          notModelAnswerQuality: false,
+        },
+      },
+    },
+  ])("does not declare S37 normal condition row when $name", ({ body }) => {
+    const evidence = sourceLineageEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S37__NORMAL");
   });
 
   it.each([

@@ -23,6 +23,35 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百五十七批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增完整 S37、完整床旁知识问答、患者关联解释、模型问答质量、说明书 / 指南 / 制度全类型覆盖、完整 S0-S40
+  或完整上线验收；只在既有 `d6-graph-explore.spec.ts` 真实来源血缘链路中，把 `S37__NORMAL` 升级为显式
+  `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于 `source-lineage-scenario-codes` 附件：已发布知识绑定
+  权威来源片段、来源版本 hash、片段 hash、`DERIVED_FROM` 引用、完整 provenance 回读和前台知识关系图追踪证据。
+- 第二百五十七批实现细节：`frontend/e2e/d6-graph-explore.spec.ts` 的附件新增 `S37__NORMAL` 条件行，固定
+  `source=BEDSIDE_KNOWLEDGE_SOURCE_CITATION_PROVENANCE_READBACK`，并新增
+  `bedsideKnowledgeS37Boundary`，明确 `provesOnly=床旁知识证据问答权威来源与引用回读切片`，且
+  `notCompleteBedsideQuestionAnswering/notPatientLinkedExplanation/notModelAnswerQuality/notCompleteS37/notCompleteS0S40/notLaunchAcceptance`
+  全为 `true`。`frontend/e2e/support/launchCoverageEvidence.ts` 将 `S37__NORMAL` 纳入
+  `sourceLineageScenarioConditionRows`，但只有显式条件行、正确 source、完整来源 / 候选 / citation / provenance / graph
+  结构化证据和上述 S37 边界同时成立才声明该行。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `[S7__NORMAL,S37__NORMAL]`；缺显式条件附件、S37 source 错、条件行证据为空、受控来源未登记、来源 hash 非法、知识候选未激活、
+  引用未绑定同一片段、provenance 未解析 / partial、图谱投影数量不一致、前台追踪证据不可见、缺床旁知识边界、冒领完整床旁问答、
+  冒领患者关联解释或模型回答质量，均不得声明 `S37__NORMAL`。
+- 第二百五十七批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识 `S37__NORMAL`，且严格 parser
+  因未知条件行拒绝整组 `scenarioConditionRows`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1101 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）和 `git diff --check`。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175；前两次因服务进程被 shell 清理、第三次因 `localhost`
+  解析到 IPv6 `::1` 触发 API 连接拒绝，最终改用持续前后端会话与 `127.0.0.1` 执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://127.0.0.1:5175 E2E_API_BASE_URL=http://127.0.0.1:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://127.0.0.1:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s37-normal-condition-row-20260710-r5 npm --prefix frontend run e2e -- --project=chromium d6-graph-explore.spec.ts`
+  通过；`/tmp/medkernel-e2e-s37-normal-condition-row-20260710-r5/report/results.json` 读回 `status=PASSED`、
+  `expected=2`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows=[S7__NORMAL,S37__NORMAL]`。
+  附件抽查显示 `activeVersionStatus=ACTIVE`、`partial=false`、`unresolvedCitationCount=0`、`sourceType=GUIDELINE`、
+  `authorityLevel=B_GUIDELINE`、`relation=DERIVED_FROM`、`weight=100`、`graphProjection.operation=REBUILD_AND_EXPLORE`、
+  `graphNodeExplored/traceEvidenceVisible=true`、`browserErrors=[]`，且 S37 边界字段全为真。本批已停止本地服务并复核 18102/5175 无监听。
 - 第二百五十三批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增完整 S27、完整 ICU 系统、完整生命支持系统、完整 LIS 系统、完整监护设备平台或完整第三方系统族覆盖；只在既有
   `critical-emergency-icu-frontdesk.spec.ts` 真实前台链路中，把 `S27__DEGRADATION` 升级为显式
