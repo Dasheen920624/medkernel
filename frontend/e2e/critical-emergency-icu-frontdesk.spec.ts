@@ -2082,6 +2082,36 @@ async function attachCriticalEmergencyIcuEvidence(
           scopeStatement:
             "S24 门急诊降级代表行：LIS_MONITORING_CRITICAL 接入断连时，真实前台急诊 LEVEL_1 分诊、ICU 去向候选、当前机构生效版本推荐、医生人工确认和升级待办继续闭环；不代表完整 S24，不代表完整急诊系统，不代表完整 ICU 系统，不代表完整 LIS 系统，不代表完整监护设备平台，不代表真实外部成功联通，不代表自动开嘱，不代表自动转 ICU，不代表设备控制，不代表完整 S0-S40，不代表完整上线验收。",
         },
+        criticalCareDegradationEvidence: {
+          source: "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+          onboardingHealthStatus: textField(evidence.emergencyOnboarding, "healthStatus"),
+          systemFamilyCode: textField(evidence.emergencyOnboarding, "systemFamilyCode"),
+          runtimeReleaseId: textField(evidence.runtime, "releaseId"),
+          contextSnapshotId: textField(evidence.clinicalContext, "contextSnapshotId"),
+          ventilatorMode: textFieldAtPath(
+            evidence.clinicalContext,
+            "resources.extensions.local.criticalCare.ventilatorMode",
+          ),
+          vasopressorRunning: booleanFieldAtPath(
+            evidence.clinicalContext,
+            "resources.extensions.local.criticalCare.vasopressorRunning",
+          ),
+          procedureCode: textFieldAtPath(evidence.clinicalContext, "resources.procedures.0.code"),
+          recommendationCardId: textField(evidence.recommendation, "cardId"),
+          feedbackId: textField(evidence.manualEscalation, "feedbackId"),
+          todoId: textField(evidence.escalationTodo, "todoId"),
+          requiresPhysicianConfirmation: true,
+          noAutoOrder: true,
+          noAutoTransfer: true,
+          noDeviceControl: true,
+          noAutoVentilatorChange: true,
+          noExternalSuccessClaim: true,
+          auditVerified: true,
+          permissionVerified: true,
+          sixStateBoundaryVerified: true,
+          scopeStatement:
+            "S27 ICU 生命支持降级代表行：LIS_MONITORING_CRITICAL 接入断连时，本地 ICU 生命支持上下文、机械通气、升压药运行、当前机构生效版本推荐、医生人工确认和升级待办继续闭环；不代表完整 S27，不代表完整 ICU 系统，不代表完整生命支持系统，不代表完整 LIS 系统，不代表完整监护设备平台，不代表真实外部成功联通，不代表自动开嘱，不代表自动转 ICU，不代表设备控制，不代表自动调整呼吸机，不代表完整 S0-S40，不代表完整上线验收。",
+        },
         rollbackNegativeEvidence: evidence.rollbackNegativeEvidence,
         scenarioConditionEvidence: [
           {
@@ -2137,6 +2167,17 @@ async function attachCriticalEmergencyIcuEvidence(
               "ICU 生命支持上下文包含机械通气、升压药和不控制设备证据",
               "动作卡和人工确认均要求 noDeviceControl/noAutoVentilatorChange",
               "升级待办完成说明保留不控制设备边界",
+            ],
+          },
+          {
+            code: "S27__DEGRADATION",
+            scenarioCode: "S27",
+            condition: "DEGRADATION",
+            source: "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+            evidence: [
+              "LIS_MONITORING_CRITICAL 接入申请保持 NOT_CONNECTED 诚实断连状态",
+              "本地 ICU 生命支持上下文保留机械通气、升压药运行和不控制设备证据",
+              "医生人工确认升级待办完成，系统不自动开嘱、不自动转 ICU、不控制设备、不自动调整呼吸机",
             ],
           },
         ],

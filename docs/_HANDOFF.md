@@ -23,6 +23,55 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百五十三批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增完整 S27、完整 ICU 系统、完整生命支持系统、完整 LIS 系统、完整监护设备平台或完整第三方系统族覆盖；只在既有
+  `critical-emergency-icu-frontdesk.spec.ts` 真实前台链路中，把 `S27__DEGRADATION` 升级为显式
+  `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于 `critical-emergency-icu-frontdesk-codes` 附件：
+  `LIS_MONITORING_CRITICAL` 接入保持 `NOT_CONNECTED` 诚实断连，但本地 ICU 生命支持上下文、机械通气、升压药运行、
+  当前机构生效版本推荐、医生人工升级确认和待办闭环继续成立。明确不声明完整 S27、完整 ICU 系统、完整生命支持系统、
+  完整 LIS 系统、完整监护设备平台、真实外部成功联通、自动开嘱、自动转 ICU、设备控制、自动调整呼吸机、完整 S0-S40、
+  134 清库、目标环境部署或完整上线验收。
+- 第二百五十三批实现细节：`frontend/e2e/critical-emergency-icu-frontdesk.spec.ts` 的附件新增
+  `criticalCareDegradationEvidence`，固定
+  `source=CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES`，并绑定本轮
+  `onboardingHealthStatus/systemFamilyCode/runtimeReleaseId/contextSnapshotId/ventilatorMode/vasopressorRunning/procedureCode/`
+  `recommendationCardId/feedbackId/todoId`，其中 `procedureCode` 必须绑定机械通气 `5A1955Z`；同时要求
+  `requiresPhysicianConfirmation=true`、`noAutoOrder=true`、`noAutoTransfer=true`、`noDeviceControl=true`、
+  `noAutoVentilatorChange=true`、`noExternalSuccessClaim=true`、`auditVerified=true`、`permissionVerified=true`、
+  `sixStateBoundaryVerified=true` 和明确 scope 边界。`frontend/e2e/support/launchCoverageEvidence.ts` 将
+  `S27__DEGRADATION` 纳入 `criticalEmergencyIcuScenarioConditionRows`，新增
+  `hasCompleteCriticalEmergencyIcuS27DegradationEvidence()` 与 `hasCriticalEmergencyIcuS27DegradationScopeBoundary()`：
+  只有显式条件行、结构化 S27 降级证据、接入断连、本地 ICU 生命支持上下文、机械通气 Procedure、当前 runtime 推荐、
+  医生人工确认、升级待办、LIS 监护消费者切片和审计 / 权限 / 六态安全边界同时成立，才声明该行。
+  `frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `[S19__HIGH_RISK,S24__HIGH_RISK,S27__HIGH_RISK,S27__DEGRADATION]`；缺显式 S27 降级条件附件、source 错、证据为空、
+  缺结构化证据、结构化 source 错、接入健康状态不是 `NOT_CONNECTED`、系统族错、缺机械通气模式、缺升压药运行证据、
+  缺机械通气 Procedure、结构化 `procedureCode` 错绑到非 `5A1955Z` Procedure、推荐未绑定当前 runtime、结构化推荐卡错绑、
+  反馈不是医生人工确认、待办未完成、允许自动开嘱 / 自动转 ICU / 设备控制 / 自动调整呼吸机、伪造外部成功、
+  缺审计 / 权限 / 六态、scope 冒领完整 S27，均不得声明 `S27__DEGRADATION`。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 同步锁定 E2E 附件和 parser 源码锚点。
+- 第二百五十三批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识
+  `S27__DEGRADATION`，`scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1064 tests）、
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract -- --run`（1132 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  并行只读 explorer 发现结构化 `procedureCode` 需强制绑定 `5A1955Z`，已补负例和 parser 强校验后重跑上述门禁通过。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），最终执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s27-degradation-condition-row-20260710-r2 npm --prefix frontend run e2e -- --project=chromium critical-emergency-icu-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s27-degradation-condition-row-20260710-r2/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S19__HIGH_RISK,S19__DEGRADATION,S24__HIGH_RISK,S24__DEGRADATION,S27__HIGH_RISK,S27__DEGRADATION]`。
+  附件抽查 `criticalCareDegradationEvidence.source=CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES`、
+  `onboardingHealthStatus=NOT_CONNECTED`、`systemFamilyCode=LIS_MONITORING_CRITICAL`、`ventilatorMode=SIMV`、
+  `vasopressorRunning=true`、`procedureCode=5A1955Z`、`requiresPhysicianConfirmation=true`、
+  `noAutoOrder/noAutoTransfer/noDeviceControl/noAutoVentilatorChange/noExternalSuccessClaim=true`、
+  `auditVerified/permissionVerified/sixStateBoundaryVerified=true`，且 `runtimeReleaseId/contextSnapshotId/recommendationCardId/feedbackId/todoId`
+  均绑定本轮真实附件对象。
+  并行只读 explorer 已返回后续候选：`S20__ABNORMAL` 适合作为下一批，但当前仓库只有 `S20__NORMAL` 和 `S35__ABNORMAL`，
+  下一批标题应精确为“护理连续照护 S20 异常结果回流条件行显式化”，不得冒领完整 S20 或完整护理连续照护。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百五十二批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增完整急诊系统、完整 ICU 系统、完整 LIS 系统、完整监护设备平台或完整第三方系统族覆盖；只在既有
   `critical-emergency-icu-frontdesk.spec.ts` 真实前台链路中，把 `S24__DEGRADATION` 升级为显式

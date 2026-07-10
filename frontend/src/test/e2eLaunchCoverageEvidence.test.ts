@@ -5805,6 +5805,51 @@ function criticalEmergencyIcuS24DegradationEvidence(
   return { ...body, ...overrides };
 }
 
+function criticalEmergencyIcuS27DegradationEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = criticalEmergencyIcuLisMonitoringCriticalConsumerEvidence();
+  body.criticalCareDegradationEvidence = {
+    source: "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+    onboardingHealthStatus: "NOT_CONNECTED",
+    systemFamilyCode: "LIS_MONITORING_CRITICAL",
+    runtimeReleaseId: "runtime-critical",
+    contextSnapshotId: "ctx-critical",
+    ventilatorMode: "SIMV",
+    vasopressorRunning: true,
+    procedureCode: "5A1955Z",
+    recommendationCardId: "card-critical",
+    feedbackId: "rf-critical",
+    todoId: "todo-critical",
+    requiresPhysicianConfirmation: true,
+    noAutoOrder: true,
+    noAutoTransfer: true,
+    noDeviceControl: true,
+    noAutoVentilatorChange: true,
+    noExternalSuccessClaim: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    scopeStatement:
+      "S27 ICU 生命支持降级代表行：LIS_MONITORING_CRITICAL 接入断连时，本地 ICU 生命支持上下文、机械通气、升压药运行、当前机构生效版本推荐、医生人工确认和升级待办继续闭环；不代表完整 S27，不代表完整 ICU 系统，不代表完整生命支持系统，不代表完整 LIS 系统，不代表完整监护设备平台，不代表真实外部成功联通，不代表自动开嘱，不代表自动转 ICU，不代表设备控制，不代表自动调整呼吸机，不代表完整 S0-S40，不代表完整上线验收。",
+  };
+  body.scenarioConditionEvidence = [
+    ...(body.scenarioConditionEvidence as unknown[]),
+    {
+      code: "S27__DEGRADATION",
+      scenarioCode: "S27",
+      condition: "DEGRADATION",
+      source: "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+      evidence: [
+        "LIS_MONITORING_CRITICAL 接入保持 NOT_CONNECTED 诚实断连状态",
+        "本地 ICU 生命支持上下文保留机械通气、升压药运行和不控制设备证据",
+        "医生人工确认升级待办完成，系统不自动开嘱、不自动转 ICU、不控制设备、不自动调整呼吸机",
+      ],
+    },
+  ];
+  return { ...body, ...overrides };
+}
+
 function lisMonitoringCriticalConsumerSlice(): Record<string, unknown> {
   return {
     systemFamilyCode: "LIS_MONITORING_CRITICAL",
@@ -15884,6 +15929,23 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares S27 degradation row only when disconnected critical-care access still keeps local life-support escalation running", () => {
+    const evidence = criticalEmergencyIcuEvidenceResult(
+      criticalEmergencyIcuS27DegradationEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S19__HIGH_RISK",
+      "S24__HIGH_RISK",
+      "S27__HIGH_RISK",
+      "S27__DEGRADATION",
+    ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["LIS_MONITORING_CRITICAL"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("declares HIS/EMR/CDR representative consumer slice only from explicit ED triage context, manual escalation and completed todo evidence", () => {
     const evidence = criticalEmergencyIcuEvidenceResult(
       criticalEmergencyIcuHisEmrCdrConsumerEvidence(),
@@ -16590,6 +16652,315 @@ describe("browser E2E launch coverage evidence", () => {
     expect(
       evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
     ).not.toContain("S24__DEGRADATION");
+  });
+
+  it.each([
+    {
+      name: "缺显式 S27 降级条件附件",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+        ],
+      }),
+    },
+    {
+      name: "S27 降级条件来源错配",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+          {
+            code: "S27__DEGRADATION",
+            scenarioCode: "S27",
+            condition: "DEGRADATION",
+            source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+            evidence: ["不能复用 S24 降级来源冒领 S27 生命支持降级"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "S27 降级条件证据为空",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        scenarioConditionEvidence: [
+          ...(criticalEmergencyIcuEvidence.scenarioConditionEvidence as unknown[]),
+          {
+            code: "S27__DEGRADATION",
+            scenarioCode: "S27",
+            condition: "DEGRADATION",
+            source: "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "缺少 S27 降级结构化证据",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: undefined,
+      }),
+    },
+    {
+      name: "结构化证据 source 错配",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          source: "CRITICAL_EMERGENCY_TRIAGE_NOT_CONNECTED_LOCAL_RECOMMENDATION_CONTINUES",
+        },
+      }),
+    },
+    {
+      name: "接入健康状态不是 NOT_CONNECTED",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        emergencyOnboarding: {
+          ...structuredClone(criticalEmergencyIcuEvidence.emergencyOnboarding),
+          healthStatus: "HEALTHY",
+        },
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          onboardingHealthStatus: "HEALTHY",
+        },
+      }),
+    },
+    {
+      name: "接入系统族不是 LIS_MONITORING_CRITICAL",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          systemFamilyCode: "HIS_EMR_CDR",
+        },
+      }),
+    },
+    {
+      name: "缺机械通气模式",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                criticalCare: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .criticalCare,
+                  ),
+                  ventilatorMode: "",
+                },
+              },
+            },
+          },
+        },
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          ventilatorMode: "",
+        },
+      }),
+    },
+    {
+      name: "缺升压药运行证据",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            extensions: {
+              local: {
+                ...structuredClone(
+                  criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local,
+                ),
+                criticalCare: {
+                  ...structuredClone(
+                    criticalEmergencyIcuEvidence.clinicalContext.resources.extensions.local
+                      .criticalCare,
+                  ),
+                  vasopressorRunning: false,
+                },
+              },
+            },
+          },
+        },
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          vasopressorRunning: false,
+        },
+      }),
+    },
+    {
+      name: "缺机械通气 Procedure",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            procedures: [],
+          },
+        },
+      }),
+    },
+    {
+      name: "结构化证据未绑定机械通气 Procedure",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        clinicalContext: {
+          ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext),
+          resources: {
+            ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources),
+            procedures: [
+              ...structuredClone(criticalEmergencyIcuEvidence.clinicalContext.resources.procedures),
+              { code: "OTHER_PROCEDURE", displayName: "其他处置" },
+            ],
+          },
+        },
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          procedureCode: "OTHER_PROCEDURE",
+        },
+      }),
+    },
+    {
+      name: "推荐未绑定当前 runtime",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        recommendation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.recommendation),
+          triggerRuntimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "结构化证据推荐卡错绑",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          recommendationCardId: "card-other",
+        },
+      }),
+    },
+    {
+      name: "反馈不是医生人工确认",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        manualEscalation: {
+          ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation),
+          persisted: {
+            ...structuredClone(criticalEmergencyIcuEvidence.manualEscalation.persisted),
+            operatorRole: "SYSTEM",
+          },
+        },
+      }),
+    },
+    {
+      name: "待办未完成",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        escalationTodo: {
+          ...structuredClone(criticalEmergencyIcuEvidence.escalationTodo),
+          status: "PENDING",
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动转 ICU",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          noAutoTransfer: false,
+        },
+      }),
+    },
+    {
+      name: "允许设备控制",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          noDeviceControl: false,
+        },
+      }),
+    },
+    {
+      name: "允许自动调整呼吸机",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          noAutoVentilatorChange: false,
+        },
+      }),
+    },
+    {
+      name: "伪造真实外部成功联通",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 S27",
+      body: criticalEmergencyIcuS27DegradationEvidence({
+        criticalCareDegradationEvidence: {
+          ...(criticalEmergencyIcuS27DegradationEvidence()
+            .criticalCareDegradationEvidence as Record<string, unknown>),
+          scopeStatement: "S27 ICU 生命支持降级代表行：断连时本地升级继续，完整 S27 已上线。",
+        },
+      }),
+    },
+  ])("does not declare S27 degradation condition row when $name", ({ body }) => {
+    const evidence = criticalEmergencyIcuEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S27__DEGRADATION");
   });
 
   it.each([

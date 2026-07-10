@@ -1045,6 +1045,12 @@ const criticalEmergencyIcuScenarioConditionRows = [
     condition: "HIGH_RISK",
     source: "CRITICAL_EMERGENCY_ICU_MANUAL_ESCALATION",
   },
+  {
+    code: "S27__DEGRADATION",
+    scenarioCode: "S27",
+    condition: "DEGRADATION",
+    source: "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES",
+  },
 ] as const;
 const reportInterpretationScenarioConditionRows = [
   {
@@ -6724,6 +6730,8 @@ function criticalEmergencyIcuScenarioConditionBackedByEvidence(
       return hasCompleteCriticalEmergencyIcuS19DegradationEvidence(parsed);
     case "S24__DEGRADATION":
       return hasCompleteCriticalEmergencyIcuS24DegradationEvidence(parsed);
+    case "S27__DEGRADATION":
+      return hasCompleteCriticalEmergencyIcuS27DegradationEvidence(parsed);
     default:
       return false;
   }
@@ -15007,6 +15015,85 @@ function hasCompleteCriticalEmergencyIcuS24DegradationEvidence(body: Record<stri
   );
 }
 
+function hasCompleteCriticalEmergencyIcuS27DegradationEvidence(body: Record<string, unknown>) {
+  const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
+  if (!runtime) return false;
+  const evidence = recordValue(body.criticalCareDegradationEvidence);
+  const onboarding = recordValue(body.emergencyOnboarding);
+  const context = recordValue(body.clinicalContext);
+  const resources = recordValue(context?.resources);
+  const extensions = recordValue(resources?.extensions);
+  const local = recordValue(extensions?.local);
+  const criticalCare = recordValue(local?.criticalCare);
+  const procedures = Array.isArray(resources?.procedures) ? resources.procedures : [];
+  const recommendation = recordValue(body.recommendation);
+  const manualEscalation = recordValue(body.manualEscalation);
+  const todo = recordValue(body.escalationTodo);
+  return (
+    evidence !== null &&
+    onboarding !== null &&
+    context !== null &&
+    criticalCare !== null &&
+    recommendation !== null &&
+    manualEscalation !== null &&
+    todo !== null &&
+    evidence.source === "CRITICAL_ICU_LIFE_SUPPORT_NOT_CONNECTED_LOCAL_ESCALATION_CONTINUES" &&
+    evidence.onboardingHealthStatus === onboarding.healthStatus &&
+    evidence.onboardingHealthStatus === "NOT_CONNECTED" &&
+    evidence.systemFamilyCode === onboarding.systemFamilyCode &&
+    evidence.systemFamilyCode === "LIS_MONITORING_CRITICAL" &&
+    evidence.runtimeReleaseId === runtime.releaseId &&
+    evidence.contextSnapshotId === context.contextSnapshotId &&
+    hasText(evidence.ventilatorMode) &&
+    evidence.ventilatorMode === criticalCare.ventilatorMode &&
+    evidence.vasopressorRunning === criticalCare.vasopressorRunning &&
+    evidence.vasopressorRunning === true &&
+    evidence.noDeviceControl === criticalCare.noDeviceControl &&
+    evidence.noDeviceControl === true &&
+    evidence.procedureCode === "5A1955Z" &&
+    procedures.some((item) => recordValue(item)?.code === evidence.procedureCode) &&
+    evidence.recommendationCardId === recommendation.cardId &&
+    evidence.feedbackId === manualEscalation.feedbackId &&
+    evidence.todoId === todo.todoId &&
+    evidence.requiresPhysicianConfirmation === true &&
+    evidence.noAutoOrder === true &&
+    evidence.noAutoTransfer === true &&
+    evidence.noAutoVentilatorChange === true &&
+    evidence.noExternalSuccessClaim === true &&
+    evidence.auditVerified === true &&
+    evidence.permissionVerified === true &&
+    evidence.sixStateBoundaryVerified === true &&
+    hasCriticalEmergencyIcuS27DegradationScopeBoundary(evidence.scopeStatement) &&
+    hasCompleteLisMonitoringCriticalConsumerSlice(body) &&
+    hasCompleteCriticalEmergencyIcuApiEvidence(body.apiEvidence) &&
+    hasCompleteCriticalEmergencyIcuOnboarding(body.emergencyOnboarding, body.monitoringAdapter) &&
+    hasCompleteCriticalEmergencyIcuClinicalContext(body.clinicalContext, runtime.releaseId) &&
+    hasCompleteCriticalEmergencyIcuInbound(
+      body.inboundMonitoringEvent,
+      body.monitoringAdapter,
+      body.webhookSignature,
+      body.clinicalContext,
+      runtime.releaseId,
+    ) &&
+    hasCompleteCriticalEmergencyIcuRecommendation(
+      body.recommendation,
+      runtime,
+      body.clinicalTrigger,
+      body.ruleAsset,
+    ) &&
+    hasCompleteCriticalEmergencyIcuManualEscalation(
+      body.manualEscalation,
+      runtime.actionCardAsset,
+      body.recommendation,
+    ) &&
+    hasCompleteCriticalEmergencyIcuTodo(
+      body.escalationTodo,
+      body.recommendation,
+      body.clinicalContext,
+    )
+  );
+}
+
 function hasCompleteLisMonitoringCriticalConsumerSlice(body: Record<string, unknown>) {
   const runtime = parseCriticalEmergencyIcuRuntimeEvidence(body.runtime);
   if (!runtime) return false;
@@ -15205,6 +15292,50 @@ function hasUnnegatedCriticalEmergencyIcuS24DegradationScopeClaim(statement: str
     "自动转 ICU",
     "自动转ICU",
     "设备控制",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
+}
+
+function hasCriticalEmergencyIcuS27DegradationScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表行") &&
+    !hasUnnegatedCriticalEmergencyIcuS27DegradationScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 S27") &&
+    hasNegatedScopeTerm(statement, "完整 ICU 系统") &&
+    hasNegatedScopeTerm(statement, "完整生命支持系统") &&
+    hasNegatedScopeTerm(statement, "完整 LIS 系统") &&
+    hasNegatedScopeTerm(statement, "完整监护设备平台") &&
+    hasNegatedScopeTerm(statement, "真实外部成功联通") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "自动转 ICU") &&
+    hasNegatedScopeTerm(statement, "设备控制") &&
+    hasNegatedScopeTerm(statement, "自动调整呼吸机") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedCriticalEmergencyIcuS27DegradationScopeClaim(statement: string) {
+  return [
+    "完整 S27",
+    "完整S27",
+    "完整 ICU 系统",
+    "完整ICU系统",
+    "完整生命支持系统",
+    "完整 LIS 系统",
+    "完整LIS系统",
+    "完整监护设备平台",
+    "真实外部成功联通",
+    "自动开嘱",
+    "自动转 ICU",
+    "自动转ICU",
+    "设备控制",
+    "自动调整呼吸机",
     "完整 S0-S40",
     "完整S0-S40",
     "完整上线验收",
