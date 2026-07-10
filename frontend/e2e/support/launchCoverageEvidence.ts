@@ -1005,6 +1005,12 @@ const pharmacyReviewAntimicrobialScenarioConditionRows = [
     condition: "ABNORMAL",
     source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
   },
+  {
+    code: "S31__NORMAL",
+    scenarioCode: "S31",
+    condition: "NORMAL",
+    source: "PHARMACY_REVIEW_ANTIMICROBIAL_REVIEW_SERVICE_READBACK",
+  },
 ] as const;
 const infectionPublicHealthSafetyScenarioConditionRows = [
   {
@@ -6568,6 +6574,8 @@ function pharmacyReviewAntimicrobialScenarioConditionBackedByEvidence(
         parsed.qualityRectification,
         parsed.recommendation,
       );
+    case "S31__NORMAL":
+      return hasCompletePharmacyReviewConsumerSlice(parsed);
     default:
       return false;
   }

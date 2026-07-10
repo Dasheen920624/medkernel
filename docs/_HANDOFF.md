@@ -23,6 +23,38 @@
   `NOT_CONNECTED`/重试/死信/补偿矩阵；4）S0-S40 需要正常、异常、缺数、高风险和降级演练矩阵；
   5）134 清库 V1、重部署、备份恢复、全功能全知识演练、公网模型 Provider 真实探活和真实第三方回调仍属
   destructive/external，执行前必须再次取得用户明确确认。
+- 第二百五十八批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增完整 S31、完整药房审方系统族、完整药事治理、完整抗菌药物分级管理、完整第三方系统族、外部药房审方成功联通、
+  自动开嘱、完整 S0-S40 或完整上线验收；只在既有 `pharmacy-review-antimicrobial-frontdesk.spec.ts` 真实前台链路中，
+  把 `S31__NORMAL` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `pharmacy-review-antimicrobial-frontdesk-codes` 附件：真实服务创建 PHARMACY_REVIEW 适配器 / 回调通道 / 签名预览，
+  标准 Patient/Encounter/Medication/AllergyIntolerance/Condition/Observation 资源驱动抗菌药物审方代表消费者切片，
+  签名入站审方结果、本地当前机构生效版本推荐、药师复核、医生人工确认和药事治理整改闭环均成立；同时明确
+  `noExternalSuccessClaim=true`，外部审方断连仍只支撑降级行，不冒领外部成功。
+- 第二百五十八批实现细节：`frontend/e2e/pharmacy-review-antimicrobial-frontdesk.spec.ts` 的附件新增
+  `S31__NORMAL` 条件行，固定 `source=PHARMACY_REVIEW_ANTIMICROBIAL_REVIEW_SERVICE_READBACK`，证据文案限定为
+  “药房审方抗菌药物代表消费者切片正常服务回读”。`frontend/e2e/support/launchCoverageEvidence.ts` 将
+  `S31__NORMAL` 纳入 `pharmacyReviewAntimicrobialScenarioConditionRows`，但只有显式条件行、正确 source、非空 evidence，
+  且 `hasCompletePharmacyReviewConsumerSlice(parsed)` 同时验证 apiEvidence、适配器、webhook、术语 / 风险 / 安全 / 规则 /
+  动作卡 runtime 资产、activationRequest、clinicalContext、outbound/inbound review、推荐、规则推荐、药师 / 医生反馈、
+  整改闭环、审计 / 权限 / 六态边界、`requiresPhysicianConfirmation=true`、`noAutoOrder=true`、
+  `noExternalSuccessClaim=true` 和 scope 不冒领边界，才声明该行。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts`
+  先红后绿覆盖：正例声明 `[S18__HIGH_RISK,S31__DEGRADATION,S31__HIGH_RISK,S31__ABNORMAL,S31__NORMAL]`；
+  S31 正常 source 错、条件行 evidence 为空、缺消费者切片强证据、伪造外部药房审方成功联通，均不得声明 `S31__NORMAL`。
+- 第二百五十八批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识 `S31__NORMAL`，
+  `scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1105 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）和
+  `git diff --check`（仅提示既有无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` CRLF）。真实 E2E 临时启动本地后端 18102
+  （dev/H2，既有 jar）和前端 5175，执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://127.0.0.1:5175 E2E_API_BASE_URL=http://127.0.0.1:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://127.0.0.1:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s31-normal-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium pharmacy-review-antimicrobial-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s31-normal-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`scenarioConditionRows` 包含
+  `[S18__DEGRADATION,S18__HIGH_RISK,S31__ABNORMAL,S31__DEGRADATION,S31__HIGH_RISK,S31__NORMAL]`。
+  本批已停止本地服务并复核 18102/5175 无监听；`/tmp` 证据不提交。并行只读审计建议下一批优先看 `S8__NORMAL`，其次
+  `S36__NORMAL`，其中 `S8__NORMAL` 必须限定为本地嵌入启动、建议读取、医生反馈和 postMessage 回传，不代表外部宿主回调成功。
 - 第二百五十七批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增完整 S37、完整床旁知识问答、患者关联解释、模型问答质量、说明书 / 指南 / 制度全类型覆盖、完整 S0-S40
   或完整上线验收；只在既有 `d6-graph-explore.spec.ts` 真实来源血缘链路中，把 `S37__NORMAL` 升级为显式

@@ -4018,6 +4018,29 @@ function pharmacyReviewAntimicrobialConsumerSliceEvidence(
   };
 }
 
+function pharmacyReviewAntimicrobialS31NormalEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = pharmacyReviewAntimicrobialConsumerSliceEvidence();
+  return {
+    ...body,
+    scenarioConditionEvidence: [
+      ...(body.scenarioConditionEvidence as Array<Record<string, unknown>>),
+      {
+        code: "S31__NORMAL",
+        scenarioCode: "S31",
+        condition: "NORMAL",
+        source: "PHARMACY_REVIEW_ANTIMICROBIAL_REVIEW_SERVICE_READBACK",
+        evidence: [
+          "PHARMACY_REVIEW 代表消费者切片经真实服务完成适配器、签名回调、入站审方结果、本地推荐、药师复核、医生确认和整改闭环",
+          "只证明药房审方抗菌药物代表消费者切片正常服务回读，不代表外部药房审方成功联通或完整 S31",
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function expectNoPharmacyReviewConsumerSlice(body: Record<string, unknown>) {
   const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
   expect(
@@ -14011,6 +14034,24 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares S31 normal condition row only from explicit pharmacy-review consumer service readback evidence", () => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(
+      pharmacyReviewAntimicrobialS31NormalEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S18__HIGH_RISK",
+      "S31__DEGRADATION",
+      "S31__HIGH_RISK",
+      "S31__ABNORMAL",
+      "S31__NORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["PHARMACY_REVIEW"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("does not declare PHARMACY_REVIEW consumer slice from complete scenario evidence without explicit slice", () => {
     expectNoPharmacyReviewConsumerSlice(pharmacyReviewAntimicrobialEvidence);
   });
@@ -14416,16 +14457,31 @@ describe("browser E2E launch coverage evidence", () => {
 
   it.each([
     {
-      name: "条件行代码未知",
+      name: "S31 正常条件行来源错配",
       body: {
-        ...pharmacyReviewAntimicrobialEvidence,
+        ...pharmacyReviewAntimicrobialS31NormalEvidence(),
         scenarioConditionEvidence: [
           {
             code: "S31__NORMAL",
             scenarioCode: "S31",
             condition: "NORMAL",
             source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
-            evidence: ["药学审方断连与整改链路不能冒领普通正常态"],
+            evidence: ["整改链路不能冒领药房审方正常服务回读"],
+          },
+        ],
+      },
+    },
+    {
+      name: "S31 正常条件行证据为空",
+      body: {
+        ...pharmacyReviewAntimicrobialS31NormalEvidence(),
+        scenarioConditionEvidence: [
+          {
+            code: "S31__NORMAL",
+            scenarioCode: "S31",
+            condition: "NORMAL",
+            source: "PHARMACY_REVIEW_ANTIMICROBIAL_REVIEW_SERVICE_READBACK",
+            evidence: [],
           },
         ],
       },
@@ -14562,6 +14618,34 @@ describe("browser E2E launch coverage evidence", () => {
     const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
 
     expect(evidence.launchCoverage.scenarioConditionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "缺少消费者切片强证据",
+      body: {
+        ...pharmacyReviewAntimicrobialS31NormalEvidence(),
+        pharmacyReviewConsumerSlice: undefined,
+      },
+    },
+    {
+      name: "伪造外部药房审方成功联通",
+      body: pharmacyReviewAntimicrobialS31NormalEvidence({
+        pharmacyReviewConsumerSlice: {
+          ...(pharmacyReviewAntimicrobialS31NormalEvidence().pharmacyReviewConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          noExternalSuccessClaim: false,
+        },
+      }),
+    },
+  ])("does not declare S31 normal condition row when $name", ({ body }) => {
+    const evidence = pharmacyReviewAntimicrobialEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S31__NORMAL");
   });
 
   it.each([

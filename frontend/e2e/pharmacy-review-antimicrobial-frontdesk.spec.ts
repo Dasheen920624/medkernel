@@ -2359,6 +2359,16 @@ async function attachPharmacyReviewAntimicrobialEvidence(
             source: "PHARMACY_REVIEW_RECTIFICATION_REVIEW",
             evidence: ["药事治理问题形成 P1 整改任务", "固定职责账号提交并复核关闭整改"],
           },
+          {
+            code: "S31__NORMAL",
+            scenarioCode: "S31",
+            condition: "NORMAL",
+            source: "PHARMACY_REVIEW_ANTIMICROBIAL_REVIEW_SERVICE_READBACK",
+            evidence: [
+              "PHARMACY_REVIEW 代表消费者切片经真实服务完成适配器、签名回调、入站审方结果、本地推荐、药师复核、医生确认和整改闭环",
+              "只证明药房审方抗菌药物代表消费者切片正常服务回读，不代表外部药房审方成功联通或完整 S31",
+            ],
+          },
         ],
         scenarioEvidence: [
           { code: "S18", observedStages: requiredStages.S18 },
