@@ -930,6 +930,12 @@ const nursingContinuityScenarioConditionRows = [
     source: "NURSING_CONTINUITY_FOLLOWUP_PLAN_RESULT_BACKFLOW",
   },
   {
+    code: "S20__ABNORMAL",
+    scenarioCode: "S20",
+    condition: "ABNORMAL",
+    source: "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW",
+  },
+  {
     code: "S35__ABNORMAL",
     scenarioCode: "S35",
     condition: "ABNORMAL",
@@ -6324,6 +6330,8 @@ function nursingContinuityScenarioConditionBackedByEvidence(
           parsed.questionnaire,
         )
       );
+    case "S20__ABNORMAL":
+      return hasCompleteNursingContinuityS20AbnormalEvidence(parsed, runtime);
     case "S35__ABNORMAL":
       return (
         hasCompleteNursingContinuityApiEvidence(parsed.apiEvidence) &&
@@ -11661,6 +11669,118 @@ function hasCompleteNursingContinuityBackflow(
       );
     })
   );
+}
+
+function hasCompleteNursingContinuityS20AbnormalEvidence(
+  body: Record<string, unknown>,
+  runtime: { releaseId: string; followupAsset: NursingContinuityRuntimeAsset },
+) {
+  const runtimeReleaseId = runtime.releaseId;
+  const evidence = recordValue(body.nursingContinuityAbnormalEvidence);
+  const context = recordValue(body.clinicalContext);
+  const plan = recordValue(body.followupPlan);
+  const questionnaire = recordValue(body.questionnaire);
+  const abnormal = recordValue(body.abnormalReport);
+  const result = recordValue(body.resultBackflow);
+  const backflowContext = recordValue(body.backflowContext);
+  const resources = recordValue(backflowContext?.resources);
+  const followUps = Array.isArray(resources?.followUps) ? resources.followUps : [];
+  const followUp = followUps.map((item) => recordValue(item)).find((item) => item !== null);
+  const tasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+  return (
+    evidence !== null &&
+    context !== null &&
+    plan !== null &&
+    questionnaire !== null &&
+    abnormal !== null &&
+    result !== null &&
+    backflowContext !== null &&
+    followUp !== undefined &&
+    evidence.source === "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW" &&
+    evidence.runtimeReleaseId === runtimeReleaseId &&
+    evidence.runtimeReleaseId === plan.runtimeReleaseId &&
+    evidence.patientId === context.patientId &&
+    evidence.encounterId === context.encounterId &&
+    evidence.followupPlanId === plan.planId &&
+    evidence.questionnaireId === questionnaire.questionnaireId &&
+    evidence.returnTaskId === abnormal.returnTaskId &&
+    evidence.abnormalEventId === abnormal.eventId &&
+    evidence.notificationEventId === abnormal.notificationEventId &&
+    evidence.resultBackflowEventId === result.eventId &&
+    evidence.backflowContextSnapshotId === result.contextSnapshotId &&
+    evidence.backflowContextSnapshotId === backflowContext.contextSnapshotId &&
+    evidence.followUpResourceId === followUp.followUpId &&
+    evidence.abnormalFlag === "Y" &&
+    result.abnormalFlag === "Y" &&
+    followUp.abnormalFlag === "Y" &&
+    evidence.sourceSystem === followUp.sourceSystem &&
+    evidence.sourceSystem === "FOLLOWUP" &&
+    evidence.mappedVersion === followUp.mappedVersion &&
+    evidence.mappedVersion === "FOLLOWUP_RESULT" &&
+    evidence.noAutoOrder === true &&
+    evidence.auditVerified === true &&
+    evidence.permissionVerified === true &&
+    evidence.sixStateBoundaryVerified === true &&
+    questionnaire.status === "COMPLETED" &&
+    result.sourceQuestionnaireId === questionnaire.questionnaireId &&
+    backflowContext.runtimeReleaseId === runtimeReleaseId &&
+    followUp.followUpId === questionnaire.questionnaireId &&
+    hasText(followUp.questionnaireId) &&
+    hasText(followUp.sourceRecordId) &&
+    tasks.some((item) => {
+      const task = recordValue(item);
+      return task?.taskId === abnormal.returnTaskId && task?.taskType === "RETURN_VISIT";
+    }) &&
+    hasNursingContinuityS20AbnormalScopeBoundary(evidence.scopeStatement) &&
+    hasCompleteNursingContinuityApiEvidence(body.apiEvidence) &&
+    hasCompleteNursingContinuityClinicalContext(body.clinicalContext, runtimeReleaseId) &&
+    hasCompleteNursingContinuityFollowupPlan(body.followupPlan, runtime, body.clinicalContext) &&
+    hasCompleteNursingContinuityQuestionnaire(body.questionnaire, body.followupPlan) &&
+    hasCompleteNursingContinuityAbnormalReport(body.abnormalReport, body.followupPlan) &&
+    hasCompleteNursingContinuityBackflow(
+      body.resultBackflow,
+      body.backflowContext,
+      runtimeReleaseId,
+      body.questionnaire,
+    )
+  );
+}
+
+function hasNursingContinuityS20AbnormalScopeBoundary(value: unknown) {
+  if (!hasText(value)) return false;
+  const statement = String(value);
+  return (
+    statement.includes("代表行") &&
+    !hasUnnegatedNursingContinuityS20AbnormalScopeClaim(statement) &&
+    hasNegatedScopeTerm(statement, "完整 S20") &&
+    hasNegatedScopeTerm(statement, "完整护理连续照护") &&
+    hasNegatedScopeTerm(statement, "完整护理专业智能") &&
+    hasNegatedScopeTerm(statement, "完整护理计划执行") &&
+    hasNegatedScopeTerm(statement, "完整第三方护理系统族覆盖") &&
+    hasNegatedScopeTerm(statement, "自动回院安排") &&
+    hasNegatedScopeTerm(statement, "自动护理计划执行") &&
+    hasNegatedScopeTerm(statement, "自动开嘱") &&
+    hasNegatedScopeTerm(statement, "完整 S0-S40") &&
+    hasNegatedScopeTerm(statement, "完整上线验收")
+  );
+}
+
+function hasUnnegatedNursingContinuityS20AbnormalScopeClaim(statement: string) {
+  return [
+    "完整 S20",
+    "完整S20",
+    "完整护理连续照护",
+    "完整护理专业智能",
+    "完整护理计划执行",
+    "完整第三方护理系统族覆盖",
+    "自动回院安排",
+    "自动护理计划执行",
+    "自动开嘱",
+    "完整 S0-S40",
+    "完整S0-S40",
+    "完整上线验收",
+    "完整上线",
+  ].some((term) => hasScopeCompletionClaimWithoutNegation(statement, term));
 }
 
 type PharmacyReviewRuntimeAsset = {

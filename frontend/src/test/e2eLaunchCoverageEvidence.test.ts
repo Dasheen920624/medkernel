@@ -3267,12 +3267,59 @@ function expectNoNursingContinuityCoverage(body: Record<string, unknown>) {
 
 function expectNoNursingContinuityScenarioConditionCoverage(
   body: Record<string, unknown>,
-  code: "S20__NORMAL" | "S35__ABNORMAL",
+  code: "S20__NORMAL" | "S20__ABNORMAL" | "S35__ABNORMAL",
 ) {
   const evidence = nursingContinuityEvidenceResult(body);
   expect(
     evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
   ).not.toContain(code);
+}
+
+function nursingContinuityS20AbnormalEvidence(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = structuredClone(nursingContinuityEvidence) as Record<string, unknown>;
+  return {
+    ...body,
+    nursingContinuityAbnormalEvidence: {
+      source: "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW",
+      runtimeReleaseId: "runtime-nursing-continuity",
+      patientId: "mpi-nursing-continuity",
+      encounterId: "enc-nursing-continuity",
+      followupPlanId: "fp-nursing-continuity",
+      questionnaireId: "fq-nursing-continuity",
+      returnTaskId: "ft-nursing-return",
+      abnormalEventId: "fe-nursing-abnormal",
+      notificationEventId: "fe-nursing-notice",
+      resultBackflowEventId: "fe-nursing-result",
+      backflowContextSnapshotId: "ctx-nursing-backflow",
+      followUpResourceId: "fq-nursing-continuity",
+      abnormalFlag: "Y",
+      sourceSystem: "FOLLOWUP",
+      mappedVersion: "FOLLOWUP_RESULT",
+      noAutoOrder: true,
+      auditVerified: true,
+      permissionVerified: true,
+      sixStateBoundaryVerified: true,
+      scopeStatement:
+        "S20 护理连续照护异常结果回流代表行：随访问卷完成后登记异常回院并绑定 RETURN_VISIT 任务，异常结果回流生成 abnormalFlag=Y 的 FollowUp 标准资源并绑定同一患者、就诊、问卷和当前机构生效版本；不代表完整 S20，不代表完整护理连续照护，不代表完整护理专业智能，不代表完整护理计划执行，不代表完整第三方护理系统族覆盖，不代表自动回院安排，不代表自动护理计划执行，不代表自动开嘱，不代表完整 S0-S40，不代表完整上线验收。",
+    },
+    scenarioConditionEvidence: [
+      ...((body.scenarioConditionEvidence as Record<string, unknown>[]) ?? []),
+      {
+        code: "S20__ABNORMAL",
+        scenarioCode: "S20",
+        condition: "ABNORMAL",
+        source: "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW",
+        evidence: [
+          "随访问卷完成后登记异常回院并绑定 RETURN_VISIT 任务",
+          "异常结果回流生成 FollowUp 标准资源且 abnormalFlag=Y",
+          "回流上下文绑定同一 runtimeReleaseId、同一 questionnaireId 与同一患者/就诊",
+        ],
+      },
+    ],
+    ...overrides,
+  };
 }
 
 const pharmacyReviewAntimicrobialEvidence = {
@@ -13324,6 +13371,18 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares S20 abnormal row only when abnormal return and abnormal FollowUp result backflow are bound to the same frontdesk chain", () => {
+    const evidence = nursingContinuityEvidenceResult(nursingContinuityS20AbnormalEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S20__NORMAL",
+      "S20__ABNORMAL",
+      "S35__ABNORMAL",
+    ]);
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S20", "S35"]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("does not declare S20/S35 condition rows without explicit condition evidence", () => {
     const { scenarioConditionEvidence: _omitted, ...body } = nursingContinuityEvidence;
     const evidence = nursingContinuityEvidenceResult(body);
@@ -13500,6 +13559,228 @@ describe("browser E2E launch coverage evidence", () => {
     },
   ])("does not declare nursing continuity condition rows when $name", ({ body, code }) => {
     expectNoNursingContinuityScenarioConditionCoverage(body, code);
+  });
+
+  it.each([
+    {
+      name: "缺显式 S20 异常条件附件",
+      body: nursingContinuityS20AbnormalEvidence({
+        scenarioConditionEvidence: structuredClone(
+          nursingContinuityEvidence.scenarioConditionEvidence,
+        ),
+      }),
+    },
+    {
+      name: "S20 异常条件来源错配",
+      body: nursingContinuityS20AbnormalEvidence({
+        scenarioConditionEvidence: [
+          ...structuredClone(nursingContinuityEvidence.scenarioConditionEvidence),
+          {
+            code: "S20__ABNORMAL",
+            scenarioCode: "S20",
+            condition: "ABNORMAL",
+            source: "NURSING_HIGH_RISK_ASSESSMENT_ABNORMAL_RETURN",
+            evidence: ["不能复用 S35 异常回院来源冒领 S20 异常结果回流"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "S20 异常条件证据为空",
+      body: nursingContinuityS20AbnormalEvidence({
+        scenarioConditionEvidence: [
+          ...structuredClone(nursingContinuityEvidence.scenarioConditionEvidence),
+          {
+            code: "S20__ABNORMAL",
+            scenarioCode: "S20",
+            condition: "ABNORMAL",
+            source: "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW",
+            evidence: [],
+          },
+        ],
+      }),
+    },
+    {
+      name: "缺结构化异常结果回流证据",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: undefined,
+      }),
+    },
+    {
+      name: "结构化证据 source 错配",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          source: "NURSING_HIGH_RISK_ASSESSMENT_ABNORMAL_RETURN",
+        },
+      }),
+    },
+    {
+      name: "异常标志不是 Y",
+      body: nursingContinuityS20AbnormalEvidence({
+        resultBackflow: {
+          ...structuredClone(nursingContinuityEvidence.resultBackflow),
+          abnormalFlag: "N",
+        },
+        backflowContext: {
+          ...structuredClone(nursingContinuityEvidence.backflowContext),
+          resources: {
+            followUps: [
+              {
+                ...structuredClone(
+                  nursingContinuityEvidence.backflowContext.resources.followUps[0],
+                ),
+                abnormalFlag: "N",
+              },
+            ],
+          },
+        },
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          abnormalFlag: "N",
+        },
+      }),
+    },
+    {
+      name: "异常回院存在但 FollowUp 未回流",
+      body: nursingContinuityS20AbnormalEvidence({
+        backflowContext: {
+          ...structuredClone(nursingContinuityEvidence.backflowContext),
+          resources: { followUps: [] },
+        },
+      }),
+    },
+    {
+      name: "FollowUp 回流但没有 RETURN_VISIT 任务",
+      body: nursingContinuityS20AbnormalEvidence({
+        followupPlan: {
+          ...structuredClone(nursingContinuityEvidence.followupPlan),
+          tasks: nursingContinuityEvidence.followupPlan.tasks.filter(
+            (task) => task.taskType !== "RETURN_VISIT",
+          ),
+        },
+      }),
+    },
+    {
+      name: "问卷未完成",
+      body: nursingContinuityS20AbnormalEvidence({
+        questionnaire: {
+          ...structuredClone(nursingContinuityEvidence.questionnaire),
+          status: "DISPATCHED",
+        },
+      }),
+    },
+    {
+      name: "结果回流 questionnaire 错绑",
+      body: nursingContinuityS20AbnormalEvidence({
+        resultBackflow: {
+          ...structuredClone(nursingContinuityEvidence.resultBackflow),
+          sourceQuestionnaireId: "questionnaire-other",
+        },
+      }),
+    },
+    {
+      name: "回流上下文 runtime 错绑",
+      body: nursingContinuityS20AbnormalEvidence({
+        backflowContext: {
+          ...structuredClone(nursingContinuityEvidence.backflowContext),
+          runtimeReleaseId: "runtime-other",
+        },
+      }),
+    },
+    {
+      name: "结构化证据患者错绑",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          patientId: "mpi-other",
+        },
+      }),
+    },
+    {
+      name: "结构化证据异常回院任务错绑",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          returnTaskId: "ft-other",
+        },
+      }),
+    },
+    {
+      name: "允许自动开嘱",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          noAutoOrder: false,
+        },
+      }),
+    },
+    {
+      name: "缺审计边界",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          auditVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺权限边界",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          permissionVerified: false,
+        },
+      }),
+    },
+    {
+      name: "缺六态边界",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          sixStateBoundaryVerified: false,
+        },
+      }),
+    },
+    {
+      name: "scope 冒领完整 S20",
+      body: nursingContinuityS20AbnormalEvidence({
+        nursingContinuityAbnormalEvidence: {
+          ...(nursingContinuityS20AbnormalEvidence().nursingContinuityAbnormalEvidence as Record<
+            string,
+            unknown
+          >),
+          scopeStatement:
+            "S20 护理连续照护异常结果回流代表行：异常结果回流已闭环，完整 S20 已上线。",
+        },
+      }),
+    },
+  ])("does not declare S20 abnormal condition row when $name", ({ body }) => {
+    expectNoNursingContinuityScenarioConditionCoverage(body, "S20__ABNORMAL");
   });
 
   it.each([

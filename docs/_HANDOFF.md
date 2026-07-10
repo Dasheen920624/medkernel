@@ -72,6 +72,46 @@
   并行只读 explorer 已返回后续候选：`S20__ABNORMAL` 适合作为下一批，但当前仓库只有 `S20__NORMAL` 和 `S35__ABNORMAL`，
   下一批标题应精确为“护理连续照护 S20 异常结果回流条件行显式化”，不得冒领完整 S20 或完整护理连续照护。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百五十四批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增完整 S20、完整护理连续照护、完整护理专业智能、完整护理计划执行、完整第三方护理系统族覆盖、自动回院安排、
+  自动护理计划执行、自动开嘱、完整 S0-S40、134 清库、目标环境部署或完整上线验收；只在既有
+  `nursing-continuity-frontdesk.spec.ts` 真实前台链路中，把 `S20__ABNORMAL` 升级为显式
+  `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于 `nursing-continuity-frontdesk-codes` 附件：护理高风险上下文、
+  FOLLOWUP 机构生效版本、随访计划、已完成问卷、异常回院 `RETURN_VISIT` 任务和异常结果回流生成的 `FollowUp` 标准资源必须绑定同一
+  runtime、患者、就诊和问卷。
+- 第二百五十四批实现细节：`frontend/e2e/nursing-continuity-frontdesk.spec.ts` 的附件新增
+  `nursingContinuityAbnormalEvidence`，固定
+  `source=NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW`，并绑定本轮
+  `runtimeReleaseId/patientId/encounterId/followupPlanId/questionnaireId/returnTaskId/abnormalEventId/notificationEventId/`
+  `resultBackflowEventId/backflowContextSnapshotId/followUpResourceId/sourceSystem/mappedVersion`；同时要求
+  `abnormalFlag=Y`、`noAutoOrder=true`、`auditVerified=true`、`permissionVerified=true`、
+  `sixStateBoundaryVerified=true` 和明确 scope 边界。`frontend/e2e/support/launchCoverageEvidence.ts` 将
+  `S20__ABNORMAL` 纳入 `nursingContinuityScenarioConditionRows`，新增
+  `hasCompleteNursingContinuityS20AbnormalEvidence()` 与 `hasNursingContinuityS20AbnormalScopeBoundary()`：只有显式条件行、
+  结构化 S20 异常证据、FOLLOWUP 运行版本、护理上下文、随访计划、问卷完成、异常回院任务、结果回流、FollowUp 标准资源和审计 /
+  权限 / 六态安全边界同时成立，才声明该行。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：正例声明
+  `[S20__NORMAL,S20__ABNORMAL,S35__ABNORMAL]`；缺显式 S20 异常条件附件、source 错、证据为空、缺结构化证据、结构化 source 错、
+  `abnormalFlag` 非 `Y`、异常回院存在但 FollowUp 未回流、FollowUp 回流但无 `RETURN_VISIT` 任务、问卷未完成、结果回流问卷错绑、
+  回流 runtime 错绑、结构化患者错绑、回院任务错绑、允许自动开嘱、缺审计 / 权限 / 六态、scope 冒领完整 S20，均不得声明
+  `S20__ABNORMAL`。
+- 第二百五十四批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识 `S20__ABNORMAL`，
+  `scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1084 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s20-abnormal-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium nursing-continuity-frontdesk.spec.ts`
+  通过；`/tmp/medkernel-e2e-s20-abnormal-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S20__NORMAL,S20__ABNORMAL,S35__ABNORMAL]`。附件抽查
+  `nursingContinuityAbnormalEvidence.source=NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW`，
+  `runtimeReleaseId` 与 `followupPlan.runtimeReleaseId` 一致，患者 / 就诊 / 问卷绑定一致，`abnormalFlag/resultAbnormalFlag/followUpAbnormalFlag=Y`，
+  `sourceSystem=FOLLOWUP`、`mappedVersion=FOLLOWUP_RESULT`，`noAutoOrder/auditVerified/permissionVerified/sixStateBoundaryVerified=true`。
+  并行只读 explorer 返回后续候选：知识治理优先拆给 `S7__NORMAL` 与 `S13__NORMAL/S13__DEGRADATION` 强链路，不发明泛化知识全量 row；
+  LAUNCH-13 组织 / 权限 / 全角色体验可拆 `S1__NORMAL`、`S14__NORMAL/HIGH_RISK` 与四职责体验证据，但不得冒领九层组织完整覆盖、
+  35 入口全业务动作完整闭环或完整上线验收。当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；
+  `/tmp` E2E 产物不要提交。
 - 第二百五十二批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增完整急诊系统、完整 ICU 系统、完整 LIS 系统、完整监护设备平台或完整第三方系统族覆盖；只在既有
   `critical-emergency-icu-frontdesk.spec.ts` 真实前台链路中，把 `S24__DEGRADATION` 升级为显式

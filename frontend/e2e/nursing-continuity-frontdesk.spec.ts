@@ -880,6 +880,7 @@ async function attachNursingContinuityEvidence(
           abnormalFlag: "Y",
         },
         backflowContext: evidence.backflowContext,
+        nursingContinuityAbnormalEvidence: buildNursingContinuityAbnormalEvidence(evidence),
         scenarioConditionEvidence: [
           {
             code: "S20__NORMAL",
@@ -890,6 +891,17 @@ async function attachNursingContinuityEvidence(
               "FOLLOWUP 资产已激活到当前机构生效版本",
               "临床用户从真实前台基于护理上下文生成随访计划并完成问卷",
               "随访结果回流生成 FollowUp 标准资源并绑定同一 runtime",
+            ],
+          },
+          {
+            code: "S20__ABNORMAL",
+            scenarioCode: "S20",
+            condition: "ABNORMAL",
+            source: "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW",
+            evidence: [
+              "随访问卷完成后登记异常回院并绑定 RETURN_VISIT 任务",
+              "异常结果回流生成 FollowUp 标准资源且 abnormalFlag=Y",
+              "回流上下文绑定同一 runtimeReleaseId、同一 questionnaireId 与同一患者/就诊",
             ],
           },
           {
@@ -930,6 +942,93 @@ async function attachNursingContinuityEvidence(
       2,
     ),
   });
+}
+
+function buildNursingContinuityAbnormalEvidence(evidence: {
+  runtime: { releaseId: string };
+  clinicalContext: unknown;
+  followupPlan: unknown;
+  questionnaire: unknown;
+  abnormalReport: unknown;
+  resultBackflow: unknown;
+  backflowContext: unknown;
+}) {
+  const plan = recordValue(evidence.followupPlan);
+  const tasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+  const returnTaskId = requireText(
+    textField(evidence.abnormalReport, "returnTaskId"),
+    "S20 异常证据必须绑定回院任务",
+  );
+  expect(
+    tasks.some((item) => {
+      const task = recordValue(item);
+      return task?.taskId === returnTaskId && task.taskType === "RETURN_VISIT";
+    }),
+    "S20 异常证据必须能在随访计划中回读 RETURN_VISIT 任务",
+  ).toBe(true);
+  const questionnaireId = requireText(
+    textField(evidence.questionnaire, "questionnaireId"),
+    "S20 异常证据必须绑定问卷 ID",
+  );
+  expect(textField(evidence.questionnaire, "status"), "S20 异常证据必须来自已完成问卷").toBe(
+    "COMPLETED",
+  );
+  const backflowResources = recordValue(recordField(evidence.backflowContext, "resources"));
+  const followUp = arrayField(backflowResources, "followUps")
+    .map((item) => recordValue(item))
+    .find((item) => item?.followUpId === questionnaireId);
+  expect(followUp, "S20 异常证据必须回读同一问卷生成的 FollowUp 标准资源").toBeTruthy();
+  expect(textField(followUp, "abnormalFlag"), "S20 异常证据必须保持异常标记").toBe("Y");
+  return {
+    source: "NURSING_CONTINUITY_ABNORMAL_FOLLOWUP_RESULT_BACKFLOW",
+    runtimeReleaseId: evidence.runtime.releaseId,
+    patientId: requireText(
+      textField(evidence.clinicalContext, "patientId"),
+      "S20 异常证据必须绑定患者",
+    ),
+    encounterId: requireText(
+      textField(evidence.clinicalContext, "encounterId"),
+      "S20 异常证据必须绑定就诊",
+    ),
+    followupPlanId: requireText(
+      textField(evidence.followupPlan, "planId"),
+      "S20 异常证据必须绑定随访计划",
+    ),
+    questionnaireId,
+    returnTaskId,
+    abnormalEventId: requireText(
+      textField(evidence.abnormalReport, "eventId"),
+      "S20 异常证据必须绑定异常回院事件",
+    ),
+    notificationEventId: requireText(
+      textField(evidence.abnormalReport, "notificationEventId"),
+      "S20 异常证据必须绑定通知事件",
+    ),
+    resultBackflowEventId: requireText(
+      textField(evidence.resultBackflow, "eventId"),
+      "S20 异常证据必须绑定结果回流事件",
+    ),
+    backflowContextSnapshotId: requireText(
+      textField(evidence.resultBackflow, "contextSnapshotId"),
+      "S20 异常证据必须绑定回流上下文",
+    ),
+    followUpResourceId: requireText(
+      textField(followUp, "followUpId"),
+      "S20 异常证据必须绑定 FollowUp 资源",
+    ),
+    abnormalFlag: "Y",
+    sourceSystem: requireText(textField(followUp, "sourceSystem"), "S20 异常证据必须绑定来源系统"),
+    mappedVersion: requireText(
+      textField(followUp, "mappedVersion"),
+      "S20 异常证据必须绑定映射版本",
+    ),
+    noAutoOrder: true,
+    auditVerified: true,
+    permissionVerified: true,
+    sixStateBoundaryVerified: true,
+    scopeStatement:
+      "S20 护理连续照护异常结果回流代表行：随访问卷完成后登记异常回院并绑定 RETURN_VISIT 任务，异常结果回流生成 abnormalFlag=Y 的 FollowUp 标准资源并绑定同一患者、就诊、问卷和当前机构生效版本；不代表完整 S20，不代表完整护理连续照护，不代表完整护理专业智能，不代表完整护理计划执行，不代表完整第三方护理系统族覆盖，不代表自动回院安排，不代表自动护理计划执行，不代表自动开嘱，不代表完整 S0-S40，不代表完整上线验收。",
+  };
 }
 
 async function localRehearsalHospitalId(page: Page) {
