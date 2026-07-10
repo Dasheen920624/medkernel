@@ -351,6 +351,32 @@ const requiredDomainFacadeCodes = [
   "SVC-DOMAIN-02",
 ];
 
+function serviceCombinationMemberCodes(code: string): string[] {
+  if (code === "SVC-DOMAIN-01") {
+    return [
+      "CRITICAL-01",
+      "PERIOP-01",
+      "ONCO-RENAL-01",
+      "SPECIAL-POP-01",
+      "TCM-HEALTH-01",
+      "PRIMARY-CARE-01",
+      "INFECTION-PH-01",
+    ];
+  }
+  if (code === "SVC-DOMAIN-02") {
+    return [
+      "NURSING-01",
+      "PHARMACY-01",
+      "REPORT-01",
+      "POC-KNOW-01",
+      "ALLIED-CARE-01",
+      "RWD-01",
+      "REGION-COLLAB-01",
+    ];
+  }
+  return [];
+}
+
 function domainFacadeB0Evidence(overrides: Record<string, unknown> = {}) {
   const rows = requiredDomainFacadeCodes.map((code) => ({
     code,
@@ -365,50 +391,8 @@ function domainFacadeB0Evidence(overrides: Record<string, unknown> = {}) {
     assetSeedPolicy:
       code === "SPECIALTY-EXT-01" ? "NO_SEED_HONEST_EMPTY" : "NO_CLINICAL_CONTENT_SEED",
     b0Workflows: ["统一治理", "B0 一致"],
-    memberFacadeCodes:
-      code === "SVC-DOMAIN-01"
-        ? [
-            "CRITICAL-01",
-            "PERIOP-01",
-            "ONCO-RENAL-01",
-            "SPECIAL-POP-01",
-            "TCM-HEALTH-01",
-            "PRIMARY-CARE-01",
-            "INFECTION-PH-01",
-          ]
-        : code === "SVC-DOMAIN-02"
-          ? [
-              "NURSING-01",
-              "PHARMACY-01",
-              "REPORT-01",
-              "POC-KNOW-01",
-              "ALLIED-CARE-01",
-              "RWD-01",
-              "REGION-COLLAB-01",
-            ]
-          : [],
-    verifiedMemberFacadeCodes:
-      code === "SVC-DOMAIN-01"
-        ? [
-            "CRITICAL-01",
-            "PERIOP-01",
-            "ONCO-RENAL-01",
-            "SPECIAL-POP-01",
-            "TCM-HEALTH-01",
-            "PRIMARY-CARE-01",
-            "INFECTION-PH-01",
-          ]
-        : code === "SVC-DOMAIN-02"
-          ? [
-              "NURSING-01",
-              "PHARMACY-01",
-              "REPORT-01",
-              "POC-KNOW-01",
-              "ALLIED-CARE-01",
-              "RWD-01",
-              "REGION-COLLAB-01",
-            ]
-          : [],
+    memberFacadeCodes: serviceCombinationMemberCodes(code),
+    verifiedMemberFacadeCodes: serviceCombinationMemberCodes(code),
     engineEvidence: [
       {
         engine: "KNOWLEDGE",
@@ -4538,15 +4522,19 @@ const infectionPublicHealthSafetyEvidence = {
       findingAuditReadbackVerified: true,
       findingAuditResourceType: "quality_finding",
       findingAuditResourceId: "finding-public-health-safety",
+      findingAuditActorRole: "ROLE_ENGINE_OPERATOR",
       taskAuditReadbackVerified: true,
       taskAuditResourceType: "rectification_task",
       taskAuditResourceId: "task-public-health-safety",
+      taskAuditActorRole: "ROLE_ENGINE_OPERATOR",
     },
     permissionEvidence: {
       submittedByRole: "engine-operator",
       reviewedByRole: "engine-operator",
       canonicalFixedRoleVerified: true,
       clinicalUserPrivilegeEscalation: false,
+      clinicalUserSubmitStatus: 403,
+      clinicalUserReviewStatus: 403,
     },
     sixStateEvidence: {
       findingAssignedStatus: "ASSIGNED",
@@ -15403,6 +15391,67 @@ describe("browser E2E launch coverage evidence", () => {
 
   it.each([
     {
+      name: "审计执行角色不是固定运营职责",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          auditEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.auditEvidence,
+            taskAuditActorRole: "ROLE_CLINICAL_USER",
+          },
+        },
+      },
+    },
+    {
+      name: "临床账号提交越权未被拒绝",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          permissionEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.permissionEvidence,
+            clinicalUserSubmitStatus: 200,
+          },
+        },
+      },
+    },
+    {
+      name: "临床账号复核越权未被拒绝",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          permissionEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.permissionEvidence,
+            clinicalUserReviewStatus: 200,
+          },
+        },
+      },
+    },
+    {
+      name: "整改任务跳过提交状态",
+      body: {
+        ...infectionPublicHealthSafetyEvidence,
+        qualityRectification: {
+          ...infectionPublicHealthSafetyEvidence.qualityRectification,
+          sixStateEvidence: {
+            ...infectionPublicHealthSafetyEvidence.qualityRectification.sixStateEvidence,
+            taskSubmittedStatus: "CLOSED",
+          },
+        },
+      },
+    },
+  ])("does not declare S21 abnormal condition row when rectification $name", ({ body }) => {
+    const evidence = infectionPublicHealthSafetyEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S21__ABNORMAL");
+  });
+
+  it.each([
+    {
       name: "高危整改缺少审计边界",
       body: {
         ...infectionPublicHealthSafetyEvidence,
@@ -15485,7 +15534,6 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? []).toEqual([
       "S21__HIGH_RISK",
-      "S21__ABNORMAL",
       "S21__DEGRADATION",
       "S32__ABNORMAL",
     ]);

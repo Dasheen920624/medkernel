@@ -1308,7 +1308,7 @@ describe("route metadata", () => {
       pageType: "review",
     });
     expect(findRouteByPath("/knowledge/domain-facades/b0-evidence")?.experience?.goal).toBe(
-      "核查 17 张门面 B0 共享链路，不声明完整专业领域上线",
+      "核查 17 张门面共享的无模型规则链路，不声明完整专业领域上线",
     );
   });
 

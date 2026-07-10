@@ -620,6 +620,14 @@ describe("E2E credential contract", () => {
     expect(infectionSource).toContain("auditEvidence");
     expect(infectionSource).toContain("permissionEvidence");
     expect(infectionSource).toContain("sixStateEvidence");
+    expect(infectionSource).toContain("clinicalUserSubmitStatus");
+    expect(infectionSource).toContain("clinicalUserReviewStatus");
+    expect(infectionSource).toContain("findingAuditActorRole");
+    expect(infectionSource).toContain("taskAuditActorRole");
+    expect(infectionSource).toContain("expect(clinicalSubmit.status()");
+    expect(infectionSource).toContain("expect(clinicalReview.status()");
+    expect(infectionSource).toContain("hasCompleteRectificationPermissionEvidence");
+    expect(infectionSource).toContain("hasCompleteRectificationSixStateEvidence");
     expect(infectionSource).not.toContain("auditVerified: true");
     expect(infectionSource).not.toContain("permissionVerified: true");
     expect(infectionSource).not.toContain("sixStateBoundaryVerified: true");

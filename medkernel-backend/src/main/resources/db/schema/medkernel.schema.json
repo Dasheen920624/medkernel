@@ -35324,7 +35324,7 @@
         },
         {
           "name": "ck_rec_card_type",
-          "expression": "card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP')"
+          "expression": "card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP', 'DIAGNOSIS')"
         }
       ],
       "foreignKeys": [],

@@ -40,7 +40,7 @@ export default function DomainFacadeB0Evidence() {
     return (
       <PageShell
         title="领域门面无模型证据"
-        description="正在读取门面 B0 主链路"
+        description="正在读取门面无模型规则链路"
         primary={reloadButton}
         state="loading"
       >
@@ -50,15 +50,15 @@ export default function DomainFacadeB0Evidence() {
   }
 
   if (evidence.isError) {
-    const parsed = parseApiError(evidence.error, "暂时无法读取领域门面 B0 证据");
+    const parsed = parseApiError(evidence.error, "暂时无法读取领域门面无模型证据");
     return (
       <PageShell
         title="领域门面无模型证据"
-        description="门面 B0 证据读取失败"
+        description="门面无模型证据读取失败"
         primary={reloadButton}
         state="error"
         stateProps={{
-          title: "暂时无法读取领域门面 B0 证据",
+          title: "暂时无法读取领域门面无模型证据",
           description: parsed.message,
           traceId: parsed.traceId,
         }}
@@ -72,12 +72,12 @@ export default function DomainFacadeB0Evidence() {
     return (
       <PageShell
         title="领域门面无模型证据"
-        description="暂无门面 B0 主链路证据"
+        description="暂无门面无模型规则链路证据"
         primary={reloadButton}
         state="empty"
         stateProps={{
           title: "暂无领域门面证据",
-          description: "后端未返回 17 张门面的无模型 B0 共享链路证据。",
+          description: "当前暂无 17 张领域门面的无模型共享链路证据，请稍后重试。",
         }}
       >
         <></>
@@ -88,14 +88,14 @@ export default function DomainFacadeB0Evidence() {
   return (
     <PageShell
       title="领域门面无模型证据"
-      description="只读核查门面 B0 共享链路"
+      description="只读核查门面无模型共享链路"
       primary={reloadButton}
     >
       <Space direction="vertical" size="large" className="mk-full-width">
         <Alert
           showIcon
           type="info"
-          message="无模型 B0 主链路"
+          message="无模型规则主链路"
           description="不预置真实医学内容/不新增专属业务引擎/不声明完整专业领域上线；本页只核查 17 张门面复用共享链路，不替代 S0-S40、真实消费者、业务闭环或上线验收。"
         />
 
@@ -104,7 +104,7 @@ export default function DomainFacadeB0Evidence() {
             <Statistic title="17 张领域门面" value={summary.total} suffix="/ 17" />
           </Card>
           <Card>
-            <Statistic title="无模型 B0 主链路" value={summary.b0Executable} suffix="条" />
+            <Statistic title="无模型规则主链路" value={summary.b0Executable} suffix="条" />
           </Card>
           <Card>
             <Statistic
@@ -157,7 +157,9 @@ export default function DomainFacadeB0Evidence() {
                 title: "边界",
                 render: (_, record) => (
                   <Space wrap size={[4, 4]}>
-                    <Tag color={record.b0Executable ? "success" : "error"}>B0 可执行</Tag>
+                    <Tag color={record.b0Executable ? "success" : "error"}>
+                      可在无模型条件下执行
+                    </Tag>
                     <Tag color={record.modelRequired ? "error" : "success"}>不依赖模型</Tag>
                     <Tag color={record.clinicalContentSeeded ? "error" : "success"}>
                       不预置真实医学内容
@@ -188,7 +190,7 @@ function renderExpandedEvidence(record: DomainFacadeB0EvidenceRow) {
     <Space direction="vertical" size="middle" className="mk-full-width">
       <Descriptions size="small" column={2}>
         <Descriptions.Item label="资产种子策略">{record.assetSeedPolicy}</Descriptions.Item>
-        <Descriptions.Item label="B0 工作流">
+        <Descriptions.Item label="无模型工作流">
           {record.b0Workflows.length > 0 ? record.b0Workflows.join(" / ") : "无"}
         </Descriptions.Item>
         <Descriptions.Item label="声明成员">
@@ -213,11 +215,11 @@ function renderExpandedEvidence(record: DomainFacadeB0EvidenceRow) {
             render: (value: string) => <Text code>{value}</Text>,
           },
           {
-            title: "B0 入口",
+            title: "确定性入口",
             dataIndex: "b0Route",
             render: (value: string) => <Text code>{value}</Text>,
           },
-          { title: "B0 断言", dataIndex: "b0Assertion" },
+          { title: "无模型核查结果", dataIndex: "b0Assertion" },
           {
             title: "确定性",
             render: (_, engine) => (

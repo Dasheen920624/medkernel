@@ -19,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -210,8 +212,25 @@ class IntegrationServiceTest {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Sql(
+        statements = {
+            "DELETE FROM audit_event WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM audit_chain_head WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM mk_integration_data_quality_report WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM integration_adapter WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM mpi_patient WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')"
+        },
+        executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD,
+        config = @SqlConfig(transactionMode = SqlConfig.TransactionMode.ISOLATED)
+    )
     void dataQualityReportUsesTenantFactsAndPersistsHonestGapSnapshot() {
-        String qualityTenantId = "tenant-quality-" + UUID.randomUUID();
+        String qualityTenantId = "tenant-integration-quality";
+        String otherTenantId = "tenant-integration-quality-other";
         mpiPatientRepository.save(new MpiPatient(
             null, "mpi-quality-ok", qualityTenantId, "张*三", "M", 35, "1234", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
@@ -221,14 +240,15 @@ class IntegrationServiceTest {
             null, Instant.now(), "test", Instant.now(), "test"
         ));
         mpiPatientRepository.save(new MpiPatient(
-            null, "mpi-quality-other", "tenant-002", "", "M", 0, "", 0, "ACTIVE",
+            null, "mpi-quality-other", otherTenantId, "", "M", 0, "", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
         service.createAdapter(qualityTenantId, new AdapterCreateDto("his-quality", "HIS 质量接入", "Webhook", """
             {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
             """));
         service.createAdapter(qualityTenantId, new AdapterCreateDto("lis-quality", "LIS 未映射", "Webhook", "{}"));
-        service.createAdapter("tenant-002", new AdapterCreateDto("his-quality-other", "其他租户 HIS", "Webhook", "{}"));
+        service.createAdapter(otherTenantId,
+            new AdapterCreateDto("his-quality-other", "其他租户 HIS", "Webhook", "{}"));
         service.checkAdapterHealth(qualityTenantId, "his-quality");
 
         DataQualityReport report;

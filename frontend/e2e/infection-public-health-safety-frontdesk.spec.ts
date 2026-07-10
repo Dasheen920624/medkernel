@@ -1506,6 +1506,19 @@ async function createAndCloseSafetyEventRectification(
       textFieldAtPath(detailData, "rectificationTask.taskStatus"),
     "医疗安全事件整改任务必须回读初始状态",
   );
+  await ensureReadySession(page, "clinical-user");
+  const clinicalSubmit = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
+    {
+      rectificationSummary: "临床账号不得提交院感公卫安全事件整改证据。",
+      evidenceRef: `public-health-safety-clinical-submit-${options.suffix}`,
+    },
+  );
+  expect(clinicalSubmit.status(), "临床账号不得越权提交医疗安全事件整改证据").toBe(403);
+  const clinicalUserSubmitStatus = clinicalSubmit.status();
+
+  await ensureReadySession(page, "engine-operator");
   const submit = await postApi(
     page,
     `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
@@ -1516,6 +1529,20 @@ async function createAndCloseSafetyEventRectification(
   );
   await expectOk(submit, "提交医疗安全事件整改证据");
   const submitData = await responseData(submit);
+  await ensureReadySession(page, "clinical-user");
+  const clinicalReview = await postApi(
+    page,
+    `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
+    {
+      decision: "APPROVED",
+      comment: "临床账号不得复核院感公卫安全事件整改任务。",
+      evidenceRef: `public-health-safety-clinical-review-${options.suffix}`,
+    },
+  );
+  expect(clinicalReview.status(), "临床账号不得越权复核医疗安全事件整改任务").toBe(403);
+  const clinicalUserReviewStatus = clinicalReview.status();
+
+  await ensureReadySession(page, "engine-operator");
   const review = await postApi(
     page,
     `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
@@ -1528,13 +1555,20 @@ async function createAndCloseSafetyEventRectification(
   await expectOk(review, "复核关闭医疗安全事件整改任务");
   const reviewData = await responseData(review);
   const auditEvidence = await readRectificationAuditEvidence(page, { findingId, taskId });
+  const submittedByRole = canonicalRectificationRole(auditEvidence.taskAuditActorRole);
+  const reviewedByRole = canonicalRectificationRole(auditEvidence.findingAuditActorRole);
   const permissionEvidence = {
-    submittedByRole: "engine-operator",
-    reviewedByRole: "engine-operator",
+    submittedByRole,
+    reviewedByRole,
     canonicalFixedRoleVerified:
       auditEvidence.findingAuditReadbackVerified === true &&
-      auditEvidence.taskAuditReadbackVerified === true,
-    clinicalUserPrivilegeEscalation: false,
+      auditEvidence.taskAuditReadbackVerified === true &&
+      submittedByRole === "engine-operator" &&
+      reviewedByRole === "engine-operator",
+    clinicalUserPrivilegeEscalation:
+      clinicalUserSubmitStatus !== 403 || clinicalUserReviewStatus !== 403,
+    clinicalUserSubmitStatus,
+    clinicalUserReviewStatus,
   };
   const sixStateEvidence = {
     findingAssignedStatus: assignedFindingStatus,
@@ -1554,8 +1588,8 @@ async function createAndCloseSafetyEventRectification(
     findingStatus: textField(reviewData, "findingStatus"),
     taskId,
     taskStatus: textField(reviewData, "taskStatus"),
-    submittedByRole: "engine-operator",
-    reviewedByRole: "engine-operator",
+    submittedByRole,
+    reviewedByRole,
     roleEvidence: "CANONICAL_FIXED_ROLE_EVALUATION_REMEDIATE_REVIEW",
     submittedEvidenceRef: `public-health-safety-evidence-${options.suffix}`,
     reviewDecision: "APPROVED",
@@ -1769,25 +1803,13 @@ async function attachInfectionPublicHealthSafetyEvidence(
           runtimeConsumerVerified: true,
           humanReportReviewVerified: true,
           rectificationClosedVerified: true,
-          auditVerified:
-            textFieldAtPath(
-              evidence.qualityRectification,
-              "auditEvidence.findingAuditResourceId",
-            ) === textFieldAtPath(evidence.qualityRectification, "findingId") &&
-            textFieldAtPath(evidence.qualityRectification, "auditEvidence.taskAuditResourceId") ===
-              textFieldAtPath(evidence.qualityRectification, "taskId"),
-          permissionVerified:
-            textFieldAtPath(evidence.qualityRectification, "permissionEvidence.submittedByRole") ===
-              "engine-operator" &&
-            textFieldAtPath(evidence.qualityRectification, "permissionEvidence.reviewedByRole") ===
-              "engine-operator",
-          sixStateBoundaryVerified:
-            textFieldAtPath(evidence.qualityRectification, "sixStateEvidence.taskClosedStatus") ===
-              "CLOSED" &&
-            textFieldAtPath(
-              evidence.qualityRectification,
-              "sixStateEvidence.findingClosedStatus",
-            ) === "CLOSED",
+          auditVerified: hasCompleteRectificationAuditEvidence(evidence.qualityRectification),
+          permissionVerified: hasCompleteRectificationPermissionEvidence(
+            evidence.qualityRectification,
+          ),
+          sixStateBoundaryVerified: hasCompleteRectificationSixStateEvidence(
+            evidence.qualityRectification,
+          ),
           requiresPhysicianConfirmation: true,
           noLegalAutoSubmit: true,
           noExternalSuccessClaim: true,
@@ -1989,9 +2011,11 @@ function buildPublicHealthReportAbnormalEvidence(evidence: {
     requiresPhysicianConfirmation: true,
     noLegalAutoSubmit: true,
     noExternalSuccessClaim: true,
-    auditVerified: true,
-    permissionVerified: true,
-    sixStateBoundaryVerified: true,
+    auditVerified: hasCompleteRectificationAuditEvidence(evidence.qualityRectification),
+    permissionVerified: hasCompleteRectificationPermissionEvidence(evidence.qualityRectification),
+    sixStateBoundaryVerified: hasCompleteRectificationSixStateEvidence(
+      evidence.qualityRectification,
+    ),
     scopeStatement:
       "S21 院感公卫阳性可报告病种上报预填异常代表行：签名入站生成 U07.100 与 POSITIVE 上报预填，当前机构生效版本推荐卡要求医生人工复核，人工确认只关闭本地预填处置线索且不替代法定公卫上报；不代表完整 S21，不代表完整院感系统，不代表完整公卫法定上报，不代表真实外部公卫上报成功联通，不代表自动法定上报，不代表完整第三方系统族覆盖，不代表完整 S0-S40，不代表完整上线验收。",
   };
@@ -1999,6 +2023,59 @@ function buildPublicHealthReportAbnormalEvidence(evidence: {
 
 function recordStage(stages: Set<string>, stage: string) {
   stages.add(stage);
+}
+
+function canonicalRectificationRole(actorRoles: unknown) {
+  return hasActorRole(actorRoles, "ROLE_ENGINE_OPERATOR") ? "engine-operator" : null;
+}
+
+function hasActorRole(value: unknown, expectedRole: string) {
+  return (
+    typeof value === "string" &&
+    value
+      .split(",")
+      .map((role) => role.trim())
+      .includes(expectedRole)
+  );
+}
+
+function hasCompleteRectificationAuditEvidence(value: unknown) {
+  return (
+    booleanFieldAtPath(value, "auditEvidence.findingAuditReadbackVerified") &&
+    textFieldAtPath(value, "auditEvidence.findingAuditResourceType") === "quality_finding" &&
+    textFieldAtPath(value, "auditEvidence.findingAuditResourceId") ===
+      textFieldAtPath(value, "findingId") &&
+    booleanFieldAtPath(value, "auditEvidence.taskAuditReadbackVerified") &&
+    textFieldAtPath(value, "auditEvidence.taskAuditResourceType") === "rectification_task" &&
+    textFieldAtPath(value, "auditEvidence.taskAuditResourceId") === textFieldAtPath(value, "taskId")
+  );
+}
+
+function hasCompleteRectificationPermissionEvidence(value: unknown) {
+  return (
+    textFieldAtPath(value, "permissionEvidence.submittedByRole") === "engine-operator" &&
+    textFieldAtPath(value, "permissionEvidence.reviewedByRole") === "engine-operator" &&
+    booleanFieldAtPath(value, "permissionEvidence.canonicalFixedRoleVerified") &&
+    !booleanFieldAtPath(value, "permissionEvidence.clinicalUserPrivilegeEscalation") &&
+    numberFieldAtPath(value, "permissionEvidence.clinicalUserSubmitStatus") === 403 &&
+    numberFieldAtPath(value, "permissionEvidence.clinicalUserReviewStatus") === 403 &&
+    hasActorRole(
+      textFieldAtPath(value, "auditEvidence.findingAuditActorRole"),
+      "ROLE_ENGINE_OPERATOR",
+    ) &&
+    hasActorRole(textFieldAtPath(value, "auditEvidence.taskAuditActorRole"), "ROLE_ENGINE_OPERATOR")
+  );
+}
+
+function hasCompleteRectificationSixStateEvidence(value: unknown) {
+  return (
+    textFieldAtPath(value, "sixStateEvidence.findingAssignedStatus") === "ASSIGNED" &&
+    textFieldAtPath(value, "sixStateEvidence.taskAssignedStatus") === "ASSIGNED" &&
+    textFieldAtPath(value, "sixStateEvidence.taskSubmittedStatus") === "SUBMITTED" &&
+    textFieldAtPath(value, "sixStateEvidence.taskClosedStatus") === "CLOSED" &&
+    textFieldAtPath(value, "sixStateEvidence.findingClosedStatus") === "CLOSED" &&
+    textFieldAtPath(value, "sixStateEvidence.reviewDecision") === "APPROVED"
+  );
 }
 
 function waitForEvaluateResponse(page: Page, snapshot: ContextSnapshotSummary) {

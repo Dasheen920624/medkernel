@@ -13,6 +13,8 @@ context: |
   - AGENTS.md
   - docs/README.md
   - docs/CONSTITUTION.md
+  - docs/PRODUCT_SCOPE.md
+  - docs/_HANDOFF.md
   - docs/ARCHITECTURE.md
   - docs/DATABASE_SCHEMA.md
   - docs/EXPERIENCE_CONTRACT.md

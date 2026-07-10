@@ -723,22 +723,22 @@ const knowledgeProductionExperience: RouteExperience = {
 const domainFacadeB0EvidenceExperience: RouteExperience = {
   ...readonlyExperience(
     "医疗引擎运营员",
-    "核查 17 张门面 B0 共享链路，不声明完整专业领域上线",
-    "门面 B0 证据",
+    "核查 17 张门面共享的无模型规则链路，不声明完整专业领域上线",
+    "门面无模型证据",
     "small",
   ),
   evidenceDetailContent: [
     "门面代码",
-    "B0 证据编号",
+    "无模型证据编号",
     "共享处理器",
     "确定性入口",
     "成员门面解析结果",
   ],
-  evidence: "只证明 17 张领域门面复用无模型 B0 主链路；不证明完整专业领域、真实消费者或业务闭环",
+  evidence: "只证明 17 张领域门面复用无模型规则主链路；不证明完整专业领域、真实消费者或业务闭环",
   stakeholderViews: [
     {
       role: "医疗引擎运营员",
-      responsibility: "核查门面目录是否进入共享 B0 链路并保留无模型证据",
+      responsibility: "核查门面目录是否进入共享无模型规则链路并保留证据",
       boundary: "该页面不声明完整专业领域上线，也不替代 S0-S40 上线验收",
     },
     {

@@ -13549,6 +13549,7 @@ function hasCompleteInfectionPublicHealthS21AbnormalEvidence(
   const recommendation = recordValue(body.recommendation);
   const manualReview = recordValue(body.manualReview);
   const persistedReview = recordValue(manualReview?.persisted);
+  const rectification = recordValue(body.qualityRectification);
   return (
     evidence !== null &&
     context !== null &&
@@ -13585,6 +13586,18 @@ function hasCompleteInfectionPublicHealthS21AbnormalEvidence(
     evidence.auditVerified === true &&
     evidence.permissionVerified === true &&
     evidence.sixStateBoundaryVerified === true &&
+    hasCompleteInfectionPublicHealthRectification(rectification, recommendation) &&
+    hasCompleteInfectionPublicHealthRectificationAuditEvidence(
+      rectification?.auditEvidence,
+      rectification,
+    ) &&
+    hasCompleteInfectionPublicHealthRectificationPermissionEvidence(
+      rectification?.permissionEvidence,
+      rectification?.auditEvidence,
+    ) &&
+    hasCompleteInfectionPublicHealthRectificationSixStateEvidence(
+      rectification?.sixStateEvidence,
+    ) &&
     publicHealthReport?.reportableCondition === "SUSPECTED_COVID_19" &&
     publicHealthReport.prefillStatus === "READY_FOR_HUMAN_REVIEW" &&
     publicHealthReport.manualSubmitRequired === true &&
@@ -13697,6 +13710,7 @@ function hasHighRiskInfectionPublicHealthRectification(
     ) &&
     hasCompleteInfectionPublicHealthRectificationPermissionEvidence(
       rectification?.permissionEvidence,
+      rectification?.auditEvidence,
     ) &&
     hasCompleteInfectionPublicHealthRectificationSixStateEvidence(rectification?.sixStateEvidence)
   );
@@ -13719,14 +13733,33 @@ function hasCompleteInfectionPublicHealthRectificationAuditEvidence(
   );
 }
 
-function hasCompleteInfectionPublicHealthRectificationPermissionEvidence(value: unknown) {
+function hasCompleteInfectionPublicHealthRectificationPermissionEvidence(
+  value: unknown,
+  auditValue: unknown,
+) {
   const permission = recordValue(value);
+  const audit = recordValue(auditValue);
   return (
     permission !== null &&
+    audit !== null &&
     permission.submittedByRole === "engine-operator" &&
     permission.reviewedByRole === "engine-operator" &&
     permission.canonicalFixedRoleVerified === true &&
-    permission.clinicalUserPrivilegeEscalation === false
+    permission.clinicalUserPrivilegeEscalation === false &&
+    permission.clinicalUserSubmitStatus === 403 &&
+    permission.clinicalUserReviewStatus === 403 &&
+    hasCanonicalEngineOperatorActorRole(audit.findingAuditActorRole) &&
+    hasCanonicalEngineOperatorActorRole(audit.taskAuditActorRole)
+  );
+}
+
+function hasCanonicalEngineOperatorActorRole(value: unknown) {
+  return (
+    hasText(value) &&
+    String(value)
+      .split(",")
+      .map((role) => role.trim())
+      .includes("ROLE_ENGINE_OPERATOR")
   );
 }
 

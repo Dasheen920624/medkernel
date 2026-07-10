@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -513,33 +513,44 @@ describe("Mpi", () => {
       expect((await screen.findAllByText("暂无已生效上下文")).length).toBeGreaterThan(0);
       await user.click(screen.getByRole("button", { name: "建立当前就诊上下文" }));
       const diseaseInput = screen.getByLabelText("诊断/随访病种");
-      await user.clear(diseaseInput);
-      await user.type(diseaseInput, "真实前台慢病随访主题");
+      fireEvent.change(diseaseInput, { target: { value: "真实前台慢病随访主题" } });
       const medicationInput = screen.getByLabelText("当前用药");
-      await user.type(medicationInput, "华法林、阿司匹林");
-      await user.type(screen.getByLabelText("过敏/不良反应"), "青霉素：皮疹、头孢菌素：呼吸困难");
-      await user.type(screen.getByLabelText("监测指标"), "CRP=128 mg/L；PCT=2.4 ng/mL");
+      fireEvent.change(medicationInput, { target: { value: "华法林、阿司匹林" } });
+      fireEvent.change(screen.getByLabelText("过敏/不良反应"), {
+        target: { value: "青霉素：皮疹、头孢菌素：呼吸困难" },
+      });
+      fireEvent.change(screen.getByLabelText("监测指标"), {
+        target: { value: "CRP=128 mg/L；PCT=2.4 ng/mL" },
+      });
       await user.click(screen.getByRole("combobox", { name: "特殊人群标记" }));
       await user.click(await screen.findByTitle("妊娠"));
       await user.click(screen.getByRole("combobox", { name: "特殊人群标记" }));
       await user.click(await screen.findByTitle("老年"));
-      await user.clear(screen.getByLabelText("身高 cm"));
-      await user.type(screen.getByLabelText("身高 cm"), "170");
-      await user.clear(screen.getByLabelText("体重 kg"));
-      await user.type(screen.getByLabelText("体重 kg"), "82");
-      await user.type(screen.getByLabelText("医技报告项目"), "血钾检验");
-      await user.type(screen.getByLabelText("报告结论"), "血钾 6.3 mmol/L，危急值，已复核");
-      await user.type(screen.getByLabelText("异常重点"), "血钾升高、危急值");
+      fireEvent.change(screen.getByLabelText("身高 cm"), { target: { value: "170" } });
+      fireEvent.change(screen.getByLabelText("体重 kg"), { target: { value: "82" } });
+      fireEvent.change(screen.getByLabelText("医技报告项目"), {
+        target: { value: "血钾检验" },
+      });
+      fireEvent.change(screen.getByLabelText("报告结论"), {
+        target: { value: "血钾 6.3 mmol/L，危急值，已复核" },
+      });
+      fireEvent.change(screen.getByLabelText("异常重点"), {
+        target: { value: "血钾升高、危急值" },
+      });
       expect(screen.getByText("医保结算事实（可选）")).toBeInTheDocument();
-      await user.clear(screen.getByLabelText("DRG/DIP 分组"));
-      await user.type(screen.getByLabelText("DRG/DIP 分组"), "DRG-REAL-A");
-      await user.clear(screen.getByLabelText("本次结算金额"));
-      await user.type(screen.getByLabelText("本次结算金额"), "1280.50");
-      await user.clear(screen.getByLabelText("医保支付金额"));
-      await user.type(screen.getByLabelText("医保支付金额"), "860.00");
+      fireEvent.change(screen.getByLabelText("DRG/DIP 分组"), {
+        target: { value: "DRG-REAL-A" },
+      });
+      fireEvent.change(screen.getByLabelText("本次结算金额"), {
+        target: { value: "1280.50" },
+      });
+      fireEvent.change(screen.getByLabelText("医保支付金额"), {
+        target: { value: "860.00" },
+      });
       const reasonInput = screen.getByLabelText("建立原因");
-      await user.clear(reasonInput);
-      await user.type(reasonInput, "真实前台演练：随访计划生成前由医生确认当前就诊上下文。");
+      fireEvent.change(reasonInput, {
+        target: { value: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。" },
+      });
       await user.click(screen.getByRole("button", { name: "生成上下文快照" }));
 
       await waitFor(() => {
@@ -669,10 +680,9 @@ describe("Mpi", () => {
       renderMpi();
 
       await user.click(screen.getByRole("button", { name: /拆分归并/ }));
-      await user.type(
-        screen.getByPlaceholderText("请输入人工核查结论"),
-        "人工核查后确认不是同一患者",
-      );
+      fireEvent.change(screen.getByPlaceholderText("请输入人工核查结论"), {
+        target: { value: "人工核查后确认不是同一患者" },
+      });
       await user.click(screen.getByRole("button", { name: "确认拆分" }));
 
       await waitFor(() => {
