@@ -5,7 +5,7 @@
 - [x] 1.3 收敛 `D0DomainAcceptanceTest` 的 35 个入口口径、`e2eLaunchCoverageEvidence.test.ts` 的 ESLint 失败和 `DomainFacadeB0Evidence.tsx` 的客户面工程语言；分别运行后端定向测试、`npm run lint` 和真实性 inventory。
 - [x] 1.4 以 `medkernel.schema.json` 为唯一模式源重新生成五方言 V1，确认差异只修正实际漂移；运行 `node --test scripts/db/generate-migrations.test.mjs` 与 `node scripts/db/generate-migrations.mjs --check`。
 - [x] 1.5 更新 `openspec/config.yaml` 的上下文指针，纳入 `docs/PRODUCT_SCOPE.md` 与 `docs/_HANDOFF.md`，并用 `openspec validate converge-full-launch-and-knowledge-platform --strict --no-interactive` 验证本变更。
-- [ ] 1.6 将已验证的基线修复提交为 candidateCommit，并从该提交的全新隔离检出按锁文件重建依赖后执行一次干净基线：后端 `mvn -B -q clean test`，前端依次执行 `npm run verify` 与 `npm run build`，CLI/MCP 测试，真实性全仓 inventory、数据库生成检查和部署契约测试；全部通过后把本次结果写入同时绑定 sourceBaseCommit 与 candidateCommit 的 RC0 清单，不复用 `target/`、`test-results/` 或历史证据。
+- [x] 1.6 将已验证的基线修复提交为 candidateCommit，并从该提交的全新隔离检出按锁文件重建依赖后执行一次干净基线：后端 `mvn -B -q clean test`，前端依次执行 `npm run verify` 与 `npm run build`，CLI/MCP 测试，真实性全仓 inventory、数据库生成检查和部署契约测试；全部通过后把本次结果写入同时绑定 sourceBaseCommit 与 candidateCommit 的 RC0 清单，不复用 `target/`、`test-results/` 或历史证据。
 - [ ] 1.7 将 OpenSpec、基线修复和本次验证证据作为成果保全 PR 推送到 `codex/launch-convergence`，等待远端检查全绿并 squash 合入 `main`；确认 `origin/main` 含合并提交后再从最新主线开始后续小写集。
 
 ## 2. 建立 35 入口与完整上线机器总账

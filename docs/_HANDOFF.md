@@ -6,85 +6,64 @@
 ## 当前唯一主线
 
 - OpenSpec 变更：`converge-full-launch-and-knowledge-platform`，schema 为 `spec-driven`。
-- 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`。
-- 实施分支：`codex/launch-convergence`。
-- 固定输入锚点：`sourceBaseCommit=7217504ce82e1aa119c3402e3b5d054f9369e018`；该提交已知不是 RC，禁止直接提升。
-- 本文件所在 Git 提交是下一步要验证的 `candidateCommit`；它只有在任务 `1.6` 从全新检出完成全部规定门禁并生成、迁移、独立重验 RC0 清单后，才具备 clean RC0 资格。
-- 原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍停在上述输入锚点，且只有用户既有脏项 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/`；不得回滚、暂存、清理或污染它们。
+- 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`；实施分支：`codex/launch-convergence`。
+- 固定输入锚点：`sourceBaseCommit=7217504ce82e1aa119c3402e3b5d054f9369e018`；该提交不是 RC，禁止直接提升。
+- clean RC0 候选固定为 `candidateCommit=d4514938e6ba7d6f0d09eb736a0c66ab72863b07`。后续任务勾选和本文件更新属于 bookkeeping，不得把更新后的分支 HEAD 冒充已验证候选。
+- OpenSpec 任务 `1.1`～`1.6` 已完成，当前进度应为 `6/82`；本批必须停在这里，不得越过任务 `1.7` 直接进入 `2.1`。
+- 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍停在输入锚点，现有用户改动包括 `docs/DEPLOYMENT_AND_REHEARSAL.md`、三个前端 E2E/凭据合同文件和 `test-results/`；不得回滚、暂存、清理或污染。
 
-## OpenSpec 当前进度
+## clean RC0 与可重算证据
 
-任务 `1.1`～`1.5` 已完成，其余任务仍按 `openspec/changes/converge-full-launch-and-knowledge-platform/tasks.md` 顺序执行：
+- run-id：`rc0-20260710T155756Z-d4514938e`；时间窗：`2026-07-10T15:57:56.000Z`～`2026-07-10T16:48:19.111Z`。
+- 全新 detached 检出：`/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260710T155756Z-d4514938e/checkout`；依赖按锁文件重新建立，未复用实施工作树的 `target/`、`dist/`、测试产物或历史证据。
+- 创建目录：`/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260710T155756Z-d4514938e/bundle-create`。
+- 异目录重验副本：`/Users/zhikunzheng/.medkernel-rc0-verified/rc0-20260710T155756Z-d4514938e`；共复制 402 个普通文件。
+- RC 清单：`rc-manifest.json`，SHA-256 为 `6754cbaf6beec00aad2cf204ea857c0fff8a0ebbb80a52e3f0cca4b076af5fb3`。
+- 候选提交中的独立验证器对异目录返回：`status=VERIFIED`、sourceBase/candidate/run-id 全部一致。
 
-1. `1.1` 已实现 RC0 清单创建与独立重验，绑定固定输入锚点、完整候选提交、依赖声明与解析报告、run-id、时间窗、九类门禁证据和六类候选制品摘要。
-2. 清单拒绝 sourceBase 直接提升、错误提交、tracked/untracked/ignored 残留、`skip-worktree`/`assume-unchanged`、仓库或 Git 元数据目录内 bundle、路径和索引符号链接、历史/越窗证据、缺失或未知门禁、制品漂移及未知清单字段。
-3. `1.2` 已隔离 `IntegrationServiceTest` 非事务用例的提交数据，同时保留审计事实提交后真实回读。
-4. `1.3` 已统一 35 个入口口径，修复前端严格校验和客户面工程化措辞，并补临床账号真实 403、审计角色回读及 `ASSIGNED → SUBMITTED → CLOSED` 状态证据。
-5. `1.4` 已在唯一模式源补回正式 `DIAGNOSIS`，五方言生成结果一致。
-6. `1.5` 已让 OpenSpec 上下文包含 `PRODUCT_SCOPE` 与本交接文件。
+### 九类门禁
 
-## 2026-07-10 新鲜自动验证
+| 门禁 | 本次结果 |
+|---|---|
+| `BACKEND_TESTS` | 523 份 Surefire 报告，3180 项测试，0 failure、0 error、7 条条件跳过 |
+| `BROWSER_E2E` | 114/114；Chromium 57、国产 Chromium 内核仿真 57；workers=1、retries=0、unexpected/flaky/skipped 均为 0 |
+| `CLI_TESTS` | 30/30 |
+| `DATABASE_GENERATOR` | 8/8，五方言 `--check` 通过 |
+| `DEPLOYMENT_CONTRACTS` | 7 个合同脚本通过，未执行目标机破坏性操作 |
+| `FORMAT_CHECK` | RC manifest 42/42、Node 语法、Prettier、OpenSpec strict、`git diff --check` 通过 |
+| `FRONTEND_VERIFY_BUILD` | 116 个测试文件、2207/2207；生产构建 3436 modules |
+| `MCP_TESTS` | 16/16 |
+| `T_GATE` | 真实性 56/56 且 inventory 无阻断；配置、迁移、性能合同与中文注释门禁通过 |
 
-以下命令均在隔离工作树执行，未操作 134：
+后端 7 条条件跳过的边界必须原样保留：PostgreSQL 空库 smoke 3 项因 Docker 不可用；PostgreSQL/Oracle Flyway smoke 2 项因 Docker 不可用；PostgreSQL/Oracle 10 万级 smoke 2 项因性能开关未开启。它们不是目标方言或 10 万级性能已通过的证据。
 
-```bash
-cd medkernel-backend
-mvn -B -q -Dtest=IntegrationServiceTest,D0DomainAcceptanceTest test
+Browser E2E 首次仅发生执行器对子进程托管失败，readiness 预检连接失败且 Playwright 未启动；最终结果来自受管会话的完整重跑。第二项目只是“国产 Chromium 内核仿真（非现场认证）”，不得冒充真实国产浏览器或医院现场认证。E2E 后仅停止本轮 PID 88923/端口 39483；受保护端口 38083 仍为 `UP`。
 
-cd ../frontend
-npm run verify
+### 六类候选制品
 
-cd ..
-node --test scripts/authenticity-guard.test.mjs
-node scripts/authenticity-guard.mjs --mode=inventory
-node --test scripts/db/generate-migrations.test.mjs
-node scripts/db/generate-migrations.mjs --check
-node --test cli/test/*.test.mjs
-node --test mcp-server/test/*.test.mjs
-bash deploy/onprem/tests/validate-medkernel-deploy.sh
-bash deploy/onprem/tests/validate-mk-publish-package.sh
-bash scripts/check-shell-test-assertions.sh
-bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh
-bash deploy/onprem/tests/validate-ollama-model.sh
-bash deploy/onprem/tests/validate-medkernel-failure-recovery.sh
-bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh
-```
+| 制品 | SHA-256 |
+|---|---|
+| `BACKEND_JAR` | `4146216023ebb0548ce892e14e7d4b9a7447917f72a8b705a113064bc294c6c0` |
+| `FRONTEND_DIST` | `f33833d961f5d99209eeafd2fc9e29ddb71eaf26b0b8508ac49ab833a7ada699` |
+| `CLI_PACKAGE` | `1f1e7ff8dedec2868d7efcc5f15c8fbf74622a67f8d70434df8139ef9ecaa1b4` |
+| `MCP_PACKAGE` | `1527c16172bffd92d5b13a25dcd68e6f44721437e69364f93d6596241ff1c9cd` |
+| `DATABASE_MIGRATIONS` | `1d55f4753ff03c3255a567c8196dfcfa7673feaf1b669ae2c686e833e00834b2` |
+| `ONPREM_DELIVERY` | `6ffae4d03dcf3394381a24c78c45b2ea83a3083c9d5477dfd85229a369e1376c` |
 
-结果：后端定向测试退出码 0；前端 `verify` 为 116 个测试文件、2193 项测试通过；真实性 56/56 且 inventory 清零；数据库生成器 8/8；CLI 30/30；MCP 16/16；全部列出的部署合同退出码 0。
-
-RC 清单最终新鲜验证：
-
-```bash
-node --check scripts/release/rc-manifest-lib.mjs
-node --check scripts/release/rc-manifest.test.mjs
-node --check scripts/release/rc-manifest.mjs
-node --test scripts/release/rc-manifest.test.mjs
-frontend/node_modules/.bin/prettier --check \
-  scripts/release/rc-manifest-lib.mjs \
-  scripts/release/rc-manifest.test.mjs \
-  scripts/release/rc-manifest.mjs
-openspec validate converge-full-launch-and-knowledge-platform \
-  --strict --no-interactive
-git diff --check
-```
-
-结果：RC 清单 42/42 通过；Prettier、OpenSpec strict validate 与 `git diff --check` 均通过。`openspec/config.yaml` 仅有 Git 的 CRLF 将转 LF 提示，不是校验失败。
+前端、数据库迁移和 on-prem 归档均已按最终字节重打包并确认不存在 `._*` AppleDouble 条目；不得使用第一次打包的旧摘要。
 
 ## 当前不能宣称的结论
 
-- **尚无 clean RC0。** 当前结果包含定向后端回归和现工作树前端验证，不能替代任务 `1.6` 的全新检出、按锁文件重建依赖及完整 clean 基线。
-- **尚未运行本候选提交的全量 Playwright 浏览器 E2E。** 不得声称浏览器 E2E 或 `BROWSER_E2E` 门禁已通过。
-- 尚未从本候选提交执行 `mvn -B -q clean test`，也尚未形成并独立重验九类门禁、六类制品的 RC0 bundle。
-- 未操作 134、真实模型 Provider、真实第三方、清库、覆盖部署或发布；不得把本地合同测试冒充目标环境证据。
+- 任务 `1.7` 尚未执行：本分支未因本批推送、未创建成果保全 PR、未等待远端 CI、未 squash 合入 `main`，也未确认 `origin/main` 包含本变更。
+- 未操作 134、真实模型 Provider、真实第三方、清库、停机、覆盖部署或发布；本地自动合同不能冒充目标环境证据。
+- 尚未完成 35 入口机器总账、平台知识权威、完整 `.mkp`、医疗资源工厂、院内空机安装或最终 `LAUNCH-01`～`LAUNCH-15` 验收；这些仍按 OpenSpec 后续任务实施。
 
-## 下一最小任务：`1.6`
+## 下一最小任务：`1.7`
 
-1. 读取本文件所在提交的完整 40 位 `candidateCommit`，从该提交建立全新隔离检出；不得复用当前 `target/`、`dist/`、`tsbuildinfo`、`test-results/`、Playwright 产物或 `/tmp` 历史证据。
-2. 严格按锁文件重建前后端依赖；RC bundle 必须位于工作树、`git-dir` 和 `git-common-dir` 之外。
-3. 在同一 run-id 和 candidateCommit 下执行并保存九类本次证据：`BACKEND_TESTS`、`BROWSER_E2E`、`CLI_TESTS`、`DATABASE_GENERATOR`、`DEPLOYMENT_CONTRACTS`、`FORMAT_CHECK`、`FRONTEND_VERIFY_BUILD`、`MCP_TESTS`、`T_GATE`。
-4. 只从本次候选构建形成六类制品：`BACKEND_JAR`、`FRONTEND_DIST`、`CLI_PACKAGE`、`MCP_PACKAGE`、`DATABASE_MIGRATIONS`、`ONPREM_DELIVERY`；复制到仓库外 bundle 后清除检出内构建与测试残留。
-5. 使用 `scripts/release/rc-manifest.mjs create` 生成不可覆盖的 RC0 清单；把完整 bundle 搬迁到另一仓库外位置后，再用 `verify` 独立重验。
-6. 任一门禁失败、未知、跳过，或摘要、提交、run-id、时间窗、依赖和制品不一致时，任务 `1.6` 保持未完成，不得宣称 RC0。
+1. 从本文件读取固定 RC0 候选、run-id、异目录 `VERIFIED` 结果和上述边界；不得重新解释或替换候选字节。
+2. 将 OpenSpec、基线修复和本次验证事实作为成果保全 PR 推送到 `codex/launch-convergence`，使用中文说明范围、验证、7 条条件跳过、医疗安全、部署和迁移影响。
+3. 等待远端检查全绿后 squash 合入 `main`，确认 `origin/main` 含合并提交；随后从最新 `origin/main` 建立新的小写集工作树，才可进入任务 `2.1`。
+4. 若远端检查失败，按失败证据修复并重新形成候选与 RC 清单；不得沿用已漂移的摘要或冒领当前 RC。
 
 ## 安全与操作边界
 
