@@ -1482,7 +1482,11 @@ async function assertCurrentRuntimeContainsFollowupTemplate(
     item,
     `当前机构生效版本必须启用本轮 FOLLOWUP 随访方案 ${followupTemplate.templateCode}`,
   ).toBeTruthy();
-  return { entryState: item?.entryState, releaseId: current.data?.release?.releaseId, status: response.status() };
+  return {
+    entryState: item?.entryState,
+    releaseId: current.data?.release?.releaseId,
+    status: response.status(),
+  };
 }
 
 function assertCurrentRuntimeContainsRequiredBaselineAssets(current: RuntimeReleaseDetailPayload) {
@@ -2014,10 +2018,9 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("随访快照患者信息").fill(snapshot.patientId);
   const snapshotButton = dialog.locator(`button[data-snapshot-id="${snapshot.snapshotId}"]`);
-  await expect(
-    snapshotButton,
-    `随访计划弹窗必须展示本轮上下文 ${snapshot.snapshotId}`,
-  ).toBeVisible({ timeout: 20_000 });
+  await expect(snapshotButton, `随访计划弹窗必须展示本轮上下文 ${snapshot.snapshotId}`).toBeVisible(
+    { timeout: 20_000 },
+  );
   await snapshotButton.click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
   await searchDialogOption(page, dialog, "随访方案", template.defaultName, template.defaultName);
@@ -2196,10 +2199,9 @@ async function readFollowupBackflowContext(
     { headers: { "X-Trace-Id": `e2e-followup-backflow-context-${Date.now()}` } },
   );
   const text = await response.text();
-  expect(
-    response.ok(),
-    `应能回读随访结果回流上下文 status=${response.status()} body=${text}`,
-  ).toBe(true);
+  expect(response.ok(), `应能回读随访结果回流上下文 status=${response.status()} body=${text}`).toBe(
+    true,
+  );
   const result = JSON.parse(text) as {
     data?: {
       snapshotId?: string;
@@ -2210,10 +2212,9 @@ async function readFollowupBackflowContext(
     };
   };
   expect(result.data?.snapshotId).toBe(options.contextSnapshotId);
-  expect(
-    result.data?.runtimeReleaseId,
-    "随访结果回流上下文必须继承随访计划机构生效版本",
-  ).toBe(options.runtimeReleaseId);
+  expect(result.data?.runtimeReleaseId, "随访结果回流上下文必须继承随访计划机构生效版本").toBe(
+    options.runtimeReleaseId,
+  );
   const followUps = Array.isArray(result.data?.resources?.followUps)
     ? result.data.resources.followUps
     : [];
@@ -2244,9 +2245,7 @@ async function readFollowupBackflowContext(
         item.mappedVersion === "FOLLOWUP_RESULT" &&
         item.qualityStatus === "VALID",
     ),
-    `回流上下文必须回读同一问卷生成的 FollowUp 标准资源：${JSON.stringify(
-      followUpSummary,
-    )}`,
+    `回流上下文必须回读同一问卷生成的 FollowUp 标准资源：${JSON.stringify(followUpSummary)}`,
   ).toBe(true);
   return {
     patientId: result.data?.patientId ?? null,
@@ -2437,11 +2436,11 @@ async function clickAntdOption(
     if (!optionText) {
       await expect(optionLocator, `${label} 下拉选项应可见`).toBeVisible({ timeout });
     } else {
-    const selectedByText = await dispatchAntdOptionByText(
-      optionLocator.page(),
-      optionText,
-      timeout,
-    );
+      const selectedByText = await dispatchAntdOptionByText(
+        optionLocator.page(),
+        optionText,
+        timeout,
+      );
       expect(selectedByText, `应能在当前 AntD 下拉中选择 ${optionText}`).toBe(true);
     }
   } else {
@@ -2905,6 +2904,17 @@ async function attachScenarioEvidence(
                         evidence: [
                           "异常回院登记为高风险且已由真实前台登记",
                           "异常回院仅生成随访处置线索，不自动开嘱",
+                        ],
+                      },
+                      {
+                        code: "S30__NORMAL",
+                        scenarioCode: "S30",
+                        condition: "NORMAL",
+                        source: "FOLLOWUP_PATIENT_SERVICE_CONTINUITY_BACKFLOW",
+                        evidence: [
+                          "真实前台发布 FOLLOWUP 随访方案并纳入当前机构生效版本",
+                          "患者服务链路完成随访计划、患者自填问卷和异常回院登记",
+                          "随访结果回流生成 FollowUp 标准资源并通过患者服务消费者切片回读",
                         ],
                       },
                     ]

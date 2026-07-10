@@ -152,6 +152,38 @@
   空白场景下一批优先可做 `S30__NORMAL`（随访、消息和患者服务连续随访消费者切片，source 建议
   `FOLLOWUP_PATIENT_SERVICE_CONTINUITY_BACKFLOW`），但必须明确不声明完整慢病基层双向转诊、完整 S30 或完整上线验收。
   当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
+- 第二百五十六批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
+  本批不新增完整 S30、完整慢病基层双向转诊、完整随访系统、完整患者服务系统、完整第三方系统族覆盖、区域资源调度、
+  自动开嘱、完整 S0-S40、134 清库、目标环境部署或完整上线验收；只在既有 `real-frontdesk-rehearsal.spec.ts` 真实前台链路中，
+  把 `S30__NORMAL` 升级为显式 `scenarioConditionEvidence` 与严格 parser 行。证据固定来源于
+  `real-frontdesk-scenario-codes` 附件：FOLLOWUP 随访方案发布并纳入当前机构生效版本，患者服务链路完成随访计划、患者自填问卷、
+  异常回院登记和随访结果回流，回流生成 `FollowUp` 标准资源并由 `FOLLOWUP_PATIENT_SERVICE` 消费者切片回读。
+- 第二百五十六批实现细节：`frontend/e2e/real-frontdesk-rehearsal.spec.ts` 在 `resourceEvidence.followupS12` 存在时，
+  附件 `scenarioConditionEvidence` 新增 `S30__NORMAL`，固定
+  `source=FOLLOWUP_PATIENT_SERVICE_CONTINUITY_BACKFLOW`。`frontend/e2e/support/launchCoverageEvidence.ts` 将
+  `S30__NORMAL` 纳入 `realFrontdeskScenarioConditionRows`，并要求 `hasCompleteFollowupPatientServiceConsumerSlice()` 成立：
+  显式条件行、`FOLLOWUP_PATIENT_SERVICE` 消费者切片、`Patient/Encounter/FollowUp` 标准资源、FOLLOWUP 机构生效版本、计划 / 问卷 /
+  异常回院 / 结果回流同链、`FollowUp` 资源 `sourceSystem=FOLLOWUP`、`mappedVersion=FOLLOWUP_RESULT`、`qualityStatus=VALID`、
+  `noAutoOrder=true`、审计路径和 scope 边界同时成立，才声明该行。`frontend/src/test/e2eLaunchCoverageEvidence.test.ts` 先红后绿覆盖：
+  正例声明 `[S12__NORMAL,S30__NORMAL]`；缺显式条件行、source 错配、缺消费者切片、scope 冒领完整 S30、结果回流问卷错绑、
+  `FollowUp` 映射版本错绑，均不得声明 `S30__NORMAL`。既有负例仍防止把 `S30__ABNORMAL` 或 S12 异常回院冒领为慢病基层双向转诊。
+- 第二百五十六批验证证据：已先让
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run` 红在新增正例（旧 parser 不认识 `S30__NORMAL`，
+  `scenarioConditionRows` 为 `undefined`）；实现后通过
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -- --run`（1096 tests）、
+  `npm --prefix frontend run typecheck -- --pretty false`、`npm --prefix frontend run format:check`、
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`（15 tests）。
+  真实 E2E 临时启动本地后端 18102（dev/H2，既有 jar）和前端 5175（本批已停止；复核 18102/5175 无监听），执行
+  `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=http://localhost:5175 E2E_API_BASE_URL=http://localhost:18102/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18102 E2E_EXPECT_MFA_DISABLED=1 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-s30-normal-condition-row-20260710-r1 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
+  通过；`/tmp/medkernel-e2e-s30-normal-condition-row-20260710-r1/report/results.json` 读回 `status=PASSED`、
+  `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，`launchCoverage.scenarioConditionRows` 为
+  `[S12__NORMAL,S12__ABNORMAL,S30__NORMAL]`，`thirdPartySystemFamilyConsumerSlices=[FOLLOWUP_PATIENT_SERVICE]`。
+  附件抽查 `canonicalResources=[Patient,Encounter,FollowUp]`、`consumer=FOLLOWUP_RESULT_BACKFLOW`、
+  `consumerVerified/standardResourceVerified/runtimeConsumerVerified/questionnaireVerified/abnormalReturnVerified/resultBackflowVerified/auditVerified/noAutoOrder=true`，
+  `resultBackflow.contextSnapshotId` 与 `backflowContext.contextSnapshotId` 一致，`sourceQuestionnaireId` 与 `questionnaireId` 一致，
+  `FollowUp.sourceSystem=FOLLOWUP`、`mappedVersion=FOLLOWUP_RESULT`、`qualityStatus=VALID`。下一批仍按空白或低覆盖场景推进，优先从
+  `S22/S25/S29/S37/S38/S39` 或 S0-S40 五态缺口中选择已有真实前台强链路；不得用 B0 门面或代表消费者切片冒领完整业务闭环。
+  当前无关 `docs/DEPLOYMENT_AND_REHEARSAL.md` 与 `test-results/` 仍不要回滚、不要暂存；`/tmp` E2E 产物不要提交。
 - 第二百五十二批本地推进：继续按“上线总账驱动”推进 `PRODUCT_SCOPE.md` §15 第 6 项 S0-S40 五态演练矩阵。
   本批不新增完整急诊系统、完整 ICU 系统、完整 LIS 系统、完整监护设备平台或完整第三方系统族覆盖；只在既有
   `critical-emergency-icu-frontdesk.spec.ts` 真实前台链路中，把 `S24__DEGRADATION` 升级为显式

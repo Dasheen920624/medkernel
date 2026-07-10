@@ -18223,6 +18223,30 @@ describe("browser E2E launch coverage evidence", () => {
     };
   }
 
+  function realFrontdeskS30NormalEvidence(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    const body = realFrontdeskFollowupPatientServiceConsumerEvidence();
+    return {
+      ...body,
+      scenarioConditionEvidence: [
+        ...((body.scenarioConditionEvidence as Record<string, unknown>[]) ?? []),
+        {
+          code: "S30__NORMAL",
+          scenarioCode: "S30",
+          condition: "NORMAL",
+          source: "FOLLOWUP_PATIENT_SERVICE_CONTINUITY_BACKFLOW",
+          evidence: [
+            "真实前台发布 FOLLOWUP 随访方案并纳入当前机构生效版本",
+            "患者服务链路完成随访计划、患者自填问卷和异常回院登记",
+            "随访结果回流生成 FollowUp 标准资源并通过患者服务消费者切片回读",
+          ],
+        },
+      ],
+      ...overrides,
+    };
+  }
+
   function expectNoFollowupPatientServiceConsumerSlice(body: Record<string, unknown>) {
     const evidence = realFrontdeskScenarioEvidenceResult(body);
     expect(
@@ -18270,6 +18294,102 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
       "S12__NORMAL",
     ]);
+  });
+
+  it("declares S30 normal condition row only from explicit followup patient-service continuity backflow evidence", () => {
+    const evidence = realFrontdeskScenarioEvidenceResult(realFrontdeskS30NormalEvidence());
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code)).toEqual([
+      "S12__NORMAL",
+      "S30__NORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.thirdPartySystemFamilyConsumerSlices?.map((item) => item.code),
+    ).toEqual(["FOLLOWUP_PATIENT_SERVICE"]);
+  });
+
+  it("does not declare S30 normal condition row without explicit condition evidence", () => {
+    const evidence = realFrontdeskScenarioEvidenceResult(
+      realFrontdeskFollowupPatientServiceConsumerEvidence(),
+    );
+
+    expect(evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? []).toEqual([
+      "S12__NORMAL",
+    ]);
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S30__NORMAL");
+  });
+
+  it.each([
+    {
+      name: "条件行来源错配",
+      body: realFrontdeskS30NormalEvidence({
+        scenarioConditionEvidence: [
+          {
+            code: "S30__NORMAL",
+            scenarioCode: "S30",
+            condition: "NORMAL",
+            source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
+            evidence: ["不能把 S12 随访条件行来源冒领为 S30 连续随访"],
+          },
+        ],
+      }),
+    },
+    {
+      name: "缺患者服务消费者切片",
+      body: realFrontdeskS30NormalEvidence({ followupPatientServiceConsumerSlice: undefined }),
+    },
+    {
+      name: "消费者切片 scope 冒领完整 S30",
+      body: realFrontdeskS30NormalEvidence({
+        followupPatientServiceConsumerSlice: {
+          ...(realFrontdeskS30NormalEvidence().followupPatientServiceConsumerSlice as Record<
+            string,
+            unknown
+          >),
+          scopeStatement: "随访、消息和患者服务代表消费者切片：完整 S30 慢病基层双向转诊已经上线。",
+        },
+      }),
+    },
+    {
+      name: "结果回流未绑定同一问卷",
+      body: realFrontdeskS30NormalEvidence({
+        resultBackflow: {
+          ...(realFrontdeskS30NormalEvidence().resultBackflow as Record<string, unknown>),
+          sourceQuestionnaireId: "questionnaire-other",
+        },
+      }),
+    },
+    {
+      name: "FollowUp 回流资源映射版本错绑",
+      body: (() => {
+        const body = realFrontdeskS30NormalEvidence();
+        const backflowContext = body.backflowContext as Record<string, unknown>;
+        const resources = backflowContext.resources as {
+          followUps: Array<Record<string, unknown>>;
+        };
+        return {
+          ...body,
+          backflowContext: {
+            ...backflowContext,
+            resources: {
+              ...resources,
+              followUps: resources.followUps.map((item) => ({
+                ...item,
+                mappedVersion: "FOLLOWUP_DRAFT",
+              })),
+            },
+          },
+        };
+      })(),
+    },
+  ])("does not declare S30 normal condition row when $name", ({ body }) => {
+    const evidence = realFrontdeskScenarioEvidenceResult(body);
+
+    expect(
+      evidence.launchCoverage.scenarioConditionRows?.map((item) => item.code) ?? [],
+    ).not.toContain("S30__NORMAL");
   });
 
   it.each([

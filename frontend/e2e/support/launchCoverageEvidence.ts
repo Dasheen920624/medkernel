@@ -899,6 +899,12 @@ const realFrontdeskScenarioConditionRows = [
     condition: "ABNORMAL",
     source: "FOLLOWUP_TEMPLATE_PLAN_QUESTIONNAIRE_ABNORMAL_RETURN",
   },
+  {
+    code: "S30__NORMAL",
+    scenarioCode: "S30",
+    condition: "NORMAL",
+    source: "FOLLOWUP_PATIENT_SERVICE_CONTINUITY_BACKFLOW",
+  },
 ] as const;
 const diagnosticCriticalValueScenarioConditionRows = [
   {
@@ -6111,6 +6117,8 @@ function realFrontdeskScenarioConditionBackedByEvidence(
       return hasCompleteFollowupS12NormalEvidence(parsed);
     case "S12__ABNORMAL":
       return hasCompleteFollowupS12AbnormalEvidence(parsed);
+    case "S30__NORMAL":
+      return hasCompleteFollowupPatientServiceConsumerSlice(parsed);
     default:
       return false;
   }
