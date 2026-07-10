@@ -18,6 +18,7 @@ import {
   postApi,
   requiredRuntimeAssetsForRehearsal,
   resolvedTenantIdFor,
+  restoreLocalRehearsalHospitalToCurrentPlatformBaseline,
 } from "./support/auth";
 
 type RuntimeCollectors = {
@@ -243,6 +244,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
     const coverageEvidence = createRuntimeReleaseCoverageEvidence();
 
     try {
+      await restoreLocalRehearsalHospitalToCurrentPlatformBaseline(page);
       await ensureReadySession(adminPage, "platform-admin");
       const secondHospital = await ensureSecondHospitalRuntimeReleaseRehearsalContext(adminPage);
       await loginSecondHospitalRuntimeAccount(secondHospitalPage, secondHospital);

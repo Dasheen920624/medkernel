@@ -401,6 +401,85 @@ describe("E2E credential contract", () => {
     expect(auth.runtimeAssetsCoverRequiredTypes(baseline.activeAssets)).toBe(true);
   });
 
+  it("仅把与当前平台基线精确一致的机构版本视为平台沿用状态", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const baselineItems = runtimeAssetClosure.map((asset, index) => ({
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: runtimeAssetVersionId(asset.assetIdentity),
+      versionNo: `V${index + 1}`,
+      contentHash: String(index + 1)
+        .repeat(64)
+        .slice(0, 64),
+      entryState: "ACTIVE",
+    }));
+    const baseline = auth.resolveBaselineRuntimeAssets({
+      release: { baselineReleaseId: "baseline-current" },
+      items: baselineItems,
+    });
+    const platformRuntimeItems = baselineItems.map((item) => ({
+      ...item,
+      sourceLayer: "PLATFORM",
+    }));
+
+    expect(
+      auth.hospitalRuntimeMatchesPlatformBaseline(
+        {
+          release: {
+            releaseId: "hospital-platform-only",
+            platformBaselineReleaseId: "baseline-current",
+          },
+          items: platformRuntimeItems,
+        },
+        baseline,
+      ),
+    ).toBe(true);
+    expect(
+      auth.hospitalRuntimeMatchesPlatformBaseline(
+        {
+          release: {
+            releaseId: "hospital-local-override",
+            platformBaselineReleaseId: "baseline-current",
+          },
+          items: platformRuntimeItems.map((item) =>
+            item.assetIdentity === reportInterpretationActionCardIdentity
+              ? { ...item, sourceLayer: "HOSPITAL" }
+              : item,
+          ),
+        },
+        baseline,
+      ),
+    ).toBe(false);
+    expect(
+      auth.hospitalRuntimeMatchesPlatformBaseline(
+        {
+          release: {
+            releaseId: "hospital-stale-baseline",
+            platformBaselineReleaseId: "baseline-previous",
+          },
+          items: platformRuntimeItems,
+        },
+        baseline,
+      ),
+    ).toBe(false);
+  });
+
+  it("要求依赖平台沿用起点的 E2E 在首次登录前恢复共享医院前置状态", () => {
+    const runtimeReleaseSource = readFileSync("e2e/runtime-release-frontdesk.spec.ts", "utf8");
+    const terminologySource = readFileSync(
+      "e2e/s2-s4-terminology-integration-rehearsal.spec.ts",
+      "utf8",
+    );
+    const restoreCall = "await restoreLocalRehearsalHospitalToCurrentPlatformBaseline(page)";
+
+    for (const source of [runtimeReleaseSource, terminologySource]) {
+      expect(source).toContain("restoreLocalRehearsalHospitalToCurrentPlatformBaseline");
+      expect(source.indexOf(restoreCall)).toBeGreaterThan(-1);
+      expect(source.indexOf(restoreCall)).toBeLessThan(source.indexOf("await ensureReadySession"));
+    }
+  });
+
   it("requires the platform baseline evaluation projection to be active before reusing rehearsal runtime", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;

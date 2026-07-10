@@ -1433,6 +1433,61 @@ async function ensureHospitalRuntime(
   await expectOk(activated, "激活本地上线演练医院生效版本");
 }
 
+export async function restoreLocalRehearsalHospitalToCurrentPlatformBaseline(page: Page) {
+  await ensureLocalRehearsalReady(page, "rehearsal");
+  await ensureApiRoleSession(page, "engine-operator", "platform");
+  const baselineResponse = await getApi(page, "/engine/releases/platform-baselines/current");
+  await expectOk(baselineResponse, "读取待恢复的当前平台标准版本");
+  const baseline = resolveBaselineRuntimeAssets(await responseData(baselineResponse));
+  if (!baseline.baselineReleaseId || !runtimeAssetsCoverRequiredTypes(baseline.activeAssets)) {
+    throw new Error("当前平台标准版本缺少完整运行资产闭包，不能恢复共享医院前置状态");
+  }
+
+  await ensureApiRoleSession(page, "engine-operator", "rehearsal");
+  const hospitalResponse = await getApi(
+    page,
+    `/engine/org/org-units/${encodeURIComponent(localRehearsalHospitalCode)}`,
+  );
+  await expectOk(hospitalResponse, "读取待恢复的本地上线演练医院");
+  const hospitalId = textField(await responseData(hospitalResponse), "id");
+  if (!hospitalId) {
+    throw new Error("本地上线演练医院缺少 id，不能恢复平台沿用状态");
+  }
+
+  const currentPath = `/engine/releases/hospitals/${encodeURIComponent(
+    hospitalId,
+  )}/runtime-releases/current`;
+  const currentResponse = await getApi(page, currentPath);
+  await expectOk(currentResponse, "读取待恢复的当前机构生效版本");
+  const currentData = await responseData(currentResponse);
+  if (!hospitalRuntimeMatchesPlatformBaseline(currentData, baseline)) {
+    const currentRuntime = hospitalRuntimeCoversRequiredAssets(currentData);
+    const confirmedPlatformUpgradeDigest =
+      currentRuntime.releaseId &&
+      currentRuntime.platformBaselineReleaseId &&
+      currentRuntime.platformBaselineReleaseId !== baseline.baselineReleaseId
+        ? await platformUpgradeAnalysisDigest(page, hospitalId, baseline.baselineReleaseId)
+        : null;
+    const restored = await postApi(
+      page,
+      `/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases`,
+      {
+        platformBaselineReleaseId: baseline.baselineReleaseId,
+        expectedCurrentReleaseId: currentRuntime.releaseId,
+        confirmedPlatformUpgradeDigest,
+        activeAssets: baseline.activeAssets,
+      },
+    );
+    await expectOk(restored, "恢复本地上线演练医院至当前平台标准版本");
+  }
+
+  const readbackResponse = await getApi(page, currentPath);
+  await expectOk(readbackResponse, "回读恢复后的当前机构生效版本");
+  if (!hospitalRuntimeMatchesPlatformBaseline(await responseData(readbackResponse), baseline)) {
+    throw new Error("共享医院恢复后仍未精确沿用当前平台标准版本");
+  }
+}
+
 async function platformUpgradeAnalysisDigest(
   page: Page,
   hospitalId: string,
@@ -1495,9 +1550,7 @@ export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
   const release = recordField(value, "release");
   const releaseId = textField(release, "releaseId");
   const platformBaselineReleaseId = textField(release, "platformBaselineReleaseId");
-  const activeItems = pageItems(value).filter(
-    (item) => textField(item, "entryState") === "ACTIVE",
-  );
+  const activeItems = pageItems(value).filter((item) => textField(item, "entryState") === "ACTIVE");
   const activeAssets = activeItems
     .map((item) => ({
       assetType: textField(item, "assetType"),
@@ -1520,6 +1573,52 @@ export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
       runtimeAssetsCoverRequiredTypes(activeAssets) &&
       (!hasHospitalOverride || Boolean(platformBaselineReleaseId)),
   };
+}
+
+export function hospitalRuntimeMatchesPlatformBaseline(
+  value: unknown,
+  baseline: BaselineRuntimeAssets,
+) {
+  if (!baseline.baselineReleaseId || baseline.activeAssetVersions.length === 0) {
+    return false;
+  }
+  const release = recordField(value, "release");
+  if (
+    !textField(release, "releaseId") ||
+    textField(release, "platformBaselineReleaseId") !== baseline.baselineReleaseId
+  ) {
+    return false;
+  }
+  const expectedVersions = new Map(
+    baseline.activeAssetVersions.map((asset) => [
+      `${asset.assetType}:${asset.assetIdentity}`,
+      asset.versionId,
+    ]),
+  );
+  const activeItems = pageItems(value).filter((item) => textField(item, "entryState") === "ACTIVE");
+  if (activeItems.length !== expectedVersions.size) {
+    return false;
+  }
+  const matchedKeys = new Set<string>();
+  for (const item of activeItems) {
+    const assetType = textField(item, "assetType");
+    const assetIdentity = textField(item, "assetIdentity");
+    const versionId = textField(item, "versionId");
+    if (
+      !assetType ||
+      !assetIdentity ||
+      !versionId ||
+      textField(item, "sourceLayer") !== "PLATFORM"
+    ) {
+      return false;
+    }
+    const key = `${assetType}:${assetIdentity}`;
+    if (matchedKeys.has(key) || expectedVersions.get(key) !== versionId) {
+      return false;
+    }
+    matchedKeys.add(key);
+  }
+  return matchedKeys.size === expectedVersions.size;
 }
 
 export function runtimeAssetsCoverRequiredTypes(assets: RuntimeAssetSelection[]) {

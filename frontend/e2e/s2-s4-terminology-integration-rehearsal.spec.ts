@@ -23,6 +23,7 @@ import {
   recordField,
   requiredRuntimeAssetsForRehearsal,
   resolveBaselineRuntimeAssets,
+  restoreLocalRehearsalHospitalToCurrentPlatformBaseline,
   responseData,
   textField,
   waitForPollingInterval,
@@ -101,6 +102,7 @@ test.describe("S2/S4 系统接入与术语映射运行消费真实演练", () =>
     const localCode = `LIS-HGB-${suffix.toUpperCase()}`;
     const assetIdentity = `TERM.LAB.S2S4.${suffix.toUpperCase()}`;
 
+    await restoreLocalRehearsalHospitalToCurrentPlatformBaseline(page);
     await ensureReadySession(page, "engine-operator");
     const hospitalId = await resolveHospitalId(page, "本地上线演练医院");
 
