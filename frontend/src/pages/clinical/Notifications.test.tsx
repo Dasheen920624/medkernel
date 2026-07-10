@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
@@ -141,6 +143,30 @@ describe("Notifications", () => {
       isError: false,
       isLoading: false,
     });
+  });
+
+  it("长通知内容在移动端使用可收缩容器并允许任意位置换行", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/clinical/Notifications.tsx"), {
+      encoding: "utf8",
+    });
+    const styles = readFileSync(resolve(process.cwd(), "src/pages/clinical/Clinical.module.css"), {
+      encoding: "utf8",
+    });
+
+    expect(source).toContain("className={styles.notificationTitleRow}");
+    expect(source).toContain("className={styles.notificationContent}");
+    expect(styles).toMatch(
+      /\.notificationTitleRow,\s*\.notificationContent\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s,
+    );
+    expect(styles).toMatch(
+      /\.notificationContent\s+:global\(\.ant-space\)\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s,
+    );
+    expect(styles).toMatch(
+      /\.notificationTitleRow\s+:global\(\.ant-space-item\),\s*\.notificationContent\s+:global\(\.ant-space-item\)\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s,
+    );
+    expect(styles).toMatch(
+      /\.notificationTitleRow\s+span,\s*\.notificationContent\s+span\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/s,
+    );
   });
 
   it("renders real notification rows and removes the previous placeholder", () => {

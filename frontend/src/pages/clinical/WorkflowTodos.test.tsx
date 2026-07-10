@@ -230,6 +230,38 @@ describe("WorkflowTodos", () => {
     });
   });
 
+  it("uses the requested recommendation-card source when a focused todo link provides it", () => {
+    setWorkflowLocation("/workflow/todos?cardId=card-critical-1&sourceType=RECOMMENDATION_CARD");
+
+    renderWorkflowTodos();
+
+    expect(workflowHookMocks.useWorkflowTodos).toHaveBeenCalledWith({
+      status: "PENDING",
+      priority: undefined,
+      sourceType: "RECOMMENDATION_CARD",
+      sourceId: "card-critical-1",
+      orgUnitId: undefined,
+      page: 1,
+      size: 10,
+    });
+  });
+
+  it("falls back to report interpretation when a focused todo link has an unknown source", () => {
+    setWorkflowLocation("/workflow/todos?cardId=card-safe-1&sourceType=UNTRUSTED_SOURCE");
+
+    renderWorkflowTodos();
+
+    expect(workflowHookMocks.useWorkflowTodos).toHaveBeenCalledWith({
+      status: "PENDING",
+      priority: undefined,
+      sourceType: "REPORT_INTERPRETATION",
+      sourceId: "card-safe-1",
+      orgUnitId: undefined,
+      page: 1,
+      size: 10,
+    });
+  });
+
   it("keeps the focused report card source when switching completed status", async () => {
     const user = userEvent.setup();
     setWorkflowLocation("/workflow/todos?cardId=card-current-report");

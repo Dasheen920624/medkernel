@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Page } from "@playwright/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as AuthSupport from "../../e2e/support/auth.ts";
@@ -166,6 +167,170 @@ describe("E2E credential contract", () => {
     ).toBeNull();
   });
 
+  it("logs arbitrary runtime accounts through the frontend proxy without constructing authorization", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    process.env.E2E_BASE_URL = "http://localhost:5173";
+    vi.resetModules();
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport & {
+      loginWithFrontendProxy: (
+        page: Page,
+        username: string,
+        password: string,
+        tenantId: string,
+      ) => Promise<unknown>;
+    };
+    const response = {
+      headersArray: () => [
+        {
+          name: "set-cookie",
+          value:
+            "mk_access=second-hospital-cookie; Path=/medkernel; Secure; HttpOnly; SameSite=Strict",
+        },
+      ],
+    };
+    const post = vi.fn().mockResolvedValue(response);
+    const addCookies = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      request: { post },
+      context: () => ({ addCookies }),
+    } as unknown as Page;
+
+    const result = await auth.loginWithFrontendProxy(
+      page,
+      "second-hospital-operator",
+      "second-hospital-password",
+      "t-second-hospital",
+    );
+
+    expect(result).toBe(response);
+    expect(post).toHaveBeenCalledOnce();
+    expect(post).toHaveBeenCalledWith("http://localhost:5173/medkernel/api/v1/auth/login", {
+      data: {
+        username: "second-hospital-operator",
+        password: "second-hospital-password",
+        tenantId: "t-second-hospital",
+      },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Trace-Id": expect.stringMatching(/^e2e-front-login-second-hospital-operator-/),
+      },
+    });
+    expect(addCookies).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: "mk_access",
+        value: "second-hospital-cookie",
+        url: "http://localhost:5173",
+      }),
+    ]);
+  });
+
+  it("reads an authenticated frontdesk API through the browser-visible host", async () => {
+    process.env.E2E_API_BASE_URL = "http://127.0.0.1:38080/medkernel/api/v1";
+    process.env.E2E_BASE_URL = "http://localhost:5173";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const get = vi.fn().mockResolvedValue({});
+    const page = {
+      request: { get },
+      context: () => ({ cookies: vi.fn().mockResolvedValue([]) }),
+    } as unknown as Page;
+
+    await auth.getFrontendApi(page, "/security/me");
+
+    expect(get).toHaveBeenCalledWith("http://localhost:5173/medkernel/api/v1/security/me", {
+      headers: { "X-Trace-Id": expect.stringMatching(/^e2e-frontend-api-get-/) },
+    });
+  });
+
+  it("writes through the frontdesk host with the frontdesk XSRF cookie", async () => {
+    process.env.E2E_API_BASE_URL = "http://127.0.0.1:38080/medkernel/api/v1";
+    process.env.E2E_BASE_URL = "http://localhost:5173";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const patch = vi.fn().mockResolvedValue({});
+    const cookies = vi.fn().mockResolvedValue([
+      { name: "XSRF-TOKEN", value: "frontdesk-xsrf" },
+      { name: "mk_access", value: "browser-cookie-session" },
+    ]);
+    const page = {
+      request: { patch },
+      context: () => ({ cookies }),
+    } as unknown as Page;
+
+    await auth.patchFrontendApi(
+      page,
+      "/compliance/users/clinical-user/status",
+      { status: "DISABLED" },
+      { "X-Reason": "E2E 演练清理" },
+    );
+
+    expect(cookies).toHaveBeenCalledWith("http://localhost:5173/medkernel/api/v1");
+    expect(patch).toHaveBeenCalledWith(
+      "http://localhost:5173/medkernel/api/v1/compliance/users/clinical-user/status",
+      {
+        data: { status: "DISABLED" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Reason": "E2E 演练清理",
+          "X-Trace-Id": expect.stringMatching(/^e2e-frontend-api-/),
+          "X-XSRF-TOKEN": "frontdesk-xsrf",
+        },
+      },
+    );
+  });
+
+  it("preserves the scenario failure when cleanup succeeds", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const scenarioFailure = new Error("主场景失败");
+
+    await expect(
+      auth.runScenarioWithCleanup(
+        async () => {
+          throw scenarioFailure;
+        },
+        async () => undefined,
+      ),
+    ).rejects.toBe(scenarioFailure);
+  });
+
+  it("reports cleanup failure when the scenario succeeds", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const cleanupFailure = new Error("清理失败");
+
+    await expect(
+      auth.runScenarioWithCleanup(
+        async () => "场景结果",
+        async () => {
+          throw cleanupFailure;
+        },
+      ),
+    ).rejects.toBe(cleanupFailure);
+  });
+
+  it("keeps scenario and cleanup failures in their responsibility order", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const scenarioFailure = new Error("主场景失败");
+    const cleanupFailure = new Error("清理失败");
+    let caught: unknown;
+
+    try {
+      await auth.runScenarioWithCleanup(
+        async () => {
+          throw scenarioFailure;
+        },
+        async () => {
+          throw cleanupFailure;
+        },
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect((caught as AggregateError).errors).toEqual([scenarioFailure, cleanupFailure]);
+  });
+
   it("exports the shared TOTP calculator for frontdesk MFA rehearsal", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -304,6 +469,7 @@ describe("E2E credential contract", () => {
           assetIdentity: asset.assetIdentity,
           versionId: runtimeAssetVersionId(asset.assetIdentity),
           entryState: "ACTIVE",
+          sourceLayer: "PLATFORM",
         })),
       }),
     ).toEqual({
@@ -311,6 +477,36 @@ describe("E2E credential contract", () => {
       platformBaselineReleaseId: null,
       ready: true,
     });
+  });
+
+  it("does not let a hospital override satisfy the required platform asset closure", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const platformClosure = runtimeAssetClosure.map((asset) => ({
+      assetType: asset.assetType,
+      assetIdentity: asset.assetIdentity,
+      versionId: runtimeAssetVersionId(asset.assetIdentity),
+      entryState: "ACTIVE",
+      sourceLayer: "PLATFORM",
+    }));
+
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-platform-ready" },
+        items: platformClosure,
+      }).ready,
+    ).toBe(true);
+
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-local-override" },
+        items: platformClosure.map((item) =>
+          item.assetIdentity === reportInterpretationActionCardIdentity
+            ? { ...item, sourceLayer: "HOSPITAL" }
+            : item,
+        ),
+      }).ready,
+    ).toBe(false);
   });
 
   it("requires diagnostic-item knowledge for report interpretation runtime rehearsal", async () => {
@@ -352,6 +548,7 @@ describe("E2E credential contract", () => {
       assetIdentity: runtimeAssetIdentities[assetType],
       versionId: `${assetType.toLowerCase()}-v1`,
       entryState: "ACTIVE",
+      sourceLayer: "PLATFORM",
     }));
     const reportInterpretationActionCard = {
       assetType: "ACTION_CARD" as const,
@@ -897,6 +1094,30 @@ describe("E2E credential contract", () => {
       releaseId: "hospital-release-historical-assets",
       platformBaselineReleaseId: null,
       ready: false,
+    });
+  });
+
+  it("accepts an active hospital override when the current runtime still binds a platform baseline", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: {
+          releaseId: "hospital-release-with-local-override",
+          platformBaselineReleaseId: "platform-baseline-v1",
+        },
+        items: runtimeAssetClosure.map((asset) => ({
+          ...asset,
+          versionId: runtimeAssetVersionId(asset.assetIdentity),
+          entryState: "ACTIVE",
+          sourceLayer: asset.assetType === "CDSS_RISK" ? "HOSPITAL" : "PLATFORM",
+        })),
+      }),
+    ).toEqual({
+      releaseId: "hospital-release-with-local-override",
+      platformBaselineReleaseId: "platform-baseline-v1",
+      ready: true,
     });
   });
 
@@ -2738,7 +2959,7 @@ describe("E2E credential contract", () => {
     expect(source).toContain("dashboard-workbench-core-actions-codes-");
     expect(source).toContain("DASHBOARD_WORKBENCH_CORE_ACTIONS");
     expect(source).toContain("四职责工作台核心动作代表矩阵");
-    expect(source).toContain("不代表 34 个入口全部业务动作闭环");
+    expect(source).toContain("不代表 35 个入口全部业务动作闭环");
     expect(source).toContain("assertDashboardSourceServices");
     expect(source).toContain("GET /api/v1/security/me");
     expect(source).toContain("GET /api/v1/system/operations");

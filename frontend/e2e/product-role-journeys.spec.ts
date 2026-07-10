@@ -39,6 +39,7 @@ const expectedMenus: Record<RoleAccount, string[]> = {
     "institution-knowledge",
     "diagnosis-knowledge",
     "terminology-mapping",
+    "domain-facade-b0-evidence",
     "rule-definitions",
     "pathway-templates",
     "provenance",
@@ -94,7 +95,7 @@ const routeByMenuKey = new Map(
 const interactionRoleFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_ROLES);
 const interactionMenuFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_MENU_KEYS);
 const dashboardWorkbenchScopeStatement =
-  "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 34 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。";
+  "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 35 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。";
 const dashboardWorkbenchScenarioConditionEvidence = [
   {
     code: "S0__NORMAL",
@@ -670,13 +671,46 @@ async function clickVisibleAntMenuItem(menuItems: Locator, label: string) {
 }
 
 async function expectNoRootOverflow(page: Page, label: string) {
-  const dimensions = await page.evaluate(() => ({
-    viewportWidth: document.documentElement.clientWidth,
-    documentWidth: document.documentElement.scrollWidth,
-  }));
-  expect(dimensions.documentWidth, `${label} 页面根节点不应横向溢出`).toBeLessThanOrEqual(
-    dimensions.viewportWidth,
-  );
+  const dimensions = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const offenders = Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || null,
+          className: typeof element.className === "string" ? element.className : null,
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          minWidth: style.minWidth,
+          widthStyle: style.width,
+          whiteSpace: style.whiteSpace,
+          overflowX: style.overflowX,
+          display: style.display,
+        };
+      })
+      .filter(
+        (element) =>
+          element.right > viewportWidth + 1 ||
+          element.left < -1 ||
+          element.scrollWidth > element.clientWidth + 1,
+      )
+      .sort((left, right) => right.right - left.right || right.scrollWidth - left.scrollWidth)
+      .slice(0, 20);
+    return {
+      viewportWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      offenders,
+    };
+  });
+  expect(
+    dimensions.documentWidth,
+    `${label} 页面根节点不应横向溢出；溢出元素=${JSON.stringify(dimensions.offenders)}`,
+  ).toBeLessThanOrEqual(dimensions.viewportWidth);
 }
 
 async function waitForMainContent(page: Page, label: string) {

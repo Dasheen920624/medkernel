@@ -63,6 +63,15 @@ import styles from "./ReleaseGovernance.module.css";
 
 const { Text, Title } = Typography;
 
+type LocalRuntimeChoice = {
+  sourceLayer: ReleaseCandidateAsset["sourceLayer"];
+  assetType: RuntimeAssetType;
+  assetIdentity: string;
+  versionId: string;
+  versionNo?: string | null;
+  status: ReleaseCandidateAsset["status"] | "ACTIVE";
+};
+
 function assetKey(assetType: RuntimeAssetType, assetIdentity: string) {
   return `${assetType}|${assetIdentity}`;
 }
@@ -260,6 +269,37 @@ export default function ReleaseGovernance() {
     () => localCandidatesQuery.data?.items ?? [],
     [localCandidatesQuery.data?.items],
   );
+  const displayedLocalChoices = useMemo<LocalRuntimeChoice[]>(() => {
+    const choicesByVersionId = new Map<string, LocalRuntimeChoice>();
+    for (const candidate of localCandidates) {
+      choicesByVersionId.set(candidate.versionId, candidate);
+    }
+
+    const normalizedKeyword = keyword.trim().toLocaleLowerCase();
+    for (const item of currentRuntime?.items ?? []) {
+      if (item.entryState !== "ACTIVE" || item.sourceLayer === "PLATFORM" || !item.versionId) {
+        continue;
+      }
+      if (assetType && item.assetType !== assetType) continue;
+      if (
+        normalizedKeyword &&
+        !item.assetIdentity.toLocaleLowerCase().includes(normalizedKeyword) &&
+        !item.versionNo?.toLocaleLowerCase().includes(normalizedKeyword)
+      ) {
+        continue;
+      }
+      choicesByVersionId.set(item.versionId, {
+        sourceLayer: item.sourceLayer,
+        assetType: item.assetType,
+        assetIdentity: item.assetIdentity,
+        versionId: item.versionId,
+        versionNo: item.versionNo,
+        status: "ACTIVE",
+      });
+    }
+
+    return Array.from(choicesByVersionId.values());
+  }, [assetType, currentRuntime?.items, keyword, localCandidates]);
   const platformUpgradeAnalysis = platformUpgradeQuery.data;
   const history = historyQuery.data?.items ?? [];
 
@@ -1134,7 +1174,7 @@ export default function ReleaseGovernance() {
               size="small"
               loading={localCandidatesQuery.isLoading}
               pagination={false}
-              dataSource={localCandidates}
+              dataSource={displayedLocalChoices}
               locale={{ emptyText: "没有适用于该机构的本地内容" }}
               columns={[
                 {

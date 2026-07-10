@@ -6,9 +6,11 @@ import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -141,16 +143,23 @@ public class ClinicalRuntimeReleaseService {
             throw validation("机构生效版本启用资产不能为空");
         }
 
+        List<ClinicalRuntimeReleaseItem> currentItems = current == null
+            ? List.of()
+            : runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+                current.releaseId());
+        Set<LocalVersionKey> activeCurrentLocalVersions =
+            activeCurrentLocalVersions(tenantId, currentItems);
         Map<AssetKey, RuntimeEntry> platform = loadPlatformBaseline(baseline);
         Map<AssetKey, RuntimeEntry> manifest = disabledCopy(platform);
         Map<AssetKey, List<AssetVersion>> localCandidates =
-            loadLocalCandidates(tenantId, hospital, current, manifest);
+            loadLocalCandidates(tenantId, hospital, currentItems, manifest);
         Map<AssetKey, AssetVersion> draftsToPublish = new LinkedHashMap<>();
         Map<AssetKey, RuntimeEntry> requested = resolveRequested(
             command.activeAssets(),
             tenantId,
             hospital,
             platform,
+            activeCurrentLocalVersions,
             actor,
             command.traceId(),
             draftsToPublish);
@@ -373,16 +382,12 @@ public class ClinicalRuntimeReleaseService {
     private Map<AssetKey, List<AssetVersion>> loadLocalCandidates(
             String tenantId,
             OrgUnit hospital,
-            ClinicalRuntimeRelease current,
+            List<ClinicalRuntimeReleaseItem> currentItems,
             Map<AssetKey, RuntimeEntry> manifest) {
         Map<AssetKey, List<AssetVersion>> candidates = new LinkedHashMap<>();
         Map<AssetKey, ClinicalRuntimeReleaseItem> previous = new LinkedHashMap<>();
-        if (current != null) {
-            for (ClinicalRuntimeReleaseItem item :
-                    runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
-                        current.releaseId())) {
-                previous.put(new AssetKey(item.assetType(), item.assetIdentity()), item);
-            }
+        for (ClinicalRuntimeReleaseItem item : currentItems) {
+            previous.put(new AssetKey(item.assetType(), item.assetIdentity()), item);
         }
         for (AssetIdentity identity :
                 identities.findByTenantIdOrderByAssetTypeAscAssetIdentityAsc(tenantId)) {
@@ -424,11 +429,30 @@ public class ClinicalRuntimeReleaseService {
         return candidates;
     }
 
+    private Set<LocalVersionKey> activeCurrentLocalVersions(
+            String tenantId,
+            List<ClinicalRuntimeReleaseItem> currentItems) {
+        Set<LocalVersionKey> result = new LinkedHashSet<>();
+        for (ClinicalRuntimeReleaseItem item : currentItems) {
+            if (item.entryState() != ReleaseEntryState.ACTIVE
+                    || !tenantId.equals(item.sourceTenantId())
+                    || (item.sourceLayer() != ReleaseSourceLayer.GROUP
+                        && item.sourceLayer() != ReleaseSourceLayer.HOSPITAL)
+                    || blankToNull(item.versionId()) == null) {
+                continue;
+            }
+            result.add(new LocalVersionKey(
+                item.assetType(), item.assetIdentity(), item.versionId()));
+        }
+        return Set.copyOf(result);
+    }
+
     private Map<AssetKey, RuntimeEntry> resolveRequested(
             List<ClinicalRuntimeAssetSelection> selections,
             String tenantId,
             OrgUnit hospital,
             Map<AssetKey, RuntimeEntry> platform,
+            Set<LocalVersionKey> activeCurrentLocalVersions,
             String actor,
             String traceId,
             Map<AssetKey, AssetVersion> draftsToPublish) {
@@ -459,6 +483,7 @@ public class ClinicalRuntimeReleaseService {
                     selection,
                     tenantId,
                     hospital,
+                    activeCurrentLocalVersions,
                     actor,
                     traceId,
                     draftsToPublish);
@@ -472,6 +497,7 @@ public class ClinicalRuntimeReleaseService {
             ClinicalRuntimeAssetSelection selection,
             String tenantId,
             OrgUnit hospital,
+            Set<LocalVersionKey> activeCurrentLocalVersions,
             String actor,
             String traceId,
             Map<AssetKey, AssetVersion> draftsToPublish) {
@@ -490,12 +516,16 @@ public class ClinicalRuntimeReleaseService {
                 || !version.assetIdentity().equals(selection.assetIdentity())) {
             throw new ApiException(ErrorCode.CONFLICT, "只能启用身份匹配的本地资产版本");
         }
+        LocalVersionKey selectedVersion = new LocalVersionKey(
+            version.assetType(), version.assetIdentity(), version.versionId());
         if (version.status() == AssetVersionStatus.DRAFT) {
             validation.validateForPublish(version, actor, traceId);
             draftsToPublish.put(
                 new AssetKey(version.assetType(), version.assetIdentity()),
                 version);
-        } else if (version.status() != AssetVersionStatus.PUBLISHED) {
+        } else if (version.status() != AssetVersionStatus.PUBLISHED
+                && !(version.status() == AssetVersionStatus.WITHDRAWN
+                    && activeCurrentLocalVersions.contains(selectedVersion))) {
             throw new ApiException(
                 ErrorCode.CONFLICT, "只能启用草稿或已发布的本地资产版本");
         }
@@ -694,6 +724,13 @@ public class ClinicalRuntimeReleaseService {
     }
 
     private record AssetKey(VersionedAssetType type, String identity) {
+    }
+
+    private record LocalVersionKey(
+        VersionedAssetType type,
+        String identity,
+        String versionId
+    ) {
     }
 
     private record RuntimeEntry(

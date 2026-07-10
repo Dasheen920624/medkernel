@@ -127,6 +127,7 @@ export default function DomainFacadeB0Evidence() {
             rowKey="code"
             dataSource={rows}
             pagination={false}
+            scroll={{ x: "max-content" }}
             expandable={{
               expandedRowRender: renderExpandedEvidence,
             }}

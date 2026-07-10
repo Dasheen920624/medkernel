@@ -17,9 +17,12 @@ import {
   ensureReadySession,
   expectOk,
   getApi,
+  numericField,
   pageItems,
   postApi,
+  recordField,
   requiredRuntimeAssetsForRehearsal,
+  resolveBaselineRuntimeAssets,
   responseData,
   textField,
   waitForPollingInterval,
@@ -29,6 +32,19 @@ type RuntimeAsset = {
   assetType: string;
   assetIdentity: string;
   versionId: string | null;
+};
+
+type RuntimeReleaseIdentity = {
+  releaseId: string;
+  revisionNo: number;
+  platformBaselineReleaseId: string;
+  manifestSha256: string;
+};
+
+type PlatformActivationExpectation = {
+  targetBaselineReleaseId: string;
+  expectedCurrentReleaseId: string;
+  confirmedPlatformUpgradeDigest: string | null;
 };
 
 type TerminologyEvidence = {
@@ -87,9 +103,6 @@ test.describe("S2/S4 系统接入与术语映射运行消费真实演练", () =>
 
     await ensureReadySession(page, "engine-operator");
     const hospitalId = await resolveHospitalId(page, "本地上线演练医院");
-    const currentBefore = await readCurrentHospitalRuntime(page, hospitalId, "演练前");
-    const platformBaselineReleaseId = textField(currentBefore.release, "platformBaselineReleaseId");
-    expect(platformBaselineReleaseId, "当前机构生效版本必须绑定平台标准版本").toBeTruthy();
 
     await ensureReadySession(page, "platform-admin");
     await setEvidenceDetails(page, false);
@@ -152,7 +165,6 @@ test.describe("S2/S4 系统接入与术语映射运行消费真实演练", () =>
     const activatedRuntime = await activateRuntimeWithTerminologyAssetFromFrontdesk(page, {
       hospitalId,
       hospitalName: "本地上线演练医院",
-      platformBaselineReleaseId: platformBaselineReleaseId ?? "",
       terminology,
     });
     const currentRuntime = activatedRuntime.runtime;
@@ -555,7 +567,6 @@ async function activateRuntimeWithTerminologyAssetFromFrontdesk(
   options: {
     hospitalId: string;
     hospitalName: string;
-    platformBaselineReleaseId: string;
     terminology: TerminologyEvidence;
   },
 ) {
@@ -563,6 +574,11 @@ async function activateRuntimeWithTerminologyAssetFromFrontdesk(
     page,
     options.hospitalId,
     "术语资产激活前",
+  );
+  const platformActivation = await readPlatformActivationExpectation(
+    page,
+    options.hospitalId,
+    currentBeforeActivation,
   );
   const requiredPlatformSelections = runtimeAssetSelectionForActivation(
     currentBeforeActivation.items,
@@ -577,6 +593,9 @@ async function activateRuntimeWithTerminologyAssetFromFrontdesk(
   });
   await page.getByRole("tab", { name: "机构生效版本" }).click();
   await chooseHospital(page, options.hospitalName);
+  if (platformActivation.confirmedPlatformUpgradeDigest) {
+    await expect(page.getByText("差异与冲突分析已完成")).toBeVisible({ timeout: 20_000 });
+  }
   await assertRequiredPlatformRuntimeInputsVisibleAndSelected(page);
   await selectHospitalRuntimeCandidate(page, options.terminology);
   await assessReleaseImpact(page);
@@ -592,12 +611,22 @@ async function activateRuntimeWithTerminologyAssetFromFrontdesk(
   }>(activateResponse, "前台生成包含本轮术语资产的机构生效版本");
   const activationRequest = activateResponse.request().postDataJSON() as {
     platformBaselineReleaseId?: string;
+    expectedCurrentReleaseId?: string | null;
+    confirmedPlatformUpgradeDigest?: string | null;
     activeAssets?: RuntimeAsset[];
   };
   expect(
     activationRequest.platformBaselineReleaseId,
-    "前台生成机构生效版本必须沿用演练前平台标准版本",
-  ).toBe(options.platformBaselineReleaseId);
+    "前台生成机构生效版本必须使用独立读回的当前目标平台标准版本",
+  ).toBe(platformActivation.targetBaselineReleaseId);
+  expect(
+    activationRequest.expectedCurrentReleaseId,
+    "前台生成机构生效版本必须携带激活前当前机构生效版本作为 CAS 条件",
+  ).toBe(platformActivation.expectedCurrentReleaseId);
+  expect(
+    activationRequest.confirmedPlatformUpgradeDigest ?? null,
+    "平台版本变化时前台必须携带独立平台升级分析摘要",
+  ).toBe(platformActivation.confirmedPlatformUpgradeDigest);
   expect(
     runtimeAssetListContainsTerminology(activationRequest.activeAssets ?? [], options.terminology),
     "前台生成机构生效版本请求必须携带本轮术语资产",
@@ -619,6 +648,10 @@ async function activateRuntimeWithTerminologyAssetFromFrontdesk(
   const releaseId = textField(current.release, "releaseId");
   const revisionNo = Number((current.release as { revisionNo?: unknown }).revisionNo ?? 0);
   const manifestSha256 = textField(current.release, "manifestSha256");
+  expect(
+    textField(current.release, "platformBaselineReleaseId"),
+    "术语资产激活后当前机构生效版本必须绑定本次目标平台标准版本",
+  ).toBe(platformActivation.targetBaselineReleaseId);
   expect(
     current.items.some(
       (item) =>
@@ -746,6 +779,95 @@ async function readCurrentHospitalRuntime(page: Page, hospitalId: string, label:
   return {
     release: data?.release ?? {},
     items: Array.isArray(data?.items) ? data.items : [],
+  };
+}
+
+async function readPlatformActivationExpectation(
+  page: Page,
+  hospitalId: string,
+  currentBeforeActivation: { release: unknown; items: unknown[] },
+): Promise<PlatformActivationExpectation> {
+  const currentIdentity = runtimeReleaseIdentity(
+    currentBeforeActivation.release,
+    "术语资产激活前当前机构生效版本",
+  );
+  const baselineResponse = await getApi(page, "/engine/releases/platform-baselines/current");
+  await expectOk(baselineResponse, "读取术语资产激活目标平台标准版本");
+  const baseline = resolveBaselineRuntimeAssets(await responseData(baselineResponse));
+  expect(baseline.baselineReleaseId, "术语资产激活必须存在当前平台标准版本").toBeTruthy();
+  const targetBaselineReleaseId = baseline.baselineReleaseId ?? "";
+
+  if (currentIdentity.platformBaselineReleaseId === targetBaselineReleaseId) {
+    return {
+      targetBaselineReleaseId,
+      expectedCurrentReleaseId: currentIdentity.releaseId,
+      confirmedPlatformUpgradeDigest: null,
+    };
+  }
+
+  const analysisResponse = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/platform-upgrade-analysis?targetBaselineReleaseId=${encodeURIComponent(
+      targetBaselineReleaseId,
+    )}`,
+  );
+  await expectOk(analysisResponse, "读取术语资产激活平台升级差异分析");
+  const analysis = await responseData(analysisResponse);
+  const analysisDigest = textField(analysis, "analysisDigest");
+  const analysisCurrentRuntime = recordField(analysis, "currentRuntime");
+  const analysisTargetBaseline = recordField(analysis, "targetBaseline");
+  const diffSummary = recordField(analysis, "diffSummary");
+
+  expect(analysisDigest, "平台升级分析必须返回稳定摘要").toMatch(/^[0-9a-f]{64}$/i);
+  expect(recordField(analysis, "runtimeMutation"), "平台升级分析不得改写当前机构生效版本").toBe(
+    false,
+  );
+  expect(
+    textField(analysisCurrentRuntime, "releaseId"),
+    "平台升级分析必须绑定激活前当前机构生效版本",
+  ).toBe(currentIdentity.releaseId);
+  expect(
+    textField(analysisCurrentRuntime, "platformBaselineReleaseId"),
+    "平台升级分析必须证明机构仍锁定历史平台标准版本",
+  ).toBe(currentIdentity.platformBaselineReleaseId);
+  expect(
+    textField(analysisTargetBaseline, "baselineReleaseId"),
+    "平台升级分析目标必须等于独立读回的当前平台标准版本",
+  ).toBe(targetBaselineReleaseId);
+  expect(
+    numericField(diffSummary, "conflictCount"),
+    "术语演练的平台升级分析不得存在未解决覆盖冲突",
+  ).toBe(0);
+
+  const currentAfterAnalysis = await readCurrentHospitalRuntime(page, hospitalId, "平台升级分析后");
+  expect(
+    runtimeReleaseIdentity(currentAfterAnalysis.release, "平台升级分析后当前机构生效版本"),
+    "平台升级分析前后当前机构生效版本不得改变",
+  ).toEqual(currentIdentity);
+
+  return {
+    targetBaselineReleaseId,
+    expectedCurrentReleaseId: currentIdentity.releaseId,
+    confirmedPlatformUpgradeDigest: analysisDigest ?? "",
+  };
+}
+
+function runtimeReleaseIdentity(release: unknown, label: string): RuntimeReleaseIdentity {
+  const releaseId = textField(release, "releaseId");
+  const revisionNo = numericField(release, "revisionNo");
+  const platformBaselineReleaseId = textField(release, "platformBaselineReleaseId");
+  const manifestSha256 = textField(release, "manifestSha256");
+  expect(releaseId, `${label} 必须返回 releaseId`).toBeTruthy();
+  expect(revisionNo, `${label} 必须返回正数 revisionNo`).toBeGreaterThan(0);
+  expect(platformBaselineReleaseId, `${label} 必须绑定平台标准版本`).toBeTruthy();
+  expect(manifestSha256, `${label} 必须返回 manifestSha256`).toMatch(/^[0-9a-f]{64}$/i);
+  return {
+    releaseId: releaseId ?? "",
+    revisionNo: revisionNo ?? 0,
+    platformBaselineReleaseId: platformBaselineReleaseId ?? "",
+    manifestSha256: manifestSha256 ?? "",
   };
 }
 

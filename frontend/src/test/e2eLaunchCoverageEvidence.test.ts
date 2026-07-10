@@ -6822,7 +6822,7 @@ function expectNoReportInterpretationS17ConditionCoverage(body: Record<string, u
 const dashboardWorkbenchCoreActionsEvidence = {
   matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
   scopeStatement:
-    "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 34 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。",
+    "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 35 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。",
   permissionBoundaryEvidence: {
     menuSnapshotVerified: true,
     forbiddenStateAbsent: true,

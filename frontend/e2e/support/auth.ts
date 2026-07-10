@@ -31,8 +31,7 @@ export const roleAccounts = ROLE_ACCOUNT_CODES;
 const defaultCredentialScope: RoleCredentialScope = "rehearsal";
 export const platformDiagnosticItemKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
 const platformEvaluationIndicatorIdentity = "EVAL.LOCAL.REHEARSAL.BASELINE";
-export const platformReportInterpretationActionCardIdentity =
-  "ACTION_CARD.REPORT.CRITICAL_VALUE";
+export const platformReportInterpretationActionCardIdentity = "ACTION_CARD.REPORT.CRITICAL_VALUE";
 export const requiredRuntimeAssetsForRehearsal = [
   { assetType: "KNOWLEDGE", assetIdentity: platformDiagnosticItemKnowledgeIdentity },
   { assetType: "TERMINOLOGY", assetIdentity: "TERMINOLOGY.LOCAL.REHEARSAL.BASELINE" },
@@ -214,16 +213,30 @@ async function loginWithFrontend(
   password: string,
   scope: RoleCredentialScope,
 ) {
-  const username = usernameFor(role, scope);
+  const response = await loginWithFrontendProxy(
+    page,
+    usernameFor(role, scope),
+    password,
+    tenantIdFor(role, scope),
+  );
+  await expectOk(response, `${role} 前台代理登录`);
+}
+
+export async function loginWithFrontendProxy(
+  page: Page,
+  username: string,
+  password: string,
+  tenantId: string,
+) {
   const response = await page.request.post(`${frontendApiBase}/auth/login`, {
-    data: { username, password, tenantId: tenantIdFor(role, scope) },
+    data: { username, password, tenantId },
     headers: {
       "Content-Type": "application/json",
-      "X-Trace-Id": `e2e-front-login-${role}-${Date.now()}`,
+      "X-Trace-Id": `e2e-front-login-${username}-${Date.now()}`,
     },
   });
-  await expectOk(response, `${role} 前台代理登录`);
   await mirrorSecureCookiesForLocalProxy(page, response);
+  return response;
 }
 
 async function resetRoleSession(page: Page) {
@@ -1394,7 +1407,10 @@ async function ensureHospitalRuntime(
   const current = await getApi(page, path);
   await expectOk(current, "读取本地上线演练医院生效版本");
   const currentRuntime = hospitalRuntimeCoversRequiredAssets(await responseData(current));
-  if (currentRuntime.ready && currentRuntime.platformBaselineReleaseId === baseline.baselineReleaseId) {
+  if (
+    currentRuntime.ready &&
+    currentRuntime.platformBaselineReleaseId === baseline.baselineReleaseId
+  ) {
     return;
   }
   const confirmedPlatformUpgradeDigest =
@@ -1479,8 +1495,10 @@ export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
   const release = recordField(value, "release");
   const releaseId = textField(release, "releaseId");
   const platformBaselineReleaseId = textField(release, "platformBaselineReleaseId");
-  const activeAssets = pageItems(value)
-    .filter((item) => textField(item, "entryState") === "ACTIVE")
+  const activeItems = pageItems(value).filter(
+    (item) => textField(item, "entryState") === "ACTIVE",
+  );
+  const activeAssets = activeItems
     .map((item) => ({
       assetType: textField(item, "assetType"),
       assetIdentity: textField(item, "assetIdentity"),
@@ -1489,10 +1507,18 @@ export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
     .filter((item): item is RuntimeAssetSelection =>
       Boolean(item.assetType && item.assetIdentity && item.versionId),
     );
+  const hasHospitalOverride = activeItems.some(
+    (item) =>
+      textField(item, "sourceLayer") === "HOSPITAL" &&
+      requiredRuntimeAssets.some((required) => runtimeAssetMatchesRequired(item, required)),
+  );
   return {
     releaseId,
     platformBaselineReleaseId,
-    ready: Boolean(releaseId) && runtimeAssetsCoverRequiredTypes(activeAssets),
+    ready:
+      Boolean(releaseId) &&
+      runtimeAssetsCoverRequiredTypes(activeAssets) &&
+      (!hasHospitalOverride || Boolean(platformBaselineReleaseId)),
   };
 }
 
@@ -1564,6 +1590,57 @@ export async function getApi(page: Page, path: string) {
   return page.request.get(`${apiBase}${path}`, {
     headers: { "X-Trace-Id": `e2e-api-get-${Date.now()}` },
   });
+}
+
+export async function getFrontendApi(
+  page: Page,
+  path: string,
+  extraHeaders: Record<string, string> = {},
+) {
+  return page.request.get(`${frontendApiBase}${path}`, {
+    headers: {
+      "X-Trace-Id": `e2e-frontend-api-get-${Date.now()}`,
+      ...extraHeaders,
+    },
+  });
+}
+
+export async function runScenarioWithCleanup<T>(
+  scenario: () => Promise<T>,
+  cleanup: () => Promise<void>,
+): Promise<T> {
+  let scenarioResult!: T;
+  let scenarioFailed = false;
+  let scenarioFailure: unknown;
+  try {
+    scenarioResult = await scenario();
+  } catch (error) {
+    scenarioFailed = true;
+    scenarioFailure = error;
+  }
+
+  let cleanupFailed = false;
+  let cleanupFailure: unknown;
+  try {
+    await cleanup();
+  } catch (error) {
+    cleanupFailed = true;
+    cleanupFailure = error;
+  }
+
+  if (scenarioFailed && cleanupFailed) {
+    throw new AggregateError(
+      [scenarioFailure, cleanupFailure],
+      "主场景与演练清理均失败，错误按责任顺序保留",
+    );
+  }
+  if (scenarioFailed) {
+    throw scenarioFailure;
+  }
+  if (cleanupFailed) {
+    throw cleanupFailure;
+  }
+  return scenarioResult;
 }
 
 export async function responseData(response: APIResponse) {
@@ -1677,6 +1754,15 @@ export async function patchApi(
   return writeApi(page, "patch", path, data, extraHeaders);
 }
 
+export async function patchFrontendApi(
+  page: Page,
+  path: string,
+  data: unknown,
+  extraHeaders: Record<string, string> = {},
+) {
+  return writeApi(page, "patch", path, data, extraHeaders, frontendApiBase, "e2e-frontend-api");
+}
+
 export async function putApi(
   page: Page,
   path: string,
@@ -1692,19 +1778,21 @@ async function writeApi(
   path: string,
   data: unknown,
   extraHeaders: Record<string, string>,
+  requestBase = apiBase,
+  tracePrefix = "e2e",
 ) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Trace-Id": `e2e-${Date.now()}`,
+    "X-Trace-Id": `${tracePrefix}-${Date.now()}`,
     ...extraHeaders,
   };
-  const xsrf = (await page.context().cookies(apiBase)).find(
+  const xsrf = (await page.context().cookies(requestBase)).find(
     (cookie) => cookie.name === "XSRF-TOKEN",
   );
   if (xsrf) {
     headers["X-XSRF-TOKEN"] = xsrf.value;
   }
-  return page.request[method](`${apiBase}${path}`, { data, headers });
+  return page.request[method](`${requestBase}${path}`, { data, headers });
 }
 
 export function waitForPollingInterval(intervalMs: number) {

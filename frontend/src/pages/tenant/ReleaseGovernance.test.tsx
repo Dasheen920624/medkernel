@@ -21,6 +21,8 @@ let currentTenantId = "t-1";
 let currentHospitalPlatformBaselineReleaseId = "baseline-A8";
 let currentHospitalReleaseId = "runtime-H9";
 let currentHospitalRevisionNo = 9;
+let currentHospitalRuntimeItems: ApiHooks.ClinicalRuntimeReleaseItem[] = [];
+let hospitalRuntimeCandidateItems: ApiHooks.ReleaseCandidateAsset[] = [];
 let platformUpgradeAnalysisMock: ApiHooks.PlatformUpgradeAnalysis | undefined;
 
 vi.mock("@/shared/api/hooks", async () => {
@@ -135,18 +137,7 @@ vi.mock("@/shared/api/hooks", async () => {
               activatedAt: "2026-06-23T09:00:00Z",
               activatedBy: "operator-a",
             },
-            items: [
-              {
-                releaseId: currentHospitalReleaseId,
-                sourceTenantId: "platform",
-                sourceLayer: "PLATFORM",
-                assetType: "RULE",
-                assetIdentity: "RULE.CKD",
-                entryState: "ACTIVE",
-                versionId: "rule-v1",
-                versionNo: "V1",
-              },
-            ],
+            items: currentHospitalRuntimeItems,
           }
         : undefined,
       isLoading: false,
@@ -154,21 +145,7 @@ vi.mock("@/shared/api/hooks", async () => {
     }),
     useHospitalRuntimeCandidates: () => ({
       data: {
-        items: [
-          {
-            sourceLayer: "HOSPITAL",
-            assetType: "PATHWAY",
-            assetIdentity: "PATH.CKD.LOCAL",
-            versionId: "path-v3",
-            versionNo: "V3",
-            status: "PUBLISHED",
-            organizationScope: "/tenant-a/hospital-a",
-            applicableScope: "adult|inpatient",
-            contentHash: "4".repeat(64),
-            sourceRef: "本院路径",
-            updatedAt: "2026-06-23T09:30:00Z",
-          },
-        ],
+        items: hospitalRuntimeCandidateItems,
         page: 1,
         size: 20,
         total: 1,
@@ -268,6 +245,33 @@ describe("ReleaseGovernance", () => {
     currentHospitalPlatformBaselineReleaseId = "baseline-A8";
     currentHospitalReleaseId = "runtime-H9";
     currentHospitalRevisionNo = 9;
+    currentHospitalRuntimeItems = [
+      {
+        releaseId: currentHospitalReleaseId,
+        sourceTenantId: "platform",
+        sourceLayer: "PLATFORM",
+        assetType: "RULE",
+        assetIdentity: "RULE.CKD",
+        entryState: "ACTIVE",
+        versionId: "rule-v1",
+        versionNo: "V1",
+      },
+    ];
+    hospitalRuntimeCandidateItems = [
+      {
+        sourceLayer: "HOSPITAL",
+        assetType: "PATHWAY",
+        assetIdentity: "PATH.CKD.LOCAL",
+        versionId: "path-v3",
+        versionNo: "V3",
+        status: "PUBLISHED",
+        organizationScope: "/tenant-a/hospital-a",
+        applicableScope: "adult|inpatient",
+        contentHash: "4".repeat(64),
+        sourceRef: "本院路径",
+        updatedAt: "2026-06-23T09:30:00Z",
+      },
+    ];
     platformUpgradeAnalysisMock = undefined;
     publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
     activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
@@ -422,6 +426,46 @@ describe("ReleaseGovernance", () => {
 
     expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
     expect(screen.getByLabelText("启用平台临床规则内容 V1")).toBeChecked();
+  });
+
+  it("shows the exact active hospital version beside a newer candidate without replacing it", async () => {
+    currentHospitalRuntimeItems = [
+      ...currentHospitalRuntimeItems,
+      {
+        releaseId: currentHospitalReleaseId,
+        sourceTenantId: "tenant-a",
+        sourceLayer: "HOSPITAL",
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        entryState: "ACTIVE",
+        versionId: "risk-v2",
+        versionNo: "V2",
+      },
+    ];
+    hospitalRuntimeCandidateItems = [
+      ...hospitalRuntimeCandidateItems,
+      {
+        sourceLayer: "HOSPITAL",
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        versionId: "risk-v3",
+        versionNo: "V3",
+        status: "PUBLISHED",
+        organizationScope: "/tenant-a/hospital-a",
+        applicableScope: "ALL",
+        contentHash: "5".repeat(64),
+        sourceRef: "本院风险矩阵",
+        updatedAt: "2026-06-23T10:00:00Z",
+      },
+    ];
+
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(await screen.findByLabelText("启用本院CDSS 风险矩阵内容 V2")).toBeChecked();
+    expect(screen.getByLabelText("启用本院CDSS 风险矩阵内容 V3")).not.toBeChecked();
   });
 
   it("builds one institution effective version from platform and local asset selections", async () => {

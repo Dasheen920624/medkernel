@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 import {
-  apiBase,
   appPath,
   ensureReadySession,
   expectLoginPageReady,
   expectOk,
-  patchApi,
+  getFrontendApi,
+  patchFrontendApi,
+  runScenarioWithCleanup,
 } from "./support/auth";
 import { attachPlatformAdminEntryCoreActionEvidence } from "./support/platformAdminEntryCoreActions";
 
@@ -121,129 +122,132 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
     };
     const observedStages = new Set<string>();
 
-    try {
-      await ensureReadySession(page, "platform-admin", "platform");
-      const provisioned = await provisionServiceOrganizationFromUi(page, organization);
-      recordServiceOrganizationStage(observedStages, "前台开通服务机构");
-      provisionedOrganization = provisioned;
-      evidence.onboardingEvidence = {
-        serviceOperation: "POST /api/v1/admin/tenants",
-        serviceStatus: provisioned.provisionStatus,
-        tenantId: provisioned.tenantId,
-        tenantName: provisioned.tenantName,
-        adminUsername: provisioned.adminUsername,
-        adminUserId: provisioned.adminUserId,
-        temporaryPasswordIssued: provisioned.adminPassword.length > 0,
-        temporaryPasswordDisplayedOnce: true,
-      };
-      const adminBootstrap = await completeTenantAdminFirstLoginFromUi(
-        page,
-        provisioned,
-        adminFinalPassword,
-      );
-      recordServiceOrganizationStage(observedStages, "机构管理员首次登录并改密");
-      adminCleanupPassword = adminBootstrap.password;
-      evidence.adminBootstrapEvidence = {
-        username: provisioned.adminUsername,
-        tenantId: provisioned.tenantId,
-        loginMustChangePwd: adminBootstrap.loginMustChangePwd,
-        changePasswordStatus: adminBootstrap.changePasswordStatus,
-        dashboardReached: adminBootstrap.dashboardReached,
-      };
-      await loginAsInstitutionUser(
-        page,
-        provisioned.tenantName,
-        provisioned.adminUsername,
-        adminBootstrap.password,
-      );
-
-      const orgTree = await createFacilityCampusDepartmentAndWardFromUi(page, suffix);
-      recordServiceOrganizationStage(observedStages, "前台创建医疗机构、院区、科室与病区");
-      clinicalUser = await createClinicalUserWithDepartmentScopeFromUi(page, {
-        suffix,
-        facility: orgTree.facility,
-        department: orgTree.department,
-        ward: orgTree.ward,
-      });
-      recordServiceOrganizationStage(observedStages, "前台创建临床账号并绑定科室职责范围");
-
-      await completeClinicalUserFirstLoginFromUi(
-        page,
-        provisioned.tenantName,
-        clinicalUser.username,
-        clinicalUser.password,
-        clinicalFinalPassword,
-      );
-
-      await assertClinicalUserSecurityScope(page, {
-        tenantId: provisioned.tenantId,
-        facilityId: orgTree.facility.id,
-        departmentId: orgTree.department.id,
-        username: clinicalUser.username,
-      });
-      recordServiceOrganizationStage(observedStages, "临床账号首次登录后读取权限画像");
-      await assertProvisionedOrgTree(page, {
-        tenantId: provisioned.tenantId,
-        facility: orgTree.facility,
-        campus: orgTree.campus,
-        department: orgTree.department,
-        ward: orgTree.ward,
-      });
-      evidence.orgTreeEvidence = {
-        facility: {
-          id: orgTree.facility.id,
+    await runScenarioWithCleanup(
+      async () => {
+        await ensureReadySession(page, "platform-admin", "platform");
+        const provisioned = await provisionServiceOrganizationFromUi(page, organization);
+        recordServiceOrganizationStage(observedStages, "前台开通服务机构");
+        provisionedOrganization = provisioned;
+        evidence.onboardingEvidence = {
+          serviceOperation: "POST /api/v1/admin/tenants",
+          serviceStatus: provisioned.provisionStatus,
           tenantId: provisioned.tenantId,
-          level: orgTree.facility.level,
-          name: orgTree.facility.name,
-          status: "ACTIVE",
-        },
-        campus: {
-          id: orgTree.campus.id,
+          tenantName: provisioned.tenantName,
+          adminUsername: provisioned.adminUsername,
+          adminUserId: provisioned.adminUserId,
+          temporaryPasswordIssued: provisioned.adminPassword.length > 0,
+          temporaryPasswordDisplayedOnce: true,
+        };
+        const adminBootstrap = await completeTenantAdminFirstLoginFromUi(
+          page,
+          provisioned,
+          adminFinalPassword,
+        );
+        recordServiceOrganizationStage(observedStages, "机构管理员首次登录并改密");
+        adminCleanupPassword = adminBootstrap.password;
+        evidence.adminBootstrapEvidence = {
+          username: provisioned.adminUsername,
           tenantId: provisioned.tenantId,
-          parentId: orgTree.campus.parentId,
-          level: orgTree.campus.level,
-          name: orgTree.campus.name,
-          status: "ACTIVE",
-        },
-        department: {
-          id: orgTree.department.id,
-          tenantId: provisioned.tenantId,
-          parentId: orgTree.department.parentId,
-          level: orgTree.department.level,
-          name: orgTree.department.name,
-          status: "ACTIVE",
-        },
-        ward: {
-          id: orgTree.ward.id,
-          tenantId: provisioned.tenantId,
-          parentId: orgTree.ward.parentId,
-          level: orgTree.ward.level,
-          name: orgTree.ward.name,
-          status: "ACTIVE",
-        },
-        facilityReadbackVerified: true,
-        campusReadbackVerified: true,
-        departmentReadbackVerified: true,
-        wardReadbackVerified: true,
-      };
-      recordServiceOrganizationStage(observedStages, "前台回读服务机构组织树");
+          loginMustChangePwd: adminBootstrap.loginMustChangePwd,
+          changePasswordStatus: adminBootstrap.changePasswordStatus,
+          dashboardReached: adminBootstrap.dashboardReached,
+        };
+        await loginAsInstitutionUser(
+          page,
+          provisioned.tenantName,
+          provisioned.adminUsername,
+          adminBootstrap.password,
+        );
 
-      const screenshotPath = testInfo.outputPath("service-organization-clinical-scope.png");
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      await testInfo.attach("service-organization-clinical-scope", {
-        path: screenshotPath,
-        contentType: "image/png",
-      });
-    } finally {
-      if (provisionedOrganization && adminCleanupPassword) {
-        await disableProvisionedAccountsFromAdminSession(page, {
-          organization: provisionedOrganization,
-          adminPassword: adminCleanupPassword,
-          clinicalUserId: clinicalUser?.userId,
+        const orgTree = await createFacilityCampusDepartmentAndWardFromUi(page, suffix);
+        recordServiceOrganizationStage(observedStages, "前台创建医疗机构、院区、科室与病区");
+        clinicalUser = await createClinicalUserWithDepartmentScopeFromUi(page, {
+          suffix,
+          facility: orgTree.facility,
+          department: orgTree.department,
+          ward: orgTree.ward,
         });
-        recordServiceOrganizationStage(observedStages, "前台停用演练账号");
-      }
-    }
+        recordServiceOrganizationStage(observedStages, "前台创建临床账号并绑定科室职责范围");
+
+        await completeClinicalUserFirstLoginFromUi(
+          page,
+          provisioned.tenantName,
+          clinicalUser.username,
+          clinicalUser.password,
+          clinicalFinalPassword,
+        );
+
+        await assertClinicalUserSecurityScope(page, {
+          tenantId: provisioned.tenantId,
+          facilityId: orgTree.facility.id,
+          departmentId: orgTree.department.id,
+          username: clinicalUser.username,
+        });
+        recordServiceOrganizationStage(observedStages, "临床账号首次登录后读取权限画像");
+        await assertProvisionedOrgTree(page, {
+          tenantId: provisioned.tenantId,
+          facility: orgTree.facility,
+          campus: orgTree.campus,
+          department: orgTree.department,
+          ward: orgTree.ward,
+        });
+        evidence.orgTreeEvidence = {
+          facility: {
+            id: orgTree.facility.id,
+            tenantId: provisioned.tenantId,
+            level: orgTree.facility.level,
+            name: orgTree.facility.name,
+            status: "ACTIVE",
+          },
+          campus: {
+            id: orgTree.campus.id,
+            tenantId: provisioned.tenantId,
+            parentId: orgTree.campus.parentId,
+            level: orgTree.campus.level,
+            name: orgTree.campus.name,
+            status: "ACTIVE",
+          },
+          department: {
+            id: orgTree.department.id,
+            tenantId: provisioned.tenantId,
+            parentId: orgTree.department.parentId,
+            level: orgTree.department.level,
+            name: orgTree.department.name,
+            status: "ACTIVE",
+          },
+          ward: {
+            id: orgTree.ward.id,
+            tenantId: provisioned.tenantId,
+            parentId: orgTree.ward.parentId,
+            level: orgTree.ward.level,
+            name: orgTree.ward.name,
+            status: "ACTIVE",
+          },
+          facilityReadbackVerified: true,
+          campusReadbackVerified: true,
+          departmentReadbackVerified: true,
+          wardReadbackVerified: true,
+        };
+        recordServiceOrganizationStage(observedStages, "前台回读服务机构组织树");
+
+        const screenshotPath = testInfo.outputPath("service-organization-clinical-scope.png");
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        await testInfo.attach("service-organization-clinical-scope", {
+          path: screenshotPath,
+          contentType: "image/png",
+        });
+      },
+      async () => {
+        if (provisionedOrganization && adminCleanupPassword) {
+          await disableProvisionedAccountsFromAdminSession(page, {
+            organization: provisionedOrganization,
+            adminPassword: adminCleanupPassword,
+            clinicalUserId: clinicalUser?.userId,
+          });
+          recordServiceOrganizationStage(observedStages, "前台停用演练账号");
+        }
+      },
+    );
     await attachServiceOrganizationScenarioEvidence(testInfo, observedStages, evidence);
     await attachPlatformAdminEntryCoreActionEvidence(testInfo, {
       menuKey: "tenant-onboarding",
@@ -323,14 +327,14 @@ async function disableProvisionedAccountsFromAdminSession(
     options.adminPassword,
   );
   if (options.clinicalUserId) {
-    const clinicalDisable = await patchApi(
+    const clinicalDisable = await patchFrontendApi(
       page,
       `/compliance/users/${encodeURIComponent(options.clinicalUserId)}/status`,
       { status: "DISABLED" },
     );
     await expectOk(clinicalDisable, "停用服务机构演练临床账号");
   }
-  const adminDisable = await patchApi(
+  const adminDisable = await patchFrontendApi(
     page,
     `/compliance/users/${encodeURIComponent(options.organization.adminUserId)}/status`,
     { status: "DISABLED" },
@@ -601,11 +605,10 @@ async function readBackOrgUnit(
   expected: OrgUnit,
   readback: { traceCode: string; label: string },
 ) {
-  const response = await page.request.get(
-    `${apiBase}/engine/org/org-units?keyword=${encodeURIComponent(
-      expected.name ?? "",
-    )}&page=1&size=20`,
-    { headers: { "X-Trace-Id": `e2e-org-tree-${readback.traceCode}-${Date.now()}` } },
+  const response = await getFrontendApi(
+    page,
+    `/engine/org/org-units?keyword=${encodeURIComponent(expected.name ?? "")}&page=1&size=20`,
+    { "X-Trace-Id": `e2e-org-tree-${readback.traceCode}-${Date.now()}` },
   );
   await expectOk(response, `回读新服务机构${readback.label}`);
   const payload = (await response.json()) as { data?: { items?: OrgUnit[] } };
@@ -618,8 +621,8 @@ async function assertClinicalUserSecurityScope(
   page: Page,
   expected: { tenantId: string; facilityId: string; departmentId: string; username: string },
 ) {
-  const response = await page.request.get(`${apiBase}/security/me`, {
-    headers: { "X-Trace-Id": `e2e-clinical-scope-${Date.now()}` },
+  const response = await getFrontendApi(page, "/security/me", {
+    "X-Trace-Id": `e2e-clinical-scope-${Date.now()}`,
   });
   await expectOk(response, "读取临床账号权限画像");
   const profile = (await response.json()) as {

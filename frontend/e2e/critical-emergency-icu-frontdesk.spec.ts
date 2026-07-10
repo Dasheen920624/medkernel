@@ -1840,7 +1840,14 @@ async function completeCriticalEscalationTodo(
   },
 ) {
   await ensureReadySession(page, "clinical-user");
-  await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
+  await page.goto(
+    appPath(
+      `/workflow/todos?cardId=${encodeURIComponent(
+        options.recommendation.cardId,
+      )}&sourceType=RECOMMENDATION_CARD`,
+    ),
+    { waitUntil: "domcontentloaded" },
+  );
   await page.waitForLoadState("networkidle");
   await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible(
     {

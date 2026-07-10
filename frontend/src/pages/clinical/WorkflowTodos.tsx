@@ -114,6 +114,10 @@ const sourceText: Record<WorkflowTodoSourceType, string> = {
   PATHWAY_NODE: "路径节点",
 };
 
+const workflowTodoSourceTypes = new Set<WorkflowTodoSourceType>(
+  Object.keys(sourceText) as WorkflowTodoSourceType[],
+);
+
 const sourceActionText: Record<WorkflowTodoSourceType, string> = {
   FOLLOWUP_TASK: "打开随访记录",
   SAFETY_REVIEW: "打开复核来源",
@@ -186,10 +190,19 @@ const assigneeRoleText: Record<string, string> = {
   QUALITY: "质控",
 };
 
-function reportInterpretationCardIdFromLocation() {
-  if (typeof window === "undefined") return undefined;
-  const cardId = new URLSearchParams(window.location.search).get("cardId")?.trim();
-  return cardId || undefined;
+function focusedWorkflowTodoSourceFromLocation(): {
+  sourceId?: string;
+  sourceType?: WorkflowTodoSourceType;
+} {
+  if (typeof window === "undefined") return {};
+  const searchParams = new URLSearchParams(window.location.search);
+  const sourceId = searchParams.get("cardId")?.trim() || undefined;
+  if (!sourceId) return {};
+  const requestedSourceType = searchParams.get("sourceType")?.trim();
+  const sourceType = workflowTodoSourceTypes.has(requestedSourceType as WorkflowTodoSourceType)
+    ? (requestedSourceType as WorkflowTodoSourceType)
+    : "REPORT_INTERPRETATION";
+  return { sourceId, sourceType };
 }
 
 const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]) => ({
@@ -283,13 +296,13 @@ export default function WorkflowTodos() {
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
-  const focusedReportCardId = reportInterpretationCardIdFromLocation();
+  const focusedTodoSource = focusedWorkflowTodoSourceFromLocation();
 
   const queryParams = {
     status,
     priority,
-    sourceType: focusedReportCardId ? "REPORT_INTERPRETATION" : sourceType,
-    sourceId: focusedReportCardId,
+    sourceType: focusedTodoSource.sourceType ?? sourceType,
+    sourceId: focusedTodoSource.sourceId,
     orgUnitId,
     page: 1,
     size: 10,

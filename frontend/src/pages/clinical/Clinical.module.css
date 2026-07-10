@@ -349,6 +349,32 @@
 
 .notificationBody {
   flex: 1;
+  min-width: 0;
+}
+
+.notificationTitleRow,
+.notificationContent {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.notificationContent :global(.ant-space) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.notificationTitleRow :global(.ant-space-item),
+.notificationContent :global(.ant-space-item) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.notificationTitleRow span,
+.notificationContent span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .notificationTitle {

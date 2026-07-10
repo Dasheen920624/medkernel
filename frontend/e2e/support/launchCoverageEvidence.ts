@@ -3406,7 +3406,7 @@ function hasDashboardWorkbenchCoreActionScopeBoundary(value: unknown) {
   const statement = String(value);
   return (
     statement.includes("四职责工作台核心动作代表矩阵") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "35 个入口全部业务动作闭环") &&
     hasNegatedScopeTerm(statement, "每个入口的完整业务流程") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveDashboardWorkbenchCompleteScopeClaim(statement)
@@ -3415,7 +3415,7 @@ function hasDashboardWorkbenchCoreActionScopeBoundary(value: unknown) {
 
 function hasPositiveDashboardWorkbenchCompleteScopeClaim(statement: string) {
   return [
-    "34 个入口全部业务动作闭环",
+    "35 个入口全部业务动作闭环",
     "每个入口的完整业务流程",
     "完整上线",
     "完整上线验收",

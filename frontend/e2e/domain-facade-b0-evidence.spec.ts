@@ -34,9 +34,7 @@ const B0_EVIDENCE_OPERATION = "GET /engine/domain-facades/b0-evidence";
 const B0_EVIDENCE_PATH = "/medkernel/api/v1/engine/domain-facades/b0-evidence";
 
 test.describe("领域门面无模型证据真实前台落点", () => {
-  test("运营员从前台回读全专业领域门面 B0 复用链路证据", async ({
-    page,
-  }, testInfo) => {
+  test("运营员从前台回读全专业领域门面 B0 复用链路证据", async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await ensureReadySession(page, "engine-operator");
 
@@ -54,7 +52,9 @@ test.describe("领域门面无模型证据真实前台落点", () => {
 
     await expect(page.getByRole("heading", { name: "领域门面无模型证据" })).toBeVisible();
     await expect(page.getByText("17 张领域门面")).toBeVisible();
-    await expect(page.locator(".ant-statistic-title", { hasText: "无模型 B0 主链路" })).toBeVisible();
+    await expect(
+      page.locator(".ant-statistic-title", { hasText: "无模型规则主链路" }),
+    ).toBeVisible();
     await expect(
       page.getByText("不预置真实医学内容/不新增专属业务引擎/不声明完整专业领域上线"),
     ).toBeVisible();
@@ -92,9 +92,7 @@ test.describe("领域门面无模型证据真实前台落点", () => {
     });
 
     expect(evidenceRows).toHaveLength(17);
-    expect(evidenceRows.every((row) => row.b0Executable && row.modelRequired === false)).toBe(
-      true,
-    );
+    expect(evidenceRows.every((row) => row.b0Executable && row.modelRequired === false)).toBe(true);
   });
 });
 

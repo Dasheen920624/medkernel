@@ -13,6 +13,7 @@ import {
   ensurePlatformRuntimeAssetApiSession,
   ensureReadySession,
   expectOk,
+  loginWithFrontendProxy,
   patchApi,
   postApi,
   requiredRuntimeAssetsForRehearsal,
@@ -271,14 +272,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       const primaryHospitalId = await resolveHospitalId(page, primaryHospitalName);
       recordCleanRuntime(page, "选择本地上线演练医院", runtime, records);
       await assertRequiredRuntimeInputsVisibleAndSelected(page);
-      recordRuntimeReleaseStage(coverageEvidence, "前台展示并勾选 13 类平台标准资产");
+      recordRuntimeReleaseStage(coverageEvidence, "前台展示并保留 13 类有效运行资产闭包");
       await selectHospitalLocalRuntimeCandidate(page, localCandidate);
       await assertHospitalLocalRuntimeCandidateVisibleAndUnselected(page, unselectedLocalCandidate);
       coverageEvidence.unselectedLocalCandidate = unselectedLocalCandidate;
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "前台只选择本轮部分本院内容进入机构生效版本",
-      );
+      recordRuntimeReleaseStage(coverageEvidence, "前台只选择本轮部分本院内容进入机构生效版本");
 
       const platformUpgradeCandidate = await createPlatformRuntimeUpgradeCandidate(
         adminPage,
@@ -341,10 +339,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       coverageEvidence.apiEvidence.activationRequestCarriesRequiredAssets = true;
       coverageEvidence.localCandidate = localCandidate;
       coverageEvidence.activationRequest = { activeAssets: [activationRequestCandidate] };
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "前台生成携带 13 类资产闭包的机构生效版本",
-      );
+      recordRuntimeReleaseStage(coverageEvidence, "前台生成携带 13 类资产闭包的机构生效版本");
       const activated = JSON.parse(activateBody) as { data?: { revisionNo?: number } };
       expect(activated.data?.revisionNo, "生成机构生效版本响应应返回新修订号").toBeGreaterThan(
         initialRevision,
@@ -422,13 +417,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         secondaryActivateResponse.ok(),
         `前台为第二家医院生成机构生效版本应返回成功 status=${secondaryActivateResponse.status()} body=${secondaryActivateBody}`,
       ).toBe(true);
-      const secondaryActivationRequest =
-        secondaryActivateResponse.request().postDataJSON();
-      const secondaryActivationRequestAssets =
-        assertRuntimeReleaseRequestCarriesRequiredAssets(
-          secondaryActivationRequest,
-          "前台为第二家医院生成机构生效版本",
-        );
+      const secondaryActivationRequest = secondaryActivateResponse.request().postDataJSON();
+      const secondaryActivationRequestAssets = assertRuntimeReleaseRequestCarriesRequiredAssets(
+        secondaryActivationRequest,
+        "前台为第二家医院生成机构生效版本",
+      );
       assertRuntimeAssetsContainLocalCandidate(
         secondaryActivationRequestAssets,
         secondaryCandidate,
@@ -568,10 +561,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         coverageEvidence,
         "前台为第二家医院选择不同本院内容生成机构生效版本",
       );
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "两家医院后端与第三方运行契约读回互不串用",
-      );
+      recordRuntimeReleaseStage(coverageEvidence, "两家医院后端与第三方运行契约读回互不串用");
       recordCleanRuntime(page, "前台为第二家医院生成差异化机构生效版本", runtime, records);
 
       clearRuntime(runtime);
@@ -593,7 +583,8 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       coverageEvidence.apiEvidence.offlineDeliveryRuntimeUnchanged =
         offlineDelivery.runtimeBefore.releaseId === offlineDelivery.runtimeAfter.releaseId &&
         offlineDelivery.runtimeBefore.revisionNo === offlineDelivery.runtimeAfter.revisionNo &&
-        offlineDelivery.runtimeBefore.manifestSha256 === offlineDelivery.runtimeAfter.manifestSha256;
+        offlineDelivery.runtimeBefore.manifestSha256 ===
+          offlineDelivery.runtimeAfter.manifestSha256;
       coverageEvidence.apiEvidence.offlineDeliveryRestoreExecuted =
         offlineDelivery.restore?.status === "RESTORED" &&
         offlineDelivery.restore.runtimeMutation === true;
@@ -616,23 +607,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         offlineDelivery.runtimeConsumerAfterRestore?.manifestSha256 ===
           offlineDelivery.runtimeAfterRestore?.manifestSha256 &&
         offlineDelivery.runtimeConsumerAfterRestore?.selectedCandidatePresent === true;
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "前台导出机构生效版本离线交付文件",
-      );
+      recordRuntimeReleaseStage(coverageEvidence, "前台导出机构生效版本离线交付文件");
       recordRuntimeReleaseStage(coverageEvidence, "下载离线交付文件并校验完整快照");
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "离线交付导入预检验签且不改写当前机构生效版本",
-      );
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "离线交付恢复执行生成新机构生效版本",
-      );
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "恢复后后端和第三方运行契约读取同一机构生效版本",
-      );
+      recordRuntimeReleaseStage(coverageEvidence, "离线交付导入预检验签且不改写当前机构生效版本");
+      recordRuntimeReleaseStage(coverageEvidence, "离线交付恢复执行生成新机构生效版本");
+      recordRuntimeReleaseStage(coverageEvidence, "恢复后后端和第三方运行契约读取同一机构生效版本");
       recordCleanRuntime(page, "前台导出并预检机构生效版本离线交付文件", runtime, records);
 
       clearRuntime(runtime);
@@ -687,10 +666,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       );
       coverageEvidence.apiEvidence.rollbackRuntimeConsumerReadback = true;
       coverageEvidence.rolledBackRevisionNo = rolledBack.data?.revisionNo;
-      recordRuntimeReleaseStage(
-        coverageEvidence,
-        "回滚后后端和第三方运行契约读取同一修订",
-      );
+      recordRuntimeReleaseStage(coverageEvidence, "回滚后后端和第三方运行契约读取同一修订");
       coverageEvidence.scenarioConditionEvidence = [
         {
           code: "S13__NORMAL",
@@ -760,7 +736,10 @@ async function ensureSecondHospitalRuntimeReleaseRehearsalContext(
 }
 
 async function ensureSecondHospital(page: Page) {
-  const existing = await apiGet(page, `/engine/org/org-units/${encodeURIComponent(secondHospitalCode)}`);
+  const existing = await apiGet(
+    page,
+    `/engine/org/org-units/${encodeURIComponent(secondHospitalCode)}`,
+  );
   if (existing.ok()) {
     return requireOrgUnit(await responseData(existing), "读取第二家上线演练医院");
   }
@@ -871,6 +850,13 @@ async function loginSecondHospitalRuntimeAccount(
     profilePayload.data?.dataScope?.hospitalId,
     "第二医院机构版本演练运营员 JWT 必须绑定第二家医院",
   ).toBe(context.hospitalId);
+  const frontendLogin = await loginWithFrontendProxy(
+    page,
+    context.account.username,
+    context.account.finalPassword,
+    context.account.tenantId,
+  );
+  await expectOk(frontendLogin, "第二医院机构版本演练运营员前台代理登录");
 }
 
 async function readThirdPartyRuntimeConsumerForRole(
@@ -892,7 +878,14 @@ async function assertRequiredRuntimeInputsVisibleAndSelected(page: Page) {
     .locator(".ant-card")
     .filter({ has: page.getByText("平台标准内容", { exact: true }) })
     .first();
+  const localContent = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("集团与本院内容", { exact: true }) })
+    .first();
   await expect(platformStandardContent, "机构生效版本页必须展示平台标准内容清单").toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(localContent, "机构生效版本页必须展示集团与本院内容清单").toBeVisible({
     timeout: 20_000,
   });
   for (const required of requiredRuntimeAssetsForRehearsal) {
@@ -904,15 +897,22 @@ async function assertRequiredRuntimeInputsVisibleAndSelected(page: Page) {
       platformInputRow,
       `平台标准内容必须展示 ${required.assetType} ${required.assetIdentity}`,
     ).toBeVisible({ timeout: 20_000 });
-    const enableCheckbox = platformInputRow.getByRole("checkbox", { name: /启用/ });
+    const platformCheckbox = platformInputRow.getByRole("checkbox", { name: /启用/ });
     await expect(
-      enableCheckbox,
+      platformCheckbox,
       `${required.assetType} ${required.assetIdentity} 必须可勾选进入机构生效版本`,
     ).toBeVisible();
+    if (await platformCheckbox.isChecked()) {
+      continue;
+    }
+    const selectedLocalCheckbox = localContent
+      .getByRole("row")
+      .filter({ hasText: required.assetIdentity })
+      .locator('input[type="checkbox"]:checked');
     await expect(
-      enableCheckbox,
-      `${required.assetType} ${required.assetIdentity} 必须在当前选择集中`,
-    ).toBeChecked();
+      selectedLocalCheckbox,
+      `${required.assetType} ${required.assetIdentity} 必须由平台或同身份集团/本院内容提供`,
+    ).toHaveCount(1);
   }
 }
 
@@ -935,7 +935,7 @@ async function createHospitalRuntimeReleaseCandidate(
           ? "机构生效版本未选择本院提示卡"
           : options.purpose === "secondary"
             ? "第二医院机构生效版本本院提示卡"
-          : "机构生效版本本院提示卡",
+            : "机构生效版本本院提示卡",
       actionCode: "INFO",
       atSeverity: "LOW",
       indicator: "info",
@@ -944,13 +944,13 @@ async function createHospitalRuntimeReleaseCandidate(
           ? "用于验证本院候选资产可见但未被选入本轮机构生效版本。"
           : options.purpose === "secondary"
             ? "用于验证第二家医院可选择不同本院资产并形成独立机构生效版本。"
-          : "用于验证本院候选资产进入机构生效版本前必须完成发布影响评估。",
+            : "用于验证本院候选资产进入机构生效版本前必须完成发布影响评估。",
       detail:
         options.purpose === "unselected"
           ? "本资产仅用于本地上线演练的部分选择缺席证明，不参与临床运行。"
           : options.purpose === "secondary"
             ? "本资产仅用于本地上线演练的两机构差异证明，不包含诊疗结论，不自动开立医嘱。"
-          : "本资产仅用于本地上线演练，不包含诊疗结论，不自动开立医嘱。",
+            : "本资产仅用于本地上线演练，不包含诊疗结论，不自动开立医嘱。",
       source: { label: "MedKernel 本地上线演练" },
       suggestions: [
         { label: "查看机构生效版本", actionType: "OPEN_FORM", payload: { target: "runtime" } },
@@ -1240,10 +1240,8 @@ async function exercisePlatformUpgradeAnalysis(
       response
         .url()
         .includes(
-          `/engine/releases/hospitals/${encodeURIComponent(
-            hospitalId,
-          )}/platform-upgrade-analysis`,
-    ),
+          `/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/platform-upgrade-analysis`,
+        ),
     { timeout: 60_000 },
   );
   await analysisButton.click();
@@ -1253,9 +1251,11 @@ async function exercisePlatformUpgradeAnalysis(
     analysisResponse.ok(),
     `平台升级差异与冲突分析应返回成功 status=${analysisResponse.status()} body=${analysisBody}`,
   ).toBe(true);
-  const analysis = (JSON.parse(analysisBody) as {
-    data?: RuntimeReleasePlatformUpgradeEvidence;
-  }).data;
+  const analysis = (
+    JSON.parse(analysisBody) as {
+      data?: RuntimeReleasePlatformUpgradeEvidence;
+    }
+  ).data;
   expect(analysis?.analysisDigest, "平台升级分析必须返回稳定摘要").toMatch(/^[0-9a-f]{64}$/);
   expect(analysis?.runtimeMutation, "平台升级分析不得改写当前机构生效版本").toBe(false);
   expect(analysis?.currentRuntime.releaseId, "平台升级分析必须绑定当前机构生效版本").toBe(
@@ -1285,9 +1285,7 @@ async function exercisePlatformUpgradeAnalysis(
     "平台升级分析后",
   );
   const afterIdentity = runtimeSnapshotIdentity(runtimeAfter, "平台升级分析后");
-  expect(afterIdentity, "平台升级分析前后当前机构生效版本不得改变").toEqual(
-    beforeIdentity,
-  );
+  expect(afterIdentity, "平台升级分析前后当前机构生效版本不得改变").toEqual(beforeIdentity);
 
   return {
     targetBaseline: {
@@ -1345,25 +1343,25 @@ async function exerciseOfflineDelivery(
     exportResponse.ok(),
     `前台导出机构生效版本离线交付文件应成功 status=${exportResponse.status()} body=${exportBody}`,
   ).toBe(true);
-  const delivery = (JSON.parse(exportBody) as {
-    data?: {
-      deliveryKind?: string;
-      evidenceId?: string;
-      fileUri?: string;
-      fileDigest?: string;
-      signatureAlgorithm?: string;
-      runtimeMutation?: boolean;
-      release?: { releaseId?: string; hospitalId?: string };
-      items?: RuntimeReleaseItem[];
-    };
-  }).data;
+  const delivery = (
+    JSON.parse(exportBody) as {
+      data?: {
+        deliveryKind?: string;
+        evidenceId?: string;
+        fileUri?: string;
+        fileDigest?: string;
+        signatureAlgorithm?: string;
+        runtimeMutation?: boolean;
+        release?: { releaseId?: string; hospitalId?: string };
+        items?: RuntimeReleaseItem[];
+      };
+    }
+  ).data;
   expect(delivery?.deliveryKind, "离线交付文件类型必须是机构生效版本完整快照").toBe(
     "CLINICAL_RUNTIME_RELEASE",
   );
   expect(delivery?.runtimeMutation, "导出离线交付文件不得修改机构生效版本").toBe(false);
-  expect(delivery?.signatureAlgorithm, "离线交付文件必须使用 SM3/SM2 签名").toBe(
-    "SM3_WITH_SM2",
-  );
+  expect(delivery?.signatureAlgorithm, "离线交付文件必须使用 SM3/SM2 签名").toBe("SM3_WITH_SM2");
   expect(delivery?.evidenceId, "离线交付必须返回可信证据 ID").toBeTruthy();
   expect(delivery?.fileUri, "离线交付必须返回真实文件下载 URI").toContain(
     `/snapshots/${delivery?.evidenceId}/file`,
@@ -1390,9 +1388,7 @@ async function exerciseOfflineDelivery(
   expect(fileBody, "离线交付文件必须写入机构生效版本快照类型").toContain(
     '"deliveryKind":"CLINICAL_RUNTIME_RELEASE"',
   );
-  expect(fileBody, "离线交付文件必须标明不改写运行版本").toContain(
-    '"runtimeMutation":false',
-  );
+  expect(fileBody, "离线交付文件必须标明不改写运行版本").toContain('"runtimeMutation":false');
   expect(fileBody, "离线交付文件必须包含当前 releaseId").toContain(
     `"releaseId":"${beforeIdentity.releaseId}"`,
   );
@@ -1409,17 +1405,19 @@ async function exerciseOfflineDelivery(
     validateResponse.ok(),
     `离线交付导入预检应验签通过 status=${validateResponse.status()} body=${validateBody}`,
   ).toBe(true);
-  const preview = (JSON.parse(validateBody) as {
-    data?: {
-      status?: string;
-      signatureValid?: boolean;
-      manifestMatched?: boolean;
-      runtimeMutation?: boolean;
-      releaseId?: string;
-      hospitalId?: string;
-      itemCount?: number;
-    };
-  }).data;
+  const preview = (
+    JSON.parse(validateBody) as {
+      data?: {
+        status?: string;
+        signatureValid?: boolean;
+        manifestMatched?: boolean;
+        runtimeMutation?: boolean;
+        releaseId?: string;
+        hospitalId?: string;
+        itemCount?: number;
+      };
+    }
+  ).data;
   expect(preview?.status, "离线交付导入预检状态必须通过").toBe("VALIDATED");
   expect(preview?.signatureValid, "离线交付导入预检必须验签通过").toBe(true);
   expect(preview?.manifestMatched, "离线交付导入预检必须命中当前清单摘要").toBe(true);
@@ -1439,9 +1437,7 @@ async function exerciseOfflineDelivery(
     "离线交付导入预检后",
   );
   const afterIdentity = runtimeSnapshotIdentity(runtimeAfter, "离线交付导入预检后");
-  expect(afterIdentity, "离线交付导入预检前后当前机构生效版本不得改变").toEqual(
-    beforeIdentity,
-  );
+  expect(afterIdentity, "离线交付导入预检前后当前机构生效版本不得改变").toEqual(beforeIdentity);
 
   const rollbackButton = page
     .getByRole("button", { name: `回滚到 第 ${beforeIdentity.revisionNo - 1} 版` })
@@ -1474,10 +1470,7 @@ async function exerciseOfflineDelivery(
     preRestoreRollback.data?.revisionNo,
     "离线交付恢复执行前",
   );
-  const beforeRestoreIdentity = runtimeSnapshotIdentity(
-    runtimeBeforeRestore,
-    "离线交付恢复执行前",
-  );
+  const beforeRestoreIdentity = runtimeSnapshotIdentity(runtimeBeforeRestore, "离线交付恢复执行前");
   expect(
     beforeRestoreIdentity.releaseId,
     "恢复执行前应已通过回滚制造当前机构生效版本变化",
@@ -1495,22 +1488,24 @@ async function exerciseOfflineDelivery(
     restoreResponse.ok(),
     `离线交付恢复执行应生成新机构生效版本 status=${restoreResponse.status()} body=${restoreBody}`,
   ).toBe(true);
-  const restore = (JSON.parse(restoreBody) as {
-    data?: {
-      status?: string;
-      runtimeMutation?: boolean;
-      sourceReleaseId?: string;
-      targetHospitalId?: string;
-      fileDigest?: string;
-      manifestSha256?: string;
-      itemCount?: number;
-      restoredRelease?: {
-        releaseId?: string;
-        revisionNo?: number;
-        rollbackFromReleaseId?: string | null;
+  const restore = (
+    JSON.parse(restoreBody) as {
+      data?: {
+        status?: string;
+        runtimeMutation?: boolean;
+        sourceReleaseId?: string;
+        targetHospitalId?: string;
+        fileDigest?: string;
+        manifestSha256?: string;
+        itemCount?: number;
+        restoredRelease?: {
+          releaseId?: string;
+          revisionNo?: number;
+          rollbackFromReleaseId?: string | null;
+        };
       };
-    };
-  }).data;
+    }
+  ).data;
   expect(restore?.status, "离线交付恢复状态必须成功").toBe("RESTORED");
   expect(restore?.runtimeMutation, "离线交付恢复必须生成新的机构生效版本").toBe(true);
   expect(restore?.sourceReleaseId, "恢复来源 releaseId 必须来自离线文件").toBe(
@@ -1537,10 +1532,7 @@ async function exerciseOfflineDelivery(
     restore?.restoredRelease?.revisionNo,
     "离线交付恢复执行后",
   );
-  const afterRestoreIdentity = runtimeSnapshotIdentity(
-    runtimeAfterRestore,
-    "离线交付恢复执行后",
-  );
+  const afterRestoreIdentity = runtimeSnapshotIdentity(runtimeAfterRestore, "离线交付恢复执行后");
   expect(afterRestoreIdentity.releaseId, "恢复后后端读回必须指向新机构生效版本").toBe(
     restore?.restoredRelease?.releaseId,
   );
@@ -1553,12 +1545,11 @@ async function exerciseOfflineDelivery(
     "离线交付恢复执行后端读回",
     { requireActive: true },
   );
-  const runtimeConsumerAfterRestore =
-    await assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
-      page,
-      restore?.restoredRelease?.revisionNo,
-      "离线交付恢复执行后",
-    );
+  const runtimeConsumerAfterRestore = await assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
+    page,
+    restore?.restoredRelease?.revisionNo,
+    "离线交付恢复执行后",
+  );
   const consumerSelectedCandidate = assertRuntimeAssetsContainLocalCandidate(
     runtimeConsumerAfterRestore.assets ?? [],
     selectedCandidate,
@@ -1741,9 +1732,7 @@ async function assessLocalReleaseImpact(page: Page) {
     `发布影响评估应返回成功 status=${simulationResponse.status()} body=${simulationBody}`,
   ).toBe(true);
   const simulation = JSON.parse(simulationBody) as { data?: { releasable?: boolean } };
-  expect(simulation.data?.releasable, "本院候选发布影响评估必须允许生成机构生效版本").toBe(
-    true,
-  );
+  expect(simulation.data?.releasable, "本院候选发布影响评估必须允许生成机构生效版本").toBe(true);
   await page.waitForLoadState("networkidle");
   await expect(page.getByText("发布影响评估未完成")).toHaveCount(0);
   await expect(page.getByText("需处理")).toHaveCount(0);

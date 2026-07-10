@@ -5,6 +5,7 @@ import {
   ensureReadySession,
   expectLoginPageReady,
   expectOk,
+  getFrontendApi,
   patchApi,
   postApi,
   resolvedTenantIdFor,
@@ -238,8 +239,8 @@ test.describe("D0 MFA 真实前台登录验收", () => {
       };
       recordMfaLoginStage(observedStages, "前台提交真实 TOTP 验证并进入工作台");
 
-      const profileResponse = await page.request.get(`${apiBase}/security/me`, {
-        headers: { "X-Trace-Id": `e2e-mfa-profile-${suffix}` },
+      const profileResponse = await getFrontendApi(page, "/security/me", {
+        "X-Trace-Id": `e2e-mfa-profile-${suffix}`,
       });
       await expectOk(profileResponse, "读取 MFA 验证后权限画像");
       structuredEvidence.apiEvidence.profileRead = {
@@ -260,7 +261,8 @@ test.describe("D0 MFA 真实前台登录验收", () => {
       expect(profile.mfaVerified).toBe(true);
       structuredEvidence.profile = {
         username: profile.username ?? "",
-        roles: profile.roles?.map((role) => role.code).filter((code): code is string => !!code) ?? [],
+        roles:
+          profile.roles?.map((role) => role.code).filter((code): code is string => !!code) ?? [],
         mfaRequired: profile.mfaRequired === true,
         mfaBound: profile.mfaBound === true,
         mfaVerified: profile.mfaVerified === true,
@@ -491,9 +493,9 @@ async function attachMfaLoginScenarioEvidence(
   }));
   const completedScenarioCodes = scenarioEvidence
     .filter((scenario) => {
-      const requiredStages = requiredMfaLoginScenarioEvidence.find(
-        (item) => item.code === scenario.code,
-      )?.observedStages ?? [];
+      const requiredStages =
+        requiredMfaLoginScenarioEvidence.find((item) => item.code === scenario.code)
+          ?.observedStages ?? [];
       return requiredStages.every((stage) => scenario.observedStages.includes(stage));
     })
     .map((scenario) => scenario.code);
