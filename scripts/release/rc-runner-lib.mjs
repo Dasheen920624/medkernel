@@ -33,6 +33,46 @@ import {
 const DEFAULT_READINESS_URL =
   "http://127.0.0.1:18080/medkernel/actuator/health/readiness";
 
+const REQUIRED_PERFORMANCE_SUITES = Object.freeze([
+  Object.freeze({
+    source:
+      "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeExportServiceLargeScaleTest.java",
+    testClass:
+      "com.medkernel.engine.knowledge.KnowledgeExportServiceLargeScaleTest",
+    selectors: Object.freeze(["*"]),
+  }),
+  Object.freeze({
+    source:
+      "medkernel-backend/src/test/java/com/medkernel/engine/terminology/TerminologyRepositoryLargeScaleTest.java",
+    testClass:
+      "com.medkernel.engine.terminology.TerminologyRepositoryLargeScaleTest",
+    selectors: Object.freeze(["*"]),
+  }),
+  Object.freeze({
+    source:
+      "medkernel-backend/src/test/java/com/medkernel/engine/list/LargeListAuditEventRepositoryTest.java",
+    testClass: "com.medkernel.engine.list.LargeListAuditEventRepositoryTest",
+    selectors: Object.freeze(["*"]),
+  }),
+  Object.freeze({
+    source:
+      "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeIdentityRepositoryTest.java",
+    testClass: "com.medkernel.engine.knowledge.KnowledgeIdentityRepositoryTest",
+    selectors: Object.freeze([
+      "pageByFilterHandlesHundredThousandKnowledgeIdentitiesWithinLocalBudget",
+    ]),
+  }),
+  Object.freeze({
+    source:
+      "medkernel-backend/src/test/java/com/medkernel/perf/B0LargeScaleDialectSmokeTest.java",
+    testClass: "com.medkernel.perf.B0LargeScaleDialectSmokeTest",
+    selectors: Object.freeze([
+      "postgresHandlesHundredThousandKnowledgeAndTerminologyRows",
+      "oracleHandlesHundredThousandKnowledgeAndTerminologyRows",
+    ]),
+  }),
+]);
+
 export function getRcRunnerPlan() {
   const contract = getRcEvidenceContract();
   return {
@@ -67,6 +107,10 @@ export function getRcRunnerPlan() {
         disposition: "TARGET_ENVIRONMENT_GATES",
         reason:
           "需要 Docker 或专项容量环境的测试不在普通 RC0 后端门禁中伪造执行，必须在后续 PostgreSQL 16/openEuler 目标环境与 10 万级容量门禁中独立完成",
+        requiredSuites: REQUIRED_PERFORMANCE_SUITES.map((suite) => ({
+          ...suite,
+          selectors: [...suite.selectors],
+        })),
       },
     ],
     destructiveTargetActions: false,
@@ -100,6 +144,7 @@ export async function runRc0(options = {}, dependencies = {}) {
     allowDependencyCaches: false,
     phase: "起跑时",
   });
+  validatePerformanceSuiteBoundary(repoRoot);
 
   const contract = getRcEvidenceContract();
   const context = {
@@ -244,6 +289,145 @@ export async function runRc0(options = {}, dependencies = {}) {
     artifactCount: artifacts.length,
     verification,
   };
+}
+
+/**
+ * 校验普通 RC 排除的 10 万级墙钟套件已完整登记并显式标记为专项性能门禁。
+ */
+export function validatePerformanceSuiteBoundary(
+  repoRoot,
+  plan = getRcRunnerPlan(),
+) {
+  const root = requireDirectory(repoRoot, "repoRoot");
+  const boundary = plan?.externalValidationBoundaries?.find(
+    ({ tags }) =>
+      Array.isArray(tags) &&
+      tags.includes("performance") &&
+      tags.includes("docker"),
+  );
+  if (!boundary || !Array.isArray(boundary.requiredSuites)) {
+    throw new Error("RC 计划缺少专项性能套件边界");
+  }
+
+  const testRoot = path.join(root, "medkernel-backend/src/test/java");
+  const discoveredSources = listJavaTestSources(testRoot, root)
+    .filter((source) => {
+      const content = readFileSync(path.join(root, source), "utf8");
+      return (
+        /\b100_?000\b/u.test(content) &&
+        /(?:Duration\.between|\.toMillis\(\)|\.toSeconds\(\)|System\.nanoTime|currentTimeMillis)/u.test(
+          content,
+        )
+      );
+    })
+    .sort();
+  const registeredSources = [
+    ...new Set(boundary.requiredSuites.map(({ source }) => source)),
+  ].sort();
+  if (JSON.stringify(discoveredSources) !== JSON.stringify(registeredSources)) {
+    throw new Error(
+      `10 万级墙钟套件登记漂移：发现=${discoveredSources.join(",") || "<无>"}；登记=${registeredSources.join(",") || "<无>"}`,
+    );
+  }
+
+  for (const suite of boundary.requiredSuites) {
+    validatePerformanceSuite(root, suite);
+  }
+  return boundary.requiredSuites.length;
+}
+
+function listJavaTestSources(directory, repoRoot, results = []) {
+  if (!existsSync(directory) || !lstatSync(directory).isDirectory()) {
+    throw new Error(`Java 测试目录不存在：${relative(repoRoot, directory)}`);
+  }
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const target = path.join(directory, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(
+        `Java 测试目录禁止符号链接：${relative(repoRoot, target)}`,
+      );
+    }
+    if (entry.isDirectory()) {
+      listJavaTestSources(target, repoRoot, results);
+    } else if (entry.isFile() && entry.name.endsWith(".java")) {
+      results.push(relative(repoRoot, target));
+    }
+  }
+  return results;
+}
+
+function validatePerformanceSuite(repoRoot, suite) {
+  if (
+    !suite ||
+    typeof suite.source !== "string" ||
+    !/^[A-Za-z0-9_./-]+\.java$/u.test(suite.source) ||
+    path.isAbsolute(suite.source) ||
+    suite.source.split("/").includes("..") ||
+    typeof suite.testClass !== "string" ||
+    !/^(?:[a-z_][a-z0-9_]*\.)+[A-Z][A-Za-z0-9_]*$/u.test(suite.testClass) ||
+    !Array.isArray(suite.selectors) ||
+    suite.selectors.length === 0 ||
+    new Set(suite.selectors).size !== suite.selectors.length
+  ) {
+    throw new Error("专项性能套件登记结构非法");
+  }
+  const sourcePath = path.resolve(repoRoot, suite.source);
+  const sourceRelative = path.relative(repoRoot, sourcePath);
+  if (
+    sourceRelative.startsWith("..") ||
+    path.isAbsolute(sourceRelative) ||
+    !existsSync(sourcePath) ||
+    lstatSync(sourcePath).isSymbolicLink() ||
+    !lstatSync(sourcePath).isFile()
+  ) {
+    throw new Error(`专项性能套件源码非法：${suite.source}`);
+  }
+
+  const source = readFileSync(sourcePath, "utf8");
+  const [simpleClass] = suite.testClass.split(".").slice(-1);
+  const packageName = suite.testClass.slice(0, -(simpleClass.length + 1));
+  if (
+    !new RegExp(`\\bpackage\\s+${escapeRegExp(packageName)}\\s*;`, "u").test(
+      source,
+    ) ||
+    !new RegExp(`\\bclass\\s+${escapeRegExp(simpleClass)}\\b`, "u").test(source)
+  ) {
+    throw new Error(`专项性能套件类与源码不一致：${suite.testClass}`);
+  }
+
+  for (const selector of suite.selectors) {
+    if (selector === "*") {
+      if (suite.selectors.length !== 1) {
+        throw new Error(`类级性能标签不得混用方法选择器：${suite.testClass}`);
+      }
+      const classTag = new RegExp(
+        `@Tag\\("performance"\\)\\s*class\\s+${escapeRegExp(simpleClass)}\\b`,
+        "u",
+      );
+      if (!classTag.test(source)) {
+        throw new Error(
+          `10 万级墙钟套件缺少类级 performance 标签：${suite.testClass}`,
+        );
+      }
+      continue;
+    }
+    if (!/^[a-z][A-Za-z0-9_]*$/u.test(selector)) {
+      throw new Error(`专项性能方法选择器非法：${suite.testClass}#${selector}`);
+    }
+    const methodTag = new RegExp(
+      `@Tag\\("performance"\\)\\s*void\\s+${escapeRegExp(selector)}\\s*\\(`,
+      "u",
+    );
+    if (!methodTag.test(source)) {
+      throw new Error(
+        `10 万级墙钟方法缺少 performance 标签：${suite.testClass}#${selector}`,
+      );
+    }
+  }
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 export function resolveContractCommand(template, values) {

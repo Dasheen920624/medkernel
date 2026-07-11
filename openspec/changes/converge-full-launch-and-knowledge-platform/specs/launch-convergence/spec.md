@@ -4,6 +4,8 @@
 
 上线收敛流水线 SHALL 将完整提交 `7217504ce82e1aa119c3402e3b5d054f9369e018` 固化为不可变 `sourceBaseCommit` 收敛输入锚点，但 MUST NOT 将该已知失败提交直接标记为 RC 或可提升候选。流水线 MUST 在完成基线修复并形成完整 `candidateCommit` 后，从无未提交改动、无上次构建产物、无历史测试结果且无历史运行证据的候选隔离检出，按锁定依赖重新执行后端、前端、CLI、MCP、数据库生成器、部署脚本、浏览器 E2E、T-GATE 和格式检查。RC0 清单 MUST 同时记录 sourceBaseCommit、candidateCommit、依赖锁摘要、各门禁运行标识、结果和候选制品摘要；任一门禁失败、未运行或复用旧证据时均不得形成可提升的 RC0。
 
+普通 RC0 后端门禁 SHALL 只排除机器计划中显式声明的 `docker` 与 `performance` 专项套件。机器计划 MUST 枚举全部同时包含 10 万级数据与墙钟预算的测试类或方法，RC 起跑前 MUST 扫描源码核对登记完整性及 `performance` 标签；未被排除的实际 Surefire 报告仍 MUST 为零跳过。被排除套件 MUST 在 PostgreSQL 16/openEuler 等目标容量环境独立执行，普通 RC0 不得把排除等同于容量验证通过。
+
 #### Scenario: 从修复后的干净候选形成 RC0
 
 - **WHEN** candidateCommit 可追溯到 sourceBaseCommit，流水线从 candidateCommit 的全新隔离检出开始，所有规定门禁均以本次运行产生的证据通过
@@ -13,6 +15,11 @@
 
 - **WHEN** 流水线试图直接提升 sourceBaseCommit，或候选工作区存在未提交改动、残留构建产物，或任一结果来自其他提交或其他运行
 - **THEN** 系统 MUST 阻断 RC0 形成，列出失败输入或污染来源，并不得沿用历史通过结论
+
+#### Scenario: 拒绝漏标或漏登记的容量套件
+
+- **WHEN** 新增或修改的测试同时包含 10 万级数据与墙钟预算，但没有登记到 RC 机器计划，或登记的类/方法没有显式 `performance` 标签
+- **THEN** RC 起跑前校验 MUST 失败，并不得让受主机调度影响的专项性能阈值混入普通 clean 后端门禁
 
 ### Requirement: 维护 35 个产品入口的唯一机器目录
 

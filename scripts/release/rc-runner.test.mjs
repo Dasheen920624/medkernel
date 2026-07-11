@@ -26,6 +26,7 @@ import {
   stopCandidateRuntime,
   summarizePlaywrightReport,
   summarizeSurefireReports,
+  validatePerformanceSuiteBoundary,
   waitForCandidateRuntimeProbe,
 } from "./rc-runner-lib.mjs";
 
@@ -65,8 +66,52 @@ test("RC 运行器计划覆盖依赖、九门禁、六制品、清单创建和�
       disposition: "TARGET_ENVIRONMENT_GATES",
       reason:
         "需要 Docker 或专项容量环境的测试不在普通 RC0 后端门禁中伪造执行，必须在后续 PostgreSQL 16/openEuler 目标环境与 10 万级容量门禁中独立完成",
+      requiredSuites: [
+        {
+          source:
+            "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeExportServiceLargeScaleTest.java",
+          testClass:
+            "com.medkernel.engine.knowledge.KnowledgeExportServiceLargeScaleTest",
+          selectors: ["*"],
+        },
+        {
+          source:
+            "medkernel-backend/src/test/java/com/medkernel/engine/terminology/TerminologyRepositoryLargeScaleTest.java",
+          testClass:
+            "com.medkernel.engine.terminology.TerminologyRepositoryLargeScaleTest",
+          selectors: ["*"],
+        },
+        {
+          source:
+            "medkernel-backend/src/test/java/com/medkernel/engine/list/LargeListAuditEventRepositoryTest.java",
+          testClass:
+            "com.medkernel.engine.list.LargeListAuditEventRepositoryTest",
+          selectors: ["*"],
+        },
+        {
+          source:
+            "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeIdentityRepositoryTest.java",
+          testClass:
+            "com.medkernel.engine.knowledge.KnowledgeIdentityRepositoryTest",
+          selectors: [
+            "pageByFilterHandlesHundredThousandKnowledgeIdentitiesWithinLocalBudget",
+          ],
+        },
+        {
+          source:
+            "medkernel-backend/src/test/java/com/medkernel/perf/B0LargeScaleDialectSmokeTest.java",
+          testClass: "com.medkernel.perf.B0LargeScaleDialectSmokeTest",
+          selectors: [
+            "postgresHandlesHundredThousandKnowledgeAndTerminologyRows",
+            "oracleHandlesHundredThousandKnowledgeAndTerminologyRows",
+          ],
+        },
+      ],
     },
   ]);
+  assert.doesNotThrow(() =>
+    validatePerformanceSuiteBoundary(PROJECT_ROOT, plan),
+  );
   assert.deepEqual(
     plan.gates.find(({ gateId }) => gateId === "BACKEND_TESTS").commands,
     [
@@ -81,6 +126,52 @@ test("RC 运行器计划覆盖依赖、九门禁、六制品、清单创建和�
   });
   assert.equal(cli.status, 0, cli.stderr || cli.stdout);
   assert.deepEqual(JSON.parse(cli.stdout), plan);
+});
+
+test("RC 运行器拒绝漏标或漏登记的 10 万级墙钟套件", () => {
+  const root = mkdtempSync(
+    path.join(os.tmpdir(), "medkernel-performance-boundary-"),
+  );
+  temporaryRoots.push(root);
+  const relativeSource =
+    "medkernel-backend/src/test/java/com/medkernel/perf/ExampleLargeScaleTest.java";
+  const sourcePath = path.join(root, relativeSource);
+  mkdirSync(path.dirname(sourcePath), { recursive: true });
+  const plan = {
+    externalValidationBoundaries: [
+      {
+        tags: ["docker", "performance"],
+        requiredSuites: [
+          {
+            source: relativeSource,
+            testClass: "com.medkernel.perf.ExampleLargeScaleTest",
+            selectors: ["*"],
+          },
+        ],
+      },
+    ],
+  };
+  writeFileSync(
+    sourcePath,
+    "package com.medkernel.perf;\nclass ExampleLargeScaleTest { void test() { int total = 100_000; Duration.between(null, null).toMillis(); } }\n",
+    "utf8",
+  );
+  assert.throws(
+    () => validatePerformanceSuiteBoundary(root, plan),
+    /缺少类级 performance 标签/u,
+  );
+
+  writeFileSync(
+    sourcePath,
+    'package com.medkernel.perf;\n@Tag("performance")\nclass ExampleLargeScaleTest { void test() { int total = 100_000; Duration.between(null, null).toMillis(); } }\n',
+    "utf8",
+  );
+  assert.equal(validatePerformanceSuiteBoundary(root, plan), 1);
+  plan.externalValidationBoundaries[0].requiredSuites = [];
+  assert.throws(
+    () => validatePerformanceSuiteBoundary(root, plan),
+    /10 万级墙钟套件登记漂移/u,
+  );
 });
 
 test("候选运行配置只允许回环端口并直接启动本次后端 JAR", () => {

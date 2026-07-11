@@ -14,6 +14,7 @@ import com.medkernel.shared.audit.persistence.AuditEventRepository;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * API-13 大规模审计列表的 10 万级游标分页合同。
  */
+@Tag("performance")
 class LargeListAuditEventRepositoryTest {
 
     @Test
