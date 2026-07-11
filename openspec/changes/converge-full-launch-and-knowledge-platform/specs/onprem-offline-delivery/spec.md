@@ -14,14 +14,14 @@
 - **WHEN** 软件包内任一制品无法追溯到通过 clean 回归的同一提交，或发布阶段重新构建了未验证二进制
 - **THEN** 发布流水线 MUST 失败并禁止签名、上传或声明该包可交付
 
-### Requirement: 空白 Linux x86_64 与 PostgreSQL 幂等安装
+### Requirement: 空白 openEuler 24.03 LTS x86_64 与 PostgreSQL 16 幂等安装
 
-首发正式安装合同 SHALL 面向空白 Linux x86_64 主机、本机 PostgreSQL、Nginx、systemd、Java 21、静态前端、回环后端和受管本地资料盘。离线安装器 MUST 在无公网依赖条件下完成或验证运行依赖、初始化空数据库、只执行唯一 V1、安装服务、应用 site overlay、启动服务并执行真实 readiness；`preflight`、`install`、`upgrade`、`rollback` 和 `status` MUST 可重复运行且保持幂等。
+首发正式安装合同 SHALL 面向空白 openEuler 24.03 LTS x86_64 主机、本机 PostgreSQL 16、Nginx、systemd、Java 21、静态前端、回环后端和受管本地资料盘。离线安装器 MUST 在无公网依赖条件下完成或验证运行依赖、初始化空数据库、只执行唯一 V1、安装服务、应用 site overlay、启动服务并执行真实 readiness；`preflight`、`install`、`upgrade`、`rollback` 和 `status` MUST 可重复运行且保持幂等。
 
 #### Scenario: 空白主机首次离线安装
 
-- **WHEN** 运维人员在受支持的空白 Linux x86_64 主机上提供签名软件包、合法 site overlay 和独立凭据
-- **THEN** 安装器 MUST 建立本机 PostgreSQL 与运行目录，应用唯一 V1，安装并启动 Nginx 和 MedKernel，并在严格 TLS readiness、数据库版本和制品摘要均通过后才报告成功
+- **WHEN** 运维人员在受支持的空白 openEuler 24.03 LTS x86_64 主机上提供签名软件包、合法 site overlay 和独立凭据
+- **THEN** 安装器 MUST 建立本机 PostgreSQL 16 与运行目录，应用唯一 V1，安装并启动 Nginx 和 MedKernel，并在严格 TLS readiness、数据库版本和制品摘要均通过后才报告成功
 
 #### Scenario: 重复执行相同安装
 
@@ -138,7 +138,7 @@ site overlay SHALL 只描述主机名与外部地址、受信 CA 公共证书或
 
 ### Requirement: 真实 smoke 驱动的支持矩阵
 
-正式支持矩阵初始 SHALL 只声明经过完整验证的 Linux x86_64、本机 PostgreSQL 和受管本地 `file://` 资料盘组合。其它操作系统、CPU 架构、数据库、资料存储适配器、容器或模型拓扑即使具备代码、迁移方言或配置模板，也 MUST 在对应真实目标栈完成空机安装、升级、回滚、备份、异机恢复、严格 TLS、B0 和核心业务 smoke 后才可声明支持。
+正式支持矩阵初始 SHALL 只声明经过完整验证的 openEuler 24.03 LTS x86_64、本机 PostgreSQL 16 和受管本地 `file://` 资料盘组合。其它操作系统、CPU 架构、数据库、资料存储适配器、容器或模型拓扑即使具备代码、迁移方言或配置模板，也 MUST 在对应真实目标栈完成空机安装、升级、回滚、备份、异机恢复、严格 TLS、B0 和核心业务 smoke 后才可声明支持。
 
 #### Scenario: 新技术栈通过真实 smoke
 

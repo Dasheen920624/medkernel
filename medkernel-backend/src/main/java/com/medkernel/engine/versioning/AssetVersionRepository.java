@@ -16,6 +16,19 @@ public interface AssetVersionRepository extends ListCrudRepository<AssetVersion,
 
     Optional<AssetVersion> findByVersionIdAndTenantId(String versionId, String tenantId);
 
+    /**
+     * 在发布事务内锁定资产版本账本行，防止撤回与新发布并发穿透。
+     *
+     * <p>五种受支持方言均支持 {@code SELECT ... FOR UPDATE}；调用方必须在同一事务内
+     * 随后重新读取并核对状态与不可变字段。
+     */
+    @Query("""
+        SELECT id FROM mk_version_asset_version
+        WHERE version_id = :versionId AND tenant_id = :tenantId
+        FOR UPDATE
+        """)
+    List<Long> lockByVersionIdAndTenantId(String versionId, String tenantId);
+
     Optional<AssetVersion> findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
         String tenantId,
         VersionedAssetType assetType,

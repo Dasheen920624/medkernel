@@ -143,17 +143,30 @@ vi.mock("@/shared/api/hooks", async () => {
       isLoading: false,
       isError: false,
     }),
-    useHospitalRuntimeCandidates: () => ({
-      data: {
-        items: hospitalRuntimeCandidateItems,
-        page: 1,
-        size: 20,
-        total: 1,
-        hasNext: false,
-        totalEstimated: false,
-      },
-      isLoading: false,
-    }),
+    useHospitalRuntimeCandidates: (
+      _hospitalId: string | undefined,
+      params: ApiHooks.ReleaseCandidateQuery = {},
+    ) => {
+      const normalizedKeyword = params.keyword?.trim().toLocaleLowerCase();
+      const items = hospitalRuntimeCandidateItems.filter(
+        (candidate) =>
+          (!params.assetType || candidate.assetType === params.assetType) &&
+          (!normalizedKeyword ||
+            candidate.assetIdentity.toLocaleLowerCase().includes(normalizedKeyword) ||
+            candidate.sourceRef?.toLocaleLowerCase().includes(normalizedKeyword)),
+      );
+      return {
+        data: {
+          items,
+          page: 1,
+          size: 20,
+          total: items.length,
+          hasNext: false,
+          totalEstimated: false,
+        },
+        isLoading: false,
+      };
+    },
     useHospitalRuntimeHistory: () => ({
       data: {
         items: [
@@ -466,6 +479,97 @@ describe("ReleaseGovernance", () => {
 
     expect(await screen.findByLabelText("启用本院CDSS 风险矩阵内容 V2")).toBeChecked();
     expect(screen.getByLabelText("启用本院CDSS 风险矩阵内容 V3")).not.toBeChecked();
+  });
+
+  it("does not carry a withdrawn current local version into a new institution effective version", async () => {
+    currentHospitalRuntimeItems = [
+      ...currentHospitalRuntimeItems,
+      {
+        releaseId: currentHospitalReleaseId,
+        sourceTenantId: "tenant-a",
+        sourceLayer: "HOSPITAL",
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        entryState: "ACTIVE",
+        versionId: "risk-v2-withdrawn",
+        versionNo: "V2",
+      },
+    ];
+
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(await screen.findByLabelText("启用本院CDSS 风险矩阵内容 V2")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
+
+    expect(activateHospitalAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not let another candidate impact assessment bypass a withdrawn current local version", async () => {
+    currentHospitalRuntimeItems = [
+      ...currentHospitalRuntimeItems,
+      {
+        releaseId: currentHospitalReleaseId,
+        sourceTenantId: "tenant-a",
+        sourceLayer: "HOSPITAL",
+        assetType: "CDSS_RISK",
+        assetIdentity: "CDSS.RISK.MATRIX",
+        entryState: "ACTIVE",
+        versionId: "risk-v2-withdrawn",
+        versionNo: "V2",
+      },
+    ];
+
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(screen.getByLabelText("启用本院临床路径内容 V3"));
+    fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
+
+    expect(simulateReleaseImpactAsync).not.toHaveBeenCalled();
+    expect(activateHospitalAsync).not.toHaveBeenCalled();
+  });
+
+  it("keeps an explicitly selected published candidate eligible after the display filter changes", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(screen.getByLabelText("启用本院临床路径内容 V3"));
+    fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
+    await screen.findByText("可发布");
+
+    fireEvent.click(screen.getByRole("tab", { name: "平台标准版本" }));
+    fireEvent.change(screen.getByPlaceholderText("搜索内容名称、身份或来源"), {
+      target: { value: "不匹配当前选择" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("启用本院临床路径内容 V3")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
+
+    await waitFor(() =>
+      expect(activateHospitalAsync).toHaveBeenCalledWith({
+        hospitalId: "hospital-a",
+        request: {
+          platformBaselineReleaseId: "baseline-A8",
+          expectedCurrentReleaseId: "runtime-H9",
+          confirmedPlatformUpgradeDigest: null,
+          activeAssets: [
+            { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
+            {
+              assetType: "PATHWAY",
+              assetIdentity: "PATH.CKD.LOCAL",
+              versionId: "path-v3",
+            },
+          ],
+        },
+      }),
+    );
   });
 
   it("builds one institution effective version from platform and local asset selections", async () => {

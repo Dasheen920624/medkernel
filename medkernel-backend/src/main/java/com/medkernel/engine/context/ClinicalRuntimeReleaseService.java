@@ -6,11 +6,10 @@ import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -147,8 +146,6 @@ public class ClinicalRuntimeReleaseService {
             ? List.of()
             : runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
                 current.releaseId());
-        Set<LocalVersionKey> activeCurrentLocalVersions =
-            activeCurrentLocalVersions(tenantId, currentItems);
         Map<AssetKey, RuntimeEntry> platform = loadPlatformBaseline(baseline);
         Map<AssetKey, RuntimeEntry> manifest = disabledCopy(platform);
         Map<AssetKey, List<AssetVersion>> localCandidates =
@@ -159,15 +156,20 @@ public class ClinicalRuntimeReleaseService {
             tenantId,
             hospital,
             platform,
-            activeCurrentLocalVersions,
-            actor,
-            command.traceId(),
             draftsToPublish);
         manifest.putAll(requested);
         closeRequiredDependencies(manifest, platform, localCandidates);
 
+        List<RuntimeEntry> ordered = manifest.values().stream()
+            .sorted(Comparator
+                .comparing((RuntimeEntry entry) -> entry.type().name())
+                .thenComparing(RuntimeEntry::identity))
+            .toList();
+        Map<AssetKey, AssetVersion> lockedDrafts =
+            lockAndValidateNewReleaseVersions(tenantId, ordered, draftsToPublish);
         Instant now = clock.instant();
-        for (AssetVersion draft : draftsToPublish.values()) {
+        for (AssetVersion draft : lockedDrafts.values()) {
+            validation.validateForPublish(draft, actor, command.traceId());
             AssetVersion published = versions.save(draft.withStatusAndWindow(
                 AssetVersionStatus.PUBLISHED,
                 "version:" + draft.versionId(),
@@ -178,11 +180,6 @@ public class ClinicalRuntimeReleaseService {
             ));
             notifyPublished(published, now, actor, command.traceId());
         }
-        List<RuntimeEntry> ordered = manifest.values().stream()
-            .sorted(Comparator
-                .comparing((RuntimeEntry entry) -> entry.type().name())
-                .thenComparing(RuntimeEntry::identity))
-            .toList();
         String manifestHash = ReleaseManifestHash.sha256(
             ordered.stream().map(RuntimeEntry::canonicalLine).toList());
         long revision = current == null ? 1L : current.revisionNo() + 1L;
@@ -229,6 +226,10 @@ public class ClinicalRuntimeReleaseService {
         if (!normalizedHospital.equals(target.hospitalId())) {
             throw new ApiException(ErrorCode.CONFLICT, "不能回滚到其他医院的机构生效版本");
         }
+        List<ClinicalRuntimeReleaseItem> targetItems =
+            runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+                target.releaseId());
+        assertActiveVersionsStillPublished(normalizedTenant, targetItems);
         long nextRevision = releases
             .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
                 normalizedTenant, normalizedHospital)
@@ -251,9 +252,7 @@ public class ClinicalRuntimeReleaseService {
             normalizedActor,
             blankToNull(traceId)
         ));
-        for (ClinicalRuntimeReleaseItem item :
-                runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
-                    target.releaseId())) {
+        for (ClinicalRuntimeReleaseItem item : targetItems) {
             runtimeItems.save(new ClinicalRuntimeReleaseItem(
                 null,
                 newReleaseId,
@@ -304,6 +303,13 @@ public class ClinicalRuntimeReleaseService {
             .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(tenantId, hospitalId)
             .orElse(null);
         assertExpectedCurrent(current, command.expectedCurrentReleaseId());
+        List<ClinicalRuntimeReleaseItemOfflineSnapshot> orderedItems = snapshotItems.stream()
+            .sorted(Comparator
+                .comparing((ClinicalRuntimeReleaseItemOfflineSnapshot item) ->
+                    item.assetType().name())
+                .thenComparing(ClinicalRuntimeReleaseItemOfflineSnapshot::assetIdentity))
+            .toList();
+        assertActiveSnapshotVersionsStillPublished(tenantId, orderedItems);
         long nextRevision = current == null ? 1L : current.revisionNo() + 1L;
         Instant now = clock.instant();
         String newReleaseId = "runtime-" + Ulid.newUlid();
@@ -322,11 +328,7 @@ public class ClinicalRuntimeReleaseService {
             actor,
             blankToNull(command.traceId())
         ));
-        for (ClinicalRuntimeReleaseItemOfflineSnapshot item : snapshotItems.stream()
-                .sorted(Comparator
-                    .comparing((ClinicalRuntimeReleaseItemOfflineSnapshot item) -> item.assetType().name())
-                    .thenComparing(ClinicalRuntimeReleaseItemOfflineSnapshot::assetIdentity))
-                .toList()) {
+        for (ClinicalRuntimeReleaseItemOfflineSnapshot item : orderedItems) {
             runtimeItems.save(new ClinicalRuntimeReleaseItem(
                 null,
                 newReleaseId,
@@ -358,6 +360,130 @@ public class ClinicalRuntimeReleaseService {
                 || !source.manifestSha256().equals(manifestSha256)) {
             throw new ApiException(ErrorCode.CONFLICT, "来源机构生效版本不一致，不能恢复离线交付文件");
         }
+    }
+
+    private void assertActiveVersionsStillPublished(
+            String tenantId,
+            List<ClinicalRuntimeReleaseItem> items) {
+        for (ClinicalRuntimeReleaseItem item : items) {
+            lockAndValidateActiveVersion(
+                tenantId,
+                item.sourceTenantId(),
+                item.sourceLayer(),
+                item.assetType(),
+                item.assetIdentity(),
+                item.entryState(),
+                item.versionId(),
+                item.versionNo(),
+                item.contentHash(),
+                null);
+        }
+    }
+
+    private void assertActiveSnapshotVersionsStillPublished(
+            String tenantId,
+            List<ClinicalRuntimeReleaseItemOfflineSnapshot> items) {
+        for (ClinicalRuntimeReleaseItemOfflineSnapshot item : items) {
+            lockAndValidateActiveVersion(
+                tenantId,
+                item.sourceTenantId(),
+                item.sourceLayer(),
+                item.assetType(),
+                item.assetIdentity(),
+                item.entryState(),
+                item.versionId(),
+                item.versionNo(),
+                item.contentHash(),
+                null);
+        }
+    }
+
+    private Map<AssetKey, AssetVersion> lockAndValidateNewReleaseVersions(
+            String tenantId,
+            List<RuntimeEntry> items,
+            Map<AssetKey, AssetVersion> draftsToPublish) {
+        Map<AssetKey, AssetVersion> lockedDrafts = new LinkedHashMap<>();
+        for (RuntimeEntry item : items) {
+            AssetKey key = new AssetKey(item.type(), item.identity());
+            AssetVersion expectedDraft = draftsToPublish.get(key);
+            AssetVersion current = lockAndValidateActiveVersion(
+                tenantId,
+                item.sourceTenantId(),
+                item.sourceLayer(),
+                item.type(),
+                item.identity(),
+                item.state(),
+                item.versionId(),
+                item.versionNo(),
+                item.contentHash(),
+                expectedDraft);
+            if (expectedDraft != null && current != null) {
+                lockedDrafts.put(key, current);
+            }
+        }
+        return lockedDrafts;
+    }
+
+    private AssetVersion lockAndValidateActiveVersion(
+            String tenantId,
+            String sourceTenantId,
+            ReleaseSourceLayer sourceLayer,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            ReleaseEntryState entryState,
+            String versionId,
+            String versionNo,
+            String contentHash,
+            AssetVersion expectedDraft) {
+        if (entryState != ReleaseEntryState.ACTIVE) {
+            return null;
+        }
+        String normalizedSourceTenant = required(sourceTenantId, "来源租户");
+        ReleaseSourceLayer normalizedSourceLayer = required(sourceLayer, "来源层级");
+        String expectedSourceTenant = normalizedSourceLayer == ReleaseSourceLayer.PLATFORM
+            ? PlatformTenant.ID
+            : tenantId;
+        if (!expectedSourceTenant.equals(normalizedSourceTenant)) {
+            throw new ApiException(ErrorCode.CONFLICT, "机构版本资产来源租户与来源层级不一致");
+        }
+        VersionedAssetType normalizedAssetType = required(assetType, "资产类型");
+        String normalizedIdentity = required(assetIdentity, "资产身份");
+        String normalizedVersionId = required(versionId, "活动资产版本");
+        versions.lockByVersionIdAndTenantId(normalizedVersionId, normalizedSourceTenant);
+        AssetVersion version = versions
+            .findByVersionIdAndTenantId(normalizedVersionId, normalizedSourceTenant)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.CONFLICT,
+                "机构版本引用的活动资产版本不存在: " + normalizedIdentity));
+        if (version.status() == AssetVersionStatus.WITHDRAWN) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "机构版本包含已撤回资产，不能生成新的机构生效版本: " + normalizedIdentity);
+        }
+        boolean expectedLockedDraft = expectedDraft != null
+            && expectedDraft.versionId().equals(normalizedVersionId);
+        AssetVersionStatus requiredStatus = expectedLockedDraft
+            ? AssetVersionStatus.DRAFT
+            : AssetVersionStatus.PUBLISHED;
+        if (version.status() != requiredStatus) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "机构版本包含未发布资产，不能生成新的机构生效版本: " + normalizedIdentity);
+        }
+        if (version.assetType() != normalizedAssetType
+                || !version.assetIdentity().equals(normalizedIdentity)
+                || !Objects.equals(version.versionNo(), blankToNull(versionNo))
+                || !Objects.equals(version.contentHash(), blankToNull(contentHash))) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "机构版本资产与当前不可变版本账本不一致: " + normalizedIdentity);
+        }
+        if (expectedLockedDraft && !version.equals(expectedDraft)) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "待发布资产在机构版本生成期间已变化，请重新评估: " + normalizedIdentity);
+        }
+        return version;
     }
 
     private Map<AssetKey, RuntimeEntry> loadPlatformBaseline(
@@ -429,32 +555,11 @@ public class ClinicalRuntimeReleaseService {
         return candidates;
     }
 
-    private Set<LocalVersionKey> activeCurrentLocalVersions(
-            String tenantId,
-            List<ClinicalRuntimeReleaseItem> currentItems) {
-        Set<LocalVersionKey> result = new LinkedHashSet<>();
-        for (ClinicalRuntimeReleaseItem item : currentItems) {
-            if (item.entryState() != ReleaseEntryState.ACTIVE
-                    || !tenantId.equals(item.sourceTenantId())
-                    || (item.sourceLayer() != ReleaseSourceLayer.GROUP
-                        && item.sourceLayer() != ReleaseSourceLayer.HOSPITAL)
-                    || blankToNull(item.versionId()) == null) {
-                continue;
-            }
-            result.add(new LocalVersionKey(
-                item.assetType(), item.assetIdentity(), item.versionId()));
-        }
-        return Set.copyOf(result);
-    }
-
     private Map<AssetKey, RuntimeEntry> resolveRequested(
             List<ClinicalRuntimeAssetSelection> selections,
             String tenantId,
             OrgUnit hospital,
             Map<AssetKey, RuntimeEntry> platform,
-            Set<LocalVersionKey> activeCurrentLocalVersions,
-            String actor,
-            String traceId,
             Map<AssetKey, AssetVersion> draftsToPublish) {
         Map<AssetKey, RuntimeEntry> requested = new LinkedHashMap<>();
         for (ClinicalRuntimeAssetSelection selection : selections) {
@@ -483,9 +588,6 @@ public class ClinicalRuntimeReleaseService {
                     selection,
                     tenantId,
                     hospital,
-                    activeCurrentLocalVersions,
-                    actor,
-                    traceId,
                     draftsToPublish);
             }
             requested.put(key, resolved);
@@ -497,9 +599,6 @@ public class ClinicalRuntimeReleaseService {
             ClinicalRuntimeAssetSelection selection,
             String tenantId,
             OrgUnit hospital,
-            Set<LocalVersionKey> activeCurrentLocalVersions,
-            String actor,
-            String traceId,
             Map<AssetKey, AssetVersion> draftsToPublish) {
         AssetIdentity identity = identities
             .findByTenantIdAndAssetTypeAndAssetIdentity(
@@ -516,16 +615,11 @@ public class ClinicalRuntimeReleaseService {
                 || !version.assetIdentity().equals(selection.assetIdentity())) {
             throw new ApiException(ErrorCode.CONFLICT, "只能启用身份匹配的本地资产版本");
         }
-        LocalVersionKey selectedVersion = new LocalVersionKey(
-            version.assetType(), version.assetIdentity(), version.versionId());
         if (version.status() == AssetVersionStatus.DRAFT) {
-            validation.validateForPublish(version, actor, traceId);
             draftsToPublish.put(
                 new AssetKey(version.assetType(), version.assetIdentity()),
                 version);
-        } else if (version.status() != AssetVersionStatus.PUBLISHED
-                && !(version.status() == AssetVersionStatus.WITHDRAWN
-                    && activeCurrentLocalVersions.contains(selectedVersion))) {
+        } else if (version.status() != AssetVersionStatus.PUBLISHED) {
             throw new ApiException(
                 ErrorCode.CONFLICT, "只能启用草稿或已发布的本地资产版本");
         }
@@ -724,13 +818,6 @@ public class ClinicalRuntimeReleaseService {
     }
 
     private record AssetKey(VersionedAssetType type, String identity) {
-    }
-
-    private record LocalVersionKey(
-        VersionedAssetType type,
-        String identity,
-        String versionId
-    ) {
     }
 
     private record RuntimeEntry(

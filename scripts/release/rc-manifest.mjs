@@ -15,19 +15,73 @@ import {
 import path from "node:path";
 
 import {
+  createArtifactBuildMetadata,
+  createArtifactProvenance,
   createRcManifest,
+  getRcEvidenceContract,
   serializeRcManifest,
   verifyRcManifest,
 } from "./rc-manifest-lib.mjs";
 
 const COMMAND_OPTIONS = Object.freeze({
+  contract: Object.freeze([]),
+  "build-metadata": Object.freeze([
+    "artifact-id",
+    "candidate-commit",
+    "output",
+  ]),
+  "attest-artifact": Object.freeze([
+    "repo-root",
+    "bundle-root",
+    "artifact-id",
+    "artifact",
+    "build-log",
+    "run-id",
+    "candidate-commit",
+    "started-at",
+    "finished-at",
+    "output",
+  ]),
   create: Object.freeze(["repo-root", "bundle-root", "input", "output"]),
   verify: Object.freeze(["repo-root", "bundle-root", "manifest"]),
 });
 
 try {
   const { command, options } = parseArguments(process.argv.slice(2));
-  if (command === "create") {
+  if (command === "contract") {
+    writeJsonLine(getRcEvidenceContract());
+  } else if (command === "build-metadata") {
+    const metadata = createArtifactBuildMetadata({
+      artifactId: options["artifact-id"],
+      candidateCommit: options["candidate-commit"],
+    });
+    writeAtomicNoReplace(options.output, serializeRcManifest(metadata));
+    writeJsonLine({
+      status: "BUILD_METADATA_CREATED",
+      artifactId: metadata.artifactId,
+      candidateCommit: metadata.candidateCommit,
+      outputPath: path.resolve(options.output),
+    });
+  } else if (command === "attest-artifact") {
+    const provenance = createArtifactProvenance({
+      repoRoot: options["repo-root"],
+      bundleRoot: options["bundle-root"],
+      artifactId: options["artifact-id"],
+      artifactPath: options.artifact,
+      buildLogPath: options["build-log"],
+      runId: options["run-id"],
+      candidateCommit: options["candidate-commit"],
+      startedAt: options["started-at"],
+      finishedAt: options["finished-at"],
+    });
+    writeAtomicNoReplace(options.output, serializeRcManifest(provenance));
+    writeJsonLine({
+      status: "ARTIFACT_ATTESTED",
+      artifactId: provenance.artifactId,
+      candidateCommit: provenance.candidateCommit,
+      outputPath: path.resolve(options.output),
+    });
+  } else if (command === "create") {
     const input = readJsonFile(options.input, "RC 清单输入");
     const manifest = createRcManifest({
       ...input,
@@ -62,7 +116,9 @@ function parseArguments(argv) {
   const [command, ...remaining] = argv;
   const requiredOptions = COMMAND_OPTIONS[command];
   if (!requiredOptions) {
-    throw new Error("用法：rc-manifest.mjs <create|verify> [选项]");
+    throw new Error(
+      "用法：rc-manifest.mjs <contract|build-metadata|attest-artifact|create|verify> [选项]",
+    );
   }
   const allowed = new Set(requiredOptions);
   const options = {};

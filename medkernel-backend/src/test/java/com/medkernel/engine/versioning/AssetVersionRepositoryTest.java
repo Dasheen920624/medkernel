@@ -96,6 +96,23 @@ class AssetVersionRepositoryTest {
     }
 
     @Test
+    void locksExactTenantVersionRowBeforeReleaseValidation() {
+        AssetVersion saved = repository.save(sample(
+            newVersionId(),
+            "1.0.0",
+            AssetVersionStatus.PUBLISHED,
+            "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient"
+        ));
+
+        assertThat(repository.lockByVersionIdAndTenantId(
+            saved.versionId(), "tenant-A"))
+            .containsExactly(saved.id());
+        assertThat(repository.lockByVersionIdAndTenantId(
+            saved.versionId(), "tenant-B"))
+            .isEmpty();
+    }
+
+    @Test
     void platformReleaseCandidatesIncludeDraftAndPublishedButExcludeWithdrawn() {
         AssetVersion draft = repository.save(platformSample(
             newVersionId(),

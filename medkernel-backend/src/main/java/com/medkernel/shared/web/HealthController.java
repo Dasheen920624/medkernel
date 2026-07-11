@@ -31,19 +31,25 @@ public class HealthController {
 
     private final String version;
     private final String stage;
+    private final BuildIdentityResolver buildIdentityResolver;
 
     public HealthController(@Value("${medkernel.version:1.0.0-SNAPSHOT}") String version,
-                            @Value("${medkernel.stage:v1.0 GA · 0 业务引擎全能力上线}") String stage) {
+                            @Value("${medkernel.stage:v1.0 GA · 0 业务引擎全能力上线}") String stage,
+                            BuildIdentityResolver buildIdentityResolver) {
         this.version = version;
         this.stage = stage;
+        this.buildIdentityResolver = buildIdentityResolver;
     }
 
     @GetMapping("/ping")
     public ApiResult<PingResponse> ping() {
+        BuildIdentity buildIdentity = buildIdentityResolver.resolve();
         return ApiResult.ok(new PingResponse(
             "MedKernel",
             version,
             stage,
+            buildIdentity.bound(),
+            buildIdentity.candidateCommit(),
             Instant.now()
         ));
     }

@@ -8,65 +8,37 @@
 - OpenSpec 变更：`converge-full-launch-and-knowledge-platform`，schema 为 `spec-driven`。
 - 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`；实施分支：`codex/launch-convergence`。
 - 固定输入锚点：`sourceBaseCommit=7217504ce82e1aa119c3402e3b5d054f9369e018`；该提交不是 RC，禁止直接提升。
-- clean RC0 候选固定为 `candidateCommit=d4514938e6ba7d6f0d09eb736a0c66ab72863b07`。后续任务勾选和本文件更新属于 bookkeeping，不得把更新后的分支 HEAD 冒充已验证候选。
-- OpenSpec 任务 `1.1`～`1.6` 已完成，当前进度应为 `6/82`；本批必须停在这里，不得越过任务 `1.7` 直接进入 `2.1`。
-- 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍停在输入锚点，现有用户改动包括 `docs/DEPLOYMENT_AND_REHEARSAL.md`、三个前端 E2E/凭据合同文件和 `test-results/`；不得回滚、暂存、清理或污染。
+- 原 `candidateCommit=d4514938e6ba7d6f0d09eb736a0c66ab72863b07` 及其 run-id `rc0-20260710T155756Z-d4514938e` 已作废，禁止推送、提升或复用其 `PROMOTABLE` 结论和制品摘要。
+- 当前不存在可提升 RC0。必须完成本文件列出的安全修复、清单加固和全新干净重跑，才能固定新的 `candidateCommit`。
+- 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍有用户改动；不得回滚、暂存、清理或污染。
 
-## clean RC0 与可重算证据
+## 旧 RC0 作废原因
 
-- run-id：`rc0-20260710T155756Z-d4514938e`；时间窗：`2026-07-10T15:57:56.000Z`～`2026-07-10T16:48:19.111Z`。
-- 全新 detached 检出：`/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260710T155756Z-d4514938e/checkout`；依赖按锁文件重新建立，未复用实施工作树的 `target/`、`dist/`、测试产物或历史证据。
-- 创建目录：`/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260710T155756Z-d4514938e/bundle-create`。
-- 异目录重验副本：`/Users/zhikunzheng/.medkernel-rc0-verified/rc0-20260710T155756Z-d4514938e`；共复制 402 个普通文件。
-- RC 清单：`rc-manifest.json`，SHA-256 为 `6754cbaf6beec00aad2cf204ea857c0fff8a0ebbb80a52e3f0cca4b076af5fb3`。
-- 候选提交中的独立验证器对异目录返回：`status=VERIFIED`、sourceBase/candidate/run-id 全部一致。
+1. `ClinicalRuntimeReleaseService` 曾允许当前机构版本里的 `WITHDRAWN` 医疗资产进入新的机构生效版本，违反 `CONSTITUTION §3`“撤回阻止危险或错误版本进入新的机构生效版本；历史证据仍可重放”的红线。
+2. 旧 RC 验证器只校验自报 `PASSED` 的摘要 JSON 和任意文件哈希，没有独立解析原始执行结果、退出码、依赖重建和制品格式/来源。删除原始日志与报告后仍可返回 `VERIFIED`，普通文本也可冒充 JAR/TAR 制品。
+3. 因候选代码和证据契约都将变化，旧候选的九类门禁日志只能作为诊断材料，不能作为发布证据；不得在新清单里继承其状态或摘要。
 
-### 九类门禁
+## 当前实施状态
 
-| 门禁 | 本次结果 |
-|---|---|
-| `BACKEND_TESTS` | 523 份 Surefire 报告，3180 项测试，0 failure、0 error、7 条条件跳过 |
-| `BROWSER_E2E` | 114/114；Chromium 57、国产 Chromium 内核仿真 57；workers=1、retries=0、unexpected/flaky/skipped 均为 0 |
-| `CLI_TESTS` | 30/30 |
-| `DATABASE_GENERATOR` | 8/8，五方言 `--check` 通过 |
-| `DEPLOYMENT_CONTRACTS` | 7 个合同脚本通过，未执行目标机破坏性操作 |
-| `FORMAT_CHECK` | RC manifest 42/42、Node 语法、Prettier、OpenSpec strict、`git diff --check` 通过 |
-| `FRONTEND_VERIFY_BUILD` | 116 个测试文件、2207/2207；生产构建 3436 modules |
-| `MCP_TESTS` | 16/16 |
-| `T_GATE` | 真实性 56/56 且 inventory 无阻断；配置、迁移、性能合同与中文注释门禁通过 |
+- 前后端 `WITHDRAWN` 穿透已按 TDD 修复：平台标准发布、机构激活、历史回滚和离线恢复会在事务内按稳定顺序锁定精确版本账本行，重新核对租户、层级、类型、身份、版次、内容摘要和状态；撤回版本只能保留历史重放，不能进入任何新版本。前端只允许本次查询确认的 `DRAFT/PUBLISHED` 候选进入评估和提交。
+- 候选后端 JAR 内嵌 `META-INF/medkernel-build.json`，公开 ping 只从制品资源解析完整提交；RC 浏览器门禁同时保存 readiness 与运行时身份原始响应，拒绝误连任意返回 `UP` 的旧服务。
+- RC schema v2、六制品构建器和无人工中间门的运行器已实现：全新检出按锁文件重建依赖，执行九类门禁，直接解析 Surefire/Playwright/T-GATE 原始输出，构建并核验六类候选制品，绑定运行标识、完整提交、时间窗、命令、退出码、来源树、逐文件摘要和内嵌元数据；复制、删除、篡改、越界、符号链接、旧 schema、伪制品和工作区残留攻击均有拒绝用例。
+- 当前未提交基线的最新验证：后端受影响回归 74/74；前端 `npm run verify` 为 116 文件、2210 测试全绿，生产构建成功；RC 工具 70/70；真实性、配置、迁移、性能、中文 Javadoc/迁移注释门禁通过；OpenSpec strict 与格式检查通过。以上只是提交前验证，不能替代新候选的完整 clean RC0。
+- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（4 完成、201 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
+- 当前工作树仍有本逻辑单元的未提交改动；接手者先运行 `git status --short`、`git diff --check`，不得把构建残留或旧 RC 证据纳入候选。
 
-后端 7 条条件跳过的边界必须原样保留：PostgreSQL 空库 smoke 3 项因 Docker 不可用；PostgreSQL/Oracle Flyway smoke 2 项因 Docker 不可用；PostgreSQL/Oracle 10 万级 smoke 2 项因性能开关未开启。它们不是目标方言或 10 万级性能已通过的证据。
+## 下一执行序列
 
-Browser E2E 首次仅发生执行器对子进程托管失败，readiness 预检连接失败且 Playwright 未启动；最终结果来自受管会话的完整重跑。第二项目只是“国产 Chromium 内核仿真（非现场认证）”，不得冒充真实国产浏览器或医院现场认证。E2E 后仅停止本轮 PID 88923/端口 39483；受保护端口 38083 仍为 `UP`。
+1. 做提交前独立复核，清除 `target/dist/test-results/tsbuildinfo` 等残留，只暂存本逻辑单元文件，提交形成新的完整候选；提交后任何源码或合同漂移都必须形成新候选并废止旧证据。
+2. 从新候选建立全新 detached 干净检出，使用 `rc-runner.mjs run` 自动重建依赖并完整执行后端、真实 Browser E2E、CLI、五方言数据库、部署合同、格式/OpenSpec、前端验证与构建、MCP、T-GATE 九类门禁。
+3. 由候选内验证器从原始报告独立计算结果，核验六类真实制品格式、内容、运行身份和候选来源；将整个 bundle 复制到异目录重验，再逐类删除或篡改证据确认非零退出。
+4. 只有新 RC0 完整通过后，才完成 OpenSpec 1.1/1.6，推送成果保全 PR、等待远端 CI、squash 合入 `main` 并确认 `origin/main` 含合并提交。
+5. 从最新 `origin/main` 建立新的小写集工作树，按 `tasks.md` 继续完整平台知识权威、`.mkp`、医疗资源工厂、离线空机安装和最终 `LAUNCH-01`～`LAUNCH-15` 验收；不得回流旧候选或另建平行计划。
 
-### 六类候选制品
+## 上线与 134 边界
 
-| 制品 | SHA-256 |
-|---|---|
-| `BACKEND_JAR` | `4146216023ebb0548ce892e14e7d4b9a7447917f72a8b705a113064bc294c6c0` |
-| `FRONTEND_DIST` | `f33833d961f5d99209eeafd2fc9e29ddb71eaf26b0b8508ac49ab833a7ada699` |
-| `CLI_PACKAGE` | `1f1e7ff8dedec2868d7efcc5f15c8fbf74622a67f8d70434df8139ef9ecaa1b4` |
-| `MCP_PACKAGE` | `1527c16172bffd92d5b13a25dcd68e6f44721437e69364f93d6596241ff1c9cd` |
-| `DATABASE_MIGRATIONS` | `1d55f4753ff03c3255a567c8196dfcfa7673feaf1b669ae2c686e833e00834b2` |
-| `ONPREM_DELIVERY` | `6ffae4d03dcf3394381a24c78c45b2ea83a3083c9d5477dfd85229a369e1376c` |
-
-前端、数据库迁移和 on-prem 归档均已按最终字节重打包并确认不存在 `._*` AppleDouble 条目；不得使用第一次打包的旧摘要。
-
-## 当前不能宣称的结论
-
-- 任务 `1.7` 尚未执行：本分支未因本批推送、未创建成果保全 PR、未等待远端 CI、未 squash 合入 `main`，也未确认 `origin/main` 包含本变更。
-- 未操作 134、真实模型 Provider、真实第三方、清库、停机、覆盖部署或发布；本地自动合同不能冒充目标环境证据。
-- 尚未完成 35 入口机器总账、平台知识权威、完整 `.mkp`、医疗资源工厂、院内空机安装或最终 `LAUNCH-01`～`LAUNCH-15` 验收；这些仍按 OpenSpec 后续任务实施。
-
-## 下一最小任务：`1.7`
-
-1. 从本文件读取固定 RC0 候选、run-id、异目录 `VERIFIED` 结果和上述边界；不得重新解释或替换候选字节。
-2. 将 OpenSpec、基线修复和本次验证事实作为成果保全 PR 推送到 `codex/launch-convergence`，使用中文说明范围、验证、7 条条件跳过、医疗安全、部署和迁移影响。
-3. 等待远端检查全绿后 squash 合入 `main`，确认 `origin/main` 含合并提交；随后从最新 `origin/main` 建立新的小写集工作树，才可进入任务 `2.1`。
-4. 若远端检查失败，按失败证据修复并重新形成候选与 RC 清单；不得沿用已漂移的摘要或冒领当前 RC。
-
-## 安全与操作边界
-
-- 开发阶段只运行自动回归，不新增反复人工项目关卡；医疗资源发布仍必须由有资质责任人审核。
-- 134 仅允许只读核查；清库、停机、覆盖部署前仍必须取得一次绑定主机、数据库、目录、提交、run-id、备份和窗口的原子破坏性确认。
+- 开发阶段只运行自动回归，不新增反复人工项目关卡；医疗资源发布仍必须由有资质责任人审核，AI 不自动开嘱。
+- 在系统完整验证稳定前不得部署 134。当前只允许对 134 做已授权的只读核查。
+- 清库、停机、覆盖部署只保留一次最终原子确认；确认必须绑定主机、数据库、目录、候选提交、run-id、备份恢复点和实施窗口。
+- 134 或未来其它服务器可作为平台知识管理源，但院内运行包必须固定版本、可签名校验、可离线安装、可回滚；平台更新不得绕过医院侧审核和机构生效版本。
 - 不使用真实患者数据，不把密钥、凭据、数据库密码、JWT、证书私钥或未脱敏目标机证据写入仓库和日志。
