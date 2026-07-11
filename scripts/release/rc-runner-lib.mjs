@@ -1304,7 +1304,7 @@ function collectPlaywrightTests(suites) {
       !suite ||
       typeof suite !== "object" ||
       !Array.isArray(suite.specs) ||
-      !Array.isArray(suite.suites)
+      (suite.suites !== undefined && !Array.isArray(suite.suites))
     ) {
       throw new Error("Playwright suite 结构非法");
     }
@@ -1314,7 +1314,7 @@ function collectPlaywrightTests(suites) {
       }
       tests.push(...spec.tests);
     }
-    suite.suites.forEach(visit);
+    (suite.suites ?? []).forEach(visit);
   };
   suites.forEach(visit);
   return tests;

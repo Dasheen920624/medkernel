@@ -355,6 +355,13 @@ test("运行器从 Playwright 逐测试结果重算项目汇总并拒绝空壳�
     () => summarizePlaywrightReport(empty),
     /测试结果数与 expected 不一致/u,
   );
+
+  const malformedNestedSuites = playwrightReport();
+  malformedNestedSuites.suites[0].suites = {};
+  assert.throws(
+    () => summarizePlaywrightReport(malformedNestedSuites),
+    /suite 结构非法/u,
+  );
 });
 
 test("运行器从每份 Surefire XML 重算真实计数并拒绝声明数与 testcase 数不一致", () => {
@@ -633,7 +640,6 @@ function playwrightReport() {
             ],
           },
         ],
-        suites: [],
       },
     ],
   };
