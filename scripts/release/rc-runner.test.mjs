@@ -58,6 +58,20 @@ test("RC 运行器计划覆盖依赖、九门禁、六制品、清单创建和�
   assert.equal(plan.gates.length, 9);
   assert.equal(plan.artifacts.length, 6);
   assert.deepEqual(plan.manualGates, []);
+  assert.deepEqual(plan.externalValidationBoundaries, [
+    {
+      tags: ["docker", "performance"],
+      disposition: "TARGET_ENVIRONMENT_GATES",
+      reason:
+        "需要 Docker 或专项容量环境的测试不在普通 RC0 后端门禁中伪造执行，必须在后续 PostgreSQL 16/openEuler 目标环境与 10 万级容量门禁中独立完成",
+    },
+  ]);
+  assert.deepEqual(
+    plan.gates.find(({ gateId }) => gateId === "BACKEND_TESTS").commands,
+    [
+      "cd medkernel-backend && CI=true mvn -B -q -Dmaven.repo.local=<run>/m2repo -DexcludedGroups=docker,performance clean test",
+    ],
+  );
 
   const cli = spawnSync(process.execPath, [RUNNER_CLI, "plan"], {
     cwd: PROJECT_ROOT,

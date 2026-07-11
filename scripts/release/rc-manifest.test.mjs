@@ -37,7 +37,7 @@ const EXECUTION_STARTED_AT = "2026-07-10T07:05:00.000Z";
 const EXECUTION_FINISHED_AT = "2026-07-10T07:20:00.000Z";
 const GATE_COMMANDS = Object.freeze({
   BACKEND_TESTS: [
-    "cd medkernel-backend && CI=true mvn -B -q -Dmaven.repo.local=<run>/m2repo clean test",
+    "cd medkernel-backend && CI=true mvn -B -q -Dmaven.repo.local=<run>/m2repo -DexcludedGroups=docker,performance clean test",
   ],
   BROWSER_E2E: [
     "cd frontend && CI=true npm run e2e -- --workers=1 --retries=0",

@@ -95,7 +95,7 @@ const DEPENDENCY_EVIDENCE_KIND = "MEDKERNEL_DEPENDENCY_BUILD_EVIDENCE";
 const ARTIFACT_PROVENANCE_KIND = "MEDKERNEL_ARTIFACT_PROVENANCE";
 const GATE_COMMAND_CONTRACTS = Object.freeze({
   BACKEND_TESTS: Object.freeze([
-    "cd medkernel-backend && CI=true mvn -B -q -Dmaven.repo.local=<run>/m2repo clean test",
+    "cd medkernel-backend && CI=true mvn -B -q -Dmaven.repo.local=<run>/m2repo -DexcludedGroups=docker,performance clean test",
   ]),
   BROWSER_E2E: Object.freeze([
     "cd frontend && CI=true npm run e2e -- --workers=1 --retries=0",

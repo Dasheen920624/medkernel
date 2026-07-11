@@ -61,6 +61,14 @@ export function getRcRunnerPlan() {
       commands: contract.artifacts[artifactId].commands,
     })),
     manualGates: [],
+    externalValidationBoundaries: [
+      {
+        tags: ["docker", "performance"],
+        disposition: "TARGET_ENVIRONMENT_GATES",
+        reason:
+          "需要 Docker 或专项容量环境的测试不在普通 RC0 后端门禁中伪造执行，必须在后续 PostgreSQL 16/openEuler 目标环境与 10 万级容量门禁中独立完成",
+      },
+    ],
     destructiveTargetActions: false,
   };
 }
