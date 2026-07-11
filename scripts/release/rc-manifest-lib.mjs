@@ -1880,7 +1880,7 @@ function assertArchiveMatchesCandidateTree({
       archiveEntry,
       artifactId,
     );
-    const sourceBytes = readCandidateBlob(
+    const sourceBytes = readCandidateArchiveBytes(
       repoRoot,
       candidateCommit,
       sourceFiles[index],
@@ -1907,10 +1907,15 @@ function assertArchiveMatchesCandidateTree({
   return sourceFiles.length;
 }
 
-function readCandidateBlob(repoRoot, candidateCommit, sourceFile, artifactId) {
-  const result = spawnSync(
+function readCandidateArchiveBytes(
+  repoRoot,
+  candidateCommit,
+  sourceFile,
+  artifactId,
+) {
+  const archive = spawnSync(
     "git",
-    ["show", `${candidateCommit}:${sourceFile}`],
+    ["archive", "--format=tar", candidateCommit, "--", sourceFile],
     {
       cwd: repoRoot,
       encoding: null,
@@ -1918,10 +1923,21 @@ function readCandidateBlob(repoRoot, candidateCommit, sourceFile, artifactId) {
       maxBuffer: 256 * 1024 * 1024,
     },
   );
-  if (result.status !== 0) {
+  if (archive.status !== 0 || !archive.stdout) {
     throw new Error(`候选制品 ${artifactId} 无法读取来源文件 ${sourceFile}`);
   }
-  return result.stdout;
+  const extracted = spawnSync("tar", ["-xOf", "-", sourceFile], {
+    input: archive.stdout,
+    encoding: null,
+    shell: false,
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (extracted.status !== 0 || !extracted.stdout) {
+    throw new Error(
+      `候选制品 ${artifactId} 无法读取来源导出字节 ${sourceFile}`,
+    );
+  }
+  return extracted.stdout;
 }
 
 function parseJsonEvidenceBuffer(bytes, label) {

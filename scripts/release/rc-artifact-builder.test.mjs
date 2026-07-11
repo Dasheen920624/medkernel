@@ -67,6 +67,7 @@ test("构建器从精确候选导出并真实生成前端、CLI、MCP、迁移�
     ONPREM_DELIVERY: [
       "onprem/README.md",
       "onprem/medkernel-deploy.sh",
+      "onprem/mk-publish.ps1",
       "onprem/medkernel-build.json",
     ],
   };
@@ -84,6 +85,20 @@ test("构建器从精确候选导出并真实生成前端、CLI、MCP、迁移�
       .map((entry) => entry.replace(/\/$/u, ""));
     for (const entry of requiredEntries) {
       assert.ok(listing.includes(entry), `${artifactId} 缺少 ${entry}`);
+    }
+    if (artifactId === "ONPREM_DELIVERY") {
+      const packagedPowerShell = run(
+        "tar",
+        ["-xOzf", artifactPath, "onprem/mk-publish.ps1"],
+        PROJECT_ROOT,
+      ).stdout;
+      const candidateBlob = run(
+        "git",
+        ["show", `${fixture.candidateCommit}:deploy/onprem/mk-publish.ps1`],
+        fixture.repoRoot,
+      ).stdout;
+      assert.match(packagedPowerShell, /\r\n/u);
+      assert.doesNotMatch(candidateBlob, /\r\n/u);
     }
     const metadataPath = requiredEntries.at(-1);
     const metadata = JSON.parse(
@@ -167,6 +182,11 @@ function createBuilderFixture() {
   run("git", ["config", "user.email", "test@medkernel.invalid"], repoRoot);
   write(
     repoRoot,
+    ".gitattributes",
+    "* text=auto eol=lf\n*.ps1 text eol=crlf\n",
+  );
+  write(
+    repoRoot,
     "frontend/package.json",
     `${JSON.stringify({
       name: "fixture-frontend",
@@ -214,6 +234,11 @@ function createBuilderFixture() {
     repoRoot,
     "deploy/onprem/medkernel-deploy.sh",
     "#!/usr/bin/env bash\nset -euo pipefail\n",
+  );
+  write(
+    repoRoot,
+    "deploy/onprem/mk-publish.ps1",
+    "\uFEFF<#\n.SYNOPSIS\n候选发布入口\n#>\nWrite-Output 'fixture'\n",
   );
   run("git", ["add", "-A"], repoRoot);
   run("git", ["commit", "-q", "-m", "候选"], repoRoot);
