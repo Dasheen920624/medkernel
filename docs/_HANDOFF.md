@@ -15,8 +15,8 @@
 - 试运行候选 `118969301fe03f03278877c8c23ef5def2544255` 已作废：r4 起跑后发现旧作废运行残留的 `embed-business-host-server` 占用 4174，Playwright 正确拒绝端口污染；清理残留后建立的全新 r5 由本轮进程独占 4174/5173/28086，后端 clean 门禁实际 `tests=3175, failures=0, errors=0, skipped=0`，真实 Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`。但 RC 解析器的单测夹具错误地把 Playwright 官方 JSON 中可选的叶子 `suites` 字段假定为必填数组，因而在 E2E 全绿后报“Playwright suite 结构非法”；r5 未生成完整九门禁、六制品清单，仍不得提升、复制或拼接证据。
 - 试运行候选 `88a1663777260e66c325588c3ce1948a03700c9f` 已作废：r6 因操作者把合同要求的“预先存在且为空” bundle/run 根目录误设为不存在，在执行任何门禁前被总控拒绝；使用全新根目录、run-id 和端口重建的 r7 完整通过九类门禁，其中后端为 519 份报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 114/114，CLI、五方言数据库、部署、格式/OpenSpec、前端 verify/build、MCP、T-GATE 均退出 0。r7 随后构建出前五类制品，但 `ONPREM_DELIVERY` 校验器错误地用规范化 LF 的 Git raw blob 比较 `.gitattributes` 要求导出为 BOM+CRLF 的 `mk-publish.ps1`，在实际 tar、构建暂存源和 `git archive` 三者字节一致时误拒；未形成六制品清单，r6/r7 全部证据仍禁止提升或拼接。
 - 试运行候选 `2e60d2a9fa47917d73157153b7fc7c377cb9b742` 已作废：r8 从 detached clean checkout 按锁文件重建依赖，完整通过九类门禁并构建六类制品；后端为 519 份报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 114/114，前端为 116 文件、2210 项测试全绿且生产构建成功。但运行器与终态清单各维护一套 Playwright 结构解析器，终态副本仍把叶子 suite 的可选 `suites` 当必填；继续诊断又确认终态日志解析器写死旧 `#` 前缀且未处理 Vitest 原生 ANSI SGR 显示码。原始运行因此未生成终态清单，r8 checkout、bundle、run 和全部通过证据永久禁止提升、复制或拼接；修复后的代码对完整 r8 bundle 成功执行诊断性 `CREATED` 与 `VERIFIED`，仅证明根因和证据完整性，不改变 r8 作废状态。
-- 当前唯一 RC0 为 `candidateCommit=6bd805b3c40e68b95efeeb2e07e7eefe07ef3f96`、`runId=rc0-20260711T121345Z-6bd805b3c-r9`。它从全新 detached clean checkout 按锁文件重建依赖，九类门禁均为 `PASSED/exit 0`，构建六类制品，清单状态为 `PROMOTABLE`，候选内验证器完成后独立复验为 `VERIFIED`。原始 bundle 位于 `/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-6bd805b3c-r9/bundle`；该候选在 1.7 合入主线前不得冒充已经发布或已经部署。
-- 完整 bundle 已逐字节复制到 `/Users/zhikunzheng/.medkernel-rc0-verification/6bd805b3c-r9-copy`，567 个文件的逐文件 SHA-256 聚合摘要与原件同为 `4741fd3c6bf4ad62265d34e0a7ed868bb307709bdad5b70f0d12dab5ad0de626`，复制件独立验证为 `VERIFIED`。诊断副本依次移走门禁记录、门禁原始日志、Maven 本次解析报告并篡改 CLI 制品字节，验证器分别以“证据文件不存在”“原始证据不存在”“Maven 本次解析报告不存在”“候选制品摘要漂移”非零退出；每次恢复后均重新 `VERIFIED`，最终摘要重新与原件一致。
+- 候选 `6bd805b3c40e68b95efeeb2e07e7eefe07ef3f96`（r9）已作废：本地 clean RC0 的九类门禁、六类制品、复制复验和篡改拒绝均真实通过，但 PR #654 的 required CI 运行 `29153747137` 在前端全量覆盖率中暴露两个测试时序合同不稳定点；按“测试有任何变化即形成新候选并完整重跑”的规则，r9 不再可提升。其原始 bundle `/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-6bd805b3c-r9/bundle`、复制件和诊断副本仅保留作根因与完整性证据，禁止发布、部署、拼接或复用 `PROMOTABLE/VERIFIED` 结论。
+- 当前没有可提升 RC0。`AdapterHub` 回归已改为验证至少一个真实业务错误而不依赖 Ant Design 同一错误渲染一份或两份；`Mpi` 仅为创建临床上下文快照这一复杂流程设置 30 秒用例预算，未放宽全局 15 秒预算。修复后定向覆盖率 2 文件/41 项、全量覆盖率 116 文件/2210 项、完整前端 verify 116 文件/2210 项和生产构建均退出 0；下一提交将作为全新候选，必须从 detached clean checkout 重跑全部 RC0。
 - 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍有用户改动；不得回滚、暂存、清理或污染。
 
 ## 旧 RC0 作废原因
@@ -36,16 +36,17 @@
 - 运行器与终态清单现调用同一共享 Playwright suite/spec 结构解析器，消除两份契约独立漂移。终态日志解析器按锁定 Node 24 同时接受 TAP/spec reporter 的 `#` 与 `ℹ` 计数前缀，并仅剥离标准 ANSI SGR 显示码后核验原始语义；计数不一致、真实失败、缺构建标记和畸形结构的反例仍全部拒绝。
 - 候选制品来源校验现按同一候选提交的 `git archive` 导出字节逐文件重算，保留 `.gitattributes` 的确定性 EOL/导出语义后再与 tar 比较，不以文本归一化或跳过校验放行。测试夹具显式证明 PowerShell raw blob 为 LF、交付包为 CRLF，并继续拒绝任何非候选来源或字节篡改。
 - 候选运行探针已改为每次显式短连接，并仅对带 `RUNTIME_PROBE_TRANSPORT`/网络错误码的瞬断做最多 30 秒条件重试；每次尝试仍须完整通过 readiness 和 JAR 内嵌提交身份。身份错配、响应结构或内容错误立即失败，持续瞬断会保留完整 cause/code 后阻断，不能把不稳定运行时伪报为通过。
-- RC0 r9 的真实结果：后端 519 份 Surefire 报告、3175 项测试零失败/错误/跳过；Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`，前后 readiness 均为 HTTP 200、`UP` 且运行时构建身份精确等于候选；CLI、MCP、五方言数据库生成器、部署合同、格式/OpenSpec、前端 116 文件/2210 项测试及生产构建、T-GATE 全部退出 0。运行结束后 LaunchAgent 已卸载，4174/5173/28090 无监听，checkout 仅保留可重建的 `frontend/node_modules/` 忽略依赖目录。
-- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（6 完成、199 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
-- `6bd805b3c` 是已经验证且冻结的 RC0 候选；后续仅提交证据状态与接力文档，不得把文档提交哈希替换为候选，也不得修改候选 bundle。若 1.7 之前修改任何运行代码、测试或发布合同，必须形成新候选并重跑完整 RC0。
+- r9 的本地真实结果仍是后端 519 份 Surefire 报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`，九类门禁与六类制品完整；这些事实只用于诊断验证器和运行链，不能抵消远端 required CI 失败，也不能提升 r9。运行结束后 LaunchAgent 已卸载，4174/5173/28090 无监听。
+- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（5 完成、200 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
+- 新候选提交一旦冻结，不得再修改其代码、测试或发布合同；任何此类变化都必须再次形成新候选并完整重跑 RC0。证据状态与接力文档可在候选之后单独提交，但不得把文档提交哈希冒充候选。
 
 ## 下一执行序列
 
-1. 验证本次证据状态文档只修改 `tasks.md` 与 `_HANDOFF.md`，运行 OpenSpec strict、`git diff --check` 和文档统计合同后提交；RC0 候选仍固定为 `6bd805b3c`。
-2. 执行 1.7：推送 `codex/launch-convergence` 成果保全 PR，等待 required CI 全绿，以 squash 合入 `main`，再用 `git merge-base --is-ancestor <squash-commit> origin/main` 证明主线已包含成果；不得把 PR 或 CI 状态伪造为通过。
-3. 从最新 `origin/main` 建立新的小写集工作树，按 `tasks.md` 从 2.1 顺序继续 35 入口和 LAUNCH 总账、平台知识权威、`.mkp`、16 语义族医疗资源工厂、离线空机安装、openEuler/容量验证与医院复制。
-4. 只在系统、资源包、离线部署和目标环境证据全部稳定后进入 134 的 13.9～13.11；134 继续保持只读，最终清库、停机、覆盖部署只申请一次绑定范围的原子确认。
+1. 对两个 CI 稳定性修复运行 OpenSpec strict、`git diff --check`、任务统计合同和前端全量验证，提交后以该提交冻结新的 candidateCommit；不得再修改候选内容。
+2. 立即推送到既有 PR #654，让 required CI 与本地 clean RC0 并行执行；从新候选建立全新 detached checkout、空 bundle/run、唯一 run-id 和端口，按锁文件重建依赖并重跑九类门禁、六类制品。
+3. RC0 成功后复制完整 bundle 到异目录独立 `VERIFIED`，逐类删除或篡改原始证据确认非零拒绝；再单独提交 1.6 完成状态和新证据索引。若本地或远端任一失败，当前候选立即作废并从根因重新形成候选。
+4. required CI 全绿且新 RC0 可重验后执行 1.7，以 squash 合入 `main` 并证明 `origin/main` 包含成果；随后从最新主线按 `tasks.md` 从 2.1 顺序推进 35 入口、平台知识权威、`.mkp`、16 语义族资源工厂、离线空机安装、openEuler/容量验证与医院复制。
+5. 只在系统、资源包、离线部署和目标环境证据全部稳定后进入 134；134 继续保持只读，最终清库、停机、覆盖部署只申请一次绑定范围的原子确认。
 
 ## 上线与 134 边界
 

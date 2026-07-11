@@ -46,6 +46,7 @@ const mockUseSecurityProfile = vi.mocked(useSecurityProfile);
 const mockUseSplitMpiPatient = vi.mocked(useSplitMpiPatient);
 
 const MPI_INTERACTION_TIMEOUT_MS = 15_000;
+const MPI_CONTEXT_SNAPSHOT_TIMEOUT_MS = 30_000;
 
 function renderMpi() {
   return render(
@@ -584,7 +585,7 @@ describe("Mpi", () => {
       expect(refetchDetail).toHaveBeenCalled();
       expect(refetchList).toHaveBeenCalled();
     },
-    MPI_INTERACTION_TIMEOUT_MS,
+    MPI_CONTEXT_SNAPSHOT_TIMEOUT_MS,
   );
 
   it(

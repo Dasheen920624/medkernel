@@ -1080,7 +1080,9 @@ describe("AdapterHub", () => {
 
       await user.click(screen.getByRole("button", { name: "提交适配器" }));
 
-      expect(await screen.findByText("目标标准字典与术语分类必须同时填写")).toBeInTheDocument();
+      expect(
+        (await screen.findAllByText("目标标准字典与术语分类必须同时填写")).length,
+      ).toBeGreaterThan(0);
       expect(createAdapter.mutateAsync).not.toHaveBeenCalled();
     },
     ADAPTER_INTERACTION_TIMEOUT_MS,
