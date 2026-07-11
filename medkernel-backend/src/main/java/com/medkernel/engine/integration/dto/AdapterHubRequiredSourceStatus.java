@@ -7,6 +7,7 @@ import java.util.List;
  * AdapterHub 必接外部系统覆盖状态。
  */
 public record AdapterHubRequiredSourceStatus(
+    String systemFamilyCode,
     String sourceSystem,
     String label,
     String adapterId,

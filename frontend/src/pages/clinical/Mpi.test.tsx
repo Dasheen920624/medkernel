@@ -1,9 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useCreateContextSnapshot,
   useCreateMpiPatient,
   useMergeMpiPatients,
   useMpiPatientDetail,
@@ -16,7 +19,14 @@ import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import Mpi from "./Mpi";
 
+const navigateMock = vi.hoisted(() => vi.fn());
+
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => navigateMock,
+}));
+
 vi.mock("@/shared/api/hooks", () => ({
+  useCreateContextSnapshot: vi.fn(),
   useCreateMpiPatient: vi.fn(),
   useMergeMpiPatients: vi.fn(),
   useMpiPatientDetail: vi.fn(),
@@ -27,6 +37,7 @@ vi.mock("@/shared/api/hooks", () => ({
 }));
 
 const mockUseCreateMpiPatient = vi.mocked(useCreateMpiPatient);
+const mockUseCreateContextSnapshot = vi.mocked(useCreateContextSnapshot);
 const mockUseMergeMpiPatients = vi.mocked(useMergeMpiPatients);
 const mockUseMpiPatientDetail = vi.mocked(useMpiPatientDetail);
 const mockUseMpiPatients = vi.mocked(useMpiPatients);
@@ -35,6 +46,7 @@ const mockUseSecurityProfile = vi.mocked(useSecurityProfile);
 const mockUseSplitMpiPatient = vi.mocked(useSplitMpiPatient);
 
 const MPI_INTERACTION_TIMEOUT_MS = 15_000;
+const MPI_CONTEXT_SNAPSHOT_TIMEOUT_MS = 30_000;
 
 function renderMpi() {
   return render(
@@ -47,8 +59,22 @@ function renderMpi() {
 }
 
 function securityProfile(
-  permissionCodes = ["mpi.read", "mpi.create", "mpi.write", "system.debug"],
+  permissionCodes = [
+    "mpi.read",
+    "mpi.create",
+    "mpi.write",
+    "context.write",
+    "menu.cdss-fatigue",
+    "system.debug",
+  ],
 ) {
+  const menuKeys = ["mpi"];
+  if (permissionCodes.includes("menu.cdss-fatigue") || permissionCodes.includes("cdss.read")) {
+    menuKeys.push("cdss-fatigue");
+  }
+  if (permissionCodes.includes("system.debug")) {
+    menuKeys.push("runtime-diagnostics");
+  }
   return {
     data: {
       permissions: permissionCodes.map((code) => ({
@@ -59,7 +85,7 @@ function securityProfile(
         risk: code === "mpi.write" ? "HIGH" : "MEDIUM",
       })),
       roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
-      menuKeys: permissionCodes.includes("system.debug") ? ["mpi", "runtime-diagnostics"] : ["mpi"],
+      menuKeys,
       environmentKeys: ["production"],
       dataScope: { tenantId: "tenant-A" },
     },
@@ -70,11 +96,14 @@ describe("Mpi", () => {
   const refetchList = vi.fn();
   const refetchStats = vi.fn();
   const createPatient = vi.fn();
+  const createContextSnapshot = vi.fn();
   const mergePatient = vi.fn();
   const splitPatient = vi.fn();
+  const refetchDetail = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateMock.mockClear();
     useEvidenceDetailsStore.setState({ enabled: false });
     mockUseSecurityProfile.mockReturnValue(securityProfile());
     mockUseMpiPatients.mockReturnValue({
@@ -189,8 +218,20 @@ describe("Mpi", () => {
       },
       isLoading: false,
       isError: false,
-      refetch: vi.fn(),
+      refetch: refetchDetail,
     } as unknown as ReturnType<typeof useMpiPatientDetail>);
+    createContextSnapshot.mockResolvedValue({
+      snapshotId: "ctx-new-1",
+      status: "ACTIVE",
+      runtimeReleaseId: "runtime-release-1",
+      qualityStatus: "VALID",
+      missingFields: [],
+      mappingStatus: {},
+    });
+    mockUseCreateContextSnapshot.mockReturnValue({
+      mutateAsync: createContextSnapshot,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateContextSnapshot>);
     mergePatient.mockResolvedValue({
       status: "MERGED",
       sourceMpiId: "mpi-real-1",
@@ -247,6 +288,73 @@ describe("Mpi", () => {
     MPI_INTERACTION_TIMEOUT_MS,
   );
 
+  it("uses Chinese business wording for gender distribution stats", () => {
+    renderMpi();
+
+    expect(screen.getByText("群体性别分布")).toBeInTheDocument();
+    expect(screen.getByText("男性 1 人 / 女性 0 人")).toBeInTheDocument();
+    expect(screen.queryByText(/M\/F/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/男: 1 \| 女: 0/)).not.toBeInTheDocument();
+  });
+
+  it(
+    "opens report interpretation from patient 360 current context without exposing identifiers in the page",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+      expect(await screen.findByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "生成报告解读" }));
+
+      expect(navigateMock).toHaveBeenCalledWith("/cdss/fatigue", {
+        state: {
+          reportInterpretation: {
+            snapshotId: "snapshot-real-1",
+            patientLabel: "张*三",
+          },
+        },
+      });
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "updates current clinical context from patient 360 when a prior snapshot already exists",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+      expect(await screen.findByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "更新当前就诊上下文" }));
+
+      const diseaseInput = screen.getByLabelText("诊断/随访病种");
+      await user.clear(diseaseInput);
+      await user.type(diseaseInput, "上线演练路径入径复核");
+      const reasonInput = screen.getByLabelText("建立原因");
+      await user.clear(reasonInput);
+      await user.type(reasonInput, "真实前台演练：机构生效版本更新后重建当前上下文。");
+      await user.click(screen.getByRole("button", { name: "生成上下文快照" }));
+
+      await waitFor(() => {
+        expect(createContextSnapshot).toHaveBeenCalledWith(
+          expect.objectContaining({
+            patient: expect.objectContaining({ mpiId: "mpi-real-1" }),
+            diseaseCode: "上线演练路径入径复核",
+            diseaseName: "上线演练路径入径复核",
+            reason: "真实前台演练：机构生效版本更新后重建当前上下文。",
+            idempotencyKey: expect.any(String),
+          }),
+        );
+      });
+      expect(refetchDetail).toHaveBeenCalled();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
   it(
     "reveals MPI audit identifiers only after evidence details are enabled",
     async () => {
@@ -258,6 +366,8 @@ describe("Mpi", () => {
 
       expect(await screen.findByText("snapshot-real-1")).toBeInTheDocument();
       expect(screen.getByText("pathway-acute-1")).toBeInTheDocument();
+      expect(screen.getByText("临床路径版本编号：tpl-stroke-v1")).toBeInTheDocument();
+      expect(screen.queryByText("模板：tpl-stroke-v1")).not.toBeInTheDocument();
       expect(screen.getByText(/trace-p360-1/)).toBeInTheDocument();
     },
     MPI_INTERACTION_TIMEOUT_MS,
@@ -367,6 +477,118 @@ describe("Mpi", () => {
   );
 
   it(
+    "creates a current clinical context snapshot from patient 360 before follow-up workflows",
+    async () => {
+      mockUseMpiPatientDetail.mockReturnValue({
+        data: {
+          patient: {
+            id: 1,
+            mpiId: "mpi-real-1",
+            tenantId: "tenant-A",
+            maskedName: "张*三",
+            gender: "M",
+            age: 67,
+            idLast4: "1234",
+            mergedCount: 0,
+            status: "ACTIVE",
+            mergedIntoMpiId: null,
+            createdAt: "2026-06-04T00:00:00Z",
+            createdBy: "doctor-a",
+            updatedAt: "2026-06-04T00:00:00Z",
+            updatedBy: "doctor-a",
+          },
+          latestContextSnapshot: null,
+          contextSnapshot: null,
+          activePathwayCount: 0,
+          activePathways: [],
+          traceId: "trace-p360-1",
+        },
+        isLoading: false,
+        isError: false,
+        refetch: refetchDetail,
+      } as unknown as ReturnType<typeof useMpiPatientDetail>);
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+      expect((await screen.findAllByText("暂无已生效上下文")).length).toBeGreaterThan(0);
+      await user.click(screen.getByRole("button", { name: "建立当前就诊上下文" }));
+      const diseaseInput = screen.getByLabelText("诊断/随访病种");
+      fireEvent.change(diseaseInput, { target: { value: "真实前台慢病随访主题" } });
+      const medicationInput = screen.getByLabelText("当前用药");
+      fireEvent.change(medicationInput, { target: { value: "华法林、阿司匹林" } });
+      fireEvent.change(screen.getByLabelText("过敏/不良反应"), {
+        target: { value: "青霉素：皮疹、头孢菌素：呼吸困难" },
+      });
+      fireEvent.change(screen.getByLabelText("监测指标"), {
+        target: { value: "CRP=128 mg/L；PCT=2.4 ng/mL" },
+      });
+      await user.click(screen.getByRole("combobox", { name: "特殊人群标记" }));
+      await user.click(await screen.findByTitle("妊娠"));
+      await user.click(screen.getByRole("combobox", { name: "特殊人群标记" }));
+      await user.click(await screen.findByTitle("老年"));
+      fireEvent.change(screen.getByLabelText("身高 cm"), { target: { value: "170" } });
+      fireEvent.change(screen.getByLabelText("体重 kg"), { target: { value: "82" } });
+      fireEvent.change(screen.getByLabelText("医技报告项目"), {
+        target: { value: "血钾检验" },
+      });
+      fireEvent.change(screen.getByLabelText("报告结论"), {
+        target: { value: "血钾 6.3 mmol/L，危急值，已复核" },
+      });
+      fireEvent.change(screen.getByLabelText("异常重点"), {
+        target: { value: "血钾升高、危急值" },
+      });
+      expect(screen.getByText("医保结算事实（可选）")).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("DRG/DIP 分组"), {
+        target: { value: "DRG-REAL-A" },
+      });
+      fireEvent.change(screen.getByLabelText("本次结算金额"), {
+        target: { value: "1280.50" },
+      });
+      fireEvent.change(screen.getByLabelText("医保支付金额"), {
+        target: { value: "860.00" },
+      });
+      const reasonInput = screen.getByLabelText("建立原因");
+      fireEvent.change(reasonInput, {
+        target: { value: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。" },
+      });
+      await user.click(screen.getByRole("button", { name: "生成上下文快照" }));
+
+      await waitFor(() => {
+        expect(createContextSnapshot).toHaveBeenCalledWith({
+          patient: expect.objectContaining({
+            mpiId: "mpi-real-1",
+            maskedName: "张*三",
+            gender: "M",
+            age: 67,
+          }),
+          encounterType: "OUTPATIENT",
+          diseaseCode: "真实前台慢病随访主题",
+          diseaseName: "真实前台慢病随访主题",
+          riskLevel: "MEDIUM",
+          currentMedicationText: "华法林、阿司匹林",
+          allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难",
+          observationText: "CRP=128 mg/L；PCT=2.4 ng/mL",
+          specialPopulations: ["PREGNANCY", "GERIATRIC"],
+          heightCm: 170,
+          weightKg: 82,
+          diagnosticReportType: "血钾检验",
+          diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
+          diagnosticReportKeyFindingsText: "血钾升高、危急值",
+          insuranceClaimDrgCode: "DRG-REAL-A",
+          insuranceClaimTotalCost: 1280.5,
+          insuranceClaimPaidAmount: 860,
+          reason: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。",
+          idempotencyKey: expect.any(String),
+        });
+      });
+      expect(refetchDetail).toHaveBeenCalled();
+      expect(refetchList).toHaveBeenCalled();
+    },
+    MPI_CONTEXT_SNAPSHOT_TIMEOUT_MS,
+  );
+
+  it(
     "keeps MPI active patient directory language scoped to the current organization",
     async () => {
       const activeDirectoryRefetch = vi.fn();
@@ -459,10 +681,9 @@ describe("Mpi", () => {
       renderMpi();
 
       await user.click(screen.getByRole("button", { name: /拆分归并/ }));
-      await user.type(
-        screen.getByPlaceholderText("请输入人工核查结论"),
-        "人工核查后确认不是同一患者",
-      );
+      fireEvent.change(screen.getByPlaceholderText("请输入人工核查结论"), {
+        target: { value: "人工核查后确认不是同一患者" },
+      });
       await user.click(screen.getByRole("button", { name: "确认拆分" }));
 
       await waitFor(() => {
@@ -477,4 +698,15 @@ describe("Mpi", () => {
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );
+
+  it("keeps the MPI patient table constrained instead of widening the mobile root", () => {
+    const pageSource = readFileSync("src/pages/clinical/Mpi.tsx", "utf8");
+    const cssSource = readFileSync("src/pages/clinical/Mpi.module.css", "utf8");
+    const tableCardRule = cssSource.match(/\.tableCard\s*\{[^}]+\}/u)?.[0] ?? "";
+
+    expect(pageSource).toContain('tableLayout="fixed"');
+    expect(pageSource).toContain("scroll={{ x: 920 }}");
+    expect(tableCardRule).toContain("min-width: 0;");
+    expect(tableCardRule).toContain("overflow: hidden;");
+  });
 });

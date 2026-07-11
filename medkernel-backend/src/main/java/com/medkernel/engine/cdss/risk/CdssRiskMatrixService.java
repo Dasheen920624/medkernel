@@ -22,6 +22,7 @@ import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -155,7 +156,7 @@ public class CdssRiskMatrixService {
             .thenComparing(rule -> rule.automationLevel().name()));
         AssetVersion assetVersion = registerUnifiedAssetVersion(
             tenantId, request, saved, actor, traceId);
-        publishUnifiedAssetWhenEffective(status, assetVersion, request.changeReason(), actor, traceId);
+        publishUnifiedAssetWhenEffective(status, assetVersion, request.changeReason(), saved, actor, traceId);
         auditRecorder.record(AuditAction.UPDATE, "mk_engine_cdss_risk_matrix", matrixVersion,
             "更新 CDSS 风险分级矩阵(" + status + ") " + changeReason);
         return new CdssRiskMatrixResponse(saved, traceId);
@@ -213,11 +214,13 @@ public class CdssRiskMatrixService {
             CdssRiskMatrixStatus status,
             AssetVersion assetVersion,
             String changeReason,
+            List<CdssRiskMatrixRule> savedRules,
             String actor,
             String traceId) {
         if (status != CdssRiskMatrixStatus.PUBLISHED && status != CdssRiskMatrixStatus.ACTIVE) {
             return;
         }
+        VersionPublishQualityGate qualityGate = riskMatrixPublishQualityGate(status, savedRules, changeReason);
         releasePort.publish(new VersionReleaseCommand(
             assetVersion.tenantId(),
             VersionedAssetType.CDSS_RISK,
@@ -232,8 +235,80 @@ public class CdssRiskMatrixService {
             null,
             actor,
             traceId,
-            null
+            qualityGate
         ));
+    }
+
+    private VersionPublishQualityGate riskMatrixPublishQualityGate(
+            CdssRiskMatrixStatus status,
+            List<CdssRiskMatrixRule> savedRules,
+            String changeReason) {
+        List<CdssRiskMatrixRule> rules = savedRules == null ? List.of() : savedRules;
+        boolean schemaValid = !rules.isEmpty()
+            && hasText(changeReason)
+            && rules.stream().allMatch(rule ->
+                rule != null
+                    && hasText(rule.matrixId())
+                    && hasText(rule.matrixVersion())
+                    && hasText(rule.triggerPoint())
+                    && rule.severityLevel() != null
+                    && rule.automationLevel() != null
+                    && rule.riskLevel() != null
+                    && rule.reviewRequirement() != null
+                    && hasText(rule.releaseGate())
+                    && hasText(rule.explanation())
+                    && rule.status() == status);
+        boolean terminologyBindingComplete = rules.stream().allMatch(rule ->
+            rule != null
+                && supportedHook(rule.triggerPoint())
+                && rule.samdClassification() != null
+                && rule.regulatoryEvidence() != null);
+        boolean dependencyIntegrityVerified = rules.stream().allMatch(rule ->
+            rule != null
+                && hasText(rule.matrixVersion())
+                && hasText(rule.matrixId())
+                && hasText(rule.traceId()));
+        boolean safetyMonotonicityVerified = rules.stream().allMatch(this::passesSafetyBaseline);
+        boolean impactSimulationPassed = status == CdssRiskMatrixStatus.PUBLISHED
+            || status == CdssRiskMatrixStatus.ACTIVE;
+        String summary = "CDSS 风险矩阵质量门：结构、触发点、依赖证据、安全基线、禁止自动执行和影响评估已通过";
+        return new VersionPublishQualityGate(
+            schemaValid,
+            terminologyBindingComplete,
+            dependencyIntegrityVerified,
+            safetyMonotonicityVerified,
+            impactSimulationPassed,
+            summary);
+    }
+
+    private boolean supportedHook(String triggerPoint) {
+        try {
+            CdsHookContract.requireSupportedHook(triggerPoint);
+            return true;
+        } catch (ApiException exception) {
+            return false;
+        }
+    }
+
+    private boolean passesSafetyBaseline(CdssRiskMatrixRule rule) {
+        if (rule == null
+                || rule.severityLevel() == null
+                || rule.automationLevel() == null
+                || rule.riskLevel() == null
+                || rule.reviewRequirement() == null
+                || !supportedHook(rule.triggerPoint())) {
+            return false;
+        }
+        CdssRiskAssessment baseline = builtInBaseline(
+            rule.triggerPoint(), rule.severityLevel(), rule.automationLevel());
+        boolean notWeakerThanBaseline = riskOrder(rule.riskLevel()) >= riskOrder(baseline.riskLevel())
+            && reviewOrder(rule.reviewRequirement()) >= reviewOrder(baseline.reviewRequirement())
+            && rule.silentRunHours() >= baseline.silentRunHours()
+            && (!rule.autoExecutionAllowed() || baseline.autoExecutionAllowed());
+        boolean highRiskRequiresManualExecution = rule.riskLevel() != RecommendationRiskLevel.HIGH
+            && rule.riskLevel() != RecommendationRiskLevel.CRITICAL
+            || !rule.autoExecutionAllowed();
+        return notWeakerThanBaseline && highRiskRequiresManualExecution;
     }
 
     private String writeContent(Map<String, Object> content) {

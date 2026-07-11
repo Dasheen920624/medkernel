@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * API-06 路径引擎客户面合同测试。
+ * API-06 临床路径客户面合同测试。
  *
  * <p>只锁定对外路径、统一入参和旧入口清理；路径图推进细节由服务测试覆盖。
  */

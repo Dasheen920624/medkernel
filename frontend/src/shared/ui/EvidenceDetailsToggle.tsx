@@ -1,4 +1,4 @@
-import { Space, Switch, Typography } from "antd";
+import { Space, Switch, Tooltip, Typography } from "antd";
 
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
@@ -27,7 +27,9 @@ export function EvidenceDetailsToggle({
 
   return (
     <Space size="small">
-      <Text>证据详情</Text>
+      <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+        <Text>追溯证据</Text>
+      </Tooltip>
       <Switch
         aria-label="证据详情"
         checked={effectiveEvidenceDetails}

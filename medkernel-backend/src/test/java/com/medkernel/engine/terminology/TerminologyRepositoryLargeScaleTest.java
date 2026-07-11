@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -42,6 +43,7 @@ import com.medkernel.shared.context.RequestContext;
     "spring.flyway.enabled=true",
     "spring.flyway.locations=classpath:db/migration/h2"
 })
+@Tag("performance")
 class TerminologyRepositoryLargeScaleTest {
 
     private static final String TENANT_ID = "t-large-terminology";

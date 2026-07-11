@@ -9,12 +9,16 @@ import java.time.Instant;
  * @param product    产品名（固定 "MedKernel"）
  * @param version    版本号
  * @param stage      当前阶段口径（v1.0 GA / 引擎全能力上线 / 业务服务组合）
+ * @param buildBound 运行后端是否绑定可验证候选制品
+ * @param buildCommit 后端制品内嵌的完整候选提交；未绑定时为空
  * @param serverTime 服务端时间戳
  */
 public record PingResponse(
     String product,
     String version,
     String stage,
+    boolean buildBound,
+    String buildCommit,
     Instant serverTime
 ) {
 }

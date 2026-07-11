@@ -26,6 +26,12 @@ export interface ExperienceFilterValue {
   value: string | readonly [string, string] | undefined;
 }
 
+export interface StakeholderViewHint {
+  role: string;
+  responsibility: string;
+  boundary: string;
+}
+
 export interface RouteExperience {
   primaryRole: string;
   goal: string;
@@ -40,6 +46,7 @@ export interface RouteExperience {
     exportStrategy: "none" | "disabled" | "async";
   };
   riskLevel: PageRiskLevel;
+  stakeholderViews?: StakeholderViewHint[];
 }
 
 export interface ExperiencePageRequest {

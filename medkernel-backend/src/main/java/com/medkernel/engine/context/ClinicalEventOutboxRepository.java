@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
  * 临床事件外部收件箱（Outbox）数据库仓储接口。
  *
  * <p>处理包含临床事件异步派发、失败重试、锁定状态标记及生命周期的持久化操作，
- * 支撑 GA-ENG-API-02 临床事件引擎的异步投递与死信链路。
+ * 支撑 GA-ENG-API-02 临床事件链路的异步投递与死信链路。
  */
 @Repository
 public interface ClinicalEventOutboxRepository extends ListCrudRepository<ClinicalEventOutbox, Long> {

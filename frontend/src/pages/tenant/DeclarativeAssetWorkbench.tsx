@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   App,
@@ -27,6 +27,7 @@ import {
   type DeclarativeAssetUpsertPayload,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import {
   ACTION_CARD_ACTION_OPTIONS,
   ACTION_CARD_INDICATOR_OPTIONS,
@@ -329,6 +330,17 @@ function evidenceText(
   if (!evidenceDetailsEnabled) return businessText;
   const normalized = rawValue?.trim();
   return normalized && normalized.length > 0 ? normalized : "未返回";
+}
+
+function updatedAtTime(asset: DeclarativeAssetSummary) {
+  const time = Date.parse(asset.updatedAt);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function maintenanceTimeText(updatedAt: string | undefined) {
+  if (!updatedAt) return "维护时间待确认";
+  const formatted = formatClinicalDateTime(updatedAt, "");
+  return formatted ? `最新维护 ${formatted}` : "维护时间待确认";
 }
 
 function declarativeAssetTypeLabel(assetType: DeclarativeAssetType) {
@@ -679,6 +691,14 @@ export default function DeclarativeAssetWorkbench({
   const create = useCreateDeclarativeAsset();
   const update = useUpdateDeclarativeAsset();
   const typeLabel = declarativeAssetTypeLabel(assetType);
+  const assets = useMemo(
+    () =>
+      [...(list.data?.items ?? [])].sort((left, right) => {
+        const timeDelta = updatedAtTime(right) - updatedAtTime(left);
+        return timeDelta !== 0 ? timeDelta : right.versionId.localeCompare(left.versionId);
+      }),
+    [list.data?.items],
+  );
 
   useEffect(() => {
     if (!open || !editing || !detail.data) return;
@@ -733,6 +753,12 @@ export default function DeclarativeAssetWorkbench({
     },
     { title: "版本", dataIndex: "versionNo", width: 100 },
     {
+      title: "维护时间",
+      dataIndex: "updatedAt",
+      width: 190,
+      render: (updatedAt: string) => <Text type="secondary">{maintenanceTimeText(updatedAt)}</Text>,
+    },
+    {
       title: "状态",
       dataIndex: "status",
       width: 110,
@@ -772,8 +798,8 @@ export default function DeclarativeAssetWorkbench({
       <Alert
         type="info"
         showIcon
-        message="医疗配置资产独立维护"
-        description="每类资产按结构校验，版本号自动递增；发布时会选择值集、公式、医嘱套餐和临床提示卡的精确版本。已发布内容不可原地修改。字段目录与完整路径分别由各自工作台维护。"
+        message="配置资产按类型编目"
+        description="每类资产按结构校验，版本号自动递增；发布时会选择值集、公式、医嘱套餐和临床提示卡的精确版本。已发布内容不可原地修改。字段目录与完整路径分别在对应工作台维护。"
       />
       <Tabs
         activeKey={assetType}
@@ -794,10 +820,15 @@ export default function DeclarativeAssetWorkbench({
       </Button>
       <Table
         rowKey="versionId"
-        dataSource={list.data?.items ?? []}
+        dataSource={assets}
         columns={columns}
         loading={list.isLoading}
-        pagination={false}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: false,
+          showTotal: (total, range) =>
+            `共 ${total} 条配置资产，当前显示 ${range[0]}-${range[1]} 条`,
+        }}
         locale={{
           emptyText: list.isError ? "配置资产读取失败，请重试" : `暂无${typeLabel}`,
         }}
@@ -812,6 +843,7 @@ export default function DeclarativeAssetWorkbench({
         cancelText="取消"
         width={920}
         confirmLoading={create.isPending || update.isPending}
+        forceRender
         destroyOnClose
       >
         {detail.isError && <Alert type="error" message="资产正文读取失败，暂不能编辑。" />}

@@ -13,7 +13,7 @@ import com.medkernel.engine.rule.RuleEvaluateResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 临床事件到规则引擎真实执行入口的适配器。
+ * 临床事件到临床规则真实执行入口的适配器。
  */
 @Component
 public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapter {
@@ -63,7 +63,7 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
                 selection.runtimeReleaseId()
             );
         return ClinicalEventEngineDispatchResult.dispatched(
-            engine(), response.requestId(), "规则引擎已接收临床事件上下文");
+            engine(), response.requestId(), "临床规则已接收临床事件上下文");
     }
 
     private ObjectNode toRuleContext(ClinicalEventContext context) {

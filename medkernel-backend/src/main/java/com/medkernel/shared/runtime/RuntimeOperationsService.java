@@ -23,7 +23,7 @@ import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeJvmMetadata
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeOsMetadata;
 
 /**
- * 系统运维快照与国产化自检业务服务（BASE-07）。
+ * 系统运维快照与国产化适配自检业务服务（BASE-07）。
  *
  * <p>提供当前系统运行事实信息的汇聚与转换服务。包括 JVM 元数据、操作系统信息、功能开关状态、外部系统依赖存活状态及备份容灾就绪情况。
  */
@@ -102,17 +102,17 @@ public class RuntimeOperationsService {
     }
 
     /**
-     * 生成国产化自检报告文本。
+     * 生成国产化适配自检报告文本。
      *
      * <p>报告内容仅来自 {@link #snapshot()} 暴露的安全字段，避免输出密钥、口令或内网连接串。
      *
-     * @return 国产化自检文本报告
+     * @return 国产化适配自检文本报告
      */
     public String domesticReport() {
         RuntimeOperationsSnapshot snapshot = snapshot();
         RuntimeDomesticCompatibility compatibility = snapshot.domesticCompatibility();
         StringBuilder report = new StringBuilder();
-        report.append("MedKernel 国产化自检报告\n");
+        report.append("MedKernel 国产化适配自检报告\n");
         report.append("服务: ").append(snapshot.serviceName()).append('\n');
         report.append("环境: ").append(snapshot.environment()).append(" / ")
             .append(snapshot.deploymentMode()).append('\n');
@@ -209,7 +209,7 @@ public class RuntimeOperationsService {
                 "模型服务",
                 externalProviderEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
                 externalProviderEnabled
-                    ? "外部模型服务开关已开启；请在模型能力页完成提供方健康验证，保持降级状态"
+                    ? "外部模型服务开关已开启；请在模型能力与安全页完成提供方健康验证，保持降级状态"
                     : "外部模型服务开关关闭，模型能力按无模型规则主链路运行"
             ),
             new RuntimeDependencyStatus(
@@ -253,10 +253,30 @@ public class RuntimeOperationsService {
             configured.backupScript(),
             configured.restoreScript(),
             configured.checksumPolicy(),
-            backupDrillEvidenceReader.read(properties.getBackup().getDrillEvidenceFile()),
+            backupDrillEvidenceReader.read(
+                properties.getBackup().getDrillEvidenceFile(),
+                currentDatabaseName()
+            ),
             configured.source(),
             configured.warning()
         );
+    }
+
+    private String currentDatabaseName() {
+        String jdbcUrl = environment.getProperty("spring.datasource.url", "");
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return "";
+        }
+        String withoutQuery = jdbcUrl.split("[?;]", 2)[0];
+        int slash = withoutQuery.lastIndexOf('/');
+        if (slash >= 0 && slash + 1 < withoutQuery.length()) {
+            return withoutQuery.substring(slash + 1).trim();
+        }
+        int colon = withoutQuery.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < withoutQuery.length()) {
+            return withoutQuery.substring(colon + 1).trim();
+        }
+        return "";
     }
 
     private RuntimeDomesticProfile domesticProfile() {

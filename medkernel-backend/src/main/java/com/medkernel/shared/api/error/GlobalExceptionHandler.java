@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.relational.core.conversion.DbActionExecutionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -181,6 +182,16 @@ public class GlobalExceptionHandler {
         return problemResponse(ErrorCode.CONFLICT, DATA_INTEGRITY_CONFLICT_MESSAGE);
     }
 
+    @ExceptionHandler(DbActionExecutionException.class)
+    public ResponseEntity<ProblemDetail> handleDbActionExecution(DbActionExecutionException ex) {
+        if (hasCause(ex, DataIntegrityViolationException.class)) {
+            log.debug("DbActionExecutionException wraps DataIntegrityViolationException: {}", ex.getMessage());
+            return problemResponse(ErrorCode.CONFLICT, DATA_INTEGRITY_CONFLICT_MESSAGE);
+        }
+        log.error("Unhandled database action exception", ex);
+        return problemResponse(ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.defaultMessage());
+    }
+
     @ExceptionHandler(Throwable.class)
     public ResponseEntity<ProblemDetail> handleAny(Throwable ex) {
         log.error("Unhandled exception", ex);
@@ -197,6 +208,17 @@ public class GlobalExceptionHandler {
                 ? cv.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName()
                 : "ConstraintViolation",
             cv.getMessage());
+    }
+
+    private static boolean hasCause(Throwable ex, Class<? extends Throwable> expectedType) {
+        Throwable current = ex;
+        while (current != null) {
+            if (expectedType.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private ProblemDetail permissionDeniedProblem(

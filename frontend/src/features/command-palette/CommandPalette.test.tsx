@@ -18,7 +18,7 @@ const allowedSections: MenuSection[] = [
   {
     key: "knowledge-governance",
     label: "知识治理",
-    items: [{ key: "terminology-mapping", label: "术语与字典", path: "/terminology/mapping" }],
+    items: [{ key: "terminology-mapping", label: "术语字典", path: "/terminology/mapping" }],
   },
 ];
 
@@ -32,7 +32,7 @@ describe("CommandPalette", () => {
 
     expect(screen.getByText("命令面板")).toBeInTheDocument();
     expect(screen.queryByText(/Ctrl|⌘/)).toBeNull();
-    expect(screen.getByText("术语与字典")).toBeInTheDocument();
+    expect(screen.getByText("术语字典")).toBeInTheDocument();
     expect(screen.queryByText("运行诊断")).toBeNull();
     expect(screen.queryByText("/terminology/mapping")).toBeNull();
   });
@@ -45,7 +45,7 @@ describe("CommandPalette", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByText("术语与字典"));
+    fireEvent.click(screen.getByText("术语字典"));
 
     expect(navigate).toHaveBeenCalledWith("/terminology/mapping");
     expect(onClose).toHaveBeenCalled();

@@ -149,6 +149,7 @@ class RecommendationEngineServiceTest {
         verify(sources).save(sourceCap.capture());
         verify(fatigueSignals).save(signalCap.capture());
 
+        assertThat(response.cardIds()).containsExactly(cardCap.getValue().cardId());
         assertThat(triggerCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(triggerCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(triggerCap.getValue().encounterId()).isEqualTo("ENC-1");
@@ -520,6 +521,69 @@ class RecommendationEngineServiceTest {
         assertThat(signalCap.getValue().signalType()).isEqualTo(RecommendationFatigueSignalType.ACCEPTED);
         verify(auditRecorder).record(AuditAction.FEEDBACK, "recommendation_card",
             "card-1", "推荐卡反馈 ACCEPT");
+    }
+
+    @Test
+    void pharmacistReviewRecordsFeedbackWithoutClosingPhysicianConfirmation() {
+        RecommendationCard pending = card("card-1", RecommendationCardStatus.PENDING);
+        when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(pending));
+        when(triggers.findByTriggerIdAndTenantId("trigger-1", "tenant-A"))
+            .thenReturn(Optional.of(trigger("trigger-1", RecommendationTriggerStatus.EVALUATED)));
+
+        RecommendationFeedbackResponse response = service.feedback("card-1", new RecommendationFeedbackRequest(
+            RecommendationFeedbackType.VIEW_SOURCE,
+            "PHARMACIST_REVIEWED",
+            "药师已复核过敏禁忌红线，医生仍需逐条确认。",
+            "PHARMACIST"));
+
+        assertThat(response.cardStatus()).isEqualTo(RecommendationCardStatus.PENDING);
+        ArgumentCaptor<RecommendationCard> cardCap = ArgumentCaptor.forClass(RecommendationCard.class);
+        ArgumentCaptor<RecommendationFeedback> feedbackCap = ArgumentCaptor.forClass(RecommendationFeedback.class);
+        ArgumentCaptor<RecommendationFatigueSignal> signalCap =
+            ArgumentCaptor.forClass(RecommendationFatigueSignal.class);
+        verify(cards).save(cardCap.capture());
+        verify(feedback).save(feedbackCap.capture());
+        verify(fatigueSignals).save(signalCap.capture());
+        assertThat(cardCap.getValue().status()).isEqualTo(RecommendationCardStatus.PENDING);
+        assertThat(feedbackCap.getValue().operatorRole()).isEqualTo("PHARMACIST");
+        assertThat(feedbackCap.getValue().reasonCode()).isEqualTo("PHARMACIST_REVIEWED");
+        assertThat(signalCap.getValue().signalType()).isEqualTo(RecommendationFatigueSignalType.VIEWED);
+    }
+
+    @Test
+    void pharmacistReviewIdempotentReplayKeepsOriginalPendingStatusAfterPhysicianConfirmation() {
+        RecommendationCard accepted = card("card-1", RecommendationCardStatus.ACCEPTED);
+        when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(accepted));
+        when(feedback.findByCardIdAndTenantIdAndIdempotencyKey("card-1", "tenant-A", "idem-pharm-1"))
+            .thenReturn(Optional.of(new RecommendationFeedback(
+                null,
+                "rf-pharm-1",
+                "tenant-A",
+                "card-1",
+                "idem-pharm-1",
+                RecommendationFeedbackType.VIEW_SOURCE,
+                "PHARMACIST_REVIEWED",
+                "药师已复核过敏禁忌红线，医生仍需逐条确认。",
+                "doctor-1",
+                "PHARMACIST",
+                Instant.now(),
+                "doctor-1",
+                Instant.now(),
+                "doctor-1",
+                "trace-pharm-1")));
+
+        RecommendationFeedbackResponse response = service.feedback("card-1", new RecommendationFeedbackRequest(
+            RecommendationFeedbackType.VIEW_SOURCE,
+            "PHARMACIST_REVIEWED",
+            "药师已复核过敏禁忌红线，医生仍需逐条确认。",
+            "PHARMACIST",
+            "idem-pharm-1"));
+
+        assertThat(response.feedbackId()).isEqualTo("rf-pharm-1");
+        assertThat(response.cardStatus()).isEqualTo(RecommendationCardStatus.PENDING);
+        assertThat(response.traceId()).isEqualTo("trace-pharm-1");
+        verify(cards, never()).save(any());
+        verify(fatigueSignals, never()).save(any());
     }
 
     @Test

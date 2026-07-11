@@ -8,6 +8,7 @@ import {
   customerEnumLabel,
   customerSafeDisplayText,
   hasTechnicalDetailText,
+  orgLevelLabel,
   sourceAuthorityLabel,
 } from "./customerLabels";
 
@@ -33,12 +34,14 @@ const visiblePropertyNames = new Set([
   "label",
   "message",
   "placeholder",
+  "responsibility",
   "title",
+  "boundary",
   "defaultView",
 ]);
 const visibleArrayPropertyNames = new Set(["evidenceDetailContent"]);
 const forbiddenCustomerTokens =
-  /(?:\/api\/|发布包|运行包|证据包|知识包|配置包|运行修订|运行发布|运行制品|运行快照|发布制品|制品|发布容器|包发布|清单摘要|资产清单|平台基线|权威基线|运行版本|冻结基线|快照运行标识|运行标识|医院当前运行|医院运行|修订 #|租户|令牌|白名单|生产闸|技术放行|三元组|门禁|质量门|运行底座|出域|回归|B0|ACTIVE|MFA|context\.write|tenant id|\b(?:traceId|TraceId|Trace ID|Trace|Payload|Provider|provider|Schema|API|OpenAPI|Key|readiness|job|endpoint|token|NOT_CONNECTED|TENANT|ASSET|MEDIUM)\b)/;
+  /(?:\/api\/|发布包|运行包|证据包|知识包|配置包|运行修订|运行发布|运行制品|运行快照|发布制品|制品|发布容器|包发布|清单摘要|资产清单|平台基线|权威基线|运行版本|冻结基线|快照运行标识|运行标识|医院当前运行|医院运行|修订 #|租户|令牌|白名单|生产闸|技术放行|三元组|门禁|质量门|运行底座|出域|回归|未识别|8\s*态|B0|ACTIVE|MFA|context\.write|tenant id|\b(?:traceId|TraceId|Trace ID|Trace|Payload|Provider|provider|Schema|API|OpenAPI|Key|readiness|job|endpoint|token|NOT_CONNECTED|TENANT|ASSET|MEDIUM)\b)/;
 const technicalFormatTokens = /\b(?:JSON|DSL)\b/;
 
 describe("customer language gate", () => {
@@ -53,6 +56,13 @@ describe("customer language gate", () => {
       "请先选择一个已生效上下文快照",
     );
     expect(customerDisplayText("MEDIUM")).toBe("中风险");
+  });
+
+  it("uses confirmable business fallback instead of unidentified-state wording", () => {
+    expect(customerEnumLabel("UNEXPECTED_ENGINE_STATUS")).toBe("状态待确认");
+    expect(customerDisplayText("UNEXPECTED_ENGINE_STATUS")).toBe("状态待确认");
+    expect(orgLevelLabel("UNEXPECTED_SCOPE_LEVEL")).toBe("状态待确认");
+    expect(customerEnumLabel("UNEXPECTED_ENGINE_STATUS")).not.toContain("未识别");
   });
 
   it("uses the same five source authority levels as the medical engine", () => {

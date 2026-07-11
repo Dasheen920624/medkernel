@@ -67,6 +67,7 @@ public interface TermMappingRepository extends ListCrudRepository<TermMapping, L
           AND (
               :scopeLevel = 'TENANT'
               OR (:scopeLevel = 'DEPARTMENT' AND lt.department_id = :scopeCode)
+              OR (:scopeLevel <> 'DEPARTMENT' AND lt.department_id IS NULL)
               OR EXISTS (
                   SELECT 1
                   FROM org_closure oc

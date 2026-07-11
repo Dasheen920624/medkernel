@@ -15,12 +15,16 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.security.auth.LoginAttemptState;
 import com.medkernel.engine.security.auth.LoginAttemptStateRepository;
+import com.medkernel.shared.context.OrgLevel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,6 +52,7 @@ class ComplianceUserCredentialFlowTest {
     @Autowired TenantUserRepository users;
     @Autowired UserRoleAssignmentRepository roleAssignments;
     @Autowired LoginAttemptStateRepository loginAttempts;
+    @Autowired OrgUnitRepository orgUnits;
 
     private static final String PASSWORD_HASH_ALGORITHM_KEY = "medkernel.auth.password.hash-algorithm";
 
@@ -192,6 +197,80 @@ class ComplianceUserCredentialFlowTest {
 
         mvc.perform(get("/api/v1/compliance/users").with(admin()))
             .andExpect(jsonPath("$.data.items[0].status").value("DISABLED"));
+    }
+
+    @Test
+    void assignRoleRejectsMissingOrganizationScopeBeforePersistence() throws Exception {
+        mvc.perform(post("/api/v1/compliance/users").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/compliance/users/{userId}/roles", "drwang").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "roleCode": "clinical-user",
+                      "scopeLevel": "DEPARTMENT",
+                      "scopeCode": "missing-department"
+                    }
+                    """))
+            .andExpect(status().isNotFound());
+
+        assertThat(roleAssignments.findActiveByTenantIdAndUserId("t-1", "drwang"))
+            .extracting(UserRoleAssignment::scopeCode)
+            .doesNotContain("missing-department");
+    }
+
+    @Test
+    void assignRoleRejectsMismatchedOrganizationScopeLevelBeforePersistence() throws Exception {
+        mvc.perform(post("/api/v1/compliance/users").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+        OrgUnit facility = orgUnits.save(new OrgUnit(
+            null, null, "t-1", "/scope-hospital", OrgLevel.FACILITY, "SCOPE-HOSPITAL", "范围校验医院",
+            null, null, null, OrgUnitStatus.ACTIVE, Instant.now(), "test", Instant.now(), "test"));
+
+        mvc.perform(post("/api/v1/compliance/users/{userId}/roles", "drwang").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "roleCode": "clinical-user",
+                      "scopeLevel": "DEPARTMENT",
+                      "scopeCode": "%s"
+                    }
+                    """.formatted(facility.id())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+
+        assertThat(roleAssignments.findActiveByTenantIdAndUserId("t-1", "drwang"))
+            .extracting(UserRoleAssignment::scopeCode)
+            .doesNotContain(facility.id());
+    }
+
+    @Test
+    void assignRoleRejectsMissingSpecialtyScopeBeforePersistence() throws Exception {
+        mvc.perform(post("/api/v1/compliance/users").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/compliance/users/{userId}/roles", "drwang").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "roleCode": "clinical-user",
+                      "scopeLevel": "SPECIALTY",
+                      "scopeCode": "missing-specialty"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail").value("专科不存在或未启用"));
+
+        assertThat(roleAssignments.findActiveByTenantIdAndUserId("t-1", "drwang"))
+            .extracting(UserRoleAssignment::scopeCode)
+            .doesNotContain("missing-specialty");
     }
 
     @Test

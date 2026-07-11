@@ -70,16 +70,18 @@ public class RuntimeReleaseFieldCatalogResolver {
         if (node == null || !node.isObject()) {
             throw invalid(releaseId, "字段目录 fields[" + index + "] 必须是对象");
         }
+        String fieldPath = requiredText(releaseId, node, "fieldPath", index);
+        String displayName = requiredText(releaseId, node, "displayName", index);
         return new ContextFieldDescriptor(
             requiredText(releaseId, node, "category", index),
             requiredText(releaseId, node, "group", index),
             requiredText(releaseId, node, "resourceType", index),
-            requiredText(releaseId, node, "fieldPath", index),
-            requiredText(releaseId, node, "displayName", index),
+            fieldPath,
+            displayName,
             requiredText(releaseId, node, "dataType", index),
             nullableText(node, "unit"),
             nullableText(node, "codeSystem"),
-            requiredText(releaseId, node, "description", index),
+            ContextFieldDescriptionNormalizer.normalize(nullableText(node, "description"), displayName, fieldPath),
             RUNTIME_SOURCE,
             null,
             requiredBoolean(releaseId, node, "derived", index)

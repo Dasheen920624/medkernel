@@ -42,12 +42,12 @@ public class SandboxRuntimeBaselineResolver {
         return currentBaseline(scope, release, content, SandboxRunMode.CURRENT, null, null);
     }
 
-    /** 只从演练机构持有的不可变清单解析历史基线，不读取任何当前运行状态。 */
+    /** 只从当前机构持有的不可变清单解析历史基线，不读取任何当前运行状态。 */
     public SandboxRuntimeBaseline resolveHistorical(String replayCaseId) {
         OrgScope scope = currentScope();
         SandboxReplayResolvedCase replay = replayCases.resolve(required(replayCaseId, "replayCaseId"));
         if (!scope.tenantId().equals(replay.replayCase().sandboxTenantId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "历史重放清单不属于当前演练机构");
+            throw new ApiException(ErrorCode.FORBIDDEN, "历史重放清单不属于当前机构");
         }
         return new SandboxRuntimeBaseline(
             newBaselineId(),
@@ -73,7 +73,7 @@ public class SandboxRuntimeBaselineResolver {
             runtimeContents.resolve(scope.tenantId(), release.releaseId());
         SandboxReplayResolvedCase replay = replayCases.resolve(required(replayCaseId, "replayCaseId"));
         if (!scope.tenantId().equals(replay.replayCase().sandboxTenantId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "历史重放清单不属于当前演练机构");
+            throw new ApiException(ErrorCode.FORBIDDEN, "历史重放清单不属于当前机构");
         }
         return currentBaseline(scope, release, content, SandboxRunMode.COMPARE,
             replay.replayCase().replayCaseId(), replay);

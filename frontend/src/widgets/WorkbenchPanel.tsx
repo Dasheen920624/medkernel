@@ -38,6 +38,7 @@ import {
   type ProductRoleAction,
   type ProductRoleKind,
 } from "@/shared/config/productRoleJourneys";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -103,6 +104,13 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 const WORKBENCH_EVIDENCE_HINT = "失败已留痕，可在审计证据中追溯。";
+const KNOWLEDGE_RELATION_SYNC_LABEL = "知识关系同步";
+const ROLE_FILTER_DIMENSIONS: Record<ProductRoleKind, { label: string; value: string }> = {
+  operations: { label: "上线状态", value: "全部状态" },
+  knowledge: { label: "资产类型", value: "全部资产" },
+  clinical: { label: "临床场景", value: "全部场景" },
+  audit: { label: "证据类型", value: "全部证据" },
+};
 
 /**
  * 工作台只读组合现有来源 API，不拥有独立业务数据。
@@ -209,6 +217,7 @@ export function WorkbenchPanel() {
         {sourceFailures.length > 0 ? <PartialSourceAlert failures={sourceFailures} /> : null}
         <WorkbenchFilters
           profile={profile}
+          roleKind={view.kind}
           timeFilter={timeFilter}
           onTimeFilterChange={setTimeFilter}
         />
@@ -282,11 +291,11 @@ function WorkbenchCards({
           <DomainEntryCard
             id="clinical"
             title="临床协同入口"
-            description="进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。"
+            description="进入患者路径、提醒与推荐和随访协同；各页面展示对应真实数据和处理入口。"
             actions={[
               { label: "患者路径", path: "/pathway/patients" },
               { label: "提醒与推荐", path: "/cdss/fatigue" },
-              { label: "消息通知", path: "/notifications" },
+              { label: "随访协同", path: "/clinical/followup" },
             ]}
             onNavigate={onNavigate}
           />
@@ -301,12 +310,12 @@ function WorkbenchCards({
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="knowledge-governance"
-            title="知识审核与发布"
+            title="知识审核发布中心"
             marker="平台主源与机构派生"
             description="治理平台主源、机构派生、版本差异、审核发布和恢复平台标准，全程保留不可变血缘。"
             actions={[
-              { label: "知识审核与发布", path: "/knowledge/governance" },
-              { label: "发布治理", path: "/config/releases" },
+              { label: "知识审核发布中心", path: "/knowledge/governance" },
+              { label: "机构生效版本", path: "/config/releases" },
             ]}
             onNavigate={onNavigate}
           />
@@ -318,7 +327,7 @@ function WorkbenchCards({
             description="追溯知识来源和派生关系，复核术语映射与发布影响；汇总数据以各治理页面为准。"
             actions={[
               { label: "来源与血缘", path: "/advanced/provenance" },
-              { label: "术语与字典", path: "/terminology/mapping" },
+              { label: "术语字典", path: "/terminology/mapping" },
               { label: "知识关系", path: "/advanced/graph" },
             ]}
             onNavigate={onNavigate}
@@ -328,7 +337,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="engine-quality"
             title="质量问题与整改"
-            description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
+            description="进入质量风险概览核查指标口径、责任对象、整改进度和医保审核入口。"
             actions={[
               { label: "质量问题与整改", path: "/qc/alerts" },
               { label: "医保审核", path: "/qc/insurance" },
@@ -393,9 +402,9 @@ function WorkbenchCards({
           id="quality"
           title="质量问题与整改"
           marker="质量整改入口"
-          description="进入质量管理概览和整改页面查看责任对象、整改进度和复核入口。"
+          description="进入质量风险概览和整改页面查看责任对象、整改进度和复核入口。"
           actions={[
-            { label: "质量管理概览", path: "/qc/dashboard" },
+            { label: "质量风险概览", path: "/qc/dashboard" },
             { label: "质量问题与整改", path: "/qc/alerts" },
           ]}
           onNavigate={onNavigate}
@@ -406,9 +415,9 @@ function WorkbenchCards({
           id="value"
           title="质量管理"
           marker="质量管理入口"
-          description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
+          description="进入质量风险概览核查指标口径、责任对象、整改进度和医保审核入口。"
           actions={[
-            { label: "质量管理概览", path: "/qc/dashboard" },
+            { label: "质量风险概览", path: "/qc/dashboard" },
             { label: "医保审核", path: "/qc/insurance" },
           ]}
           onNavigate={onNavigate}
@@ -420,14 +429,17 @@ function WorkbenchCards({
 
 function WorkbenchFilters({
   profile,
+  roleKind,
   timeFilter,
   onTimeFilterChange,
 }: {
   profile?: SecurityProfile;
+  roleKind: ProductRoleKind;
   timeFilter: TimeFilter;
   onTimeFilterChange: (value: TimeFilter) => void;
 }) {
   const scopeLabel = resolveScopeLabel(profile);
+  const roleFilter = ROLE_FILTER_DIMENSIONS[roleKind];
   return (
     <Card title="当前视图筛选" data-testid="workbench-default-filters">
       <Space wrap>
@@ -439,12 +451,12 @@ function WorkbenchFilters({
             options={[{ label: scopeLabel, value: scopeLabel }]}
           />
         </Space>
-        <Space direction="vertical" size={2} data-testid="workbench-filter-disease">
-          <Text type="secondary">病种</Text>
+        <Space direction="vertical" size={2} data-testid="workbench-filter-role-dimension">
+          <Text type="secondary">{roleFilter.label}</Text>
           <Select
-            aria-label="病种"
-            value="全部病种"
-            options={[{ label: "全部病种", value: "全部病种" }]}
+            aria-label={roleFilter.label}
+            value={roleFilter.value}
+            options={[{ label: roleFilter.value, value: roleFilter.value }]}
           />
         </Space>
         <Space direction="vertical" size={2} data-testid="workbench-filter-time">
@@ -501,14 +513,14 @@ function SystemHealthCard({
       id="system"
       title="系统健康"
       query={runtime}
-      drilldown={{ label: "查看运行保障", path: "/system/providers" }}
+      drilldown={{ label: "查看服务运行保障", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => (
         <Space direction="vertical" size="small">
           <StatusTag status={data.healthStatus} />
           <Text>当前环境：{customerDisplayText(data.environment)}</Text>
-          <Text type="secondary">数据库：{customerDisplayText(data.databaseDialect)}</Text>
+          <Text type="secondary">服务运行保障可查看数据库和依赖明细</Text>
         </Space>
       )}
     </SourceCard>
@@ -527,7 +539,7 @@ function SimpleRuntimeCard({
       id="runtime-simple"
       title="整体运行"
       query={runtime}
-      drilldown={{ label: "查看运行保障", path: "/system/providers" }}
+      drilldown={{ label: "查看服务运行保障", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => (
@@ -582,19 +594,19 @@ function KnowledgeSyncCard({
   return (
     <SourceCard
       id="knowledge"
-      title="知识同步"
+      title={KNOWLEDGE_RELATION_SYNC_LABEL}
       query={runtime}
-      drilldown={{ label: "查看知识图谱", path: "/advanced/graph" }}
+      drilldown={{ label: "查看知识关系", path: "/advanced/graph" }}
       onNavigate={onNavigate}
     >
       {(data) => {
-        const graph = data.dependencies.find((item) => item.key.includes("graph"));
+        const graph = data.dependencies.find(isKnowledgeRelationDependency);
         if (!graph) {
           return (
             <Space direction="vertical" size="small">
-              <Tag>知识同步来源待配置</Tag>
+              <Tag>知识关系同步来源待配置</Tag>
               <Text type="secondary">
-                当前运行状态未返回知识同步来源，请在运行保障中核查图谱投影配置。
+                当前运行状态未返回知识关系同步来源，请在服务运行保障中核查知识关系同步配置。
               </Text>
             </Space>
           );
@@ -602,8 +614,8 @@ function KnowledgeSyncCard({
         return (
           <Space direction="vertical" size="small">
             <StatusTag status={graph.status} />
-            <Text>{graph.displayName}</Text>
-            <Text type="secondary">{graph.detail}</Text>
+            <Text>{workbenchDependencyDisplayName(graph)}</Text>
+            <Text type="secondary">{workbenchDependencyDetail(graph)}</Text>
           </Space>
         );
       }}
@@ -663,7 +675,7 @@ function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
       <PageState
         state="empty"
         title="当前组织暂无待办"
-        description="当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。"
+        description="当前组织暂无待办；可进入患者路径、提醒与推荐或随访协同查看实时事项。"
         action={
           <Button type="link" onClick={() => onNavigate("/workflow/todos")}>
             查看待办
@@ -943,12 +955,39 @@ function DependencyList({ dependencies }: { dependencies: RuntimeDependencyStatu
     <Space size={[8, 8]} wrap>
       {dependencies.map((dependency) => (
         <Tag key={dependency.key} color={STATUS_COLOR[dependency.status] ?? "default"}>
-          {dependency.displayName} ·{" "}
+          {workbenchDependencyDisplayName(dependency)} ·{" "}
           {STATUS_LABEL[dependency.status] ?? customerEnumLabel(dependency.status)}
         </Tag>
       ))}
     </Space>
   );
+}
+
+function isKnowledgeRelationDependency(dependency: RuntimeDependencyStatus) {
+  return dependency.key.includes("graph");
+}
+
+function isDatabaseDependency(dependency: RuntimeDependencyStatus) {
+  return dependency.key.includes("database") || dependency.displayName.includes("数据库");
+}
+
+function workbenchDependencyDisplayName(dependency: RuntimeDependencyStatus) {
+  if (isKnowledgeRelationDependency(dependency)) {
+    return KNOWLEDGE_RELATION_SYNC_LABEL;
+  }
+  if (isDatabaseDependency(dependency)) {
+    return "运行数据服务";
+  }
+  return customerDisplayText(dependency.displayName);
+}
+
+function workbenchDependencyDetail(dependency: RuntimeDependencyStatus) {
+  if (isKnowledgeRelationDependency(dependency)) {
+    return dependency.status === "UP"
+      ? "知识关系同步可用，可进入知识关系复核来源、适应证、禁忌和相互作用。"
+      : "知识关系同步未连接；核心业务继续使用关系库权威数据。";
+  }
+  return customerSafeDisplayText(dependency.detail, "依赖状态待确认，请在服务运行保障中核查。");
 }
 
 function StatusTag({ status }: { status: string }) {
@@ -1033,14 +1072,14 @@ function resolveWeeklyActions(
       {
         key: "implementation",
         title: "核对实施进度",
-        description: "查看实施阶段、机构生效版本与上线准备项。",
+        description: "查看实施阶段、系统接入状态与上线准备项。",
         path: "/onboarding/guide",
       },
       {
-        key: "runtime-releases",
-        title: "复核生效版本",
-        description: "确认当前机构启用的平台标准版本和完整内容组合。",
-        path: "/config/releases",
+        key: "system-providers",
+        title: "核对服务运行保障",
+        description: "确认服务依赖、备份恢复和降级状态满足上线要求。",
+        path: "/system/providers",
       },
     );
     return actions;
@@ -1124,5 +1163,5 @@ function resolveRoleView(profile?: SecurityProfile): RoleView {
 
 function formatTime(value?: string | null): string {
   if (!value) return "暂无";
-  return new Date(value).toLocaleString();
+  return formatClinicalDateTime(value, value);
 }

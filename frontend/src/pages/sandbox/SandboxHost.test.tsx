@@ -1,9 +1,17 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import SandboxHost from "./SandboxHost";
+
+const sandboxHostCss = readFileSync(
+  resolve(process.cwd(), "src/pages/sandbox/SandboxHost.module.css"),
+  "utf8",
+);
 
 const sandboxHookMocks = vi.hoisted(() => ({
   run: vi.fn(),
@@ -63,7 +71,7 @@ const scenarios = [
     playbook: "RULE_ONLY",
     triggerPoint: "order-sign",
     title: "抗菌药物处方复核",
-    narrative: "使用演练机构规则运行。",
+    narrative: "使用当前机构规则运行。",
     hostSummary: "院内业务系统处方复核",
     patientId: "patient-2",
     encounterId: "encounter-2",
@@ -82,10 +90,29 @@ const scenarios = [
     playbook: "RECOMMENDATION_COMPOSITE",
     triggerPoint: "patient-view",
     title: "推荐综合卡",
-    narrative: "真实引擎编排。",
+    narrative: "真实协同编排。",
     hostSummary: "院内业务系统综合编排",
     patientId: "patient-3",
     encounterId: "encounter-3",
+    expectedRuleCode: null,
+    expectedAction: "SUGGEST_ORDER",
+    expectedSeverity: "MEDIUM",
+    expectedAssetCode: null,
+    status: "runtime-check",
+    statusReason: "运行时解析",
+    input: { kind: "orchestration" },
+  },
+  {
+    id: "sbx-pathway-composite",
+    serviceLine: "engine-orchestration",
+    engine: "pathway",
+    playbook: "PATHWAY_COMPOSITE",
+    triggerPoint: "patient-view",
+    title: "路径协同编排",
+    narrative: "使用当前机构临床路径运行。",
+    hostSummary: "院内业务系统路径协同",
+    patientId: "patient-4",
+    encounterId: "encounter-4",
     expectedRuleCode: null,
     expectedAction: "SUGGEST_ORDER",
     expectedSeverity: "MEDIUM",
@@ -224,9 +251,11 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
     expect(screen.queryByText("run-sandbox-host-1")).not.toBeInTheDocument();
     expect(screen.queryByText("baseline-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("runtime-sandbox-1")).not.toBeInTheDocument();
     expect(screen.queryByText("pathway-instance-sbx-1")).not.toBeInTheDocument();
     expect(screen.queryByText("followup-plan-sbx-1")).not.toBeInTheDocument();
     expect(screen.queryByText("evaluation-run-sbx-1")).not.toBeInTheDocument();
+    expect(screen.getAllByText("当前机构生效版本 · 第 7 版").length).toBeGreaterThan(0);
     expect(screen.getByText("路径实例已生成")).toBeInTheDocument();
     expect(screen.getByText("随访计划已登记")).toBeInTheDocument();
     expect(screen.getByText("评估运行已记录")).toBeInTheDocument();
@@ -264,9 +293,21 @@ describe("SandboxHost", () => {
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
+    expect(screen.getAllByText("runtime-sandbox-1 · 第 7 版").length).toBeGreaterThan(0);
     expect(screen.getByText("宿主已收到采纳建议（ADOPT）决策")).toBeInTheDocument();
     expect(screen.getByText("卡片：card-1")).toBeInTheDocument();
     expect(screen.getByText("状态：建议已采纳（ADOPTED）")).toBeInTheDocument();
+  });
+
+  it("stacks the sandbox workspace before the application sidebar can cause root overflow", () => {
+    expect(sandboxHostCss).toContain("@media (max-width: 90rem)");
+    expect(sandboxHostCss).not.toContain("@media (max-width: 78rem)");
+  });
+
+  it("does not declare a nested page main landmark inside the application shell", () => {
+    renderSandboxHost();
+
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
   });
 
   it("keeps a truthful failure state when orchestration cannot complete", async () => {
@@ -284,7 +325,6 @@ describe("SandboxHost", () => {
       data: {
         ready: false,
         reasonCode: "SANDBOX_RUNTIME_BASELINE_MISSING",
-        reason: "演练机构尚未发布沙盘生效版本",
         targetOrgUnitId: "hospital-sandbox-1",
         assetCount: 0,
         externalSideEffects: false,
@@ -297,9 +337,36 @@ describe("SandboxHost", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
 
-    expect(await screen.findByText(/演练机构尚未发布沙盘生效版本/)).toBeInTheDocument();
+    expect(await screen.findByText("当前机构尚未发布可用版本。")).toBeInTheDocument();
+    expect(screen.queryByText(/演练机构/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "运行真实引擎链路" })).not.toBeInTheDocument();
     expect(sandboxHookMocks.run).not.toHaveBeenCalled();
+  });
+
+  it("uses clinical pathway wording instead of engine terminology", () => {
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("button", { name: /路径协同编排/ }));
+
+    expect(screen.getByText("临床路径")).toBeInTheDocument();
+    expect(screen.queryByText("路径引擎")).not.toBeInTheDocument();
+  });
+
+  it("uses clinical rule wording instead of engine module terminology", () => {
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
+
+    expect(screen.getByText("临床规则")).toBeInTheDocument();
+    expect(screen.queryByText("规则引擎")).not.toBeInTheDocument();
+  });
+
+  it("uses hospital-facing collaboration wording for orchestration scenarios", () => {
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
+
+    expect(screen.getByText("医疗智能协同")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医疗智能协同入口" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "运行真实协同链路" })).toBeInTheDocument();
+    expect(screen.queryByText(/引擎编排|真实引擎|引擎能力|引擎处置建议/)).not.toBeInTheDocument();
   });
 
   it("shows the current institution effective version without exposing package selectors", () => {
@@ -324,7 +391,11 @@ describe("SandboxHost", () => {
     renderSandboxHost();
 
     expect(screen.getByText("当前机构生效版本")).toBeInTheDocument();
-    expect(screen.getByText("第 9 版 · runtime-platform-1")).toBeInTheDocument();
+    expect(screen.getByText("当前机构生效版本 · 第 9 版")).toBeInTheDocument();
+    expect(screen.queryByText("runtime-platform-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("runtime-platform-1 · 第 9 版")).toBeInTheDocument();
   });
 
   it("shows a product-facing scenario catalog warning when the catalog cannot be read", () => {
@@ -368,11 +439,11 @@ describe("SandboxHost", () => {
     renderSandboxHost();
     fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
     expect(screen.getByText("推荐综合卡编排")).toBeInTheDocument();
-    expect(screen.getByText("智能推荐")).toBeInTheDocument();
+    expect(screen.getByText("提醒与推荐")).toBeInTheDocument();
     expect(screen.queryByText("RECOMMENDATION_COMPOSITE")).not.toBeInTheDocument();
     expect(screen.queryByText("recommendation")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "运行真实引擎链路" }));
+    fireEvent.click(screen.getByRole("button", { name: "运行真实协同链路" }));
 
     await waitFor(() =>
       expect(sandboxHookMocks.run).toHaveBeenCalledWith({
@@ -444,6 +515,7 @@ describe("SandboxHost", () => {
     expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
     expect(screen.getByText("历史版本 7")).toBeInTheDocument();
     expect(screen.queryByText("RULE.OLD.K@7")).not.toBeInTheDocument();
+    expect(screen.queryByText("sha256:old-7")).not.toBeInTheDocument();
     expect(screen.getByText("历史已退役")).toBeInTheDocument();
     expect(screen.queryByText("RETIRED")).not.toBeInTheDocument();
     expect(screen.getAllByText("危急风险").length).toBeGreaterThan(0);
@@ -453,6 +525,7 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("sha256:old-7 · 第 4 版")).toBeInTheDocument();
     expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
     expect(screen.getByText("历史已退役（RETIRED）")).toBeInTheDocument();
     expect(screen.getByText("危急风险（CRITICAL）")).toBeInTheDocument();
@@ -556,9 +629,11 @@ describe("SandboxHost", () => {
       screen.getByText(/历史：平台标准 第 1 版 \/ 命中；当前：机构版本 第 2 版 \/ 命中/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/PLATFORM|ORG/)).not.toBeInTheDocument();
+    expect(screen.queryByText("runtime-current-2")).not.toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("runtime-current-2 · 第 2 版")).toBeInTheDocument();
     expect(screen.getByText("RULE.RISK.UP")).toBeInTheDocument();
     expect(
       screen.getByText(

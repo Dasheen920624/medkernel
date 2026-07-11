@@ -83,7 +83,7 @@ test.describe("线2路径图编辑器真实验收", () => {
     await expect(dialog.getByLabel("路径图编辑器")).toBeVisible();
     await expect(dialog.getByLabel("路径节点 N1", { exact: true })).toBeVisible();
     const toolbarTitleBox = await dialog.getByText("结构化节点画布", { exact: true }).boundingBox();
-    const nodeCodeInputBox = await dialog.getByPlaceholder("如 N1，可改为 ASSESS").boundingBox();
+    const nodeCodeInputBox = await dialog.getByLabel("节点身份").boundingBox();
     expect(toolbarTitleBox).not.toBeNull();
     expect(nodeCodeInputBox).not.toBeNull();
     expect(toolbarTitleBox!.width).toBeGreaterThan(120);
@@ -101,9 +101,10 @@ test.describe("线2路径图编辑器真实验收", () => {
 
     await dialog.getByLabel("节点身份").fill("CLOCK");
     await dialog.getByLabel("节点名称").fill("关键时钟");
+    await selectAntOption(page, dialog, "节点类型", "等待计时");
     await dialog.getByLabel("时窗分钟").fill("60");
 
-    await expect(dialog.getByLabel("SLA基准")).toBeVisible();
+    await expect(dialog.getByLabel("时窗校验基准")).toBeVisible();
     await expect(dialog.getByLabel("最早分钟")).toBeVisible();
     await expect(dialog.getByLabel("目标分钟")).toBeVisible();
     await expect(dialog.getByLabel("最晚分钟")).toBeVisible();
@@ -121,8 +122,9 @@ test.describe("线2路径图编辑器真实验收", () => {
 });
 
 async function openCreatePathwayDialog(page: Page) {
-  await page.getByRole("button", { name: "新建路径模板" }).click();
-  const dialog = page.getByRole("dialog", { name: "新建路径模板模型" });
+  await expect(page.getByRole("heading", { name: "临床路径库" })).toBeVisible();
+  await page.getByRole("button", { name: "新建临床路径" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建临床路径" });
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -149,4 +151,19 @@ async function expectNoRootOverflow(page: Page) {
     documentWidth: document.documentElement.scrollWidth,
   }));
   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+}
+
+async function selectAntOption(
+  page: Page,
+  dialog: ReturnType<Page["getByRole"]>,
+  fieldLabel: string,
+  optionLabel: string,
+) {
+  const combobox = dialog.getByRole("combobox", { name: fieldLabel });
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)");
+  await dropdown.getByText(optionLabel, { exact: true }).click();
 }

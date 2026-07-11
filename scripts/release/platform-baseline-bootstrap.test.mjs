@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { buildLaunchCredentialPlan } from "./launch-account-bootstrap-lib.mjs";
@@ -7,12 +9,20 @@ import {
   runPlatformBaselineBootstrap,
 } from "./platform-baseline-bootstrap-lib.mjs";
 
+const MANIFEST_PATH = fileURLToPath(
+  new URL(
+    "../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json",
+    import.meta.url,
+  ),
+);
+
 test("平台基线启动配置复用平台 engine-operator 且证据固定在仓库外", () => {
   const credentials = readyCredentials();
   const config = readPlatformBaselineBootstrapConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
     },
     {
@@ -42,9 +52,16 @@ test("清库时先固化字段目录草稿再发布平台标准版本并回读�
   assert.equal(evidence.stage, "PLATFORM_BASELINE_BOOTSTRAP");
   assert.equal(evidence.reused, false);
   assert.equal(evidence.fieldCatalog.assetType, "FIELD_CATALOG");
-  assert.equal(evidence.fieldCatalog.assetIdentity, "FIELD.CATALOG.CLINICAL_CONTEXT");
+  assert.equal(
+    evidence.fieldCatalog.assetIdentity,
+    "FIELD.CATALOG.CLINICAL_CONTEXT",
+  );
   assert.equal(evidence.fieldCatalog.entryState, "ACTIVE");
   assert.equal(evidence.baseline.revisionNo, 1);
+  assert.deepEqual(
+    evidence.launchCoverage.versionedAssets.map((item) => item.code),
+    ["FIELD_CATALOG"],
+  );
   assert.deepEqual(
     requests.map((item) => `${item.method} ${item.path}`),
     [
@@ -58,12 +75,50 @@ test("清库时先固化字段目录草稿再发布平台标准版本并回读�
   assert.deepEqual(requests[3].body.publishVersionIds, ["field-catalog-v1"]);
 });
 
+test("当前平台标准版本缺全知识时使用已发布知识候选刷新基线", async () => {
+  const requests = [];
+  const evidence = await runPlatformBaselineBootstrap({
+    apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
+    operator: readyCredentials().platform.accounts["engine-operator"],
+    knowledgeManifest: fullKnowledgeManifest(),
+    fetchImpl: createPlatformBaselineFetch(requests, {
+      currentInitiallyExists: true,
+      currentInitiallyHasKnowledge: false,
+      knowledgeCandidates: true,
+    }),
+    now: () => "2026-06-22T08:40:00.000Z",
+  });
+
+  assert.equal(evidence.status, "PASSED");
+  assert.equal(evidence.reused, false);
+  assert.equal(evidence.refreshed, true);
+  assert.equal(evidence.knowledge.requiredCount, 11);
+  assert.equal(evidence.knowledge.activeCount, 11);
+  assert.equal(evidence.knowledgeAssets.length, 11);
+  assert.deepEqual(
+    requests.map((item) => `${item.method} ${item.path}`),
+    [
+      "POST /auth/login",
+      "GET /engine/releases/platform-baselines/current",
+      "GET /engine/releases/platform-baselines/candidates?assetType=KNOWLEDGE&page=1&size=200",
+      "POST /engine/releases/platform-baselines",
+      "GET /engine/releases/platform-baselines/current",
+    ],
+  );
+  assert.deepEqual(
+    requests[3].body.publishVersionIds,
+    knowledgeCandidates().map((item) => item.versionId),
+  );
+});
+
 test("已存在含字段目录的当前平台标准版本时只复用并写证据", async () => {
   const requests = [];
   const evidence = await runPlatformBaselineBootstrap({
     apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
     operator: readyCredentials().platform.accounts["engine-operator"],
-    fetchImpl: createPlatformBaselineFetch(requests, { currentInitiallyExists: true }),
+    fetchImpl: createPlatformBaselineFetch(requests, {
+      currentInitiallyExists: true,
+    }),
     now: () => "2026-06-22T08:40:00.000Z",
   });
 
@@ -71,10 +126,7 @@ test("已存在含字段目录的当前平台标准版本时只复用并写证�
   assert.equal(evidence.reused, true);
   assert.deepEqual(
     requests.map((item) => `${item.method} ${item.path}`),
-    [
-      "POST /auth/login",
-      "GET /engine/releases/platform-baselines/current",
-    ],
+    ["POST /auth/login", "GET /engine/releases/platform-baselines/current"],
   );
 });
 
@@ -97,16 +149,18 @@ function readyCredentials() {
   });
   delete credentials.platform.takeover.initialPassword;
   for (const scope of [credentials.platform, credentials.rehearsal]) {
-    for (const account of Object.values(scope.accounts)) delete account.initialPassword;
+    for (const account of Object.values(scope.accounts))
+      delete account.initialPassword;
   }
   return credentials;
 }
 
 function createPlatformBaselineFetch(requests, options = {}) {
   let published = options.currentInitiallyExists === true;
+  let baselineHasKnowledge = options.currentInitiallyHasKnowledge === true;
   return async (url, init = {}) => {
     const parsed = new URL(url);
-    const path = parsed.pathname.replace(/^.*\/api\/v1/u, "");
+    const path = `${parsed.pathname.replace(/^.*\/api\/v1/u, "")}${parsed.search}`;
     const method = init.method ?? "GET";
     const body = init.body ? JSON.parse(init.body) : null;
     requests.push({ method, path, body });
@@ -126,10 +180,37 @@ function createPlatformBaselineFetch(requests, options = {}) {
         "mk_access=session; Path=/; HttpOnly, XSRF-TOKEN=xsrf; Path=/",
       );
     }
-    if (method === "GET" && path === "/engine/releases/platform-baselines/current") {
+    if (
+      method === "GET" &&
+      path === "/engine/releases/platform-baselines/current"
+    ) {
       return published
-        ? response({ data: platformBaselineDetail() })
-        : response({ code: "ENG-API-005", detail: "平台尚未发布标准版本" }, 404);
+        ? response({
+            data: platformBaselineDetail({
+              includeKnowledge: baselineHasKnowledge,
+            }),
+          })
+        : response(
+            { code: "ENG-API-005", detail: "平台尚未发布标准版本" },
+            404,
+          );
+    }
+    if (
+      method === "GET" &&
+      path ===
+        "/engine/releases/platform-baselines/candidates?assetType=KNOWLEDGE&page=1&size=200"
+    ) {
+      if (!options.knowledgeCandidates) {
+        return response({ data: { items: [], page: 1, size: 200, total: 0 } });
+      }
+      return response({
+        data: {
+          items: knowledgeCandidates(),
+          page: 1,
+          size: 200,
+          total: 11,
+        },
+      });
     }
     if (method === "POST" && path === "/engine/context/field-catalog/drafts") {
       return response({
@@ -144,6 +225,10 @@ function createPlatformBaselineFetch(requests, options = {}) {
     }
     if (method === "POST" && path === "/engine/releases/platform-baselines") {
       published = true;
+      baselineHasKnowledge =
+        body.publishVersionIds?.some((value) =>
+          String(value).startsWith("knowledge-"),
+        ) === true;
       return response({
         data: {
           baselineReleaseId: "baseline-1",
@@ -156,7 +241,7 @@ function createPlatformBaselineFetch(requests, options = {}) {
   };
 }
 
-function platformBaselineDetail() {
+function platformBaselineDetail(options = {}) {
   return {
     release: {
       baselineReleaseId: "baseline-1",
@@ -172,8 +257,40 @@ function platformBaselineDetail() {
         versionNo: "1",
         contentHash: "sha256:def",
       },
+      ...(options.includeKnowledge ? knowledgeBaselineItems() : []),
     ],
   };
+}
+
+function fullKnowledgeManifest() {
+  return JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
+}
+
+function knowledgeCandidates() {
+  return fullKnowledgeManifest().entries.map((entry) => ({
+    sourceLayer: "PLATFORM",
+    assetType: "KNOWLEDGE",
+    assetIdentity: entry.identityCode,
+    versionId: `knowledge-${entry.domain.toLowerCase()}-v1`,
+    versionNo: "V1",
+    status: "PUBLISHED",
+    organizationScope: "/platform",
+    applicableScope: "ALL",
+    contentHash: `${entry.domain.toLowerCase().padEnd(64, "0").slice(0, 64)}`,
+    sourceRef: `knowledge/${entry.identityCode}`,
+    updatedAt: "2026-06-22T08:30:00.000Z",
+  }));
+}
+
+function knowledgeBaselineItems() {
+  return knowledgeCandidates().map((candidate) => ({
+    assetType: candidate.assetType,
+    assetIdentity: candidate.assetIdentity,
+    entryState: "ACTIVE",
+    versionId: candidate.versionId,
+    versionNo: candidate.versionNo,
+    contentHash: candidate.contentHash,
+  }));
 }
 
 function response(payload, status = 200, setCookie = "") {
@@ -181,7 +298,9 @@ function response(payload, status = 200, setCookie = "") {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null) },
+    headers: {
+      get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null),
+    },
     text: async () => text,
   };
 }

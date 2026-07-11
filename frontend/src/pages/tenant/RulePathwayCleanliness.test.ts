@@ -232,7 +232,7 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     );
   });
 
-  it("发布治理中心不再保留旧上线容器生命周期", () => {
+  it("机构生效版本不再保留旧上线容器生命周期", () => {
     const releaseSource = readSource("src/pages/tenant/ReleaseGovernance.tsx");
     const hooksSource = readSource("src/shared/api/hooks.ts");
 

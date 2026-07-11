@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 标准互操作映射 REST 入口。
  *
- * <p>提供规则 DSL 与 CDS Hooks/CQL/Arden、路径模板与 FHIR PlanDefinition/GLIF 的导出和回导；
+ * <p>提供规则 DSL 与 CDS Hooks/CQL/Arden、临床路径与 FHIR PlanDefinition/GLIF 的导出和回导；
  * 映射服务不保存第二份事实源，所有回导结果仍进入既有规则/路径创建与发布流程。
  */
 @RestController
@@ -62,7 +62,7 @@ public class InteroperabilityController {
     }
 
     /**
-     * 导出路径模板草稿到 FHIR PlanDefinition 与 GLIF 概念映射。
+     * 导出临床路径草稿到 FHIR PlanDefinition 与 GLIF 概念映射。
      */
     @PostMapping("/pathways/plan-definition:export")
     @PreAuthorize("@perm.hasAny('pathway.read','pathway.write')")
@@ -72,7 +72,7 @@ public class InteroperabilityController {
     }
 
     /**
-     * 从 PlanDefinition 映射回导路径模板草稿。
+     * 从 PlanDefinition 映射回导临床路径草稿。
      */
     @PostMapping("/pathways/plan-definition:import")
     @PreAuthorize("@perm.has('pathway.write')")

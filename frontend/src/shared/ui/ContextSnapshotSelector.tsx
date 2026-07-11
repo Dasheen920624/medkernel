@@ -1,6 +1,7 @@
 import { Alert, Button, Empty, List, Space, Tag } from "antd";
 
 import type { ContextSnapshotSummary } from "@/shared/api/hooks";
+import { formatClinicalDateTimeWithSeconds } from "@/shared/lib/dateTimeText";
 
 interface ContextSnapshotSelectorProps {
   enabled: boolean;
@@ -39,44 +40,52 @@ export function ContextSnapshotSelector({
     <List
       bordered
       dataSource={snapshots}
-      renderItem={(snapshot, index) => (
-        <List.Item
-          actions={[
-            <Button
-              key="select"
-              aria-label={
+      renderItem={(snapshot, index) => {
+        const createdAtText = formatClinicalDateTimeWithSeconds(snapshot.createdAt, "");
+        let selectLabel = `选择第 ${index + 1} 个${noun}`;
+        if (createdAtText) {
+          selectLabel = `选择 ${createdAtText} 建立的${noun}`;
+        }
+        if (evidenceDetailsEnabled) {
+          selectLabel = `选择 ${snapshot.snapshotId}`;
+        }
+        return (
+          <List.Item
+            actions={[
+              <Button
+                key="select"
+                aria-label={selectLabel}
+                data-snapshot-id={snapshot.snapshotId}
+                type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
+                onClick={() => onSelect(snapshot.snapshotId)}
+              >
+                选择
+              </Button>,
+            ]}
+          >
+            <List.Item.Meta
+              title={
                 evidenceDetailsEnabled
-                  ? `选择 ${snapshot.snapshotId}`
-                  : `选择第 ${index + 1} 个${noun}`
+                  ? `患者 ${snapshot.patientId} · 就诊 ${snapshot.encounterId}`
+                  : "已关联患者与就诊"
               }
-              type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
-              onClick={() => onSelect(snapshot.snapshotId)}
-            >
-              选择
-            </Button>,
-          ]}
-        >
-          <List.Item.Meta
-            title={
-              evidenceDetailsEnabled
-                ? `患者 ${snapshot.patientId} · 就诊 ${snapshot.encounterId}`
-                : "已关联患者与就诊"
-            }
-            description={
-              <Space wrap size="small">
-                {evidenceDetailsEnabled ? (
-                  <span>快照 {snapshot.snapshotId}</span>
-                ) : (
-                  <span>{noun}已生效</span>
-                )}
-                <Tag color={snapshot.qualityStatus === "VALID" ? "green" : "orange"}>
-                  {snapshot.qualityStatus}
-                </Tag>
-              </Space>
-            }
-          />
-        </List.Item>
-      )}
+              description={
+                <Space wrap size="small">
+                  {evidenceDetailsEnabled ? (
+                    <span>快照 {snapshot.snapshotId}</span>
+                  ) : (
+                    <span>{noun}已生效</span>
+                  )}
+                  {createdAtText && <span>建立时间：{createdAtText}</span>}
+                  <Tag color={snapshot.qualityStatus === "VALID" ? "green" : "orange"}>
+                    {snapshot.qualityStatus}
+                  </Tag>
+                </Space>
+              }
+            />
+          </List.Item>
+        );
+      }}
     />
   );
 }

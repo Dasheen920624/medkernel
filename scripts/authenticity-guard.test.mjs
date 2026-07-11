@@ -109,6 +109,51 @@ test("前端 E2E 验收脚本禁止使用 mock 或固定医学剧本冒充真实
   );
 });
 
+test("前端 E2E 允许真实规则正负例使用医学术语", async () => {
+  await withFixture(
+    {
+      "frontend/e2e/medication-safety-frontdesk.spec.ts": `
+        import { test } from "@playwright/test";
+
+        test("真实前台用药安全闭环", async ({ page }) => {
+          await page.getByLabel("当前用药").fill("青霉素、用药安全演练");
+          await page.getByLabel("过敏/不良反应").fill("头孢菌素：呼吸困难");
+          await page.getByRole("button", { name: "生成患者上下文" }).click();
+        });
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/e2e/medication-safety-frontdesk.spec.ts"]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
+test("前端 E2E 禁止用头孢固定病例剧本冒充验收", async () => {
+  await withFixture(
+    {
+      "frontend/e2e/scenarios/cephalosporin-script.spec.ts": `
+        import { test } from "@playwright/test";
+
+        test("用药验收", async ({ page }) => {
+          await page.getByText("头孢病例剧本").click();
+          await page.getByRole("button", { name: "验收通过" }).click();
+        });
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/e2e/scenarios/cephalosporin-script.spec.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.e2e-fake-acceptance"]);
+    },
+  );
+});
+
 test("生产路由禁止注册 Demo 演示页", async () => {
   await withFixture(
     {
@@ -738,6 +783,62 @@ test("前端生产文件会阻断默认临床病例文本回流", async () => {
       assert.deepEqual(ruleIds(report), [
         "frontend.hardcoded-medical-constant",
       ]);
+    },
+  );
+});
+
+test("系统接入页允许产品范围定义的第三方系统族标签", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/tenant/AdapterHub.tsx": `
+        const THIRD_PARTY_SYSTEM_FAMILY_OPTIONS = [
+          { value: "LIS_MONITORING_CRITICAL", label: "LIS、监护与危急值" },
+          {
+            value: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+            label: "PACS/RIS、超声、病理、内镜、心电",
+          },
+        ];
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/tenant/AdapterHub.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
+test("系统族标签放行不得掩盖同一行夹带的医学常量", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/tenant/AdapterHub.tsx": `
+        const THIRD_PARTY_SYSTEM_FAMILY_OPTIONS = [
+          { value: "LIS_MONITORING_CRITICAL", label: "LIS、监护与危急值 I10" },
+        ];
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/tenant/AdapterHub.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.hardcoded-medical-constant"]);
+    },
+  );
+});
+
+test("危急值文本只有精确产品范围系统族标签行可放行", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/tenant/AdapterHub.tsx": `
+        const label = "危急值标记";
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/tenant/AdapterHub.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.hardcoded-medical-constant"]);
     },
   );
 });

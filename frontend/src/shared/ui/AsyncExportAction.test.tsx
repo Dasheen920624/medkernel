@@ -78,7 +78,7 @@ describe("AsyncExportAction", () => {
     expect(screen.queryByText(/尚未接入|接口/)).not.toBeInTheDocument();
   });
 
-  it("polls a pending export until completion and displays audit evidence", async () => {
+  it("polls a pending export until completion while keeping job id in evidence details", async () => {
     const onSubmit = vi.fn().mockResolvedValue({
       jobId: "job-1",
       status: "pending",
@@ -109,13 +109,38 @@ describe("AsyncExportAction", () => {
     await waitFor(() => expect(onPoll.mock.calls.length).toBeGreaterThanOrEqual(2));
 
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
-    expect(screen.getByText(/job-1/)).toBeInTheDocument();
+    expect(screen.getByText("导出任务已登记")).toBeInTheDocument();
+    expect(screen.queryByText(/job-1/)).not.toBeInTheDocument();
     expect(screen.getByText("导出证据已留痕，可在审计证据中追溯。")).toBeInTheDocument();
     expect(screen.queryByText(/trace-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
     expect(screen.queryByText(/audit-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/审计编号/)).not.toBeInTheDocument();
     expect(onPoll).toHaveBeenCalledWith("job-1");
+  });
+
+  it("shows export job id when evidence details are enabled", async () => {
+    const onSubmit = vi.fn().mockResolvedValue({
+      jobId: "job-evidence",
+      status: "succeeded",
+      submittedAt: "2026-05-26T01:00:00.000Z",
+      submittedBy: "tester",
+    } satisfies AsyncExportJob);
+    renderAction({
+      request: {
+        ...request,
+        requestSnapshot: {
+          ...request.requestSnapshot,
+          evidenceDetailsEnabled: true,
+        },
+      },
+      onSubmit,
+    });
+
+    await submitExport();
+
+    expect(await screen.findByText("导出已完成")).toBeInTheDocument();
+    expect(screen.getByText("导出任务编号：job-evidence")).toBeInTheDocument();
   });
 
   it("retries a failed submission using the original snapshot", async () => {

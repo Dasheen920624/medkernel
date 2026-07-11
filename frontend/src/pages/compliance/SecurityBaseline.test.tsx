@@ -161,7 +161,7 @@ describe("SecurityBaseline", () => {
           targetJdk: "BiSheng JDK 21",
           databaseVendors: ["达梦"],
           cryptoAlgorithms: ["SM3"],
-          evidence: "国产化自检",
+          evidence: "国产化适配自检",
         },
         domesticCompatibility: {
           overallStatus: "WARN",
@@ -207,7 +207,7 @@ describe("SecurityBaseline", () => {
           displayName: "平台知识文献资料库根地址",
           risk: "HIGH",
           owner: "平台知识治理组 / 信息科",
-          description: "主平台知识管理服务器使用的正式文献资料库根地址，禁止使用 tmp 临时目录。",
+          description: "主平台知识管理服务器使用的正式文献资料库根地址，禁止使用临时目录。",
           source: "PLATFORM_SEED",
           protectedConfig: true,
           version: 1,
@@ -407,13 +407,17 @@ describe("SecurityBaseline", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "安全与配置" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "安全基线与系统配置" })).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("关系数据库")).toBeInTheDocument();
     expect(screen.getByText("已限定 1 个运行环境")).toBeInTheDocument();
+    expect(screen.getByText(/运行环境：容器运行环境 \/ 容器化部署/)).toBeInTheDocument();
     expect(screen.queryByText("u-admin")).not.toBeInTheDocument();
     expect(screen.queryByText("system.manage")).not.toBeInTheDocument();
     expect(screen.queryByText("prod")).not.toBeInTheDocument();
+    expect(screen.queryByText("container")).not.toBeInTheDocument();
+    expect(screen.queryByText("docker-core")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
     expect(screen.getByText("口令最小长度")).toBeInTheDocument();
@@ -449,6 +453,18 @@ describe("SecurityBaseline", () => {
     expect(screen.queryByText("sha256:emr-export-001")).not.toBeInTheDocument();
   }, 15_000);
 
+  it("uses customer-facing wording when security or runtime data is empty", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue(query(null) as never);
+
+    renderPage();
+
+    expect(screen.getByRole("heading", { name: "安全与配置" })).toBeInTheDocument();
+    expect(screen.getByText("安全与配置暂无数据")).toBeInTheDocument();
+    expect(screen.getByText("暂无安全与配置状态")).toBeInTheDocument();
+    expect(screen.queryByText("安全与配置合同暂无数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无安全基线状态")).not.toBeInTheDocument();
+  });
+
   it("reveals security identifiers only through evidence details", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -458,6 +474,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("u-admin")).toBeInTheDocument();
     expect(screen.getByText("system.manage")).toBeInTheDocument();
     expect(screen.getByText("prod")).toBeInTheDocument();
+    expect(screen.getByText(/运行环境：container \/ docker-core/)).toBeInTheDocument();
     expect(screen.getByText("t-1 / g-1 / h-1")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
@@ -475,6 +492,42 @@ describe("SecurityBaseline", () => {
     await user.click(screen.getByRole("tab", { name: "互操作测评" }));
     await user.click(screen.getByRole("button", { name: "Expand row" }));
     expect(screen.getByText("sha256:emr-export-001")).toBeInTheDocument();
+  });
+
+  it("uses confirmable labels for unknown data permission action and level", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useDataPermissionPolicies).mockReturnValue(
+      query({
+        items: [
+          {
+            policyId: "policy-new-enum",
+            tenantId: "t-1",
+            resourceType: "clinical_case",
+            action: "SHARE_WITH_RESEARCH",
+            minDataLevel: "REGION_NETWORK",
+            allowedColumns: ["patientId"],
+            status: "ACTIVE",
+            version: 1,
+            createdAt: "2026-06-06T00:00:00Z",
+            createdBy: "security-admin",
+            updatedAt: "2026-06-06T00:00:00Z",
+            updatedBy: "security-admin",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "数据权限" }));
+
+    expect(screen.getAllByText("状态待确认").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("未识别")).not.toBeInTheDocument();
   });
 
   it("treats globally disabled multi-factor authentication as a valid passing configuration", () => {

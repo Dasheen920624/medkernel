@@ -1,7 +1,14 @@
 import { Alert, Button, Card, Descriptions, Space, Tag, Typography } from "antd";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
-import { useKnowledgeProductionReadiness } from "@/shared/api/hooks";
+import {
+  type KnowledgeProductionReadinessItem,
+  useKnowledgeProductionReadiness,
+  useSecurityProfile,
+} from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageState } from "@/shared/ui/PageState";
 
 const { Text } = Typography;
@@ -22,7 +29,7 @@ const GATES = [
     step: "evaluation",
     owner: "医疗引擎运营员",
   },
-  { code: "EGRESS_GOVERNANCE", label: "外调允许范围", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "EGRESS_GOVERNANCE", label: "模型使用边界", step: "readiness", owner: "医疗引擎运营员" },
   { code: "MODEL_POLICY", label: "模型生产策略", step: "readiness", owner: "医疗引擎运营员" },
   {
     code: "VERSION_TRIPLE",
@@ -32,7 +39,19 @@ const GATES = [
   },
 ] as const;
 
+function evidenceSummary(
+  item: KnowledgeProductionReadinessItem | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!item) return "证据待补齐";
+  if (evidenceDetailsEnabled) return `证据：${item.evidence || "未返回"}`;
+  return item.evidence ? "证据已记录" : "证据待补齐";
+}
+
 export default function ProductionReadinessPanel() {
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const readiness = useKnowledgeProductionReadiness({ producer: "API_MODEL" });
   const itemByCode = new Map(readiness.data?.items.map((item) => [item.code, item]) ?? []);
 
@@ -70,8 +89,7 @@ export default function ProductionReadinessPanel() {
                   ) : null}
                 </Space>
                 <Text type="secondary">
-                  责任角色：{gate.owner}
-                  {item?.evidence ? ` · 证据：${item.evidence}` : ""}
+                  责任角色：{gate.owner} · {evidenceSummary(item, evidenceDetailsEnabled)}
                 </Text>
               </Space>
             </Descriptions.Item>
@@ -82,7 +100,7 @@ export default function ProductionReadinessPanel() {
   }
 
   return (
-    <Card title="生产前校验">
+    <Card title="生产前校验" extra={<EvidenceDetailsToggle securityProfile={security.data} />}>
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Alert
           type={readiness.data?.ready ? "success" : "warning"}

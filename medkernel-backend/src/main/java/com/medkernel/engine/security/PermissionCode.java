@@ -21,7 +21,7 @@ public enum PermissionCode {
     ORG_WRITE("org.write", Risk.MEDIUM, "新增 / 修改组织单元"),
     ORG_PUBLISH("org.publish", Risk.HIGH, "激活 / 暂停 / 归档组织单元"),
 
-    // ─── 服务机构与发布治理（GA-ENG-API-10）────────────────────────────
+    // ─── 服务机构与机构生效版本（GA-ENG-API-10）────────────────────────────
     TENANT_READ("tenant.read", Risk.LOW, "查看服务机构与生命周期"),
     TENANT_WRITE("tenant.write", Risk.HIGH, "开通 / 关闭服务机构"),
     RELEASE_READ("release.read", Risk.LOW, "查看平台标准版本与机构生效版本"),
@@ -43,7 +43,7 @@ public enum PermissionCode {
     // ─── 字典（GA-ENG-TERM-01）─────────────────────────────────
     TERM_READ("term.read", Risk.LOW, "查看标准字典 / 院内映射"),
     TERM_WRITE("term.write", Risk.MEDIUM, "修改字典 / 映射"),
-    TERM_PUBLISH("term.publish", Risk.HIGH, "发布字典映射版本"),
+    TERM_PUBLISH("term.publish", Risk.HIGH, "发布术语字典版本"),
 
     // ─── 规则（GA-ENG-RULE-01）─────────────────────────────────
     RULE_READ("rule.read", Risk.LOW, "查看规则"),
@@ -52,19 +52,19 @@ public enum PermissionCode {
     RULE_OVERRIDE("rule.override", Risk.HIGH, "记录阻断或强提醒的人工越权理由"),
 
     // ─── 路径（GA-ENG-PATH-01）─────────────────────────────────
-    PATHWAY_READ("pathway.read", Risk.LOW, "查看路径模板 / 患者路径"),
-    PATHWAY_WRITE("pathway.write", Risk.MEDIUM, "编辑路径模板"),
+    PATHWAY_READ("pathway.read", Risk.LOW, "查看临床路径版本 / 患者路径"),
+    PATHWAY_WRITE("pathway.write", Risk.MEDIUM, "编辑临床路径版本"),
     PATHWAY_EXECUTE("pathway.execute", Risk.MEDIUM, "患者入径与路径节点推进"),
-    PATHWAY_PUBLISH("pathway.publish", Risk.HIGH, "发布路径模板"),
+    PATHWAY_PUBLISH("pathway.publish", Risk.HIGH, "发布临床路径版本"),
 
     // ─── CDSS / 推荐（GA-ENG-CDSS-01）──────────────────────────
     RECOMMENDATION_READ("recommendation.read", Risk.LOW, "查看推荐 / 提醒"),
     RECOMMENDATION_ACCEPT("recommendation.accept", Risk.MEDIUM, "采纳或拒绝推荐（医师权限）"),
 
-    // ─── 评估质控（GA-ENG-EVAL-01）─────────────────────────────
+    // ─── 质量评价（GA-ENG-EVAL-01）─────────────────────────────
     EVALUATION_READ("evaluation.read", Risk.LOW, "查看评估指标和结果"),
     EVALUATION_WRITE("evaluation.write", Risk.MEDIUM, "修改评估指标"),
-    EVALUATION_PUBLISH("evaluation.publish", Risk.HIGH, "发布质控指标"),
+    EVALUATION_PUBLISH("evaluation.publish", Risk.HIGH, "发布评价指标"),
 
     // ─── 审计与证据（GA-ENG-EVID-01）──────────────────────────
     AUDIT_READ("audit.read", Risk.LOW, "查看审计日志"),
@@ -87,11 +87,11 @@ public enum PermissionCode {
     // ─── 追加权限（保持已发布枚举顺序稳定）──────────────────────────
     RECOMMENDATION_WRITE("recommendation.write", Risk.MEDIUM, "创建推荐触发和候选提醒事实"),
     EVALUATION_EXECUTE("evaluation.execute", Risk.MEDIUM, "接收评估运行和结果事实"),
-    EVALUATION_REMEDIATE("evaluation.remediate", Risk.MEDIUM, "提交质控问题整改证据"),
-    EVALUATION_REVIEW("evaluation.review", Risk.HIGH, "复核质控整改并关闭问题"),
+    EVALUATION_REMEDIATE("evaluation.remediate", Risk.MEDIUM, "提交质量问题整改证据"),
+    EVALUATION_REVIEW("evaluation.review", Risk.HIGH, "复核质量问题整改并关闭问题"),
     FOLLOWUP_READ("followup.read", Risk.LOW, "查看随访计划与任务列表"),
     FOLLOWUP_WRITE("followup.write", Risk.MEDIUM, "智能生成随访计划、触发任务、提交问卷与回传异常事件"),
-    FOLLOWUP_PUBLISH("followup.publish", Risk.HIGH, "发布随访模板版本"),
+    FOLLOWUP_PUBLISH("followup.publish", Risk.HIGH, "发布随访方案版本"),
     EMBED_READ("embed.read", Risk.LOW, "验证和查看嵌入上下文"),
     EMBED_WRITE("embed.write", Risk.MEDIUM, "生成嵌入启动凭证和记录反馈"),
     SANDBOX_RUN("sandbox.run", Risk.MEDIUM, "运行全真体验沙盘场景编排"),
@@ -117,7 +117,7 @@ public enum PermissionCode {
     WORKBENCH_READINESS_VIEW("workbench:readiness:view", Risk.LOW, "查看验收自检页面"),
     WORKFLOW_READ("workflow.read", Risk.LOW, "查看临床协同待办"),
     WORKFLOW_WRITE("workflow.write", Risk.MEDIUM, "完成或转交临床协同待办"),
-    NOTIFICATION_READ("notification.read", Risk.LOW, "查看通知中心"),
+    NOTIFICATION_READ("notification.read", Risk.LOW, "查看消息通知"),
     NOTIFICATION_WRITE("notification.write", Risk.LOW, "标记通知已读和保存通知偏好"),
 
     // ─── 菜单维度 ────────────────────────────────────────────────
@@ -131,7 +131,7 @@ public enum PermissionCode {
 
     // ─── 资产维度（知识、字典、规则、路径和机构生效版本的授权边界）──────────────────
     ASSET_RUNTIME_RELEASE("asset.runtime-release", PermissionDimension.ASSET, Risk.MEDIUM, "访问机构生效版本明细"),
-    ASSET_DICTIONARY("asset.dictionary", PermissionDimension.ASSET, Risk.MEDIUM, "访问字典映射资产"),
+    ASSET_DICTIONARY("asset.dictionary", PermissionDimension.ASSET, Risk.MEDIUM, "访问术语字典资产"),
     ASSET_KNOWLEDGE("asset.knowledge", PermissionDimension.ASSET, Risk.MEDIUM, "访问知识资产"),
     ASSET_RULE("asset.rule", PermissionDimension.ASSET, Risk.MEDIUM, "访问规则资产"),
     ASSET_PATHWAY("asset.pathway", PermissionDimension.ASSET, Risk.MEDIUM, "访问路径资产"),
@@ -142,13 +142,13 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：32 主导航 + 1 页头 + 1 个人入口 ─────────
+    // ─── INFRA-05 入口维度：33 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
-    MENU_RUNTIME_RELEASES("menu.runtime-releases", PermissionDimension.MENU, Risk.LOW, "查看发布治理"),
-    MENU_PATHWAY_TEMPLATES("menu.pathway-templates", PermissionDimension.MENU, Risk.LOW, "查看路径配置"),
-    MENU_RULE_DEFINITIONS("menu.rule-definitions", PermissionDimension.MENU, Risk.LOW, "查看规则配置"),
-    MENU_TERMINOLOGY_MAPPING("menu.terminology-mapping", PermissionDimension.MENU, Risk.LOW, "查看术语与字典"),
+    MENU_RUNTIME_RELEASES("menu.runtime-releases", PermissionDimension.MENU, Risk.LOW, "查看机构生效版本"),
+    MENU_PATHWAY_TEMPLATES("menu.pathway-templates", PermissionDimension.MENU, Risk.LOW, "查看临床路径库"),
+    MENU_RULE_DEFINITIONS("menu.rule-definitions", PermissionDimension.MENU, Risk.LOW, "查看临床规则"),
+    MENU_TERMINOLOGY_MAPPING("menu.terminology-mapping", PermissionDimension.MENU, Risk.LOW, "查看术语字典"),
     MENU_ADAPTER_HUB("menu.adapter-hub", PermissionDimension.MENU, Risk.LOW, "查看系统接入"),
     MENU_MPI("menu.mpi", PermissionDimension.MENU, Risk.LOW, "查看患者索引"),
     MENU_PATIENT_PATHWAYS("menu.patient-pathways", PermissionDimension.MENU, Risk.LOW, "查看患者路径"),
@@ -157,28 +157,30 @@ public enum PermissionCode {
     MENU_NOTIFICATIONS("menu.notifications", PermissionDimension.MENU, Risk.LOW, "查看消息通知"),
     MENU_CLINICAL_FOLLOWUP("menu.clinical-followup", PermissionDimension.MENU, Risk.LOW, "查看随访协同"),
     MENU_SANDBOX("menu.sandbox", PermissionDimension.MENU, Risk.LOW, "查看全真体验沙盘"),
-    MENU_QC_DASHBOARD("menu.qc-dashboard", PermissionDimension.MENU, Risk.LOW, "查看质量与运营概览"),
+    MENU_QC_DASHBOARD("menu.qc-dashboard", PermissionDimension.MENU, Risk.LOW, "查看质量风险概览"),
     MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质量问题与整改"),
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
     MENU_KNOWLEDGE_GOVERNANCE(
-        "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核与发布"),
+        "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核发布中心"),
     MENU_INSTITUTION_KNOWLEDGE(
-        "menu.institution-knowledge", PermissionDimension.MENU, Risk.LOW, "查看机构知识"),
+        "menu.institution-knowledge", PermissionDimension.MENU, Risk.LOW, "查看机构知识库"),
     MENU_DIAGNOSIS_KNOWLEDGE(
-        "menu.diagnosis-knowledge", PermissionDimension.MENU, Risk.LOW, "查看诊断知识维护"),
+        "menu.diagnosis-knowledge", PermissionDimension.MENU, Risk.LOW, "查看诊断知识库"),
+    MENU_DOMAIN_FACADE_B0_EVIDENCE(
+        "menu.domain-facade-b0-evidence", PermissionDimension.MENU, Risk.LOW, "查看领域门面无模型证据"),
     MENU_KNOWLEDGE_PRODUCTION(
-        "menu.knowledge-production", PermissionDimension.MENU, Risk.LOW, "查看知识生产"),
+        "menu.knowledge-production", PermissionDimension.MENU, Risk.LOW, "查看知识生产工作台"),
     MENU_ADMIN_USERS("menu.admin-users", PermissionDimension.MENU, Risk.LOW, "查看人员与账号"),
     MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份来源"),
     MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计与证据"),
     MENU_SECURITY_BASELINE("menu.security-baseline", PermissionDimension.MENU, Risk.LOW, "查看安全与配置"),
-    MENU_SYSTEM_PROVIDERS("menu.system-providers", PermissionDimension.MENU, Risk.LOW, "查看运行保障"),
+    MENU_SYSTEM_PROVIDERS("menu.system-providers", PermissionDimension.MENU, Risk.LOW, "查看服务运行保障"),
     MENU_NOTIFICATION_SETTINGS("menu.notification-settings", PermissionDimension.MENU, Risk.LOW, "查看通知偏好"),
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
-    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
-    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化自检"),
+    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力与安全"),
+    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化适配自检"),
     MENU_RUNTIME_DIAGNOSTICS(
         "menu.runtime-diagnostics", PermissionDimension.MENU, Risk.LOW, "查看运行诊断");
 

@@ -43,6 +43,7 @@ const AUTHORING_BATCH_JOB_PAGE_SIZE = 20;
 interface AuthoringBatchDrawerProps {
   open: boolean;
   canWrite: boolean;
+  evidenceDetailsEnabled?: boolean;
   onClose: () => void;
 }
 
@@ -160,6 +161,10 @@ function localFailureMessage(error: unknown, fallback: string): string {
   return customerSafeDisplayText(error.message, fallback);
 }
 
+function batchJobEvidenceText(jobId: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? `批量任务编号：${jobId}` : "批量任务已登记";
+}
+
 function jobStatusColor(status: string) {
   if (status === "SUCCEEDED") return "success";
   if (status === "PARTIAL_SUCCESS") return "warning";
@@ -180,6 +185,7 @@ function isHighRisk(item: AuthoringBatchRuleImpactItem) {
 export default function AuthoringBatchDrawer({
   open,
   canWrite,
+  evidenceDetailsEnabled = false,
   onClose,
 }: AuthoringBatchDrawerProps) {
   const { message } = AntdApp.useApp();
@@ -214,7 +220,7 @@ export default function AuthoringBatchDrawer({
       const job = await operation();
       setLastJob(job);
       setJobPage(1);
-      message.success(`批量任务 ${job.jobId} 已记录`);
+      message.success(evidenceDetailsEnabled ? `批量任务 ${job.jobId} 已记录` : "批量任务已记录");
       return job;
     } catch (error) {
       message.error(getApiErrorMessage(error, fallback));
@@ -224,7 +230,7 @@ export default function AuthoringBatchDrawer({
 
   const generateRules = async () => {
     try {
-      if (!templateRuleId.trim()) throw new Error("请输入模板规则资产");
+      if (!templateRuleId.trim()) throw new Error("请输入基准规则资产");
       const reserved = new Set(["ruleCode", "name", "applicableOrgUnitId", "changeSummary"]);
       const rows: AuthoringBatchRuleGenerateRow[] = parseTable(parameterTable).map((row, index) => {
         if (!row.ruleCode || !row.name) {
@@ -350,27 +356,29 @@ export default function AuthoringBatchDrawer({
         type="info"
         showIcon
         message="批量生成独立规则草稿"
-        description="每行创建一个独立规则版本，自动继承模板的触发绑定；真正上线的版本由发布治理统一选择。"
+        description="每行创建一个独立规则版本，沿用基准规则的触发绑定；真正上线的版本由机构生效版本统一选择。"
       />
-      <Form.Item label="模板规则资产" required>
+      <Form.Item label="基准规则资产" required>
         <Input
-          aria-label="模板规则资产"
+          aria-label="基准规则资产"
           value={templateRuleId}
           onChange={(event) => setTemplateRuleId(event.target.value)}
-          placeholder="输入已审核模板规则的稳定身份"
+          placeholder="如 weijizhi-huidan-jichu-guize"
         />
       </Form.Item>
       <Form.Item
         label="批量规则草稿表"
         required
-        extra="至少包含规则身份和规则名称；阈值、启用等列会作为模板参数。可直接粘贴 Excel 表格。"
+        extra="至少包含规则身份和规则名称；阈值、启用等列会作为批量参数。可直接粘贴 Excel 表格。"
       >
         <TextArea
           aria-label="批量规则草稿表"
           value={parameterTable}
           onChange={(event) => setParameterTable(event.target.value)}
           rows={9}
-          placeholder={"规则身份,规则名称,阈值,启用\nCKD-阈值-45,CKD 阈值 1,45,true"}
+          placeholder={
+            "规则身份,规则名称,阈值,启用\nlujing-jiedian-yuqi-tixing,路径节点逾期提醒,3,true"
+          }
         />
       </Form.Item>
       <Button
@@ -395,7 +403,7 @@ export default function AuthoringBatchDrawer({
             value={publishRuleIds}
             onChange={(event) => setPublishRuleIds(event.target.value)}
             rows={4}
-            placeholder={"RULE.CKD.1\nRULE.CKD.2"}
+            placeholder={"lujing-jiedian-yuqi-tixing\nweijizhi-huidan-shixian"}
           />
         </Form.Item>
         <Button
@@ -465,7 +473,11 @@ export default function AuthoringBatchDrawer({
   );
 
   const recentColumns: ColumnsType<AuthoringBatchJobResponse> = [
-    { title: "任务号", dataIndex: "jobId", key: "jobId" },
+    {
+      title: "任务记录",
+      key: "job",
+      render: (_value, job) => batchJobEvidenceText(job.jobId, evidenceDetailsEnabled),
+    },
     {
       title: "类型",
       dataIndex: "jobType",
@@ -526,9 +538,12 @@ export default function AuthoringBatchDrawer({
             <Alert
               type={jobAlertType(lastJob.status)}
               showIcon
-              message={`批量任务 ${lastJob.jobId} 执行结束`}
+              message={
+                evidenceDetailsEnabled ? `批量任务 ${lastJob.jobId} 执行结束` : "批量任务执行结束"
+              }
               description={
                 <Space wrap>
+                  <Text>{batchJobEvidenceText(lastJob.jobId, evidenceDetailsEnabled)}</Text>
                   <Text>成功 {lastJob.successCount}</Text>
                   <Text>失败 {lastJob.failureCount}</Text>
                   <Tag color={jobStatusColor(lastJob.status)}>

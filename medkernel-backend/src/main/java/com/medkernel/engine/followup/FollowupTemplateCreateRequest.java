@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 /**
- * 创建随访模板草稿请求。
+ * 创建随访方案草稿请求。
  */
 public record FollowupTemplateCreateRequest(
     @NotBlank @Size(max = 128) String templateCode,

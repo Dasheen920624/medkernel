@@ -92,6 +92,18 @@
   justify-content: flex-end;
 }
 
+.runtimeTools {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 12);
+  margin-top: calc(var(--mk-unit) * 16);
+}
+
+.runtimeToolStatus {
+  padding-top: calc(var(--mk-unit) * 12);
+  border-top: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
 .rollbackSummary {
   margin-bottom: calc(var(--mk-unit) * 16);
 }

@@ -348,7 +348,7 @@ CREATE TABLE evidence_snapshot (
     subject_type VARCHAR(128) NOT NULL,
     subject_id VARCHAR(64) NOT NULL,
     evidence_summary VARCHAR(512) NOT NULL,
-    payload_snapshot VARCHAR(4000) NOT NULL,
+    payload_snapshot TEXT NOT NULL,
     payload_hash VARCHAR(128) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by VARCHAR(64) DEFAULT 'system' NOT NULL,
@@ -1776,6 +1776,7 @@ CREATE TABLE mk_integration_onboarding (
     access_mode VARCHAR(16) NOT NULL,
     adapter_id VARCHAR(64),
     fhir_version VARCHAR(16),
+    system_family_code VARCHAR(64) NOT NULL,
     source_system VARCHAR(128) NOT NULL,
     business_scenario VARCHAR(256) NOT NULL,
     org_path VARCHAR(512) NOT NULL,
@@ -4214,7 +4215,7 @@ ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT pk_mk_engine_clinical_redl
 ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT uk_clinical_redline_active_scope UNIQUE (tenant_id, active_scope_key);
 ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT uk_clinical_redline_id UNIQUE (redline_id);
 ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT uk_clinical_redline_version UNIQUE (tenant_id, redline_key, redline_version);
-ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_category CHECK (category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION'));
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_category CHECK (category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION', 'SURGERY_ANESTHESIA_TRANSFUSION'));
 ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_hazard CHECK (hazard_severity IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
 ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_override CHECK (lower_tenant_override_allowed IN(TRUE, FALSE));
 ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_review CHECK (review_requirement IN('OPTIONAL_REVIEW', 'PHYSICIAN_CONFIRMATION'));
@@ -4321,6 +4322,7 @@ ALTER TABLE mk_integration_onboarding ADD CONSTRAINT pk_mk_integration_onboardin
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT uk_integ_onboarding_tenant_id UNIQUE (tenant_id, onboarding_id);
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_fhir CHECK ((fhir_version IN('R4', 'R5')) OR (fhir_version IS NULL));
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_mode CHECK (access_mode IN('ADAPTER', 'FHIR'));
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_system_family CHECK (system_family_code IN('HIS_EMR_CDR', 'LIS_MONITORING_CRITICAL', 'PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG', 'PHARMACY_REVIEW', 'NURSING_ANESTHESIA_TRANSFUSION_ICU', 'MEDICAL_RECORD_INSURANCE_PAYMENT', 'PUBLIC_HEALTH_INFECTION_REGULATORY', 'FOLLOWUP_PATIENT_SERVICE', 'CA_OIDC_SSO_HR', 'REGIONAL_REMOTE', 'SPD_UDI_DEVICE', 'RESEARCH_ETHICS_DATA', 'MODEL_DIFY_AGENT'));
 ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_status CHECK (status IN('REQUESTED', 'AUTH_CONFIGURED', 'MAPPING_CONFIGURED', 'ONLINE', 'OFFLINE'));
 ALTER TABLE mk_integration_regional_source ADD CONSTRAINT pk_mk_integration_regional_source PRIMARY KEY (id);
 ALTER TABLE mk_integration_regional_source ADD CONSTRAINT uk_integ_regional_source_id UNIQUE (tenant_id, source_id);
@@ -4651,7 +4653,7 @@ ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_physician_confirmatio
 ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_review CHECK (review_requirement IN('OPTIONAL_REVIEW', 'PHYSICIAN_CONFIRMATION'));
 ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
 ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_status CHECK (status IN('PENDING', 'VIEWED', 'ACCEPTED', 'REJECTED', 'DEFERRED', 'DISMISSED', 'SUPPRESSED', 'EXPIRED'));
-ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_type CHECK (card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_type CHECK (card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP', 'DIAGNOSIS'));
 ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT pk_recommendation_fatigue_signal PRIMARY KEY (id);
 ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT uk_rec_fatigue_id UNIQUE (signal_id);
 ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT ck_rec_fatigue_signal CHECK (signal_type IN('SHOWN', 'SILENT_RECORDED', 'VIEWED', 'ACCEPTED', 'REJECTED', 'DEFERRED', 'DISMISSED', 'SUPPRESSED'));
@@ -5045,6 +5047,7 @@ CREATE INDEX idx_person_import_row_job ON mk_identity_person_import_row (tenant_
 CREATE INDEX idx_dqr_tenant_generated ON mk_integration_data_quality_report (tenant_id, generated_at DESC);
 CREATE INDEX idx_mk_integration_master_data_sync_batch_latest ON mk_integration_master_data_sync_batch (tenant_id, source_system, status, processed_at);
 CREATE INDEX idx_mk_integration_master_data_sync_record_status ON mk_integration_master_data_sync_record (tenant_id, source_system, resource_type, status);
+CREATE INDEX idx_integ_onb_family_status ON mk_integration_onboarding (tenant_id, system_family_code, source_system, status, updated_at);
 CREATE INDEX idx_integ_onb_adapter ON mk_integration_onboarding (tenant_id, adapter_id);
 CREATE INDEX idx_integ_onb_tenant_status ON mk_integration_onboarding (tenant_id, status, updated_at);
 CREATE INDEX idx_integ_regional_org ON mk_integration_regional_source (tenant_id, source_organization_id);
@@ -5583,7 +5586,7 @@ COMMENT ON COLUMN followup_plan.encounter_id IS '业务字段：encounter_id';
 COMMENT ON COLUMN followup_plan.pathway_id IS '业务字段：pathway_id';
 COMMENT ON COLUMN followup_plan.disease_code IS '业务字段：disease_code';
 COMMENT ON COLUMN followup_plan.risk_level IS '业务字段：risk_level';
-COMMENT ON COLUMN followup_plan.runtime_release_id IS '随访计划生成时锁定的机构生效版本 ID；使用随访模板时必填';
+COMMENT ON COLUMN followup_plan.runtime_release_id IS '随访计划生成时锁定的机构生效版本 ID；使用随访方案时必填';
 COMMENT ON COLUMN followup_plan.status IS '当前状态';
 COMMENT ON COLUMN followup_plan.created_at IS '创建时间';
 COMMENT ON COLUMN followup_plan.created_by IS '创建人';
@@ -5595,8 +5598,8 @@ COMMENT ON COLUMN followup_plan.source_fact_type IS '随访计划生成来源事
 COMMENT ON COLUMN followup_plan.source_fact_id IS '随访计划生成来源事实业务ID，如患者路径实例ID、诊断编码或风险分层值';
 COMMENT ON COLUMN followup_plan.generation_rule_code IS '随访计划确定性生成规则编码，用于复现与审计';
 COMMENT ON COLUMN followup_plan.generation_explanation IS '随访计划生成解释JSON，记录受控事实、任务类型、模型状态和关键时钟依据';
-COMMENT ON COLUMN followup_plan.template_id IS '生成计划所绑定的已发布随访模板ID';
-COMMENT ON COLUMN followup_plan.template_version IS '生成计划所绑定的随访模板版本号';
+COMMENT ON COLUMN followup_plan.template_id IS '生成计划所绑定的已发布随访方案ID';
+COMMENT ON COLUMN followup_plan.template_version IS '生成计划所绑定的随访方案版本号';
 COMMENT ON TABLE followup_questionnaire IS '业务表：followup_questionnaire';
 COMMENT ON COLUMN followup_questionnaire.id IS '数据库主键';
 COMMENT ON COLUMN followup_questionnaire.questionnaire_id IS '业务字段：questionnaire_id';
@@ -6365,10 +6368,10 @@ COMMENT ON COLUMN mk_engine_authoring_asset_favorite.asset_type IS '资产类型
 COMMENT ON COLUMN mk_engine_authoring_asset_favorite.asset_id IS '资产业务 ID';
 COMMENT ON COLUMN mk_engine_authoring_asset_favorite.created_at IS '收藏时间';
 COMMENT ON COLUMN mk_engine_authoring_asset_favorite.trace_id IS '请求链路追踪 ID';
-COMMENT ON TABLE mk_engine_authoring_asset_profile IS '统一创作资产库元数据表：保存规则、路径、随访模板及独立配置资产的分类与标签';
+COMMENT ON TABLE mk_engine_authoring_asset_profile IS '统一创作资产库元数据表：保存规则、路径、随访方案及独立配置资产的分类与标签';
 COMMENT ON COLUMN mk_engine_authoring_asset_profile.id IS '数据库主键';
 COMMENT ON COLUMN mk_engine_authoring_asset_profile.tenant_id IS '租户 ID';
-COMMENT ON COLUMN mk_engine_authoring_asset_profile.asset_type IS '资产类型：规则、路径、随访模板及独立配置资产统一枚举';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.asset_type IS '资产类型：规则、路径、随访方案及独立配置资产统一枚举';
 COMMENT ON COLUMN mk_engine_authoring_asset_profile.asset_id IS '资产业务 ID';
 COMMENT ON COLUMN mk_engine_authoring_asset_profile.category IS '资产库分类';
 COMMENT ON COLUMN mk_engine_authoring_asset_profile.tags_json IS '资产标签 JSON 数组';
@@ -6430,11 +6433,11 @@ COMMENT ON COLUMN mk_engine_cdss_risk_matrix.created_by IS '创建人';
 COMMENT ON COLUMN mk_engine_cdss_risk_matrix.updated_at IS '更新时间';
 COMMENT ON COLUMN mk_engine_cdss_risk_matrix.updated_by IS '更新人';
 COMMENT ON COLUMN mk_engine_cdss_risk_matrix.trace_id IS '追踪号';
-COMMENT ON TABLE mk_engine_clinical_redline IS '临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制和特殊人群禁忌等红线版本';
+COMMENT ON TABLE mk_engine_clinical_redline IS '临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌和围手术期麻醉输血等红线版本';
 COMMENT ON COLUMN mk_engine_clinical_redline.id IS '数据库主键';
 COMMENT ON COLUMN mk_engine_clinical_redline.redline_id IS '红线版本业务 ID';
 COMMENT ON COLUMN mk_engine_clinical_redline.tenant_id IS '租户 ID；平台统一红线同步到租户后仍按租户隔离读取';
-COMMENT ON COLUMN mk_engine_clinical_redline.category IS '红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌';
+COMMENT ON COLUMN mk_engine_clinical_redline.category IS '红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌、围手术期麻醉输血';
 COMMENT ON COLUMN mk_engine_clinical_redline.trigger_point IS '适用 CDS Hooks 触发点';
 COMMENT ON COLUMN mk_engine_clinical_redline.scope_type IS '适用域类型：TENANT/ORG/SPECIALTY 等受控范围';
 COMMENT ON COLUMN mk_engine_clinical_redline.scope_ref IS '适用域引用';
@@ -6668,10 +6671,10 @@ COMMENT ON COLUMN mk_fhir_resource_mapping.updated_at IS '更新时间';
 COMMENT ON COLUMN mk_fhir_resource_mapping.updated_by IS '更新人';
 COMMENT ON TABLE mk_followup_template IS '随访配置模板不可变版本，不保存患者、就诊和问卷作答等运行数据';
 COMMENT ON COLUMN mk_followup_template.id IS '数据库主键';
-COMMENT ON COLUMN mk_followup_template.template_id IS '随访模板稳定业务ID';
+COMMENT ON COLUMN mk_followup_template.template_id IS '随访方案稳定业务ID';
 COMMENT ON COLUMN mk_followup_template.tenant_id IS '租户标识';
-COMMENT ON COLUMN mk_followup_template.template_code IS '随访模板业务编码';
-COMMENT ON COLUMN mk_followup_template.version_no IS '随访模板不可变版本号';
+COMMENT ON COLUMN mk_followup_template.template_code IS '随访方案业务编码';
+COMMENT ON COLUMN mk_followup_template.version_no IS '随访方案不可变版本号';
 COMMENT ON COLUMN mk_followup_template.name IS '业务字段：name';
 COMMENT ON COLUMN mk_followup_template.description IS '业务字段：description';
 COMMENT ON COLUMN mk_followup_template.organization_scope IS '业务字段：organization_scope';
@@ -6829,6 +6832,7 @@ COMMENT ON COLUMN mk_integration_onboarding.name IS '接入申请中文名称';
 COMMENT ON COLUMN mk_integration_onboarding.access_mode IS '接入路线：适配器或 FHIR 门面';
 COMMENT ON COLUMN mk_integration_onboarding.adapter_id IS '绑定适配器 ID';
 COMMENT ON COLUMN mk_integration_onboarding.fhir_version IS 'FHIR 版本：R4/R5';
+COMMENT ON COLUMN mk_integration_onboarding.system_family_code IS '第三方系统族代码，限定为产品范围 13 类系统族';
 COMMENT ON COLUMN mk_integration_onboarding.source_system IS '第三方来源系统';
 COMMENT ON COLUMN mk_integration_onboarding.business_scenario IS '业务接入场景';
 COMMENT ON COLUMN mk_integration_onboarding.org_path IS '组织作用域路径';
@@ -7616,7 +7620,7 @@ COMMENT ON COLUMN mk_sandbox_run.created_at IS '创建时间';
 COMMENT ON COLUMN mk_sandbox_run.created_by IS '创建人';
 COMMENT ON COLUMN mk_sandbox_run.updated_at IS '更新时间';
 COMMENT ON COLUMN mk_sandbox_run.updated_by IS '更新人';
-COMMENT ON COLUMN mk_sandbox_run.replay_case_id IS 'HISTORICAL_EXACT 或 COMPARE 使用的演练机构历史重放清单标识';
+COMMENT ON COLUMN mk_sandbox_run.replay_case_id IS 'HISTORICAL_EXACT 或 COMPARE 使用的当前机构历史重放清单标识';
 COMMENT ON TABLE mk_security_bootstrap_init_token IS '首次部署一次性 init token：仅保存 SHA-256 摘要，用于全新生产环境安全接管';
 COMMENT ON COLUMN mk_security_bootstrap_init_token.id IS '数据库主键';
 COMMENT ON COLUMN mk_security_bootstrap_init_token.token_id IS '业务字段：token_id';

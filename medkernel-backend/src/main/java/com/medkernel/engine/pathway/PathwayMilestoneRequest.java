@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 创建路径阶段里程碑的请求片段。
  *
- * <p>用于定义路径模板中的阶段、里程碑编码、天序和预期完成点。
+ * <p>用于定义临床路径中的阶段、里程碑编码、天序和预期完成点。
  */
 public record PathwayMilestoneRequest(
     @NotBlank String phaseCode,

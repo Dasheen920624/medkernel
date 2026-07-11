@@ -68,6 +68,8 @@ bash ./mk-publish.sh --server 192.168.8.191 --user root --key-file ~/.ssh/old-si
 
 发布入口只接受当前干净工作树的完整 40 位 `HEAD` 哈希，并始终从该提交重新构建所选前后端；禁止用旧 `target`/`dist` 冒充新版本。完整测试与门禁须在调用发布入口前单独通过。
 
+前端-only 发布不会改写运行 `manifest.properties`；manifest/JAR 来源仍以最近一次完整或后端发布为准，前端版本以首页 `index`/`assets` 与发布命令 `--source` 追溯。若 frontend-only 后执行 `medkernel-post-rehearsal-verify.sh`，`--expected-source` 必须填写当前运行 manifest/JAR 对应提交，不得填写仅发布前端 dist 的提交。
+
 ### 服务器端手动发布
 
 如果只想上传包后在服务器执行：
@@ -267,4 +269,6 @@ sudo bash deploy/onprem/medkernel-post-rehearsal-verify.sh \
 ```
 
 该入口会严格验证 TLS、服务重启、四职责、全知识、模型生产、沙盘、审计和演练后备份恢复。
+`--expected-source` 校验运行 manifest/JAR 来源；前端-only 发布不会改写运行 `manifest.properties`，
+前端 dist 的来源需用首页 `index`/`assets` 与发布命令 `--source` 另行追溯。
 完整环境变量、阶段定义和证据边界见 [部署与上线演练](../../docs/DEPLOYMENT_AND_REHEARSAL.md)。

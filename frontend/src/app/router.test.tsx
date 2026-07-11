@@ -78,6 +78,31 @@ vi.mock("@/shared/api/hooks", () => ({
   useRenewSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
+  useDomainFacadeB0Evidence: () => ({
+    data: [
+      {
+        code: "SPECIALTY-EXT-01",
+        kind: "DOMAIN",
+        status: "PASS",
+        evidenceId: "domain-facade-b0-SPECIALTY-EXT-01",
+        b0Executable: true,
+        modelRequired: false,
+        clinicalContentSeeded: false,
+        newBusinessEngineRequired: false,
+        honestEmptyWhenAssetsMissing: true,
+        serviceCombinationMembersResolvable: true,
+        assetSeedPolicy: "NO_REAL_CLINICAL_CONTENT_SEEDED",
+        b0Workflows: ["共享规则链路"],
+        engineEvidence: [],
+        memberFacadeCodes: [],
+        verifiedMemberFacadeCodes: [],
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }));
 
 function authenticatedProfile() {
@@ -144,6 +169,31 @@ function runtimeReleaseProfile() {
   };
 }
 
+function domainFacadeB0EvidenceProfile() {
+  const profile = authenticatedProfile();
+  return {
+    ...profile,
+    permissions: [
+      ...profile.permissions,
+      {
+        code: "knowledge.read",
+        dimension: "ACTION",
+        target: "knowledge.read",
+        displayName: "读取知识",
+        risk: "LOW",
+      },
+      {
+        code: "menu.domain-facade-b0-evidence",
+        dimension: "MENU",
+        target: "domain-facade-b0-evidence",
+        displayName: "领域门面无模型证据",
+        risk: "LOW",
+      },
+    ],
+    menuKeys: [...profile.menuKeys, "domain-facade-b0-evidence"],
+  };
+}
+
 vi.mock("@/pages/Dashboard", () => ({
   default: () => <div>本周建议动作</div>,
 }));
@@ -170,7 +220,7 @@ vi.mock("@/pages/workbench/ReadinessValidation", () => ({
 }));
 
 vi.mock("@/pages/tenant/ReleaseGovernance", () => ({
-  default: () => <div>发布治理</div>,
+  default: () => <div>机构生效版本</div>,
 }));
 
 function renderRouter(initialPath: string) {
@@ -222,7 +272,9 @@ describe("AppRouter", () => {
     securityProfileState.value = { data: authenticatedProfile(), isError: false };
     renderRouter("/demo/step-flow");
 
-    expect(await screen.findByText("此功能待 W3 业务域任务实装")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "未找到页面" })).toBeInTheDocument();
+    expect(screen.getByText(/当前地址没有对应的业务页面/)).toBeInTheDocument();
+    expect(screen.queryByText(/W3|业务域任务实装/)).not.toBeInTheDocument();
     expect(screen.queryByText("暂时无法核验权限")).toBeNull();
   });
 
@@ -230,7 +282,7 @@ describe("AppRouter", () => {
     securityProfileState.value = { data: runtimeReleaseProfile(), isError: false };
     renderRouter("/config/releases");
 
-    expect((await screen.findAllByText("发布治理")).length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText("机构生效版本")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("routes the WORKBENCH-02 readiness validation page through the protected layout", async () => {
@@ -238,6 +290,15 @@ describe("AppRouter", () => {
     renderRouter("/workbench/readiness-validation");
 
     expect(await screen.findByText("运行验收自检")).toBeInTheDocument();
-    expect(screen.queryByText("此功能待 W3 业务域任务实装")).toBeNull();
+    expect(screen.queryByText(/W3|业务域任务实装/)).toBeNull();
+  });
+
+  it("routes domain facade B0 evidence through the protected knowledge layout", async () => {
+    securityProfileState.value = { data: domainFacadeB0EvidenceProfile(), isError: false };
+    renderRouter("/knowledge/domain-facades/b0-evidence");
+
+    expect(await screen.findByRole("heading", { name: "领域门面无模型证据" })).toBeInTheDocument();
+    expect(screen.getByText("17 张领域门面")).toBeInTheDocument();
+    expect(screen.getByText(/不声明完整专业领域上线/)).toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@ package com.medkernel.engine.pathway;
 /**
  * 路径节点工作清单端口。
  *
- * <p>路径域只声明节点待办事实，实际落库和通知由临床协同域承接，避免路径引擎直接依赖待办表结构。
+ * <p>路径域只声明节点待办事实，实际落库和通知由临床协同域承接，避免临床路径直接依赖待办表结构。
  */
 public interface PathwayWorklistPort {
 

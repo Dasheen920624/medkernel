@@ -53,14 +53,14 @@ import {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { PageState } from "@/shared/ui/PageState";
 
 const { Text } = Typography;
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未返回";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return formatClinicalDateTime(value, value);
 }
 
 function statusTag(status: string) {
@@ -158,11 +158,15 @@ function maskingStrategyLabel(value?: string | null, evidenceDetailsEnabled = fa
 }
 
 function dataPermissionActionLabel(value?: string | null) {
-  return dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别";
+  return (
+    dataPermissionActions.find((item) => item.value === value)?.label ?? customerEnumLabel(value)
+  );
 }
 
 function dataPermissionLevelLabel(value?: string | null) {
-  return dataPermissionLevels.find((item) => item.value === value)?.label ?? "未识别";
+  return (
+    dataPermissionLevels.find((item) => item.value === value)?.label ?? customerEnumLabel(value)
+  );
 }
 
 function dataPermissionPolicyHitLabel(policyId?: string | null, evidenceDetailsEnabled = false) {
@@ -315,7 +319,7 @@ export function SystemConfigPanel({
               )}
               <Text type="secondary">
                 正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS 网关等资料库，禁止
-                tmp 临时目录和代码内置厂商地址。
+                临时目录和代码内置厂商地址。
               </Text>
             </Space>
           }

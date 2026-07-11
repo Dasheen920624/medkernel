@@ -328,7 +328,7 @@ export default function Notifications() {
               >
                 <List.Item.Meta
                   title={
-                    <Space wrap>
+                    <Space wrap className={styles.notificationTitleRow}>
                       <span className={styles.textStrong}>{item.title}</span>
                       <Tag color={levelColor[item.level]}>{levelText[item.level]}</Tag>
                       {isMutedByQuietHours(item.level) && <Tag color="default">免打扰中</Tag>}
@@ -339,7 +339,7 @@ export default function Notifications() {
                     </Space>
                   }
                   description={
-                    <Space direction="vertical" size={2}>
+                    <Space direction="vertical" size={2} className={styles.notificationContent}>
                       <span>{item.message}</span>
                       <Space wrap className={styles.textSmall}>
                         <span>{sourceText[item.sourceType]}</span>

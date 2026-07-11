@@ -6,7 +6,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-/** 演练机构持有的不可变历史重放清单；仅状态允许从 IMPORTED 变为 REVOKED。 */
+/** 当前机构持有的不可变历史重放清单；仅状态允许从 IMPORTED 变为 REVOKED。 */
 @Table("mk_sandbox_replay_case")
 public record SandboxReplayCase(
     @Id Long id,

@@ -39,7 +39,7 @@ const realIndicator = {
   indicatorCode: "IND.VTE.REAL",
   versionNo: 2,
   name: "外科 VTE 风险评估率",
-  subjectType: "MEDICAL_RECORD",
+  subjectType: "DEPARTMENT",
   denominatorDefinition: JSON.stringify({
     all: [{ fact: "encounters.0.admissionType", operator: "equals", value: "SURGICAL" }],
   }),
@@ -190,8 +190,18 @@ describe("QcEvalSets", () => {
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20 }),
     );
-    expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
-    expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "评价指标" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "评估指标库" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("定义质量评价指标，试算影响范围并通过机构生效版本统一发布。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("定义质控评价指标，试算影响范围并通过机构生效版本统一发布。"),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("科室质量评价").length).toBeGreaterThan(0);
+    expect(screen.queryByText("科室质控")).not.toBeInTheDocument();
+    expect(screen.getByText("评价指标总数")).toBeInTheDocument();
+    expect(screen.queryByText("真实评估指标总数")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByLabelText("评价指标身份筛选")).toBeInTheDocument();
     expect(screen.queryByLabelText("指标编码筛选")).not.toBeInTheDocument();
@@ -200,7 +210,8 @@ describe("QcEvalSets", () => {
     expect(screen.getAllByText("指标证据已记录").length).toBeGreaterThan(0);
     expect(screen.queryByText("IND.VTE.REAL")).not.toBeInTheDocument();
     expect(screen.queryByText("trace-indicator-real")).not.toBeInTheDocument();
-    expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+    expect(screen.getByText("选来源/导入")).toBeInTheDocument();
+    expect(screen.queryByText("选模板/导入")).not.toBeInTheDocument();
     expect(screen.getByText("留证据/可回滚")).toBeInTheDocument();
     expect(
       screen.queryByText(/接口尚未接入|本地违规病例样例|TRACE_NOT_FOUND/),
@@ -217,7 +228,52 @@ describe("QcEvalSets", () => {
     expect(pagePrimaryButtons).toHaveLength(1);
   });
 
-  it("证据详情打开后展示指标编码、追踪号和发布治理证据", async () => {
+  it("uses evaluation indicator wording when no indicator version is selected", () => {
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前查询返回 0 个评价指标版本。")).toBeInTheDocument();
+    expect(screen.queryByText("当前查询返回 0 个真实指标版本。")).not.toBeInTheDocument();
+  });
+
+  it("keeps table and release flow inside mobile-safe viewports", () => {
+    renderPage();
+
+    const tableViewport = screen.getByTestId("evaluation-indicator-table-viewport");
+    const releaseFlowViewport = screen.getByTestId("evaluation-indicator-release-flow-viewport");
+
+    expect(tableViewport).toBeInTheDocument();
+    expect(releaseFlowViewport).toBeInTheDocument();
+    expect(tableViewport).toHaveTextContent("指标名称");
+    expect(tableViewport).toHaveTextContent("外科 VTE 风险评估率");
+    expect(tableViewport).toHaveTextContent("查看指标详情");
+    expect(releaseFlowViewport).toHaveTextContent("选来源/导入");
+    expect(releaseFlowViewport).toHaveTextContent("留证据/可回滚");
+  });
+
+  it("uses business wording while loading evaluation indicators", () => {
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+
+    renderPage();
+
+    expect(screen.getByText("正在读取评价指标版本台账。")).toBeInTheDocument();
+    expect(screen.queryByText("正在读取 EVAL-01 指标版本台账。")).not.toBeInTheDocument();
+  });
+
+  it("证据详情打开后展示指标编码、追踪号和机构生效版本证据", async () => {
     renderPage();
 
     await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
@@ -229,6 +285,40 @@ describe("QcEvalSets", () => {
 
     expect(screen.getByText("indicator-real-1")).toBeInTheDocument();
     expect(screen.getAllByText("trace-indicator-real").length).toBeGreaterThan(0);
+  });
+
+  it("默认用业务语言展示责任科室、时间窗口和组织范围", async () => {
+    const user = userEvent.setup();
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: {
+        items: [
+          {
+            ...realIndicator,
+            responsibleDepartmentId: "dept-ortho",
+            timeWindow: "DISCHARGE+24H",
+            organizationScope: "p5-hospital",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看指标详情" }));
+
+    expect(screen.getAllByText("骨科").length).toBeGreaterThan(0);
+    expect(screen.getByText("出院后 24 小时")).toBeInTheDocument();
+    expect(screen.getByText("当前医院")).toBeInTheDocument();
+    expect(screen.queryByText("dept-ortho")).not.toBeInTheDocument();
+    expect(screen.queryByText("DISCHARGE+24H")).not.toBeInTheDocument();
+    expect(screen.queryByText("p5-hospital")).not.toBeInTheDocument();
   });
 
   it("loads department references without exposing an evaluation package selector", () => {
@@ -249,14 +339,28 @@ describe("QcEvalSets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "新建指标" }));
 
+    expect(screen.getByRole("dialog", { name: "新建评价指标" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "新建评估指标" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("版本号")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("用于版本发布、质量追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "用于版本发布、质控追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。",
+      ),
+    ).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("稳定评价指标身份"), {
       target: { value: "IND.NEW.VTE" },
     });
     fireEvent.change(screen.getByLabelText("指标名称"), { target: { value: "新 VTE 指标" } });
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("骨科 · ORTHO"));
-    expect(screen.getByText("指标版本独立维护")).toBeInTheDocument();
+    expect(screen.getAllByText("出院后 24 小时").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("全院").length).toBeGreaterThan(0);
+    expect(screen.queryByText("DISCHARGE+24H")).not.toBeInTheDocument();
+    expect(screen.getByText("指标草稿统一发布")).toBeInTheDocument();
+    expect(screen.queryByText("指标版本独立" + "维护")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("来源依据"), { target: { value: "院内真实指南 2026" } });
 
     const factInputs = screen.getAllByRole("combobox", { name: "上下文字段路径" });
@@ -275,6 +379,8 @@ describe("QcEvalSets", () => {
       expect.objectContaining({
         indicatorCode: "IND.NEW.VTE",
         name: "新 VTE 指标",
+        timeWindow: "DISCHARGE+24H",
+        organizationScope: "全院",
         responsibleDepartmentId: "dept-ortho",
       }),
     );
@@ -367,7 +473,11 @@ describe("QcEvalSets", () => {
       ),
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "选择第 1 个临床快照" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "选择 2026年06月06日 08:00:00 建立的临床快照",
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));
 
     await waitFor(() =>

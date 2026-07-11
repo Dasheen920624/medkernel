@@ -145,6 +145,40 @@ class ReleaseSimulationServiceTest {
     }
 
     @Test
+    void blocksReleaseWhenOnlyInheritanceConflictExists() {
+        AssetVersion candidate = version(
+            "av-v2", "2", "hash-v2", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.DRAFT);
+        AssetVersion current = version(
+            "av-v1", "1", "hash-v1", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.PUBLISHED);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A"))
+            .thenReturn(Optional.of(candidate));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            eq("tenant-A"),
+            eq(VersionedAssetType.RULE),
+            any(),
+            eq(AssetVersionStatus.PUBLISHED)
+        )).thenReturn(List.of(current));
+        when(orgHierarchy.findDescendantsAndSelf("tenant-A", "hospital-A"))
+            .thenReturn(List.of(org("hospital-A", "/TENANT-A/HOSP-A", "中心医院", OrgLevel.FACILITY)));
+        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndLifecycleStatus(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            InheritanceOverrideStatus.ACTIVE
+        )).thenReturn(List.of(override("/TENANT-A/HOSP-A")));
+        when(snapshots.findRecentActiveByTenantId(eq("tenant-A"), any(), eq(100)))
+            .thenReturn(List.of());
+
+        ReleaseSimulationResult result = service(List.of(), List.of()).simulate(command());
+
+        assertThat(result.safety().passed()).isTrue();
+        assertThat(result.dependencies().passed()).isTrue();
+        assertThat(result.replay().status()).isEqualTo("NO_DATA");
+        assertThat(result.conflicts()).hasSize(1);
+        assertThat(result.releasable()).isFalse();
+    }
+
+    @Test
     void usesDependencyImpactReplayForAssetsWithoutDedicatedCaseEvaluator() {
         AssetVersion candidate = version(
             "av-term-v2",

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ConfigProvider, message } from "antd";
+import { App as AntdApp, ConfigProvider, message } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -133,6 +133,35 @@ const hisAdapter: IntegrationAdapter = {
   updatedAt: "2026-06-03T08:00:00Z",
 };
 
+const requiredSystemFamilies = [
+  ["HIS_EMR_CDR", "HIS、EMR、CDR、医嘱与费用"],
+  ["LIS_MONITORING_CRITICAL", "LIS、监护与危急值"],
+  ["PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG", "PACS/RIS、超声、病理、内镜、心电"],
+  ["PHARMACY_REVIEW", "药房、审方和药事平台"],
+  ["NURSING_ANESTHESIA_TRANSFUSION_ICU", "护理、手麻、手术室、输血和 ICU"],
+  ["MEDICAL_RECORD_INSURANCE_PAYMENT", "病案、医保和支付"],
+  ["PUBLIC_HEALTH_INFECTION_REGULATORY", "公卫、院感、不良事件和监管"],
+  ["FOLLOWUP_PATIENT_SERVICE", "随访、消息和患者服务"],
+  ["CA_OIDC_SSO_HR", "CA、OIDC、SSO、HR/OA"],
+  ["REGIONAL_REMOTE", "区域平台、医联体和远程协同"],
+  ["SPD_UDI_DEVICE", "SPD、UDI、器械耗材"],
+  ["RESEARCH_ETHICS_DATA", "科研、伦理和数据平台"],
+  ["MODEL_DIFY_AGENT", "模型服务、Dify 和 Agent"],
+].map(([systemFamilyCode, label]) => ({
+  systemFamilyCode,
+  sourceSystem: systemFamilyCode,
+  label,
+  adapterId: null,
+  adapterName: null,
+  protocolType: null,
+  status: "MISSING",
+  healthStatus: "NOT_CONNECTED",
+  mappedFieldCount: 0,
+  lastHeartbeatAt: null,
+  ready: false,
+  gaps: [`缺少 ${label} 接入申请或适配器`],
+}));
+
 const status: AdapterHubStatus = {
   totalAdapters: 2,
   activeAdapters: 1,
@@ -154,47 +183,21 @@ const status: AdapterHubStatus = {
       gaps: ["缺少检查报告时间映射"],
     },
   ],
-  requiredSources: [
-    {
-      sourceSystem: "HIS",
-      label: "HIS 医院信息系统",
-      adapterId: "his-main",
-      adapterName: "HIS 主数据接入",
-      protocolType: "REST",
-      status: "BOUND",
-      healthStatus: "NOT_CONNECTED",
-      mappedFieldCount: 12,
-      lastHeartbeatAt: "2026-06-03T08:00:00Z",
-      ready: false,
-      gaps: ["未连接真实外部系统"],
-    },
-    {
-      sourceSystem: "EMR",
-      label: "EMR 电子病历系统",
-      adapterId: null,
-      adapterName: null,
-      protocolType: null,
-      status: "MISSING",
-      healthStatus: "NOT_CONNECTED",
-      mappedFieldCount: 0,
-      lastHeartbeatAt: null,
-      ready: false,
-      gaps: ["缺少 EMR 适配器"],
-    },
-    {
-      sourceSystem: "LIS",
-      label: "LIS 检验信息系统",
-      adapterId: null,
-      adapterName: null,
-      protocolType: null,
-      status: "MISSING",
-      healthStatus: "NOT_CONNECTED",
-      mappedFieldCount: 0,
-      lastHeartbeatAt: null,
-      ready: false,
-      gaps: ["缺少 LIS 适配器"],
-    },
-  ],
+  requiredSources: requiredSystemFamilies.map((item) =>
+    item.systemFamilyCode === "HIS_EMR_CDR"
+      ? {
+          ...item,
+          sourceSystem: "HIS",
+          adapterId: "his-main",
+          adapterName: "HIS 主数据接入",
+          protocolType: "REST",
+          status: "BOUND",
+          mappedFieldCount: 12,
+          lastHeartbeatAt: "2026-06-03T08:00:00Z",
+          gaps: ["未连接真实外部系统"],
+        }
+      : item,
+  ),
 };
 
 const masterDataReconciliation: MasterDataReconciliation = {
@@ -242,10 +245,12 @@ const onboarding: IntegrationOnboarding = {
   name: "HIS 主数据接入申请",
   status: "MAPPING_CONFIGURED",
   routeType: "ADAPTER",
+  adapterId: "his-main",
   routeReference: "/api/v1/engine/integration/adapters/his-main",
   healthStatus: "NOT_CONNECTED",
   mappedFieldCount: 12,
   blockers: [],
+  systemFamilyCode: "HIS_EMR_CDR",
   sourceSystem: "HIS",
   businessScenario: "门诊患者主数据",
   orgPath: "集团/医院",
@@ -464,7 +469,9 @@ function setupMocks() {
 function renderPage() {
   return render(
     <ConfigProvider>
-      <AdapterHub />
+      <AntdApp>
+        <AdapterHub />
+      </AntdApp>
     </ConfigProvider>,
   );
 }
@@ -498,16 +505,24 @@ describe("AdapterHub", () => {
     expect(screen.getByText("回调通道")).toBeInTheDocument();
     expect(screen.getByText("区域来源")).toBeInTheDocument();
     expect(screen.getByText("必接系统清单")).toBeInTheDocument();
-    expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
-    expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
-    expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
-    expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
+    expect(screen.getByText("HIS、EMR、CDR、医嘱与费用")).toBeInTheDocument();
+    expect(screen.getByText("LIS、监护与危急值")).toBeInTheDocument();
+    expect(screen.getByText("模型服务、Dify 和 Agent")).toBeInTheDocument();
+    expect(screen.getAllByText("响应耗时").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("最近健康检查").length).toBeGreaterThan(0);
+    expect(screen.queryByText("RTT")).not.toBeInTheDocument();
+    expect(screen.queryByText("最近探活")).not.toBeInTheDocument();
+    expect(screen.getByText("缺少 LIS、监护与危急值 接入申请或适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
-    expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+    expect(screen.getByText("选来源/导入")).toBeInTheDocument();
+    expect(screen.getByText(/选来源\/导入 → 自动校验 → 看影响/)).toBeInTheDocument();
+    expect(screen.queryByText("选模板/导入")).not.toBeInTheDocument();
+    expect(screen.getAllByText("2026年06月03日 16:00").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/6\/3\/2026/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "数据质量看板" }));
     expect(screen.getByText("尚未生成本轮数据质量报告")).toBeInTheDocument();
-    expect(screen.getByText(/当前服务机构的适配器、字段映射和探活事实/)).toBeInTheDocument();
+    expect(screen.getByText(/当前服务机构的适配器、字段映射和健康检查事实/)).toBeInTheDocument();
 
     expect(screen.queryByText(/Webhook 回调订阅安全自研沙箱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Launch Token/)).not.toBeInTheDocument();
@@ -524,6 +539,7 @@ describe("AdapterHub", () => {
     expect(screen.getByText("batch-20260614-001")).toBeInTheDocument();
     expect(screen.getByText("院内人员")).toBeInTheDocument();
     expect(screen.getByText("860")).toBeInTheDocument();
+    expect(screen.getByText("2026年06月14日 08:30")).toBeInTheDocument();
   });
 
   it("does not load a package selector for the current runtime data contract", () => {
@@ -538,6 +554,96 @@ describe("AdapterHub", () => {
     expect(useRegionalSources).toHaveBeenCalledWith({ page: 1, size: 20 });
   });
 
+  it("keeps field mapping gaps paginated instead of expanding every source by default", () => {
+    vi.mocked(useAdapterHubStatus).mockReturnValue(
+      query({
+        ...status,
+        totalAdapters: 24,
+        mappedAdapters: 24,
+        sources: Array.from({ length: 24 }, (_, index) => ({
+          ...status.sources[0],
+          adapterId: `adapter-${index + 1}`,
+          name: `接入来源 ${index + 1}`,
+          mappedFieldCount: index + 1,
+          gaps: [`缺口 ${index + 1}`],
+        })),
+      }) as never,
+    );
+
+    renderPage();
+
+    expect(screen.getByText("共 24 个接入来源，当前显示 1-10 个")).toBeInTheDocument();
+    expect(screen.getByText("接入来源 10")).toBeInTheDocument();
+    expect(screen.getByText("缺口 10")).toBeInTheDocument();
+    expect(screen.queryByText("接入来源 11")).not.toBeInTheDocument();
+    expect(screen.queryByText("缺口 11")).not.toBeInTheDocument();
+  });
+
+  it("keeps repeated onboarding applications distinguishable by latest maintenance time", async () => {
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(
+      query(
+        pageData(
+          Array.from({ length: 20 }, (_, index) => ({
+            ...onboarding,
+            onboardingId: `onb-frontdesk-${index + 1}`,
+            name: "接入配置已登记",
+            updatedAt: new Date(Date.UTC(2026, 5, 30 - index, 15, 18, 0)).toISOString(),
+          })),
+          24,
+        ),
+      ) as never,
+    );
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("tab", { name: "接入向导" }));
+    const bodyRows = screen.getAllByRole("row").slice(1);
+    expect(within(bodyRows[0]).getByText("最近更新 2026年06月30日 23:18")).toBeInTheDocument();
+    expect(screen.getByText("共 24 条接入申请，当前显示 1-20 条")).toBeInTheDocument();
+  });
+
+  it("keeps onboarding blockers in business language until evidence details are enabled", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(
+      query(
+        pageData([
+          {
+            ...onboarding,
+            blockers: ["HIS 适配器仍为 NOT_CONNECTED", "LIS 适配器仍为 MISCONFIGURED"],
+          },
+        ]),
+      ) as never,
+    );
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    expect(screen.getByText("HIS 适配器仍为 未接通")).toBeInTheDocument();
+    expect(screen.getByText("LIS 适配器仍为 配置不完整")).toBeInTheDocument();
+    expect(screen.queryByText(/NOT_CONNECTED|MISCONFIGURED/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("LIS 适配器仍为 MISCONFIGURED")).toBeInTheDocument();
+  });
+
+  it("keeps the generated data quality report in one place when operators open the quality dashboard", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "生成质量报告" }));
+    expect(await screen.findByText("数据质量报告已生成")).toBeInTheDocument();
+    expect(screen.getAllByText("数据质量报告")).toHaveLength(1);
+
+    await user.click(screen.getByRole("tab", { name: "数据质量看板" }));
+
+    expect(screen.getAllByText("数据质量报告")).toHaveLength(1);
+    expect(screen.queryByText("尚未生成本轮数据质量报告")).not.toBeInTheDocument();
+    expect(screen.getAllByText("未连接").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("配置非法").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("字段映射覆盖").length).toBeGreaterThan(0);
+  });
+
   it("loads the data contract summary from the current hospital runtime", () => {
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
 
@@ -549,8 +655,10 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("context-field-contract:runtime-H7")).not.toBeInTheDocument();
     expect(screen.getByText("资源 1 类")).toBeInTheDocument();
     expect(screen.getByText("字段 2 项")).toBeInTheDocument();
-    expect(screen.getAllByText("patient.id").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("patient.age").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("患者信息 · 可由外部系统接入").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("患者信息 · 平台自动派生").length).toBeGreaterThan(0);
+    expect(screen.queryByText("patient.id")).not.toBeInTheDocument();
+    expect(screen.queryByText("patient.age")).not.toBeInTheDocument();
     expect(screen.getByText("必传")).toBeInTheDocument();
     expect(screen.getByText("派生不可写")).toBeInTheDocument();
   });
@@ -592,26 +700,47 @@ describe("AdapterHub", () => {
 
     expect(screen.getByRole("heading", { name: "系统接入" })).toBeInTheDocument();
     expect(screen.getByText("必接系统清单")).toBeInTheDocument();
-    expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
-    expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
-    expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
+    expect(screen.getByText("HIS、EMR、CDR、医嘱与费用")).toBeInTheDocument();
+    expect(screen.getByText("LIS、监护与危急值")).toBeInTheDocument();
+    expect(screen.getByText("模型服务、Dify 和 Agent")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
   });
 
   it("默认展示业务接入摘要，证据详情打开后才显示低频技术标识", async () => {
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
+    vi.mocked(useGenerateDataQualityReport).mockReturnValue(
+      mutation({
+        ...qualityReport,
+        gapSummary: "连通核查时效缺口：1/66；NOT_CONNECTED 适配器：66",
+      }) as never,
+    );
     const user = userEvent.setup();
     renderPage();
 
     expect(screen.getAllByText("HIS 主数据接入").length).toBeGreaterThan(0);
     expect(screen.getByText("适配器已登记")).toBeInTheDocument();
     expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
+    expect(screen.getByText("患者标识")).toBeInTheDocument();
+    expect(screen.getByText("患者信息 · 可由外部系统接入")).toBeInTheDocument();
+    expect(screen.getByText("接入要求")).toBeInTheDocument();
+    expect(screen.queryByText("字段结构")).not.toBeInTheDocument();
+    expect(screen.queryByText("patient.id")).not.toBeInTheDocument();
     expect(screen.queryByText(/his-main/)).not.toBeInTheDocument();
     expect(screen.queryByText(/context-field-contract:runtime-H7/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "生成质量报告" }));
     expect(await screen.findByText("数据质量报告已生成")).toBeInTheDocument();
+    expect(screen.getByText("上线判断：暂缓上线")).toBeInTheDocument();
+    expect(screen.getByText(/先处理 1 个断连接入、1 个配置非法接入/)).toBeInTheDocument();
+    expect(screen.getByText(/再补齐字段映射缺口/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/报告缺口：连通核查时效缺口：1\/66；未接通适配器：66/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/NOT_CONNECTED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/缺口摘要：/)).not.toBeInTheDocument();
+    expect(screen.getByText("缺口摘要")).toBeInTheDocument();
+    expect(screen.getByText("连通核查时效缺口：1/66；未接通适配器：66")).toBeInTheDocument();
     expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
     expect(screen.queryByText(/dqr-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trace-dqr/)).not.toBeInTheDocument();
@@ -631,6 +760,7 @@ describe("AdapterHub", () => {
     await user.click(screen.getByRole("tab", { name: "回调通道" }));
     expect(screen.getByText("回调通道已登记")).toBeInTheDocument();
     expect(screen.getByText("回调地址已配置")).toBeInTheDocument();
+    expect(screen.getAllByText("2026年06月03日 16:00").length).toBeGreaterThan(0);
     expect(screen.queryByText(/clinical-events/)).not.toBeInTheDocument();
     expect(screen.queryByText(webhook.callbackUrl)).not.toBeInTheDocument();
 
@@ -638,12 +768,18 @@ describe("AdapterHub", () => {
     expect(screen.getByText("来源已登记")).toBeInTheDocument();
     expect(screen.getByText("适配器：已绑定")).toBeInTheDocument();
     expect(screen.getByText("接入申请：已绑定")).toBeInTheDocument();
+    expect(screen.getAllByText("启用中").length).toBeGreaterThan(0);
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
     expect(screen.queryByText("来源编号：regional-lab")).not.toBeInTheDocument();
     expect(screen.queryByText("适配器：his-main")).not.toBeInTheDocument();
     expect(screen.queryByText("接入申请：onb-his")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect((await screen.findAllByText("patient.id")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("patient.age").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/NOT_CONNECTED/).length).toBeGreaterThan(0);
     expect(await screen.findByText("来源编号：regional-lab")).toBeInTheDocument();
+    expect(screen.getByText("启用中（ACTIVE）")).toBeInTheDocument();
     expect(screen.getByText("适配器：his-main")).toBeInTheDocument();
     expect(screen.getByText("接入申请：onb-his")).toBeInTheDocument();
 
@@ -679,8 +815,169 @@ describe("AdapterHub", () => {
     expect(screen.queryByPlaceholderText("输入真实接入申请标识")).not.toBeInTheDocument();
     expect(screen.getByLabelText("绑定适配器")).toBeInTheDocument();
     expect(screen.queryByLabelText("绑定适配器标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("系统族")).toBeInTheDocument();
+    expect(screen.queryByLabelText("第三方系统族代码")).not.toBeInTheDocument();
     expect(screen.getByLabelText("回调通道")).toBeInTheDocument();
     expect(screen.queryByLabelText("回调通道标识")).not.toBeInTheDocument();
+  });
+
+  it("submits onboarding with a canonical third-party system family code", async () => {
+    const user = userEvent.setup();
+    const createOnboarding = mutation(onboarding);
+    vi.mocked(useCreateIntegrationOnboarding).mockReturnValue(createOnboarding as never);
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    await user.type(screen.getByLabelText("稳定接入申请身份"), "onb-family-his");
+    await user.type(screen.getByLabelText("接入申请名称"), "HIS EMR CDR 接入申请");
+    await user.click(screen.getByLabelText("系统族"));
+    await user.click(
+      await screen.findByText("HIS、EMR、CDR、医嘱与费用", {
+        selector: ".ant-select-item-option-content",
+      }),
+    );
+    await user.type(screen.getByLabelText("来源系统"), "HIS");
+    await user.type(screen.getByLabelText("业务场景"), "患者上下文、医嘱费用和质控反馈接入");
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
+
+    await user.click(screen.getByRole("button", { name: "提交申请" }));
+
+    await waitFor(() =>
+      expect(createOnboarding.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          onboardingId: "onb-family-his",
+          name: "HIS EMR CDR 接入申请",
+          systemFamilyCode: "HIS_EMR_CDR",
+          sourceSystem: "HIS",
+          businessScenario: "患者上下文、医嘱费用和质控反馈接入",
+        }),
+      ),
+    );
+  });
+
+  it("keeps a newly created onboarding selectable when registering a regional source", async () => {
+    const user = userEvent.setup();
+    const createdOnboarding = {
+      ...onboarding,
+      onboardingId: "onb-frontdesk-regional",
+      name: "区域平台 FHIR 接入",
+      status: "REQUESTED",
+      routeType: "FHIR",
+      adapterId: null,
+      routeReference: "/api/v1/engine/integration/fhir/R4",
+      systemFamilyCode: "REGIONAL_REMOTE",
+      sourceSystem: "REGIONAL_FHIR",
+      businessScenario: "S40 区域共享",
+    };
+    const createOnboarding = mutation(createdOnboarding);
+    const registerSource = mutation(regionalSource);
+    vi.mocked(useCreateIntegrationOnboarding).mockReturnValue(createOnboarding as never);
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(query(pageData([])) as never);
+    vi.mocked(useRegisterRegionalSource).mockReturnValue(registerSource as never);
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    fireEvent.change(screen.getByLabelText("稳定接入申请身份"), {
+      target: { value: createdOnboarding.onboardingId },
+    });
+    fireEvent.change(screen.getByLabelText("接入申请名称"), {
+      target: { value: createdOnboarding.name },
+    });
+    await user.click(screen.getByLabelText("接入模式"));
+    await user.click(screen.getByTitle("FHIR 门面"));
+    await user.click(screen.getByLabelText("FHIR 版本"));
+    await user.click(screen.getByTitle("FHIR R4"));
+    await user.click(screen.getByLabelText("系统族"));
+    await user.click(screen.getByTitle("区域平台、医联体和远程协同"));
+    fireEvent.change(screen.getByLabelText("来源系统"), {
+      target: { value: createdOnboarding.sourceSystem },
+    });
+    fireEvent.change(screen.getByLabelText("业务场景"), {
+      target: { value: createdOnboarding.businessScenario },
+    });
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
+    await user.click(screen.getByRole("button", { name: "提交申请" }));
+    await waitFor(() => {
+      expect(createOnboarding.mutateAsync).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "新增接入申请" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("tab", { name: "区域来源" }));
+    await user.click(screen.getByRole("button", { name: "登记区域来源" }));
+    const regionalSourceDialog = screen.getByRole("dialog", { name: "登记区域来源" });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("稳定来源身份"), {
+      target: { value: "regional-frontdesk" },
+    });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("区域网络"), {
+      target: { value: "区域影像互认平台" },
+    });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("来源机构身份"), {
+      target: { value: "hospital-remote" },
+    });
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("来源机构名称"), {
+      target: { value: "远程示范医院" },
+    });
+    await user.click(within(regionalSourceDialog).getByLabelText("可信等级"));
+    await user.click(screen.getByTitle("高可信"));
+    fireEvent.change(within(regionalSourceDialog).getByLabelText("可信证据"), {
+      target: { value: "OPT-07 可信分级证据" },
+    });
+    await user.click(within(regionalSourceDialog).getByRole("combobox", { name: "绑定接入申请" }));
+    await user.type(
+      within(regionalSourceDialog).getByRole("combobox", { name: "绑定接入申请" }),
+      createdOnboarding.onboardingId,
+    );
+    await user.click(
+      await screen.findByTitle(
+        `区域平台 FHIR 接入 · 已提交接入申请 · ${createdOnboarding.onboardingId}`,
+      ),
+    );
+    await user.click(within(regionalSourceDialog).getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
+    await user.click(within(regionalSourceDialog).getByRole("button", { name: "保存区域来源" }));
+    expect(screen.queryByText("'orgPath' is required")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(registerSource.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceId: "regional-frontdesk",
+          onboardingId: createdOnboarding.onboardingId,
+        }),
+      );
+    });
+  }, 15_000);
+
+  it("points empty organization scope setup to 服务机构 instead of abstract org maintenance", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useOrgUnits).mockReturnValue(
+      query({
+        items: [],
+        page: 1,
+        size: 500,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    await user.click(screen.getByLabelText("组织范围"));
+
+    expect(
+      await screen.findByText("暂无可选组织，请先到“服务机构”补充组织节点。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("暂无可选组织，请先维护组织架构")).not.toBeInTheDocument();
   });
 
   it("uses stable business identity labels for callback setup", async () => {
@@ -749,6 +1046,44 @@ describe("AdapterHub", () => {
           }),
         });
       });
+    },
+    ADAPTER_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "blocks half-configured terminology field mappings before adapter creation",
+    async () => {
+      const user = userEvent.setup();
+      const createAdapter = mutation(hisAdapter);
+      vi.mocked(useCreateAdapter).mockReturnValue(createAdapter as never);
+
+      renderPage();
+      await user.click(screen.getByRole("button", { name: "新增适配器" }));
+
+      fireEvent.change(screen.getByLabelText("稳定适配器身份"), {
+        target: { value: "lis-lab" },
+      });
+      fireEvent.change(screen.getByLabelText("系统名称"), {
+        target: { value: "检验 LIS" },
+      });
+      fireEvent.change(screen.getByLabelText("服务地址"), {
+        target: { value: "https://lis.example.test/api" },
+      });
+      fireEvent.change(screen.getByLabelText("来源字段路径"), {
+        target: { value: "/labCode" },
+      });
+      fireEvent.change(screen.getByLabelText("标准字段路径"), {
+        target: { value: "/observations/0" },
+      });
+      await user.click(screen.getByRole("combobox", { name: "术语分类" }));
+      await user.click(await screen.findByText("检验"));
+
+      await user.click(screen.getByRole("button", { name: "提交适配器" }));
+
+      expect(
+        (await screen.findAllByText("目标标准字典与术语分类必须同时填写")).length,
+      ).toBeGreaterThan(0);
+      expect(createAdapter.mutateAsync).not.toHaveBeenCalled();
     },
     ADAPTER_INTERACTION_TIMEOUT_MS,
   );
@@ -832,6 +1167,65 @@ describe("AdapterHub", () => {
     expect(screen.getByText("sha256=preview-signature")).toBeInTheDocument();
   }, 15_000);
 
+  it("binds signature preview to the newly created callback channel before the first联调", async () => {
+    const user = userEvent.setup();
+    const createdWebhook = {
+      ...webhook,
+      webhookId: "quality-events",
+      name: "质控事件回调",
+      callbackUrl: "https://quality.example.test/medkernel/events",
+      eventsSubscribed: "quality.alert.opened",
+      sharedSecret: "whsec_new_channel",
+    };
+    const createWebhook = mutation(createdWebhook);
+    const testSignature = mutation({
+      webhookId: createdWebhook.webhookId,
+      callbackUrl: createdWebhook.callbackUrl,
+      timestamp: 1780743600,
+      signature: "sha256=new-channel-preview",
+      status: "SIGNATURE_GENERATED",
+      connectionStatus: "NOT_TESTED",
+      message: "签名已在本地生成，未向外部地址发起请求。",
+    });
+    vi.mocked(useCreateWebhook).mockReturnValue(createWebhook as never);
+    vi.mocked(useTestWebhookSignature).mockReturnValue(testSignature as never);
+
+    renderPage();
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    await user.click(screen.getByRole("button", { name: "新增回调通道" }));
+    fireEvent.change(screen.getByLabelText("稳定回调通道身份"), {
+      target: { value: createdWebhook.webhookId },
+    });
+    fireEvent.change(screen.getByLabelText("通道名称"), {
+      target: { value: createdWebhook.name },
+    });
+    fireEvent.change(screen.getByLabelText("回调地址"), {
+      target: { value: createdWebhook.callbackUrl },
+    });
+    fireEvent.change(screen.getByLabelText("订阅事件"), {
+      target: { value: createdWebhook.eventsSubscribed },
+    });
+    await user.click(screen.getByRole("button", { name: "创建回调通道" }));
+    await user.click(await screen.findByRole("button", { name: "我已安全保存" }));
+    await user.click(screen.getAllByRole("combobox")[0]);
+
+    expect(
+      await screen.findByText(createdWebhook.name, { selector: ".ant-select-item-option-content" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "生成签名预览" }));
+
+    expect(testSignature.mutateAsync).toHaveBeenCalledWith({
+      webhookId: createdWebhook.webhookId,
+      payload: JSON.stringify({
+        event: "clinical.test",
+        patient: "联调患者（非真实）",
+        encounter: "门诊联调就诊",
+        summary: "签名预览联调事件",
+      }),
+    });
+  }, 15_000);
+
   it("registers a graded regional source instead of leaving the service-only done item unusable", async () => {
     const user = userEvent.setup();
     const registerSource = mutation(regionalSource);
@@ -846,6 +1240,7 @@ describe("AdapterHub", () => {
     expect(screen.queryByLabelText("来源标识")).not.toBeInTheDocument();
     expect(screen.getByLabelText("来源机构身份")).toBeInTheDocument();
     expect(screen.queryByLabelText("来源机构标识")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "绑定接入申请" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("稳定来源身份"), {
       target: { value: "regional-image" },
     });
@@ -863,6 +1258,9 @@ describe("AdapterHub", () => {
     fireEvent.change(screen.getByLabelText("可信证据"), {
       target: { value: "区域互认协议与接口验收单" },
     });
+    await user.click(screen.getByRole("combobox", { name: "绑定接入申请" }));
+    await user.type(screen.getByRole("combobox", { name: "绑定接入申请" }), "onb-his");
+    await user.click(await screen.findByTitle("HIS 主数据接入申请 · 字段映射已配置 · onb-his"));
     await user.click(screen.getByLabelText("组织范围"));
     await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
     await user.click(screen.getByRole("button", { name: "保存区域来源" }));
@@ -876,6 +1274,7 @@ describe("AdapterHub", () => {
         trustLevel: "MEDIUM",
         evidenceText: "区域互认协议与接口验收单",
         orgPath: "/tenant-1/hospital-1",
+        onboardingId: "onb-his",
       });
     });
   }, 15_000);

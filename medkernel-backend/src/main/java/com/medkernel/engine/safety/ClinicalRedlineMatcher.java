@@ -73,7 +73,7 @@ public class ClinicalRedlineMatcher {
                 continue;
             }
             assertRuntimeProtected(redline);
-            RuleDslEvaluation evaluation = evaluator.evaluate(parseDsl(redline), context);
+            RuleDslEvaluation evaluation = evaluateRedlineCondition(redline, context);
             if (evaluation.hit()) {
                 matches.add(toCard(request, snapshot, redline, evaluation));
             }
@@ -91,6 +91,23 @@ public class ClinicalRedlineMatcher {
         } catch (JsonProcessingException e) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "红线 DSL 不是合法 JSON: " + redline.redlineId());
         }
+    }
+
+    private RuleDslEvaluation evaluateRedlineCondition(ClinicalRedlineRule redline, JsonNode context) {
+        JsonNode dsl = parseDsl(redline);
+        if (dsl.has("when") || dsl.has("then")) {
+            return evaluator.evaluate(dsl, context);
+        }
+        return evaluator.evaluateConditionTree(dsl, context, redlineExplanation(redline));
+    }
+
+    private JsonNode redlineExplanation(ClinicalRedlineRule redline) {
+        ObjectNode explanation = json.createObjectNode();
+        explanation.put("summary", "临床安全红线条件命中：" + redline.title());
+        explanation.put("redlineId", redline.redlineId());
+        explanation.put("redlineKey", redline.redlineKey());
+        explanation.put("redlineVersion", redline.redlineVersion());
+        return explanation;
     }
 
     private RecommendationCardRequest toCard(
@@ -192,6 +209,7 @@ public class ClinicalRedlineMatcher {
             case DRUG_INTERACTION, DOSE_LIMIT, ANTIMICROBIAL_RESTRICTION,
                     SPECIAL_POPULATION_CONTRAINDICATION -> RecommendationCardType.MEDICATION;
             case CRITICAL_VALUE -> RecommendationCardType.LAB;
+            case SURGERY_ANESTHESIA_TRANSFUSION -> RecommendationCardType.RISK;
         };
     }
 

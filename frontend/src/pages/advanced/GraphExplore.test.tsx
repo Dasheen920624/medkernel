@@ -111,10 +111,13 @@ describe("GraphExplore", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识关系" })).toBeInTheDocument();
+    expect(screen.getByText("查看知识之间的来源、适应证、禁忌和相互作用关系")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "图谱查询" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "关系范围" })).toBeInTheDocument();
     expect(screen.getByText("关系库权威源已有临床图投影快照")).toBeInTheDocument();
     expect(screen.getAllByText("关系库权威源与投影一致").length).toBeGreaterThan(0);
-    expect(screen.getByRole("group", { name: "投影关系图" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "知识关系图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /观察记录已同步/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "重建投影" })).not.toBeInTheDocument();
     expect(screen.queryByText("obs-1")).not.toBeInTheDocument();
@@ -186,6 +189,6 @@ describe("GraphExplore", () => {
     );
 
     expect(screen.getByText("部分状态暂不可用")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "投影关系图" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "知识关系图" })).toBeInTheDocument();
   });
 });

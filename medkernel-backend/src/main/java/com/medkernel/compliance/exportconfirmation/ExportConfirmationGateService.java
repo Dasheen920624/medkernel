@@ -3,6 +3,7 @@ package com.medkernel.compliance.exportconfirmation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,12 +41,20 @@ public class ExportConfirmationGateService implements ExportConfirmationGate {
                 && status != ExportConfirmationStatus.EXPORTED) {
             throw ApiException.forbidden("导出未确认，不能提交导出作业");
         }
-        if (!resourceType.equals(confirmation.resourceType())) {
+        if (!normalizeResourceType(resourceType).equals(normalizeResourceType(confirmation.resourceType()))) {
             throw ApiException.conflict("导出确认资源类型与作业不一致");
         }
         if (!sameJson(confirmation.exportScopeSnapshot(), requestSnapshot)) {
             throw ApiException.conflict("导出确认范围与作业不一致");
         }
+    }
+
+    private String normalizeResourceType(String resourceType) {
+        return (resourceType == null ? "" : resourceType.trim())
+            .replaceAll("[^A-Za-z0-9]+", "_")
+            .replaceAll("_+", "_")
+            .replaceAll("^_|_$", "")
+            .toLowerCase(Locale.ROOT);
     }
 
     private boolean sameJson(String left, String right) {

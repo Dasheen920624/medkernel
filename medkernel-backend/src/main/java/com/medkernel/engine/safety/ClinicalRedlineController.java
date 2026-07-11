@@ -32,6 +32,13 @@ public class ClinicalRedlineController {
         return ApiResult.ok(service.activeCatalog(category));
     }
 
+    @PostMapping("/redlines")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<ClinicalRedlineResponse> createDraft(
+            @RequestBody @Valid ClinicalRedlineDraftRequest request) {
+        return ApiResult.ok(service.createDraft(request));
+    }
+
     @PostMapping("/redlines:dry-run")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<ClinicalRedlineTrialResponse> dryRun(

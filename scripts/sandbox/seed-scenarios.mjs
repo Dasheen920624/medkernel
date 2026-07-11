@@ -12,6 +12,7 @@ import {
   selectLaunchAccount,
   validateLaunchCredentials,
 } from "../release/launch-account-bootstrap-lib.mjs";
+import { launchCoverageClaims } from "../release/stage-launch-coverage-lib.mjs";
 
 const requireFromFrontend = createRequire(
   new URL("../../frontend/package.json", import.meta.url),
@@ -39,13 +40,31 @@ export function resolveSandboxEvidenceDir(
       path.join(runtimeRoot, "evidence/current-launch/sandbox"),
   );
   const relative = path.relative(path.resolve(repositoryRoot), candidate);
-  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+  if (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  ) {
     throw new Error("沙盘演练证据目录必须位于代码仓库之外");
   }
   return candidate;
 }
 const evidenceDir = resolveSandboxEvidenceDir();
 const mappingVersion = "sandbox-context-v1";
+const STANDARD_PATIENT_RESOURCE_COVERAGE = Object.freeze([
+  ["Patient", "patient"],
+  ["AllergyIntolerance", "allergyIntolerances"],
+  ["Encounter", "encounters"],
+  ["Condition", "conditions"],
+  ["NursingAssessment", "nursingAssessments"],
+  ["Observation", "observations"],
+  ["DiagnosticReport", "diagnosticReports"],
+  ["Medication", "medications"],
+  ["Procedure", "procedures"],
+  ["Document", "documents"],
+  ["CarePlan", "carePlans"],
+  ["FollowUp", "followUps"],
+  ["Claim", "claims"],
+]);
 
 export function resolveChromiumLaunchOptions(env = process.env) {
   const executablePath =
@@ -81,7 +100,8 @@ export function evaluationTestCase(rule) {
   const positive = rule.clinicalContent.testCases.find(
     (item) => item.caseType === "POSITIVE",
   );
-  if (!positive) throw new Error(`沙盘规则 ${rule.ruleCode} 缺少 POSITIVE 样例`);
+  if (!positive)
+    throw new Error(`沙盘规则 ${rule.ruleCode} 缺少 POSITIVE 样例`);
   return {
     ...positive,
     patientId: `${positive.patientId}-EVAL`,
@@ -588,12 +608,7 @@ function assertPublishedRuleMatches(detail, rule) {
   }
 }
 
-async function createAndTestRule(
-  browser,
-  credentials,
-  rule,
-  snapshots,
-) {
+async function createAndTestRule(browser, credentials, rule, snapshots) {
   const context = await login(
     browser,
     requireAccount(credentials, SANDBOX_ACTOR_ROLES.engineOperator),
@@ -737,7 +752,13 @@ async function createEvaluationSnapshot(context, ctx, rule, runtimeReleaseId) {
   };
 }
 
-async function verifyPublishedRuleEvaluations(context, ctx, rules, results, runtimeReleaseId) {
+async function verifyPublishedRuleEvaluations(
+  context,
+  ctx,
+  rules,
+  results,
+  runtimeReleaseId,
+) {
   const byCode = new Map(results.map((item) => [item.ruleCode, item]));
   const evaluations = [];
   for (const rule of rules) {
@@ -809,43 +830,34 @@ async function transition(
   reason,
   publishEvidence,
 ) {
-  return withRole(
-    browser,
-    credentials,
-    role,
-    async (context, ctx) => {
-      const state = await governanceState(
+  return withRole(browser, credentials, role, async (context, ctx) => {
+    const state = await governanceState(
+      context,
+      ruleId,
+      `state-${targetState}`,
+    );
+    if (
+      RULE_GOVERNANCE_STAGES.indexOf(state.state) >=
+      RULE_GOVERNANCE_STAGES.indexOf(targetState)
+    )
+      return state;
+    const digest = await impactDigest(context, ruleId, `impact-${targetState}`);
+    return ensureOk(
+      await apiPost(
         context,
-        ruleId,
-        `state-${targetState}`,
-      );
-      if (
-        RULE_GOVERNANCE_STAGES.indexOf(state.state) >=
-        RULE_GOVERNANCE_STAGES.indexOf(targetState)
-      )
-        return state;
-      const digest = await impactDigest(
-        context,
-        ruleId,
-        `impact-${targetState}`,
-      );
-      return ensureOk(
-        await apiPost(
-          context,
-          `/engine/rule/rules/${ruleId}/governance/transitions`,
-          {
-            ...ctx,
-            targetState,
-            impactDigest: digest,
-            reason,
-            ...(publishEvidence ? { publishEvidence } : {}),
-          },
-          `transition-${targetState}`,
-        ),
-        `推进规则到 ${targetState}`,
-      );
-    },
-  );
+        `/engine/rule/rules/${ruleId}/governance/transitions`,
+        {
+          ...ctx,
+          targetState,
+          impactDigest: digest,
+          reason,
+          ...(publishEvidence ? { publishEvidence } : {}),
+        },
+        `transition-${targetState}`,
+      ),
+      `推进规则到 ${targetState}`,
+    );
+  });
 }
 
 async function governRule(browser, credentials, ruleId) {
@@ -894,43 +906,49 @@ async function governRule(browser, credentials, ruleId) {
 }
 
 async function discoverRequiredOuterAssets(context, ctx, dependencies) {
-  return Promise.all(dependencies.map(async (dependency) => {
-    if (dependency.assetType !== "PATHWAY") {
-      throw new Error(`暂不支持的沙盘外圈资产类型 ${dependency.assetType}`);
-    }
-    const pathway = await findPublishedPathway(
-      context,
-      dependency,
-      `find-sandbox-pathway-${dependency.assetCode}`,
-    );
-    if (!pathway?.templateId) {
-      throw new Error(
-        `缺少沙盘外圈精确资产 ${dependency.assetCode}@${dependency.assetVersion}`,
+  return Promise.all(
+    dependencies.map(async (dependency) => {
+      if (dependency.assetType !== "PATHWAY") {
+        throw new Error(`暂不支持的沙盘外圈资产类型 ${dependency.assetType}`);
+      }
+      const pathway = await findPublishedPathway(
+        context,
+        dependency,
+        `find-sandbox-pathway-${dependency.assetCode}`,
       );
-    }
-    const candidate = await findHospitalRuntimeCandidate(
-      context,
-      ctx,
-      dependency,
-      `find-sandbox-pathway-candidate-${dependency.assetCode}`,
-    );
-    if (!candidate?.versionId || candidate.status !== "PUBLISHED") {
-      throw new Error(
-        `沙盘外圈资产缺少已发布统一版本 ${dependency.assetCode}@${dependency.assetVersion}`,
+      if (!pathway?.templateId) {
+        throw new Error(
+          `缺少沙盘外圈精确资产 ${dependency.assetCode}@${dependency.assetVersion}`,
+        );
+      }
+      const candidate = await findHospitalRuntimeCandidate(
+        context,
+        ctx,
+        dependency,
+        `find-sandbox-pathway-candidate-${dependency.assetCode}`,
       );
-    }
-    return {
-      ...dependency,
-      assetId: pathway.templateId,
-      assetIdentity: dependency.assetCode,
-      versionId: candidate.versionId,
-    };
-  }));
+      if (!candidate?.versionId || candidate.status !== "PUBLISHED") {
+        throw new Error(
+          `沙盘外圈资产缺少已发布统一版本 ${dependency.assetCode}@${dependency.assetVersion}`,
+        );
+      }
+      return {
+        ...dependency,
+        assetId: pathway.templateId,
+        assetIdentity: dependency.assetCode,
+        versionId: candidate.versionId,
+      };
+    }),
+  );
 }
 
 function assetVersionMatches(actual, expected) {
-  const normalizedActual = String(actual ?? "").trim().replace(/^V/i, "");
-  const normalizedExpected = String(expected ?? "").trim().replace(/^V/i, "");
+  const normalizedActual = String(actual ?? "")
+    .trim()
+    .replace(/^V/i, "");
+  const normalizedExpected = String(expected ?? "")
+    .trim()
+    .replace(/^V/i, "");
   return normalizedActual !== "" && normalizedActual === normalizedExpected;
 }
 
@@ -941,11 +959,13 @@ async function findPublishedPathway(context, dependency, stage) {
     stage,
   );
   const pathways = pageItems(ensureOk(response, "读取已发布路径资产"));
-  return pathways.find(
-    (item) =>
-      item.templateCode === dependency.assetCode &&
-      assetVersionMatches(item.templateVersion, dependency.assetVersion),
-  ) ?? null;
+  return (
+    pathways.find(
+      (item) =>
+        item.templateCode === dependency.assetCode &&
+        assetVersionMatches(item.templateVersion, dependency.assetVersion),
+    ) ?? null
+  );
 }
 
 async function findHospitalRuntimeCandidate(context, ctx, dependency, stage) {
@@ -958,12 +978,14 @@ async function findHospitalRuntimeCandidate(context, ctx, dependency, stage) {
     stage,
   );
   const candidates = pageItems(ensureOk(response, "读取医院运行候选资产"));
-  return candidates.find(
-    (item) =>
-      item.assetType === "PATHWAY" &&
-      item.assetIdentity === dependency.assetCode &&
-      assetVersionMatches(item.versionNo, dependency.assetVersion),
-  ) ?? null;
+  return (
+    candidates.find(
+      (item) =>
+        item.assetType === "PATHWAY" &&
+        item.assetIdentity === dependency.assetCode &&
+        assetVersionMatches(item.versionNo, dependency.assetVersion),
+    ) ?? null
+  );
 }
 
 function assertSupportedSandboxPathwayDependency(dependency) {
@@ -1015,7 +1037,9 @@ async function activateRequiredPathwayRuntimeAsset(
 ) {
   const platformAssets = activePlatformBaselineAssets(baseline);
   if (platformAssets.length === 0) {
-    throw new Error("平台当前标准版本没有 ACTIVE 运行资产，无法发布沙盘路径资产");
+    throw new Error(
+      "平台当前标准版本没有 ACTIVE 运行资产，无法发布沙盘路径资产",
+    );
   }
   return activateRuntimeRelease(
     context,
@@ -1104,7 +1128,9 @@ async function ensureRequiredOuterAssets(context, ctx, dependencies, baseline) {
 function runtimeAssetSelection(item) {
   const assetIdentity = item.assetIdentity ?? item.assetCode ?? item.assetId;
   if (!assetIdentity) {
-    throw new Error(`运行资产缺少稳定身份: ${JSON.stringify(item).slice(0, 300)}`);
+    throw new Error(
+      `运行资产缺少稳定身份: ${JSON.stringify(item).slice(0, 300)}`,
+    );
   }
   return {
     assetType: item.assetType,
@@ -1140,11 +1166,7 @@ function runtimeCoversDesiredAssets(currentDetail, desiredAssets) {
     (currentDetail?.items ?? [])
       .filter((item) => item.entryState === "ACTIVE")
       .map((item) =>
-        [
-          item.assetType,
-          item.assetIdentity,
-          item.versionId ?? "",
-        ].join(":"),
+        [item.assetType, item.assetIdentity, item.versionId ?? ""].join(":"),
       ),
   );
   return desiredAssets.every((item) => {
@@ -1173,11 +1195,7 @@ async function readCurrentHospitalRuntime(context, hospitalId, stage) {
 
 async function readCurrentPlatformBaseline(context, stage) {
   return ensureOk(
-    await apiGet(
-      context,
-      "/engine/releases/platform-baselines/current",
-      stage,
-    ),
+    await apiGet(context, "/engine/releases/platform-baselines/current", stage),
     "读取平台当前标准版本",
   );
 }
@@ -1190,7 +1208,10 @@ async function activateRuntimeRelease(context, ctx, assets, options = {}) {
     targetOrgUnitId,
     options.currentStage ?? "sandbox-runtime-current",
   );
-  if (currentDetail && runtimeCoversDesiredAssets(currentDetail, desiredAssets)) {
+  if (
+    currentDetail &&
+    runtimeCoversDesiredAssets(currentDetail, desiredAssets)
+  ) {
     const status = ensureOk(
       await apiGet(
         context,
@@ -1202,14 +1223,17 @@ async function activateRuntimeRelease(context, ctx, assets, options = {}) {
     return { reused: true, release: currentDetail.release, status };
   }
 
-  const baseline = options.baseline ??
+  const baseline =
+    options.baseline ??
     (await readCurrentPlatformBaseline(
       context,
       options.baselineStage ?? "sandbox-platform-baseline-current",
     ));
   const baselineReleaseId = baseline?.release?.baselineReleaseId;
   if (!baselineReleaseId) {
-    throw new Error("平台当前标准版本缺少 baselineReleaseId，无法生成机构生效版本");
+    throw new Error(
+      "平台当前标准版本缺少 baselineReleaseId，无法生成机构生效版本",
+    );
   }
   const release = ensureOk(
     await apiPost(
@@ -1273,6 +1297,14 @@ export async function runSeed() {
     versionResolution: "MANIFEST_SHA256_RUNTIME_RELEASE",
     runnableRuleCodes: selected.runnable.map((item) => item.ruleCode),
     blockedRuleCodes: selected.blocked.map((item) => item.ruleCode),
+    resourceCoverage: {
+      standardPatientResources: STANDARD_PATIENT_RESOURCE_COVERAGE.map(
+        ([code, resourceKey]) => ({
+          code,
+          resourceKey,
+        }),
+      ),
+    },
     results: [],
     evaluations: [],
     initialRuntimeRelease: null,
@@ -1302,7 +1334,10 @@ export async function runSeed() {
       SANDBOX_ACTOR_ROLES.engineOperator,
     );
     try {
-      const ctx = await envelope(initialRuntimeContext, "sandbox-initial-runtime");
+      const ctx = await envelope(
+        initialRuntimeContext,
+        "sandbox-initial-runtime",
+      );
       summary.initialRuntimeRelease = await ensureInitialRuntimeRelease(
         initialRuntimeContext,
         ctx,
@@ -1313,11 +1348,7 @@ export async function runSeed() {
 
     for (const rule of selected.runnable) {
       try {
-        const snapshots = await seedSnapshots(
-          browser,
-          credentials,
-          rule,
-        );
+        const snapshots = await seedSnapshots(browser, credentials, rule);
         const created = await createAndTestRule(
           browser,
           credentials,
@@ -1371,7 +1402,9 @@ export async function runSeed() {
         );
         const platformAssets = activePlatformBaselineAssets(baseline);
         if (platformAssets.length === 0) {
-          throw new Error("平台当前标准版本没有 ACTIVE 运行资产，无法生成最终机构生效版本");
+          throw new Error(
+            "平台当前标准版本没有 ACTIVE 运行资产，无法生成最终机构生效版本",
+          );
         }
         await ensureRequiredOuterAssets(
           adminContext,
@@ -1416,6 +1449,17 @@ export async function runSeed() {
           selected.runnable,
           summary.results,
           runtimeRelease.release.releaseId,
+        );
+        summary.launchCoverage = launchCoverageClaims(
+          [
+            ...summary.resourceCoverage.standardPatientResources.map((item) => [
+              "standardPatientResources",
+              item.code,
+            ]),
+            ["serviceCombinations", "CLINICAL_RUNTIME"],
+            ["serviceCombinations", "SPECIAL_DISEASE_PATHWAY"],
+          ],
+          new Date().toISOString(),
         );
       } finally {
         await adminContext.close();

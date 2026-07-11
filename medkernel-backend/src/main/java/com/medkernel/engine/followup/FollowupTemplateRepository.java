@@ -8,7 +8,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 随访模板仓库。
+ * 随访方案仓库。
  */
 @Repository
 public interface FollowupTemplateRepository extends ListCrudRepository<FollowupTemplate, Long> {
@@ -73,7 +73,7 @@ public interface FollowupTemplateRepository extends ListCrudRepository<FollowupT
     long countByFilter(String tenantId, String keyword, String assetStatus);
 
     /**
-     * 统一创作资产库按标签、收藏和关键字分页查询随访模板，避免全量租户快照。
+     * 统一创作资产库按标签、收藏和关键字分页查询随访方案，避免全量租户快照。
      */
     @Query("""
         SELECT ft.*
@@ -113,7 +113,7 @@ public interface FollowupTemplateRepository extends ListCrudRepository<FollowupT
         int limit);
 
     /**
-     * 与 {@link #pageForAuthoringLibrary} 同口径统计随访模板数。
+     * 与 {@link #pageForAuthoringLibrary} 同口径统计随访方案数。
      */
     @Query("""
         SELECT COUNT(*)

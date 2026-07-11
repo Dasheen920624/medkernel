@@ -43,6 +43,7 @@ import {
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
   useCreateTerminologyAssetDraft,
+  useRegisterStandardTerm,
   useActivateEvaluationIndicator,
   useAuthoringAssets,
   useAuthoringBatchJobs,
@@ -108,6 +109,7 @@ import {
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useDomainFacadeB0Evidence,
   useModelEvaluationRunDetail,
   useModelEvaluationRuns,
   useRunModelEvaluation,
@@ -120,6 +122,7 @@ import {
   useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
+  useCreateContextSnapshot,
   useCreateMpiPatient,
   useMergeMpiPatients,
   useMpiPatientDetail,
@@ -138,6 +141,7 @@ import {
   usePublishDiagnosis,
   usePublishEvaluationIndicator,
   useQualityFindings,
+  useQualityFindingDetail,
   useRegionalSources,
   useRegisterPlugin,
   useRegisterRegionalSource,
@@ -155,6 +159,7 @@ import {
   useRuleDriftLatest,
   useCaptureRuleDriftSnapshot,
   useReviewRectification,
+  useRectificationReport,
   useReviewKnowledgeCandidate,
   useResolveTerminologyConflict,
   useRunDrgGrouping,
@@ -166,15 +171,20 @@ import {
   useSubmitRectification,
   useStandardTerms,
   useSubmitEvaluationIndicator,
+  useWaiveRectification,
   useActivateHospitalRuntime,
   useCurrentHospitalRuntime,
   useCurrentPlatformBaseline,
+  useExportHospitalRuntimeOfflineDelivery,
   useHospitalRuntimeCandidates,
   useHospitalRuntimeHistory,
+  useHospitalPlatformUpgradeAnalysis,
   usePlatformReleaseCandidates,
   useSimulateReleaseImpact,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
+  useRestoreHospitalRuntimeOfflineDelivery,
+  useValidateHospitalRuntimeOfflineImport,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useMasterDataReconciliation,
@@ -641,7 +651,7 @@ describe("shared runtime api helpers", () => {
   });
 
   it("downloads the generated domestic compatibility report", async () => {
-    const reportBlob = new Blob(["MedKernel 国产化自检报告"]);
+    const reportBlob = new Blob(["MedKernel 国产化适配自检报告"]);
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: reportBlob });
 
     const result = await downloadDomesticCompatibilityReport();
@@ -678,6 +688,41 @@ describe("shared runtime api helpers", () => {
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/workflow/todos", {
       params: { status: "PENDING", priority: "HIGH", orgUnitId: "dept-a", page: 0, size: 10 },
+    });
+  });
+
+  it("loads a workflow todo by source id so recommendation links can reopen the exact pending task", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 1,
+          size: 10,
+          total: 0,
+          hasNext: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      useWorkflowTodos({
+        status: "PENDING",
+        sourceType: "REPORT_INTERPRETATION",
+        sourceId: "card-regional-1",
+        page: 1,
+        size: 10,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/workflow/todos", {
+      params: {
+        status: "PENDING",
+        sourceType: "REPORT_INTERPRETATION",
+        sourceId: "card-regional-1",
+        page: 1,
+        size: 10,
+      },
     });
   });
 
@@ -2276,7 +2321,7 @@ describe("shared runtime api helpers", () => {
     });
   });
 
-  it("submits and reviews rectification through API-08 canonical endpoints", async () => {
+  it("submits, reviews and waives rectification through task-scoped service endpoints", async () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({
         data: {
@@ -2297,15 +2342,25 @@ describe("shared runtime api helpers", () => {
             traceId: "trace-eval",
           },
         },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            reviewId: "rr-waive-1",
+            findingStatus: "WAIVED",
+            taskStatus: "WAIVED",
+            traceId: "trace-waive",
+          },
+        },
       });
 
-    const submitHook = renderApiHook(() => useSubmitRectification("qf-1"));
+    const submitHook = renderApiHook(() => useSubmitRectification("rct-1"));
     await submitHook.result.current.mutateAsync({
       request: { rectificationSummary: "补录风险评估记录", evidenceRef: "proof-1" },
       idempotencyKey: "idem-rect-1",
     });
 
-    const reviewHook = renderApiHook(() => useReviewRectification("qf-1"));
+    const reviewHook = renderApiHook(() => useReviewRectification("rct-1"));
     await reviewHook.result.current.mutateAsync({
       request: {
         decision: "APPROVED",
@@ -2315,18 +2370,89 @@ describe("shared runtime api helpers", () => {
       idempotencyKey: "idem-review-1",
     });
 
+    const waiveHook = renderApiHook(() => useWaiveRectification("rct-2"));
+    await waiveHook.result.current.mutateAsync({
+      request: {
+        reason: "专家组确认该问题不适用当前病例",
+        decisionRef: "MDT-2026-07-05",
+        evidenceRef: "waive-proof-1",
+      },
+      idempotencyKey: "idem-waive-1",
+    });
+
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
-      "/engine/evaluation/rectifications",
+      "/engine/rectifications/rct-1/submit",
       { rectificationSummary: "补录风险评估记录", evidenceRef: "proof-1" },
-      { params: { findingId: "qf-1" }, headers: { "Idempotency-Key": "idem-rect-1" } },
+      { headers: { "Idempotency-Key": "idem-rect-1" } },
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
-      "/engine/evaluation/rectifications/qf-1/review",
+      "/engine/rectifications/rct-1/review",
       { decision: "APPROVED", comment: "证据充分，允许闭环", evidenceRef: "review-proof-1" },
       { headers: { "Idempotency-Key": "idem-review-1" } },
     );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/rectifications/rct-2/waive",
+      {
+        reason: "专家组确认该问题不适用当前病例",
+        decisionRef: "MDT-2026-07-05",
+        evidenceRef: "waive-proof-1",
+      },
+      { headers: { "Idempotency-Key": "idem-waive-1" } },
+    );
+  });
+
+  it("loads rectification report from the task fact table endpoint", async () => {
+    const report = {
+      status: "AVAILABLE",
+      totalTasks: 12,
+      openTasks: 3,
+      closedTasks: 9,
+      waivedTasks: 1,
+      overdueTasks: 2,
+      highPriorityOpenTasks: 1,
+      closureRate: 0.75,
+      sourceTable: "rectification_task",
+      traceId: "trace-report",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: report } });
+
+    const { result } = renderApiHook(() =>
+      useRectificationReport({ responsibleDepartmentId: "dept-cardio" }),
+    );
+
+    await waitFor(() => expect(result.current.data).toEqual(report));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rectifications/report", {
+      params: { responsibleDepartmentId: "dept-cardio" },
+    });
+  });
+
+  it("loads quality finding detail with the backend rectificationTask field", async () => {
+    const detail = {
+      finding: {
+        findingId: "qf-1",
+        status: "ASSIGNED",
+        severity: "P1",
+        title: "医保审核问题",
+      },
+      rectificationTask: {
+        taskId: "rct-1",
+        findingId: "qf-1",
+        responsibleDepartmentId: "dept-cardio",
+        status: "ASSIGNED",
+        dueAt: "2026-07-15T00:30:00Z",
+      },
+      reviews: [],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: detail } });
+
+    const { result } = renderApiHook(() => useQualityFindingDetail("qf-1"));
+
+    await waitFor(() => expect(result.current.data?.rectificationTask?.taskId).toBe("rct-1"));
+    expect(result.current.data).not.toHaveProperty("task");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/evaluation/issues/qf-1");
   });
 
   it("loads the context field working catalog without a legacy package selector", async () => {
@@ -2554,7 +2680,7 @@ describe("recommendation evaluation api hook", () => {
           recommendations: ["请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。"],
         },
       ],
-      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。",
       traceId: "trace-report",
     };
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
@@ -2953,6 +3079,230 @@ describe("mpi api helpers", () => {
       { headers: { "Idempotency-Key": "mpi-split-1" } },
     );
   });
+
+  it("converts frontdesk current medications into canonical context resources", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          snapshotId: "ctx-med-1",
+          status: "ACTIVE",
+          runtimeReleaseId: "runtime-release-1",
+          qualityStatus: "VALID",
+          missingFields: [],
+          mappingStatus: {},
+        },
+      },
+    });
+
+    const wardScopedProfile = securityProfile();
+    wardScopedProfile.dataScope.wardId = "ward-A";
+    const createHook = renderApiHook(
+      () => useCreateContextSnapshot(wardScopedProfile),
+      wardScopedProfile,
+    );
+
+    await act(async () => {
+      await createHook.result.current.mutateAsync({
+        patient: {
+          mpiId: "mpi-real-1",
+          maskedName: "张*三",
+          gender: "M",
+          age: 67,
+        },
+        encounterType: "OUTPATIENT",
+        diseaseCode: "I48",
+        diseaseName: "房颤随访",
+        riskLevel: "HIGH",
+        currentMedicationText: "华法林、阿司匹林、青霉素、华法林",
+        allergyIntoleranceText: "青霉素：皮疹、头孢菌素：呼吸困难、青霉素：皮疹",
+        observationText: "CRP=128 mg/L；PCT=2.4 ng/mL",
+        specialPopulations: ["PREGNANCY", "GERIATRIC"],
+        heightCm: 170,
+        weightKg: 82,
+        diagnosticReportType: "血钾检验",
+        diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
+        diagnosticReportKeyFindingsText: "血钾升高、危急值",
+        insuranceClaimDrgCode: "DRG-REAL-A",
+        insuranceClaimTotalCost: 1280.5,
+        insuranceClaimPaidAmount: 860,
+        reason: "药师联合用药复核",
+        idempotencyKey: "context-snapshot-med-1",
+      });
+    });
+
+    const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as {
+      ward_id?: string | null;
+      orgUnitId?: string;
+      resources?: {
+        patient?: {
+          specialPopulations?: string[];
+        };
+        medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
+        allergyIntolerances?: Array<{
+          code?: string;
+          substance?: string;
+          category?: string;
+          criticality?: string;
+          reactions?: string[];
+          clinicalStatus?: string;
+          verificationStatus?: string;
+          qualityStatus?: string;
+        }>;
+        claims?: Array<{
+          claimId?: string;
+          drgCode?: string;
+          totalCost?: number;
+          insurancePaid?: number;
+          sourceSystem?: string;
+          sourceRecordId?: string;
+          qualityStatus?: string;
+        }>;
+        diagnosticReports?: Array<{
+          reportType?: string;
+          conclusion?: string;
+          keyFindings?: string[];
+          signedBy?: string | null;
+          interpreterId?: string | null;
+          qualityStatus?: string;
+        }>;
+        observations?: Array<{
+          code?: string;
+          displayName?: string;
+          valueNumeric?: number | null;
+          valueString?: string | null;
+          unit?: string | null;
+          sourceSystem?: string;
+          qualityStatus?: string;
+        }>;
+        extensions?: {
+          local?: {
+            frontdeskContext?: {
+              currentMedicationCount?: number;
+              allergyIntoleranceCount?: number;
+              observationCount?: number;
+              specialPopulationCount?: number;
+              heightCm?: number;
+              weightKg?: number;
+              diagnosticReportCount?: number;
+              claimCount?: number;
+            };
+          };
+        };
+      };
+    };
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/context/snapshots", expect.any(Object), {
+      headers: { "Idempotency-Key": "context-snapshot-med-1" },
+    });
+    expect(requestBody.ward_id).toBe("ward-A");
+    expect(requestBody.orgUnitId).toBe("ward-A");
+    expect(requestBody.resources?.patient?.specialPopulations).toEqual(["PREGNANCY", "GERIATRIC"]);
+    expect(requestBody.resources?.medications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "B01AA03",
+          displayName: "华法林",
+          prescriptionStatus: "ACTIVE",
+        }),
+        expect.objectContaining({
+          code: "B01AC06",
+          displayName: "阿司匹林",
+          prescriptionStatus: "ACTIVE",
+        }),
+        expect.objectContaining({
+          code: "J01C",
+          displayName: "青霉素类",
+          prescriptionStatus: "ACTIVE",
+        }),
+      ]),
+    );
+    expect(requestBody.resources?.medications).toHaveLength(3);
+    expect(requestBody.resources?.allergyIntolerances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "J01C",
+          substance: "青霉素类",
+          category: "medication",
+          criticality: "HIGH",
+          reactions: ["皮疹"],
+          clinicalStatus: "ACTIVE",
+          verificationStatus: "CONFIRMED",
+          qualityStatus: "VALID",
+        }),
+        expect.objectContaining({
+          code: "J01D",
+          substance: "头孢菌素类",
+          category: "medication",
+          criticality: "HIGH",
+          reactions: ["呼吸困难"],
+          clinicalStatus: "ACTIVE",
+          verificationStatus: "CONFIRMED",
+          qualityStatus: "VALID",
+        }),
+      ]),
+    );
+    expect(requestBody.resources?.allergyIntolerances).toHaveLength(2);
+    expect(requestBody.resources?.diagnosticReports).toEqual([
+      expect.objectContaining({
+        reportType: "血钾检验",
+        conclusion: "血钾 6.3 mmol/L，危急值，已复核",
+        keyFindings: ["血钾升高", "危急值"],
+        signedBy: "user-1",
+        qualityStatus: "VALID",
+      }),
+    ]);
+    expect(requestBody.resources?.diagnosticReports?.[0]).not.toHaveProperty("interpreterId");
+    expect(requestBody.resources?.observations).toEqual([
+      expect.objectContaining({
+        code: "CRP",
+        displayName: "CRP",
+        valueNumeric: 128,
+        valueString: null,
+        unit: "mg/L",
+        sourceSystem: "MEDKERNEL_FRONTDESK",
+        qualityStatus: "VALID",
+      }),
+      expect.objectContaining({
+        code: "PCT",
+        displayName: "PCT",
+        valueNumeric: 2.4,
+        valueString: null,
+        unit: "ng/mL",
+        sourceSystem: "MEDKERNEL_FRONTDESK",
+        qualityStatus: "VALID",
+      }),
+    ]);
+    expect(requestBody.resources?.observations?.[0]).not.toHaveProperty("value");
+    expect(requestBody.resources?.observations?.[1]).not.toHaveProperty("value");
+    expect(requestBody.resources?.claims).toHaveLength(1);
+    const claim = requestBody.resources?.claims?.[0];
+    expect(claim).toEqual(
+      expect.objectContaining({
+        drgCode: "DRG-REAL-A",
+        totalCost: 1280.5,
+        insurancePaid: 860,
+        sourceSystem: "MEDKERNEL_FRONTDESK",
+        qualityStatus: "VALID",
+      }),
+    );
+    expect(claim?.claimId).toMatch(/^claim-/);
+    expect(claim?.sourceRecordId).toBe(claim?.claimId);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
+      3,
+    );
+    expect(
+      requestBody.resources?.extensions?.local?.frontdeskContext?.allergyIntoleranceCount,
+    ).toBe(2);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.heightCm).toBe(170);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.weightKg).toBe(82);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.diagnosticReportCount).toBe(
+      1,
+    );
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.observationCount).toBe(2);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.specialPopulationCount).toBe(
+      2,
+    );
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.claimCount).toBe(1);
+  });
 });
 
 describe("terminology mapping api helpers", () => {
@@ -2983,6 +3333,56 @@ describe("terminology mapping api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/terms/local", {
       params: { page: 1, size: 20, sourceSystem: "LIS", status: "UNMAPPED" },
     });
+  });
+
+  it("registers a standard terminology entry with standard context fields", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          id: 88,
+          standardSystem: "TERM.LAB",
+          termCode: "TERM.LAB.FRONTDESK.K",
+          category: "LAB",
+          displayName: "前台演练血钾",
+          normalizedName: "前台演练血钾",
+          versionNo: "2026.07",
+          status: "ACTIVE",
+          evidenceText: "上线演练登记标准术语",
+        },
+      },
+    });
+
+    const wardScopedProfile = securityProfile();
+    wardScopedProfile.dataScope.wardId = "ward-A";
+    const register = renderApiHook(() => useRegisterStandardTerm(), wardScopedProfile);
+    const term = await register.result.current.mutateAsync({
+      standardSystem: "TERM.LAB",
+      termCode: "TERM.LAB.FRONTDESK.K",
+      category: "LAB",
+      displayName: "前台演练血钾",
+      normalizedName: "前台演练血钾",
+      versionNo: "2026.07",
+      evidenceText: "上线演练登记标准术语",
+    });
+
+    expect(term.status).toBe("ACTIVE");
+    const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(requestBody).not.toHaveProperty("ward_id");
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/terminology/terms/standard",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000004",
+        trace_id: "00000000-0000-4000-8000-000000000004",
+        tenant_id: "tenant-A",
+        role_codes: ["platform-admin"],
+        standardSystem: "TERM.LAB",
+        termCode: "TERM.LAB.FRONTDESK.K",
+        category: "LAB",
+        displayName: "前台演练血钾",
+        versionNo: "2026.07",
+        evidenceText: "上线演练登记标准术语",
+      }),
+    );
   });
 
   it("loads candidates and conflicts from terminology roots", async () => {
@@ -3144,17 +3544,19 @@ describe("terminology mapping api helpers", () => {
       assetIdentity: "TERM.LAB",
       scopeLevel: "FACILITY",
       scopeCode: "hospital-A",
-      name: "检验字典映射",
+      name: "检验术语字典",
     });
 
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/terminology/assets/drafts",
-      expect.objectContaining({
-        assetIdentity: "TERM.LAB",
-        scopeLevel: "FACILITY",
-        scopeCode: "hospital-A",
-      }),
-    );
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/terminology/assets/drafts", {
+      assetIdentity: "TERM.LAB",
+      name: "检验术语字典",
+      scopeLevel: "FACILITY",
+      scopeCode: "hospital-A",
+    });
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("request_id");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("trace_id");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("tenant_id");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("role_codes");
     expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("packageVersion");
     expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("versionNo");
   });
@@ -3308,6 +3710,41 @@ describe("release governance api hooks", () => {
     );
   });
 
+  it("does not request platform publishing candidates outside the platform authority tenant", async () => {
+    const hook = renderApiHook(() =>
+      usePlatformReleaseCandidates(
+        { assetType: "RULE", keyword: "肾病", page: 1, size: 20 },
+        false,
+      ),
+    );
+
+    await act(async () => undefined);
+
+    expect(hook.result.current.fetchStatus).toBe("idle");
+    expect(apiClient.get).not.toHaveBeenCalledWith(
+      "/engine/releases/platform-baselines/candidates",
+      expect.anything(),
+    );
+  });
+
+  it("maps missing current release payloads to explicit empty states", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { success: true } })
+      .mockResolvedValueOnce({ data: { data: null } });
+
+    const baselineHook = renderApiHook(() => useCurrentPlatformBaseline());
+    await waitFor(() => expect(baselineHook.result.current.data).toBeNull());
+
+    const runtimeHook = renderApiHook(() => useCurrentHospitalRuntime("hospital-A"));
+    await waitFor(() => expect(runtimeHook.result.current.data).toBeNull());
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/releases/platform-baselines/current");
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/current",
+    );
+  });
+
   it("publishes platform standard versions and institution effective versions without package ids or manual revision numbers", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } });
 
@@ -3320,6 +3757,7 @@ describe("release governance api hooks", () => {
       request: {
         platformBaselineReleaseId: "baseline-A8",
         expectedCurrentReleaseId: "runtime-H9",
+        confirmedPlatformUpgradeDigest: "c".repeat(64),
         activeAssets: [
           { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
           { assetType: "PATHWAY", assetIdentity: "PATH.CKD.LOCAL", versionId: "path-v3" },
@@ -3341,6 +3779,7 @@ describe("release governance api hooks", () => {
       expect.objectContaining({
         platformBaselineReleaseId: "baseline-A8",
         expectedCurrentReleaseId: "runtime-H9",
+        confirmedPlatformUpgradeDigest: "c".repeat(64),
         activeAssets: expect.arrayContaining([
           { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
         ]),
@@ -3350,6 +3789,167 @@ describe("release governance api hooks", () => {
       3,
       "/engine/releases/hospitals/hospital-A/runtime-releases:rollback",
       { targetReleaseId: "runtime-H7" },
+    );
+  });
+
+  it("reads platform upgrade analysis before activating a newer institution runtime baseline", async () => {
+    const analysis = {
+      analysisDigest: "c".repeat(64),
+      generatedAt: "2026-07-06T12:00:00Z",
+      runtimeMutation: false,
+      targetBaseline: {
+        baselineReleaseId: "baseline-A9",
+        revisionNo: 9,
+        manifestSha256: "a".repeat(64),
+      },
+      currentRuntime: {
+        releaseId: "runtime-H8",
+        revisionNo: 8,
+        platformBaselineReleaseId: "baseline-A8",
+        manifestSha256: "b".repeat(64),
+      },
+      diffSummary: {
+        added: 1,
+        modified: 1,
+        disabled: 0,
+        unchanged: 11,
+        conflictCount: 0,
+      },
+      items: [
+        {
+          assetType: "ACTION_CARD",
+          assetIdentity: "ACTION_CARD.UPGRADE",
+          changeType: "ADDED",
+          currentVersionId: null,
+          targetVersionId: "card-v2",
+          conflicts: [],
+        },
+      ],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: analysis } });
+
+    const result = renderApiHook(() =>
+      useHospitalPlatformUpgradeAnalysis("hospital-A", "baseline-A9"),
+    );
+
+    await waitFor(() => expect(result.result.current.data).toEqual(analysis));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/engine/releases/hospitals/hospital-A/platform-upgrade-analysis",
+      { params: { targetBaselineReleaseId: "baseline-A9" } },
+    );
+  });
+
+  it("exports and validates institution effective version offline delivery without treating the file as a runtime pointer", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            deliveryKind: "CLINICAL_RUNTIME_RELEASE",
+            evidenceId: "runtime-offline-runtime-H9-01",
+            fileUri: "/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file",
+            fileDigest: "sm3:" + "1".repeat(64),
+            signatureAlgorithm: "SM3_WITH_SM2",
+            runtimeMutation: false,
+            release: { releaseId: "runtime-H9", hospitalId: "hospital-A" },
+            items: [],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            status: "VALIDATED",
+            runtimeMutation: false,
+            signatureValid: true,
+            manifestMatched: true,
+            releaseId: "runtime-H9",
+            hospitalId: "hospital-A",
+            manifestSha256: "b".repeat(64),
+            fileDigest: "sm3:" + "1".repeat(64),
+            itemCount: 13,
+            message: "离线交付文件仅用于完整性校验和导入预检，不作为临床运行指针",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            status: "RESTORED",
+            runtimeMutation: true,
+            evidenceId: "runtime-offline-runtime-H9-01",
+            sourceReleaseId: "runtime-H9",
+            targetHospitalId: "hospital-A",
+            fileDigest: "sm3:" + "1".repeat(64),
+            manifestSha256: "b".repeat(64),
+            itemCount: 13,
+            restoredRelease: {
+              releaseId: "runtime-H10",
+              tenantId: "tenant-A",
+              hospitalId: "hospital-A",
+              revisionNo: 10,
+              platformBaselineReleaseId: "baseline-A8",
+              manifestSha256: "b".repeat(64),
+              rollbackFromReleaseId: "runtime-H9",
+              activatedAt: "2026-06-23T10:00:00Z",
+              activatedBy: "operator-a",
+            },
+          },
+        },
+      });
+
+    const delivery = await renderApiHook(() =>
+      useExportHospitalRuntimeOfflineDelivery(),
+    ).result.current.mutateAsync({ hospitalId: "hospital-A" });
+    const preview = await renderApiHook(() =>
+      useValidateHospitalRuntimeOfflineImport(),
+    ).result.current.mutateAsync({
+      hospitalId: "hospital-A",
+      request: {
+        evidenceId: delivery.evidenceId,
+        expectedReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+      },
+    });
+    const restore = await renderApiHook(() =>
+      useRestoreHospitalRuntimeOfflineDelivery(),
+    ).result.current.mutateAsync({
+      hospitalId: "hospital-A",
+      request: {
+        evidenceId: delivery.evidenceId,
+        expectedSourceReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+        expectedCurrentReleaseId: "runtime-H10-before-restore",
+        confirmedFileDigest: delivery.fileDigest,
+      },
+    });
+
+    expect(delivery.runtimeMutation).toBe(false);
+    expect(preview.runtimeMutation).toBe(false);
+    expect(restore.runtimeMutation).toBe(true);
+    expect(restore.restoredRelease.revisionNo).toBe(10);
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery:validate-import",
+      {
+        evidenceId: "runtime-offline-runtime-H9-01",
+        expectedReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+      },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery:restore",
+      {
+        evidenceId: "runtime-offline-runtime-H9-01",
+        expectedSourceReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+        expectedCurrentReleaseId: "runtime-H10-before-restore",
+        confirmedFileDigest: "sm3:" + "1".repeat(64),
+      },
     );
   });
 
@@ -3459,10 +4059,12 @@ describe("integration adapter api helpers", () => {
         name: "HIS 主数据接入申请",
         status: "MAPPING_CONFIGURED",
         routeType: "ADAPTER",
+        adapterId: "his-main",
         routeReference: "/api/v1/engine/integration/adapters/his-main",
         healthStatus: "NOT_CONNECTED",
         mappedFieldCount: 12,
         blockers: ["外部连接器未连通"],
+        systemFamilyCode: "HIS_EMR_CDR",
         sourceSystem: "HIS",
         businessScenario: "门诊患者主数据",
         orgPath: "集团/医院",
@@ -3533,6 +4135,7 @@ describe("integration adapter api helpers", () => {
       healthStatus: "NOT_CONNECTED",
       mappedFieldCount: 0,
       blockers: ["接入申请已创建，待配置鉴权与字段映射"],
+      systemFamilyCode: "HIS_EMR_CDR",
       sourceSystem: "HIS",
       businessScenario: "门诊患者主数据",
       orgPath: "集团/医院",
@@ -3552,6 +4155,7 @@ describe("integration adapter api helpers", () => {
       name: "HIS 主数据接入申请",
       accessMode: "ADAPTER",
       adapterId: "his-main",
+      systemFamilyCode: "HIS_EMR_CDR",
       sourceSystem: "HIS",
       businessScenario: "门诊患者主数据",
       orgPath: "集团/医院",
@@ -3567,6 +4171,7 @@ describe("integration adapter api helpers", () => {
       name: "HIS 主数据接入申请",
       accessMode: "ADAPTER",
       adapterId: "his-main",
+      systemFamilyCode: "HIS_EMR_CDR",
       sourceSystem: "HIS",
       businessScenario: "门诊患者主数据",
       orgPath: "集团/医院",
@@ -4377,6 +4982,44 @@ describe("knowledge review api helpers", () => {
       },
     );
   });
+
+  it("loads domain facade B0 evidence through the real engine endpoint", async () => {
+    const evidence = [
+      {
+        code: "SPECIALTY-EXT-01",
+        kind: "DOMAIN",
+        status: "PASS",
+        evidenceId: "domain-facade-b0-SPECIALTY-EXT-01",
+        b0Executable: true,
+        modelRequired: false,
+        clinicalContentSeeded: false,
+        newBusinessEngineRequired: false,
+        honestEmptyWhenAssetsMissing: true,
+        serviceCombinationMembersResolvable: true,
+        assetSeedPolicy: "NO_REAL_CLINICAL_CONTENT_SEEDED",
+        b0Workflows: ["共享规则链路"],
+        engineEvidence: [
+          {
+            engine: "RULE",
+            sharedHandlerClass: "com.medkernel.engine.rule.RuleEngineService",
+            b0Route: "GET /api/v1/engine/rules",
+            b0Assertion: "无模型确定性规则入口可达",
+            deterministic: true,
+            handlerPresent: true,
+            clinicalContentSeeded: false,
+          },
+        ],
+        memberFacadeCodes: [],
+        verifiedMemberFacadeCodes: [],
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: evidence } });
+
+    const hook = renderApiHook(() => useDomainFacadeB0Evidence());
+
+    await waitFor(() => expect(hook.result.current.data).toBe(evidence));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/domain-facades/b0-evidence");
+  });
 });
 
 describe("experience foundation api helpers", () => {
@@ -4455,7 +5098,7 @@ describe("experience foundation api helpers", () => {
         capturedAt: "2026-06-01T00:00:00.000Z",
       },
       selectedScope: "currentPage",
-      reason: "导出字典映射核查结果",
+      reason: "导出术语字典核查结果",
       idempotencyKey: "idem-from-action",
     });
 
@@ -4467,7 +5110,7 @@ describe("experience foundation api helpers", () => {
         filters: { status: "DRAFT", sourceSystem: "HIS" },
         selectedScope: "CURRENT_PAGE",
       },
-      reason: "导出字典映射核查结果",
+      reason: "导出术语字典核查结果",
       idempotencyKey: "idem-from-action",
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(

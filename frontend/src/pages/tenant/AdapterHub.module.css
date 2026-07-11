@@ -25,6 +25,45 @@
   min-width: calc(var(--mk-unit) * 260);
 }
 
+.contractTable {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.contractTable :global(.ant-table),
+.contractTable :global(.ant-table-container) {
+  max-width: 100%;
+}
+
+.contractTable :global(.ant-table-cell) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.contractFieldCell {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.contractFieldCode {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: var(--ant-font-size-sm);
+}
+
+.contractFieldDetails {
+  max-width: 100%;
+}
+
+.contractFieldDetails :global(.ant-descriptions-item-content) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .requiredSourceGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 190), 1fr));

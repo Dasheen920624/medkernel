@@ -122,8 +122,8 @@ async function renderLayout(initialPath = "/terminology/mapping") {
               <Route path="/login" element={<div>登录页入口</div>} />
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<div>工作台内容</div>} />
-                <Route path="/terminology/mapping" element={<div>字典映射内容</div>} />
-                <Route path="/qc/dashboard" element={<div>质控驾驶舱内容</div>} />
+                <Route path="/terminology/mapping" element={<div>术语字典内容</div>} />
+                <Route path="/qc/dashboard" element={<div>质量风险概览内容</div>} />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -293,9 +293,9 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.getAllByText("术语与字典").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("术语字典").length).toBeGreaterThan(0);
     expect(screen.getAllByText("知识治理").length).toBeGreaterThan(0);
-    expect(screen.getByText("字典映射内容")).toBeInTheDocument();
+    expect(screen.getByText("术语字典内容")).toBeInTheDocument();
   });
 
   it("renders nested routes as one breadcrumb line in the header", async () => {
@@ -306,7 +306,7 @@ describe("AppLayout", () => {
 
     expect(header).not.toBeNull();
     expect(within(header as HTMLElement).getByText("知识治理")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getAllByText("术语与字典")).toHaveLength(1);
+    expect(within(header as HTMLElement).getAllByText("术语字典")).toHaveLength(1);
     expect(header?.querySelector(".mk-route-title")).toBeNull();
   });
 
@@ -315,10 +315,10 @@ describe("AppLayout", () => {
     await renderLayout();
 
     expect(document.querySelector(".ant-layout-sider")).toBeNull();
-    expect(screen.getByText("字典映射内容")).toBeInTheDocument();
+    expect(screen.getByText("术语字典内容")).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(screen.getAllByRole("button")[0]);
+      fireEvent.click(screen.getByRole("button", { name: "打开主菜单" }));
       await Promise.resolve();
     });
 
@@ -334,7 +334,7 @@ describe("AppLayout", () => {
 
     expect(screen.queryByText("知识治理")).toBeNull();
     expect(screen.getAllByText("质量管理").length).toBeGreaterThan(0);
-    expect(screen.getByText("质控驾驶舱内容")).toBeInTheDocument();
+    expect(screen.getByText("质量风险概览内容")).toBeInTheDocument();
   });
 
   it("does not display a hard-coded identity beside the effective permission profile", async () => {
@@ -360,7 +360,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     const { rerenderLayout } = await renderLayout("/dashboard");
 
-    expect(screen.queryByText("术语与字典")).toBeNull();
+    expect(screen.queryByText("术语字典")).toBeNull();
 
     securityProfileState.value = {
       data: permissionProfile(["workbench", "terminology-mapping"]),
@@ -372,7 +372,7 @@ describe("AppLayout", () => {
     await waitFor(() =>
       expect(within(navigation as HTMLElement).getByText("知识治理")).toBeInTheDocument(),
     );
-    expect(within(navigation as HTMLElement).getByText("术语与字典")).toBeInTheDocument();
+    expect(within(navigation as HTMLElement).getByText("术语字典")).toBeInTheDocument();
   });
 
   it("does not render the workbench before an effective permission profile is available", async () => {
@@ -426,7 +426,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.queryByText("字典映射内容")).toBeNull();
+    expect(screen.queryByText("术语字典内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
@@ -440,7 +440,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.queryByText("字典映射内容")).toBeNull();
+    expect(screen.queryByText("术语字典内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 

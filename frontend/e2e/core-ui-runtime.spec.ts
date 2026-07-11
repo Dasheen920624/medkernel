@@ -17,7 +17,7 @@ type RuntimeRecord = RuntimeCollectors & {
 test.describe.configure({ mode: "serial" });
 
 test.describe("核心 UI 运行旅程", () => {
-  test("登录、用户菜单、规则维护与发布治理页面均可运行且无系统错误", async ({
+  test("登录、用户菜单、临床规则与机构生效版本页面均可运行且无系统错误", async ({
     page,
   }, testInfo) => {
     test.setTimeout(300_000);
@@ -45,28 +45,28 @@ test.describe("核心 UI 运行旅程", () => {
 
       clearRuntime(runtime);
       await page.goto("/rule/definitions", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "规则配置" })).toBeVisible();
-      await expectNoRootOverflow(page, "规则配置桌面");
+      await expect(page.getByRole("heading", { name: "临床规则" })).toBeVisible();
+      await expectNoRootOverflow(page, "临床规则桌面");
       await captureEvidence(page, testInfo, "core-rule-definitions-desktop");
-      recordCleanRuntime(page, "规则配置桌面", runtime, records);
+      recordCleanRuntime(page, "临床规则桌面", runtime, records);
 
       await page.setViewportSize({ width: 390, height: 844 });
       clearRuntime(runtime);
       await page.goto("/rule/definitions", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "规则配置" })).toBeVisible();
-      await expectNoRootOverflow(page, "规则配置 390px");
+      await expect(page.getByRole("heading", { name: "临床规则" })).toBeVisible();
+      await expectNoRootOverflow(page, "临床规则 390px");
       await captureEvidence(page, testInfo, "core-rule-definitions-390px");
-      recordCleanRuntime(page, "规则配置 390px", runtime, records);
+      recordCleanRuntime(page, "临床规则 390px", runtime, records);
 
       await page.setViewportSize({ width: 1440, height: 960 });
       clearRuntime(runtime);
       await page.goto("/config/releases", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "发布治理" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "机构生效版本" })).toBeVisible();
       await expect(page.getByRole("tab", { name: "平台标准版本" })).toBeVisible();
       await expect(page.getByRole("tab", { name: "机构生效版本" })).toBeVisible();
-      await expectNoRootOverflow(page, "发布治理桌面");
+      await expectNoRootOverflow(page, "机构生效版本桌面");
       await captureEvidence(page, testInfo, "core-runtime-releases-desktop");
-      recordCleanRuntime(page, "发布治理桌面", runtime, records);
+      recordCleanRuntime(page, "机构生效版本桌面", runtime, records);
     } finally {
       await attachRuntimeRecords(testInfo, records);
     }

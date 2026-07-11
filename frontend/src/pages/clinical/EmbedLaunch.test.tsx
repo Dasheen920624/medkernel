@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ConfigProvider } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,7 +43,9 @@ function renderEmbedLaunch() {
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <ConfigProvider>
-        <EmbedLaunch />
+        <AntdApp>
+          <EmbedLaunch />
+        </AntdApp>
       </ConfigProvider>
     </MemoryRouter>,
   );
@@ -81,6 +83,10 @@ describe("EmbedLaunch", () => {
     renderEmbedLaunch();
 
     expect(screen.getByText("当前就诊暂无可显示的临床建议")).toBeInTheDocument();
+    expect(
+      screen.getByText("请确认提醒与推荐已为当前就诊生成有效建议，或返回工作站重新触发。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/推荐引擎/)).not.toBeInTheDocument();
     expect(screen.queryByText(/下肢深静脉血栓风险高危预警/)).not.toBeInTheDocument();
     expect(screen.queryByText("tr-local-embed-9122")).not.toBeInTheDocument();
   });

@@ -17,7 +17,7 @@ import com.medkernel.engine.versioning.PlatformAuthority;
 /**
  * 发现标准化默认实现：本地编码 → TERM-01 标准编码，仅认确定性结果（不猜不补、不做字符近似兜底）。
  *
- * <p>镜像 ContextSnapshotService 的字典映射口径：CONDITION→TERM.DIAGNOSIS、OBSERVATION→TERM.LAB、
+ * <p>镜像 ContextSnapshotService 的术语映射口径：CONDITION→TERM.DIAGNOSIS、OBSERVATION→TERM.LAB、
  * MEDICATION→TERM.DRUG、PROCEDURE→TERM.PROCEDURE。优先取唯一已全量激活术语包快照的标准编码；
  * 无映射时若 localCode 本身已是该字典 ACTIVE 标准码则透传（院内直接用标准字典编码的场景）；
  * 歧义（&gt;1 个激活目标）保持未映射、不以透传掩盖冲突（守 TERM-01 确定性候选原则）。

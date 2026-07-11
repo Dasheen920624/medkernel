@@ -4,6 +4,13 @@ package com.medkernel.engine.rule;
 public record RuntimeRuleReference(
     String tenantId,
     String ruleId,
-    String versionId
+    String versionId,
+    String assetVersionId,
+    String assetVersionNo,
+    String contentHash,
+    String sourceLayer
 ) {
+    public RuntimeRuleReference(String tenantId, String ruleId, String versionId) {
+        this(tenantId, ruleId, versionId, null, null, null, null);
+    }
 }

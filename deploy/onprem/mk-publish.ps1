@@ -4,6 +4,8 @@
 .DESCRIPTION
   构建后端 jar 与/或前端 dist，上传到 /zoesoft/medkernel/incoming/，
   再远程调用 medkernel-deploy 完成备份、替换、重启、健康检查与失败回滚。
+  前端-only 发布不会改写运行 manifest；manifest/JAR 来源仍以最近一次完整或后端发布为准，
+  前端版本以 index/assets 与本命令来源追溯。
 
   默认目标为当前腾讯云轻量服务器；老 Oracle 现场可通过 -Server 覆盖。
   推荐使用 -KeyFile 走 OpenSSH 密钥登录，避免在命令行或脚本中出现口令。

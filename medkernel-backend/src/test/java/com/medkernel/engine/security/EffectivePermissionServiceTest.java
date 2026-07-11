@@ -50,6 +50,27 @@ class EffectivePermissionServiceTest {
     }
 
     @Test
+    void sameRoleAssignmentsKeepAllApplicableOrganizationScopesInsteadOfCollapsingToOne() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
+            .thenReturn(List.of(
+                assignment("t-1", "doctor-1", RoleCode.CLINICAL_USER, "FACILITY", "hospital-1"),
+                assignment("t-1", "doctor-1", RoleCode.CLINICAL_USER, "DEPARTMENT", "oncology")));
+
+        var scope = new OrgScope(
+            "t-1", "group-1", "hospital-1", null, null, "oncology", null, null);
+        var profile = service.resolve(auth("doctor-1", RoleCode.CLINICAL_USER), scope, "doctor-1");
+
+        var clinicalScopes = profile.roles().stream()
+            .filter(role -> RoleCode.CLINICAL_USER.code().equals(role.code()))
+            .toList();
+        assertThat(clinicalScopes)
+            .extracting(role -> role.scopeLevel() + ":" + role.scopeCode())
+            .containsExactlyInAnyOrder("FACILITY:hospital-1", "DEPARTMENT:oncology");
+        assertThat(clinicalScopes).allMatch(role -> "ASSIGNMENT".equals(role.source()));
+        assertThat(profile.permissionCodes()).contains(PermissionCode.RECOMMENDATION_ACCEPT.code());
+    }
+
+    @Test
     void wardScopedRoleOnlyAppliesInsideAssignedWard() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "user-1"))
             .thenReturn(List.of(assignment(
@@ -79,6 +100,22 @@ class EffectivePermissionServiceTest {
         assertThat(profile.menuKeys())
             .contains("workbench", "mpi", "patient-pathways", "cdss-fatigue")
             .doesNotContain("tenant-onboarding", "admin-users", "admin-audit");
+    }
+
+    @Test
+    void engineOperatorCanReachFollowupTemplatePublishingDeskWithoutClinicalExecutionAuthority() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "engine-1"))
+            .thenReturn(List.of());
+
+        var profile = service.resolve(
+            auth("engine-1", RoleCode.ENGINE_OPERATOR),
+            OrgScope.tenant("t-1"),
+            "engine-1");
+
+        assertThat(profile.menuKeys()).contains("clinical-followup");
+        assertThat(profile.permissionCodes())
+            .contains(PermissionCode.FOLLOWUP_READ.code(), PermissionCode.FOLLOWUP_PUBLISH.code())
+            .doesNotContain(PermissionCode.RECOMMENDATION_ACCEPT.code(), PermissionCode.PATHWAY_EXECUTE.code());
     }
 
     @Test

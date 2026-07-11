@@ -41,14 +41,16 @@ const assetTypeOptions: Array<{ value: EngineAssetType | "ALL"; label: string }>
   { value: "ALL", label: "全部资产" },
   { value: "RULE", label: "规则" },
   { value: "PATHWAY", label: "路径" },
-  { value: "FOLLOWUP", label: "随访模板" },
+  { value: "FOLLOWUP", label: "随访方案" },
 ];
 
 const assetTypeLabels: Record<string, string> = {
   RULE: "规则",
   PATHWAY: "路径",
-  FOLLOWUP: "随访模板",
+  FOLLOWUP: "随访方案",
 };
+const FOLLOWUP_ASSET_RUN_SUFFIX_PATTERN = /\s+(?:[a-z]+(?:_[a-z]+)*-[a-z0-9]{6,}|[a-z0-9]{8,})$/i;
+const FOLLOWUP_ASSET_REHEARSAL_BATCH_PATTERN = /\s*[（(]\s*上线复演[^）)]*[）)]/g;
 
 function assetTypeColor(type: string) {
   const colors: Record<string, string> = {
@@ -72,6 +74,30 @@ function evidenceText(
 function assetBusinessText(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
   const label = assetTypeLabels[asset.assetType] ?? customerEnumLabel(asset.assetType);
   return evidenceText(asset.assetCode, evidenceDetailsEnabled, `${label}资产已登记`);
+}
+
+function followupAssetBusinessName(name: string) {
+  const trimmed = name.trim();
+  if (!/^(全角色|真实前台)/.test(trimmed)) {
+    return trimmed.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
+  }
+  const cleaned =
+    trimmed
+      .replace(FOLLOWUP_ASSET_REHEARSAL_BATCH_PATTERN, "")
+      .replace(FOLLOWUP_ASSET_RUN_SUFFIX_PATTERN, "")
+      .trim() || trimmed;
+  return cleaned.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
+}
+
+function assetDisplayName(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled || asset.assetType !== "FOLLOWUP") return asset.name;
+  return followupAssetBusinessName(asset.name);
+}
+
+function assetCategoryText(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
+  if (!asset.category) return null;
+  if (evidenceDetailsEnabled || asset.assetType !== "FOLLOWUP") return asset.category;
+  return asset.category.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
 }
 
 function statusColor(status: string) {
@@ -176,7 +202,7 @@ export default function AuthoringAssets() {
       key: "name",
       render: (_value, asset) => (
         <div className={styles.assetName}>
-          <Text strong>{asset.name}</Text>
+          <Text strong>{assetDisplayName(asset, evidenceDetailsEnabled)}</Text>
           <Text type="secondary" className={styles.codeText}>
             {assetBusinessText(asset, evidenceDetailsEnabled)}
           </Text>
@@ -196,7 +222,7 @@ export default function AuthoringAssets() {
       key: "tags",
       render: (_value, asset) => (
         <Space size="small" wrap>
-          {asset.category && <Tag>{asset.category}</Tag>}
+          {asset.category && <Tag>{assetCategoryText(asset, evidenceDetailsEnabled)}</Tag>}
           {asset.tags.map((item) => (
             <Tag key={item}>{item}</Tag>
           ))}
@@ -247,9 +273,12 @@ export default function AuthoringAssets() {
     return (
       <PageShell
         title="统一资产库"
-        description="检索、收藏和复用创作资产"
+        description="检索、收藏和复用医疗资产"
         state="loading"
-        stateProps={{ title: "正在加载统一资产库", description: "正在读取规则、路径和随访模板。" }}
+        stateProps={{
+          title: "正在加载统一资产库",
+          description: "正在读取规则、路径、随访和配置资产。",
+        }}
       >
         <></>
       </PageShell>
@@ -265,7 +294,7 @@ export default function AuthoringAssets() {
         stateProps={{
           title: "统一资产库读取失败",
           description:
-            "请重试；若持续失败，请联系信息科排查创作资产服务。失败已留痕，可在审计证据中追溯。",
+            "请重试；若持续失败，请联系信息科排查医疗资产服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => assetsQuery.refetch(),
         }}
       >
@@ -277,7 +306,7 @@ export default function AuthoringAssets() {
   return (
     <PageShell
       title="统一资产库"
-      description="检索、收藏、维护和复用全部引擎资产"
+      description="检索、收藏、编目和复用医疗知识与配置资产"
       extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
       <Tabs
@@ -341,11 +370,11 @@ export default function AuthoringAssets() {
           },
           {
             key: "configuration",
-            label: "配置资产维护",
+            label: "字段与配置资产",
             children: (
               <Space direction="vertical" size="middle" className="mk-full-width">
                 <Button disabled={!canWriteFields} onClick={() => setFieldCatalogOpen(true)}>
-                  维护字段目录
+                  字段目录
                 </Button>
                 <DeclarativeAssetWorkbench
                   canWrite={canWriteDeclarative}
@@ -379,7 +408,12 @@ export default function AuthoringAssets() {
       </Modal>
 
       {batchOpen && (
-        <AuthoringBatchDrawer open canWrite={canWrite} onClose={() => setBatchOpen(false)} />
+        <AuthoringBatchDrawer
+          open
+          canWrite={canWrite}
+          evidenceDetailsEnabled={evidenceDetailsEnabled}
+          onClose={() => setBatchOpen(false)}
+        />
       )}
       <FieldCatalogManager open={fieldCatalogOpen} onClose={() => setFieldCatalogOpen(false)} />
     </PageShell>

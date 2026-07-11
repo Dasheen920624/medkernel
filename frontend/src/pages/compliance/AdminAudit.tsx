@@ -28,6 +28,7 @@ import { useState } from "react";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   useConfirmExport,
+  useCompleteConfirmedExportJob,
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
@@ -46,6 +47,7 @@ import {
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { MODEL_CAPABILITY_OPTIONS } from "@/shared/config/modelProduction";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { formatClinicalDateTimeWithSeconds } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -53,6 +55,7 @@ import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type {
+  AsyncExportJob,
   AsyncExportRequest,
   ExperienceFilterValue,
   ExperienceViewSnapshot,
@@ -80,6 +83,25 @@ const MODEL_EGRESS_CAPABILITY_LABELS = new Map<string, string>([
   ...MODEL_CAPABILITY_OPTIONS.map((option) => [option.value, option.label] as const),
   ["clinical.explanation", "临床解释与患者沟通"],
 ]);
+const AUDIT_EXPORT_REF_PATTERN =
+  /\baudit_event\/exp-audit-event-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const AUDIT_EXPORT_CONFIRMATION_REF_PATTERN =
+  /\b(?:evd-)?exp-audit-event-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:-(?:confirmation|export))?\b/gi;
+const FOLLOWUP_TEMPLATE_REF_PATTERN = /\bFUP\.STAKEHOLDER\.[A-Z0-9._-]+(?:@\d+)?\b/g;
+const CDSS_CONTEXT_REF_PATTERN =
+  /\bCDSS-MANUAL-[a-z0-9._-]+-ctx-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:-[a-z0-9._-]+)*\b/gi;
+const REPORT_CONTEXT_REF_PATTERN =
+  /\bREPORT-ctx-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const MODEL_PROVIDER_RUN_REF_PATTERN = /\bstakeholder-ollama-[a-z0-9]+\b/gi;
+const RUN_SUFFIX_REF_PATTERN =
+  /\b(?:patient_proxy|real_frontdesk|stakeholder|frontdesk)-[a-z0-9]+\b/gi;
+const CONTEXT_QUALITY_REF_PATTERN = /\bquality=([A-Z_]+)\b/g;
+const CONTEXT_PATIENT_REF_PATTERN = /\bpatient=mpi-[A-Za-z0-9_.:-]+\b/gi;
+const CLINICAL_INTERNAL_REF_PATTERN =
+  /\b(?:mpi|enc|ctx|claim|cond|diag|rule|pathway)-[A-Za-z0-9][A-Za-z0-9_.:-]{5,}\b/gi;
+const UUID_REF_PATTERN =
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const LONG_HASH_REF_PATTERN = /\b[a-f0-9]{24,}\b/gi;
 
 function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
   const value = filters.find((filter) => filter.key === key)?.value;
@@ -88,17 +110,7 @@ function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
 
 function formatTime(value?: string | null) {
   if (!value) return "-";
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(timestamp);
+  return formatClinicalDateTimeWithSeconds(value, value);
 }
 
 function hasPermission(
@@ -145,9 +157,42 @@ function auditResourceLabel(
   return `${resourceLabel}${evidenceDetailsEnabled && resourceId ? ` ${resourceId}` : ""}`;
 }
 
+function contextQualityLabel(status?: string | null) {
+  const normalized = status?.toUpperCase();
+  if (normalized === "VALID") return "质量已通过";
+  if (normalized === "INVALID" || normalized === "FAILED") return "质量待复核";
+  if (normalized === "PARTIAL" || normalized === "MISSING") return "质量待补齐";
+  return "质量已记录";
+}
+
+function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = true) {
+  const value = summary?.trim() || "未返回摘要";
+  if (evidenceDetailsEnabled) return value;
+  return value
+    .replace(AUDIT_EXPORT_REF_PATTERN, "审计导出任务")
+    .replace(AUDIT_EXPORT_CONFIRMATION_REF_PATTERN, "审计导出任务")
+    .replace(FOLLOWUP_TEMPLATE_REF_PATTERN, "随访方案")
+    .replace(CDSS_CONTEXT_REF_PATTERN, "临床推荐评估")
+    .replace(REPORT_CONTEXT_REF_PATTERN, "报告解读任务")
+    .replace(MODEL_PROVIDER_RUN_REF_PATTERN, "院外模型服务")
+    .replace(RUN_SUFFIX_REF_PATTERN, "已记录批次")
+    .replace(CONTEXT_QUALITY_REF_PATTERN, (_match, status: string) => contextQualityLabel(status))
+    .replace(CONTEXT_PATIENT_REF_PATTERN, "患者已关联")
+    .replace(CLINICAL_INTERNAL_REF_PATTERN, "已记录临床对象")
+    .replace(UUID_REF_PATTERN, "已记录对象")
+    .replace(LONG_HASH_REF_PATTERN, "已记录校验值");
+}
+
 function auditActorLabel(actorUserId?: string | null, evidenceDetailsEnabled = true) {
   if (evidenceDetailsEnabled) return actorUserId ?? "系统";
   return actorUserId ? "已记录操作人" : "系统操作";
+}
+
+function auditExportConfirmationLabel(
+  confirmationId?: string | null,
+  evidenceDetailsEnabled = true,
+) {
+  return auditSummaryLabel(confirmationId?.trim() || "导出任务已记录", evidenceDetailsEnabled);
 }
 
 function signatureStatusLabel(signature?: string | null) {
@@ -291,6 +336,7 @@ export default function AdminAudit() {
     canReviewModelEgress,
   );
   const confirmExport = useConfirmExport();
+  const completeExportConfirmation = useCompleteConfirmedExportJob();
   const verifyEvidence = useVerifyEvidence();
   const traceDiagnosis = useTraceDiagnosis(diagnosisTraceId, Boolean(diagnosisTraceId));
 
@@ -340,7 +386,7 @@ export default function AdminAudit() {
       render: (_value: unknown, record: AuditEventRow) => (
         <div className={styles.auditEventCell}>
           <Space size="small" wrap>
-            <Text strong>{record.summary || "未返回摘要"}</Text>
+            <Text strong>{auditSummaryLabel(record.summary, evidenceDetailsEnabled)}</Text>
             <Tag>{auditActionLabel(record.actionCode)}</Tag>
             {outcomeTag(record.outcome)}
           </Space>
@@ -381,7 +427,7 @@ export default function AdminAudit() {
             aria-label={
               evidenceDetailsEnabled
                 ? `查看详情 ${record.eventId}`
-                : `查看详情 ${record.summary || "审计事件"}`
+                : `查看详情 ${auditSummaryLabel(record.summary, false)}`
             }
             icon={<EyeOutlined />}
             onClick={() => {
@@ -470,6 +516,36 @@ export default function AdminAudit() {
     setVerifyError(undefined);
   }
 
+  async function completeConfirmedExportIfJobSucceeded(
+    confirmation: ExportConfirmation,
+    job: AsyncExportJob,
+  ) {
+    if (job.status !== "succeeded") {
+      return job;
+    }
+    await completeExportConfirmation.mutateAsync({
+      confirmationId: confirmation.confirmationId,
+      jobId: job.jobId,
+      reason: confirmation.reason,
+      expectedVersion: confirmation.version,
+    });
+    await confirmations.refetch();
+    return job;
+  }
+
+  async function submitConfirmedExport(
+    confirmation: ExportConfirmation,
+    request: AsyncExportRequest,
+  ) {
+    const job = await submitExport.mutateAsync(request);
+    return completeConfirmedExportIfJobSucceeded(confirmation, job);
+  }
+
+  async function pollConfirmedExport(confirmation: ExportConfirmation, jobId: string) {
+    const job = await pollExport.mutateAsync(jobId);
+    return completeConfirmedExportIfJobSucceeded(confirmation, job);
+  }
+
   async function verifyEvidenceById(evidenceId: string) {
     setVerifyTargetId(evidenceId);
     setVerifyResult(undefined);
@@ -483,9 +559,13 @@ export default function AdminAudit() {
 
   function evidenceButton(confirmation: ExportConfirmation) {
     if (!confirmation.confirmationEvidenceId && !confirmation.exportEvidenceId) return null;
+    const confirmationLabel = auditExportConfirmationLabel(
+      confirmation.confirmationId,
+      evidenceDetailsEnabled,
+    );
     return (
       <Button
-        aria-label={`查看证据 ${confirmation.confirmationId}`}
+        aria-label={`查看证据 ${confirmationLabel}`}
         icon={<FileProtectOutlined />}
         onClick={() => openEvidence(confirmation)}
       >
@@ -609,7 +689,9 @@ export default function AdminAudit() {
       render: (_value: unknown, confirmation: ExportConfirmation) => (
         <Space direction="vertical" size={0}>
           <Text strong>{confirmation.reason}</Text>
-          <Text type="secondary">{confirmation.confirmationId}</Text>
+          <Text type="secondary">
+            {auditExportConfirmationLabel(confirmation.confirmationId, evidenceDetailsEnabled)}
+          </Text>
         </Space>
       ),
     },
@@ -645,11 +727,14 @@ export default function AdminAudit() {
                   }
                 }
                 buttonLabel="生成文件"
-                buttonAriaLabel={`生成导出文件 ${confirmation.confirmationId}`}
+                buttonAriaLabel={`生成导出文件 ${auditExportConfirmationLabel(
+                  confirmation.confirmationId,
+                  evidenceDetailsEnabled,
+                )}`}
                 modalTitle="生成已确认导出文件"
                 submitLabel="确认生成导出文件"
-                onSubmit={submitExport.mutateAsync}
-                onPoll={pollExport.mutateAsync}
+                onSubmit={(request) => submitConfirmedExport(confirmation, request)}
+                onPoll={(jobId) => pollConfirmedExport(confirmation, jobId)}
               />
               {evidenceButton(confirmation)}
             </Space>
@@ -949,7 +1034,7 @@ export default function AdminAudit() {
             <Descriptions bordered size="small" column={1}>
               <Descriptions.Item label="摘要">{selectedAuditEvent.summary}</Descriptions.Item>
               <Descriptions.Item label="发生时间">
-                {new Date(selectedAuditEvent.occurredAt).toLocaleString()}
+                {formatTime(selectedAuditEvent.occurredAt)}
               </Descriptions.Item>
               <Descriptions.Item label="操作人">
                 {selectedAuditEvent.actorUserId ?? "系统"}

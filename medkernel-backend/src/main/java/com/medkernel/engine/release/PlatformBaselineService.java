@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -80,7 +81,7 @@ public class PlatformBaselineService {
     }
 
     /**
-     * 发布任意数量、任意类型的草稿变更为一个完整平台标准版本。
+     * 将任意数量、任意类型的草稿或已发布资产版本纳入一个完整平台标准版本。
      */
     @Transactional
     public PlatformBaselineRelease publish(PlatformBaselinePublishCommand command) {
@@ -111,16 +112,19 @@ public class PlatformBaselineService {
                 DraftEntry.disabled(identity.assetType(), identity.assetIdentity()));
         }
 
-        Map<AssetKey, AssetVersion> changedVersions = new LinkedHashMap<>();
+        Map<AssetKey, AssetVersion> requestedVersions = new LinkedHashMap<>();
+        Map<AssetKey, AssetVersion> draftVersions = new LinkedHashMap<>();
         for (String versionId : command.publishVersionIds()) {
             AssetVersion version = versions
                 .findByVersionIdAndTenantId(required(versionId, "资产版本 ID"), PlatformTenant.ID)
                 .orElseThrow(() -> new ApiException(
-                    ErrorCode.NOT_FOUND, "平台草稿版本不存在: " + versionId));
+                    ErrorCode.NOT_FOUND, "平台资产版本不存在: " + versionId));
             requireRuntimeType(version.assetType());
-            if (version.status() != AssetVersionStatus.DRAFT) {
+            if (version.status() != AssetVersionStatus.DRAFT
+                    && version.status() != AssetVersionStatus.PUBLISHED) {
                 throw new ApiException(
-                        ErrorCode.CONFLICT, "只有草稿版本可以进入新的平台标准版本: " + version.versionId());
+                        ErrorCode.CONFLICT,
+                        "只有草稿或已发布版本可以进入新的平台标准版本: " + version.versionId());
             }
             AssetKey key = new AssetKey(version.assetType(), version.assetIdentity());
             AssetIdentity identity = knownIdentities.get(key);
@@ -132,8 +136,10 @@ public class PlatformBaselineService {
                 throw new ApiException(
                     ErrorCode.CONFLICT, "退役资产身份不能发布新版本: " + key.identity());
             }
-            validation.validateForPublish(version, actor, command.traceId());
-            if (changedVersions.putIfAbsent(key, version) != null) {
+            if (version.status() == AssetVersionStatus.DRAFT) {
+                draftVersions.put(key, version);
+            }
+            if (requestedVersions.putIfAbsent(key, version) != null) {
                 throw validation("同一稳定资产身份一次只能发布一个版本: " + key.identity());
             }
             manifest.put(key, DraftEntry.active(version));
@@ -153,32 +159,41 @@ public class PlatformBaselineService {
             if (disabledKeys.putIfAbsent(key, Boolean.TRUE) != null) {
                 throw validation("同一稳定资产身份不能重复停用: " + key.identity());
             }
-            if (changedVersions.containsKey(key)) {
+            if (requestedVersions.containsKey(key)) {
                 throw validation("同一稳定资产身份不能同时发布和停用: " + key.identity());
             }
             manifest.put(key, DraftEntry.disabled(key.type(), key.identity()));
         }
 
         assertDependencyClosure(manifest);
-        Instant now = clock.instant();
-        for (AssetVersion version : changedVersions.values()) {
-            AssetVersion published = versions.save(version.withStatusAndWindow(
-                AssetVersionStatus.PUBLISHED,
-                "version:" + version.versionId(),
-                now,
-                null,
-                now,
-                actor
-            ));
-            notifyPublished(published, now, actor, command.traceId());
-        }
-
         List<DraftEntry> ordered = manifest.values().stream()
             .sorted((left, right) -> {
                 int type = left.type().name().compareTo(right.type().name());
                 return type != 0 ? type : left.identity().compareTo(right.identity());
             })
             .toList();
+        Map<AssetKey, AssetVersion> lockedActiveVersions =
+            lockAndValidateActiveVersions(ordered, draftVersions);
+        Instant now = clock.instant();
+        for (AssetKey requestedKey : requestedVersions.keySet()) {
+            AssetVersion locked = lockedActiveVersions.get(requestedKey);
+            AssetVersion published;
+            if (draftVersions.containsKey(requestedKey)) {
+                validation.validateForPublish(locked, actor, command.traceId());
+                published = versions.save(locked.withStatusAndWindow(
+                    AssetVersionStatus.PUBLISHED,
+                    "version:" + locked.versionId(),
+                    now,
+                    null,
+                    now,
+                    actor
+                ));
+            } else {
+                published = locked;
+            }
+            notifyPublished(published, now, actor, command.traceId());
+        }
+
         String hash = ReleaseManifestHash.sha256(
             ordered.stream().map(DraftEntry::canonicalLine).toList());
         long revision = previous == null ? 1L : previous.revisionNo() + 1L;
@@ -211,6 +226,57 @@ public class PlatformBaselineService {
             );
         }
         return manifest;
+    }
+
+    private Map<AssetKey, AssetVersion> lockAndValidateActiveVersions(
+            List<DraftEntry> ordered,
+            Map<AssetKey, AssetVersion> expectedDrafts) {
+        Map<AssetKey, AssetVersion> locked = new LinkedHashMap<>();
+        for (DraftEntry entry : ordered) {
+            if (entry.state() != ReleaseEntryState.ACTIVE) {
+                continue;
+            }
+            String versionId = required(entry.versionId(), "平台标准版本活动资产版本");
+            versions.lockByVersionIdAndTenantId(versionId, PlatformTenant.ID);
+            AssetVersion current = versions
+                .findByVersionIdAndTenantId(versionId, PlatformTenant.ID)
+                .orElseThrow(() -> new ApiException(
+                    ErrorCode.CONFLICT,
+                    "平台标准版本引用的活动资产版本不存在: " + entry.identity()));
+            if (current.status() == AssetVersionStatus.WITHDRAWN) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "平台标准版本包含已撤回资产，不能生成新的平台标准版本: "
+                        + entry.identity());
+            }
+            AssetKey key = new AssetKey(entry.type(), entry.identity());
+            AssetVersion expectedDraft = expectedDrafts.get(key);
+            AssetVersionStatus requiredStatus = expectedDraft == null
+                ? AssetVersionStatus.PUBLISHED
+                : AssetVersionStatus.DRAFT;
+            if (current.status() != requiredStatus) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "平台标准版本包含未发布资产，不能生成新的平台标准版本: "
+                        + entry.identity());
+            }
+            if (current.assetType() != entry.type()
+                    || !current.assetIdentity().equals(entry.identity())
+                    || !Objects.equals(current.versionNo(), blankToNull(entry.versionNo()))
+                    || !Objects.equals(current.contentHash(), blankToNull(entry.contentHash()))) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "平台标准版本资产与当前不可变版本账本不一致: " + entry.identity());
+            }
+            if (expectedDraft != null && !current.equals(expectedDraft)) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "待发布平台资产在标准版本生成期间已变化，请重新评估: "
+                        + entry.identity());
+            }
+            locked.put(key, current);
+        }
+        return locked;
     }
 
     private void assertDependencyClosure(Map<AssetKey, DraftEntry> manifest) {

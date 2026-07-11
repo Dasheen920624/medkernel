@@ -32,23 +32,25 @@ class DefaultPermissionPolicyTest {
             "implementation-guide",
             "adapter-hub",
             "system-providers",
-            "domestic-check",
             "runtime-diagnostics",
+            "domestic-check",
             "notifications",
             "notification-settings"),
         "engine-operator", List.of(
             "workbench",
             "knowledge-governance",
+            "runtime-releases",
             "institution-knowledge",
             "diagnosis-knowledge",
-            "runtime-releases",
             "terminology-mapping",
+            "domain-facade-b0-evidence",
             "rule-definitions",
             "pathway-templates",
             "provenance",
             "graph-explore",
             "knowledge-production",
             "ai-workflows",
+            "clinical-followup",
             "sandbox",
             "qc-dashboard",
             "qc-alerts",
@@ -161,6 +163,8 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_EVAL_MANAGE,
                 PermissionCode.LLM_ENHANCEMENT_MANAGE,
+                PermissionCode.MENU_CLINICAL_FOLLOWUP,
+                PermissionCode.FOLLOWUP_PUBLISH,
                 PermissionCode.SANDBOX_MANAGE)
             .doesNotContain(
                 PermissionCode.ORG_WRITE,
@@ -175,6 +179,7 @@ class DefaultPermissionPolicyTest {
             .contains(
                 PermissionCode.RECOMMENDATION_ACCEPT,
                 PermissionCode.PATHWAY_EXECUTE,
+                PermissionCode.CONTEXT_WRITE,
                 PermissionCode.MPI_CREATE,
                 PermissionCode.FOLLOWUP_WRITE,
                 PermissionCode.WORKFLOW_WRITE,
@@ -232,6 +237,9 @@ class DefaultPermissionPolicyTest {
                 }
                 if (permissions.contains(PermissionCode.MENU_SANDBOX)) {
                     assertThat(permissions).contains(PermissionCode.SANDBOX_RUN);
+                }
+                if (permissions.contains(PermissionCode.MENU_CLINICAL_FOLLOWUP)) {
+                    assertThat(permissions).contains(PermissionCode.FOLLOWUP_READ);
                 }
             });
     }

@@ -33,7 +33,7 @@ public class RectificationController {
     }
 
     /**
-     * 派发质控问题为整改任务。
+     * 派发质量问题为整改任务。
      */
     @PostMapping
     @PreAuthorize("@perm.has('evaluation.review')")
@@ -57,7 +57,7 @@ public class RectificationController {
     }
 
     /**
-     * 质控复核整改任务。
+     * 复核质量问题整改任务。
      */
     @PostMapping("/{taskId}/review")
     @PreAuthorize("@perm.has('evaluation.review')")

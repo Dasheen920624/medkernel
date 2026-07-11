@@ -36,6 +36,7 @@ import type {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -47,10 +48,13 @@ import styles from "./GraphExplore.module.css";
 
 const { Text, Title } = Typography;
 
+const GRAPH_PAGE_TITLE = "知识关系";
+const GRAPH_PAGE_DESCRIPTION = "查看知识之间的来源、适应证、禁忌和相互作用关系";
+
 const targetOptions: Array<{ label: string; value: ProjectionTargetType }> = [
-  { label: "临床关系投影", value: "CLINICAL_GRAPH" },
-  { label: "知识关系投影", value: "KNOWLEDGE_GRAPH" },
-  { label: "知识检索投影", value: "KNOWLEDGE_SEARCH" },
+  { label: "临床关系", value: "CLINICAL_GRAPH" },
+  { label: "知识关系", value: "KNOWLEDGE_GRAPH" },
+  { label: "知识检索关系", value: "KNOWLEDGE_SEARCH" },
 ];
 
 const statusText: Record<string, string> = {
@@ -109,9 +113,7 @@ function diffEvidenceText(factKey: string, index: number, evidenceDetailsEnabled
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未返回";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatClinicalDateTime(value, value);
 }
 
 function statusTag(status?: ProjectionSyncStatus | string | null) {
@@ -276,7 +278,7 @@ export default function GraphExplore() {
 
   if (securityQuery.isLoading) {
     return (
-      <PageShell title="图谱查询" description="关系库权威源的可重建投影">
+      <PageShell title={GRAPH_PAGE_TITLE} description={GRAPH_PAGE_DESCRIPTION}>
         <Spin aria-label="正在核验访问权限" />
       </PageShell>
     );
@@ -284,19 +286,19 @@ export default function GraphExplore() {
 
   if (securityQuery.isError || !canRead) {
     return (
-      <PageShell title="图谱查询" description="关系库权威源的可重建投影">
-        <Result status="403" title="无权查看图谱投影" subTitle="需要图谱投影读取权限。" />
+      <PageShell title={GRAPH_PAGE_TITLE} description={GRAPH_PAGE_DESCRIPTION}>
+        <Result status="403" title="无权查看知识关系" subTitle="需要知识关系读取权限。" />
       </PageShell>
     );
   }
 
   if (factsQuery.isError) {
     return (
-      <PageShell title="图谱查询" description="关系库权威源的可重建投影">
+      <PageShell title={GRAPH_PAGE_TITLE} description={GRAPH_PAGE_DESCRIPTION}>
         <Result
           status="error"
-          title="投影事实读取失败"
-          subTitle="请检查图谱投影服务状态；页面仅展示关系库与投影服务返回的真实结果。"
+          title="知识关系读取失败"
+          subTitle="请检查知识关系服务状态；页面仅展示关系库与投影服务返回的真实结果。"
           extra={
             <Button type="primary" onClick={() => factsQuery.refetch()}>
               重新读取
@@ -352,7 +354,7 @@ export default function GraphExplore() {
             </Descriptions.Item>
           </Descriptions>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择节点查看投影证据" />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择节点查看关系证据" />
         )}
       </aside>
     </div>
@@ -369,7 +371,7 @@ export default function GraphExplore() {
           emptyText: (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="当前查询范围没有真实投影事实"
+              description="当前查询范围没有可展示的知识关系"
             />
           ),
         }}
@@ -378,7 +380,7 @@ export default function GraphExplore() {
           pageSize: factsQuery.data?.size ?? 40,
           total,
           showSizeChanger: false,
-          showTotal: (count) => `共 ${count} 条投影事实`,
+          showTotal: (count) => `共 ${count} 条关系证据`,
           onChange: setPage,
         }}
       />
@@ -397,8 +399,8 @@ export default function GraphExplore() {
 
   return (
     <PageShell
-      title="图谱查询"
-      description="关系库权威源的可重建投影"
+      title={GRAPH_PAGE_TITLE}
+      description={GRAPH_PAGE_DESCRIPTION}
       extras={
         <Space wrap>
           <EvidenceDetailsToggle securityProfile={securityQuery.data} />
@@ -445,10 +447,10 @@ export default function GraphExplore() {
           }
           description={
             partial ? (
-              "真实投影事实仍可查询；一致性或运行状态暂未返回，未以本地数据补齐。"
+              "真实知识关系仍可查询；一致性或运行状态暂未返回，未以本地数据补齐。"
             ) : (
               <Space direction="vertical" size={0}>
-                <Text>图谱仅用于探索关系库权威数据生成的可重建投影，不直接驱动临床决策。</Text>
+                <Text>知识关系仅用于复核关系库权威数据生成的可追溯关系，不直接驱动临床决策。</Text>
                 {report?.message && <Text type="secondary">{report.message}</Text>}
               </Space>
             )
@@ -457,7 +459,7 @@ export default function GraphExplore() {
 
         <div className={styles.queryBar}>
           <Select
-            aria-label="投影目标"
+            aria-label="关系范围"
             value={targetType}
             options={targetOptions}
             onChange={handleTargetChange}
@@ -479,7 +481,7 @@ export default function GraphExplore() {
 
         <div className={styles.statusStrip}>
           <div className={styles.statusItem}>
-            <span className={styles.statusLabel}>投影目标</span>
+            <span className={styles.statusLabel}>关系范围</span>
             <span className={styles.statusValue}>{targetLabel(targetType)}</span>
           </div>
           <div className={styles.statusItem}>

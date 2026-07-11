@@ -50,6 +50,7 @@ import type {
   TraceStateTransition,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTimeWithSeconds } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
@@ -158,17 +159,7 @@ function runtimeText(snapshot: Record<string, unknown> | undefined, keys: string
 
 function formatTime(value?: string | null) {
   if (!value) return "-";
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(timestamp);
+  return formatClinicalDateTimeWithSeconds(value, value);
 }
 
 function deploymentModeText(value: string, evidenceDetailsEnabled: boolean) {
@@ -342,11 +333,11 @@ export default function RuntimeDiagnostics() {
           clinicalData: Boolean(capability.clinicalData),
         })),
       });
-      message.success("插件已登记，等待授权");
+      message.success("扩展能力已登记，等待授权");
       registerForm.resetFields();
       setRegisterOpen(false);
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "插件登记失败"));
+      message.error(getApiErrorMessage(error, "扩展能力登记失败"));
     }
   };
 
@@ -359,27 +350,27 @@ export default function RuntimeDiagnostics() {
         authorizationReason: values.authorizationReason?.trim() ?? "",
         clinicalSafetyConfirmed: Boolean(values.clinicalSafetyConfirmed),
       });
-      message.success("插件能力已授权");
+      message.success("扩展能力已授权");
       grantForm.resetFields();
       setGrantTarget(null);
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "插件授权失败"));
+      message.error(getApiErrorMessage(error, "扩展能力授权失败"));
     }
   };
 
   const confirmDisable = (plugin: PluginItem) => {
     modal.confirm({
       title: `禁用 ${plugin.displayName}`,
-      content: "禁用后插件不能继续获得或使用能力授权。",
+      content: "禁用后扩展能力不能继续获得或使用能力授权。",
       okText: "确认禁用",
       okButtonProps: { danger: true },
       cancelText: "取消",
       onOk: async () => {
         try {
           await disablePlugin.mutateAsync(plugin.pluginId);
-          message.success("插件已禁用");
+          message.success("扩展能力已禁用");
         } catch (error: unknown) {
-          message.error(getApiErrorMessage(error, "插件禁用失败"));
+          message.error(getApiErrorMessage(error, "扩展能力禁用失败"));
           throw error;
         }
       },
@@ -591,7 +582,7 @@ export default function RuntimeDiagnostics() {
     pluginManagement = (
       <PageState
         state="error"
-        title="插件列表读取失败"
+        title="扩展能力读取失败"
         action={
           <Button icon={<ReloadOutlined />} onClick={() => plugins.refetch()}>
             重试
@@ -609,7 +600,7 @@ export default function RuntimeDiagnostics() {
             disabled={!contractOptions.length}
             onClick={() => setRegisterOpen(true)}
           >
-            注册插件
+            登记扩展能力
           </Button>
         </Space>
         <Table<PluginItem>
@@ -617,10 +608,10 @@ export default function RuntimeDiagnostics() {
           dataSource={plugins.data?.items ?? []}
           pagination={false}
           scroll={{ x: "max-content" }}
-          locale={{ emptyText: "暂无插件" }}
+          locale={{ emptyText: "暂无扩展能力" }}
           columns={[
             {
-              title: "插件",
+              title: "扩展能力",
               render: (_, record) => (
                 <Space direction="vertical" size={0}>
                   <Text strong>{record.displayName}</Text>
@@ -697,7 +688,7 @@ export default function RuntimeDiagnostics() {
   return (
     <PageShell
       title="运行诊断"
-      description="服务契约、追踪诊断与插件边界"
+      description="服务契约、运行证据与故障定位"
       extras={
         <Space wrap>
           <EvidenceDetailsToggle securityProfile={security.data} />
@@ -803,14 +794,14 @@ export default function RuntimeDiagnostics() {
                 children: apiDirectory,
               },
               { key: "trace", label: "追踪诊断", children: traceDiagnosis },
-              { key: "plugins", label: "插件管理", children: pluginManagement },
+              { key: "plugins", label: "扩展能力", children: pluginManagement },
             ]}
           />
         </Card>
       </Space>
 
       <Modal
-        title="注册插件"
+        title="登记扩展能力"
         open={registerOpen}
         width={760}
         okText="登记"
@@ -840,8 +831,8 @@ export default function RuntimeDiagnostics() {
             <Col xs={24} md={12}>
               <Form.Item
                 name="pluginCode"
-                label="稳定插件能力身份"
-                rules={[{ required: true, message: "请输入稳定插件能力身份" }]}
+                label="稳定扩展能力身份"
+                rules={[{ required: true, message: "请输入稳定扩展能力身份" }]}
               >
                 <Input maxLength={128} />
               </Form.Item>
@@ -849,8 +840,8 @@ export default function RuntimeDiagnostics() {
             <Col xs={24} md={12}>
               <Form.Item
                 name="displayName"
-                label="插件名称"
-                rules={[{ required: true, message: "请输入插件名称" }]}
+                label="扩展能力名称"
+                rules={[{ required: true, message: "请输入扩展能力名称" }]}
               >
                 <Input maxLength={128} />
               </Form.Item>
@@ -928,7 +919,7 @@ export default function RuntimeDiagnostics() {
       </Modal>
 
       <Modal
-        title={grantTarget ? `授权 ${grantTarget.displayName}` : "插件授权"}
+        title={grantTarget ? `授权 ${grantTarget.displayName}` : "扩展能力授权"}
         open={Boolean(grantTarget)}
         okText="确认授权"
         cancelText="取消"

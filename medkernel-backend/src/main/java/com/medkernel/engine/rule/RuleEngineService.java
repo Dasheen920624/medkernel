@@ -620,7 +620,7 @@ public class RuleEngineService {
         ensureEditableDraft(rule, version);
         ensureGovernanceDraft(tenantId, version.versionId());
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
-        if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
+        if (snapshot == null || snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
             throw new ApiException(ErrorCode.ENG_RULE_006, "规则验证用例只能基于已生效标准上下文生成");
         }
         String caseId = "rtc-" + UUID.randomUUID();
@@ -644,6 +644,11 @@ public class RuleEngineService {
         List<RuleTestCaseResult> results = runTestCases(version, tenantId);
         boolean allPassed = !results.isEmpty()
             && results.stream().allMatch(result -> result.status() == RuleTestCaseStatus.PASS);
+        auditRecorder.record(
+            AuditAction.EXECUTE,
+            RULE_ENTITY,
+            ruleId,
+            "执行规则验证用例 " + results.size() + " 项 allPassed=" + allPassed);
         return new RuleTestRunResponse(
             ruleId, version.versionId(), allPassed, results, RequestContext.currentTraceId());
     }
@@ -1674,7 +1679,7 @@ public class RuleEngineService {
             JsonNode input = readJson(testCase.inputPayload());
             RuleApplicabilityDecision applicability = evaluateApplicability(version, input);
             RuleDslEvaluation evaluation = applicability.applicable()
-                ? evaluator.evaluate(dsl, input)
+                ? evaluateTestCaseDsl(version.tenantId(), dsl, input, testCase)
                 : notApplicableEvaluation(applicability);
             boolean pass = matchesExpectation(testCase, evaluation);
             RuleTestCaseStatus status = pass ? RuleTestCaseStatus.PASS : RuleTestCaseStatus.FAIL;
@@ -1689,6 +1694,34 @@ public class RuleEngineService {
                 testCase.caseId(), testCase.caseType(), Boolean.TRUE.equals(testCase.expectedHit()),
                 false, testCase.expectedSeverity(), null, RuleTestCaseStatus.ERROR, exception.getMessage());
         }
+    }
+
+    private RuleDslEvaluation evaluateTestCaseDsl(
+            String tenantId,
+            JsonNode dsl,
+            JsonNode input,
+            RuleTestCase testCase) {
+        String runtimeReleaseId = testCaseRuntimeReleaseId(testCase);
+        return runtimeReleaseId == null
+            ? evaluator.evaluate(dsl, input)
+            : evaluator.evaluate(dsl, input, tenantId, runtimeReleaseId);
+    }
+
+    private String testCaseRuntimeReleaseId(RuleTestCase testCase) {
+        String snapshotId = trimToNull(testCase.contextSnapshotId());
+        if (snapshotId == null) {
+            return null;
+        }
+        ContextSnapshotResponse snapshot = contextSnapshots.findById(snapshotId);
+        if (snapshot == null
+                || snapshot.status() != ContextSnapshotStatus.ACTIVE
+                || snapshot.runtimeReleaseId() == null
+                || snapshot.runtimeReleaseId().isBlank()) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "规则验证用例缺少可用机构生效版本: " + testCase.caseId());
+        }
+        return snapshot.runtimeReleaseId().trim();
     }
 
     private RuleEvaluationItem evaluateAndLog(RuleDefinition rule, RuleVersion version, String executionTenantId,

@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   List,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -39,17 +40,24 @@ import {
   type InsuranceIssuesQueryParams,
   type QualityCaseReviewResponse,
   type QualityFindingSeverity,
+  type SecurityProfile,
 } from "@/shared/api/hooks";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { clinicalDateTimeInputToIso } from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 
 const { Text } = Typography;
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
 const AUDIT_INDICATOR_REFERENCE_PAGE_SIZE = 20;
+const INSURANCE_ISSUE_PAGE_SIZE = 10;
+const MANUAL_INSURANCE_RULE_INDICATOR_ID = "INSURANCE_RULE_MANUAL";
+const LINKED_PATIENT_DISPLAY_TEXT = "已关联患者";
+const LINKED_ENCOUNTER_DISPLAY_TEXT = "已关联就诊";
 
 type TimeScope = "THIS_MONTH" | "LAST_7_DAYS" | "ALL";
 
@@ -79,6 +87,7 @@ export default function InsuranceAudit() {
   const [status, setStatus] = useState<InsuranceIssueStatus>("OPEN");
   const [timeScope, setTimeScope] = useState<TimeScope>("THIS_MONTH");
   const [severity, setSeverity] = useState<QualityFindingSeverity>("P1");
+  const [issuePage, setIssuePage] = useState(1);
   const [selectedIssue, setSelectedIssue] = useState<InsuranceIssuePageItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [caseReviewResult, setCaseReviewResult] = useState<QualityCaseReviewResponse | null>(null);
@@ -86,6 +95,8 @@ export default function InsuranceAudit() {
   const [auditResult, setAuditResult] = useState<InsuranceAuditResponse | null>(null);
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
+  const [snapshotPatientDisplay, setSnapshotPatientDisplay] = useState("");
+  const [snapshotEncounterDisplay, setSnapshotEncounterDisplay] = useState("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [auditFeedback, setAuditFeedback] = useState<{
     type: "success" | "error";
@@ -101,10 +112,10 @@ export default function InsuranceAudit() {
       ...range,
       status,
       severity,
-      page: 1,
-      size: 20,
+      page: issuePage,
+      size: INSURANCE_ISSUE_PAGE_SIZE,
     };
-  }, [severity, status, timeScope]);
+  }, [issuePage, severity, status, timeScope]);
 
   const issuesQuery = useInsuranceIssues(issueParams);
   const departmentKeyword = departmentSearch.trim();
@@ -120,6 +131,7 @@ export default function InsuranceAudit() {
   const indicatorsQuery = useEvaluationIndicators(
     {
       status: "ACTIVE",
+      subjectType: "CLAIM",
       ...(indicatorKeyword ? { indicatorCode: indicatorKeyword } : {}),
       page: 1,
       size: AUDIT_INDICATOR_REFERENCE_PAGE_SIZE,
@@ -127,16 +139,39 @@ export default function InsuranceAudit() {
     },
     { enabled: true },
   );
-  const departmentOptions = (departmentsQuery.data?.items ?? [])
-    .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
-    .map((unit) => ({
-      value: unit.id as string,
-      label: `${unit.name} · ${unit.code}`,
-    }));
+  const departmentUnits = (departmentsQuery.data?.items ?? []).filter(
+    (unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id),
+  );
+  const departmentOptions = departmentUnits.map((unit) => ({
+    value: unit.id as string,
+    label: `${unit.name} · ${unit.code}`,
+  }));
+  const departmentNames = new Map(departmentUnits.map((unit) => [unit.id as string, unit.name]));
+  const scopeDepartmentLabels = useMemo(
+    () => buildScopeDepartmentLabels(security.data?.dataScope),
+    [security.data?.dataScope],
+  );
   const indicatorOptions = (indicatorsQuery.data?.items ?? []).map((indicator) => ({
     value: indicator.indicatorId,
     label: `${indicator.name} · ${indicator.indicatorCode} · v${indicator.versionNo}`,
   }));
+  const scopeDepartmentOption = resolveScopeDepartmentOption(security.data?.dataScope);
+  const useScopeDepartmentOption =
+    Boolean(scopeDepartmentOption) &&
+    departmentOptions.length === 0 &&
+    !departmentKeyword &&
+    !departmentsQuery.isLoading &&
+    !departmentsQuery.isError;
+  const effectiveDepartmentOptions =
+    useScopeDepartmentOption && scopeDepartmentOption ? [scopeDepartmentOption] : departmentOptions;
+  const useManualIndicatorOption =
+    indicatorOptions.length === 0 &&
+    !indicatorKeyword &&
+    !indicatorsQuery.isLoading &&
+    !indicatorsQuery.isError;
+  const effectiveIndicatorOptions = useManualIndicatorOption
+    ? [{ value: MANUAL_INSURANCE_RULE_INDICATOR_ID, label: "按本次规则归档" }]
+    : indicatorOptions;
   const patientFilter = snapshotPatientId.trim();
   const encounterFilter = snapshotEncounterId.trim();
   const hasSnapshotFilter = Boolean(patientFilter || encounterFilter);
@@ -151,6 +186,7 @@ export default function InsuranceAudit() {
     },
     { enabled: hasSnapshotFilter },
   );
+  const snapshotSummaries = snapshotsQuery.data?.items ?? [];
   const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
     enabled: Boolean(selectedSnapshotId),
   });
@@ -159,6 +195,13 @@ export default function InsuranceAudit() {
   const auditMutation = useRunInsuranceAudit();
 
   const issues = issuesQuery.data?.items ?? [];
+  const issueTotal = issuesQuery.data?.total ?? 0;
+  const issueRangeStart = issueTotal > 0 ? (issuePage - 1) * INSURANCE_ISSUE_PAGE_SIZE + 1 : 0;
+  const issueRangeEnd = Math.min(issuePage * INSURANCE_ISSUE_PAGE_SIZE, issueTotal);
+  const issueRangeText =
+    issueTotal > 0
+      ? `共 ${issueTotal} 条医保问题，当前显示 ${issueRangeStart}-${issueRangeEnd} 条`
+      : "";
   const parsedError = issuesQuery.isError
     ? parseApiError(issuesQuery.error, "医保病案问题读取失败")
     : null;
@@ -181,10 +224,12 @@ export default function InsuranceAudit() {
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
       };
       const scenarioCode = values.scenarioCode.trim();
-      const caseReview = await caseReviewMutation.mutateAsync({
-        ...base,
-        scenarioCode,
-      });
+      const caseReview = useManualIndicatorOption
+        ? null
+        : await caseReviewMutation.mutateAsync({
+            ...base,
+            scenarioCode,
+          });
       const drgGrouping = await drgMutation.mutateAsync({
         ...base,
         grouperVersion: values.grouperVersion.trim(),
@@ -196,7 +241,7 @@ export default function InsuranceAudit() {
         ...base,
         scenarioCode,
         indicatorId: values.indicatorId.trim(),
-        dueAt: values.dueAt.trim(),
+        dueAt: clinicalDateTimeInputToIso(values.dueAt),
         rules: [
           {
             ruleCode: values.ruleCode.trim(),
@@ -213,6 +258,10 @@ export default function InsuranceAudit() {
       setCaseReviewResult(caseReview);
       setDrgResult(drgGrouping);
       setAuditResult(audit);
+      setIssuePage(1);
+      if (audit.auditStatus === "ISSUE_FOUND" && audit.taskCount > 0) {
+        setStatus("RECTIFICATION_CREATED");
+      }
       setAuditFeedback({
         type: "success",
         text:
@@ -226,6 +275,20 @@ export default function InsuranceAudit() {
     }
   }
 
+  function selectSnapshot(snapshotId: string) {
+    setSelectedSnapshotId(snapshotId);
+    const selectedSnapshot = snapshotSummaries.find(
+      (snapshot) => snapshot.snapshotId === snapshotId,
+    );
+    if (!selectedSnapshot) return;
+    setSnapshotPatientId(selectedSnapshot.patientId);
+    setSnapshotPatientDisplay(LINKED_PATIENT_DISPLAY_TEXT);
+    if (selectedSnapshot.encounterId) {
+      setSnapshotEncounterId(selectedSnapshot.encounterId);
+      setSnapshotEncounterDisplay(LINKED_ENCOUNTER_DISPLAY_TEXT);
+    }
+  }
+
   function openEvidence(issue: InsuranceIssuePageItem) {
     setSelectedIssue(issue);
     setDrawerOpen(true);
@@ -233,8 +296,8 @@ export default function InsuranceAudit() {
 
   return (
     <PageShell
-      title="医保智能审核"
-      description="按真实结算事实核查病案"
+      title="医保审核"
+      description="核查医保问题、依据和处置结果"
       primary={
         <Button
           aria-label="执行审核并派整改"
@@ -262,7 +325,7 @@ export default function InsuranceAudit() {
       }
       state={resolvePageState(issuesQuery.isLoading, issuesQuery.isError, errorStatus, issues)}
       stateProps={{
-        title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无真实医保问题",
+        title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无医保问题",
         description: issuesQuery.isError
           ? "请稍后重试；若持续失败，请联系信息科核查医保审核服务。失败已留痕，可在审计证据中追溯。"
           : "当前没有符合筛选条件的医保病案问题。",
@@ -277,7 +340,10 @@ export default function InsuranceAudit() {
               aria-label="问题状态"
               value={status}
               className="mk-select-narrow"
-              onChange={setStatus}
+              onChange={(value) => {
+                setStatus(value);
+                setIssuePage(1);
+              }}
               options={[
                 { value: "OPEN", label: "未处理" },
                 { value: "RECTIFICATION_CREATED", label: "已派整改" },
@@ -289,7 +355,10 @@ export default function InsuranceAudit() {
               aria-label="问题时间"
               value={timeScope}
               className="mk-select-narrow"
-              onChange={setTimeScope}
+              onChange={(value) => {
+                setTimeScope(value);
+                setIssuePage(1);
+              }}
               options={[
                 { value: "THIS_MONTH", label: "本月" },
                 { value: "LAST_7_DAYS", label: "近 7 日" },
@@ -300,7 +369,10 @@ export default function InsuranceAudit() {
               aria-label="问题级别"
               value={severity}
               className="mk-select-narrow"
-              onChange={setSeverity}
+              onChange={(value) => {
+                setSeverity(value);
+                setIssuePage(1);
+              }}
               options={[
                 { value: "P1", label: "高金额/高风险" },
                 { value: "P0", label: "安全红线" },
@@ -328,10 +400,11 @@ export default function InsuranceAudit() {
                 <Form.Item label="患者信息" htmlFor="insurance-snapshot-patient">
                   <Input
                     id="insurance-snapshot-patient"
-                    value={snapshotPatientId}
+                    value={snapshotPatientDisplay}
                     placeholder="输入患者主索引或院内登记号检索病案快照"
                     onChange={(event) => {
                       setSnapshotPatientId(event.target.value);
+                      setSnapshotPatientDisplay(event.target.value);
                       setSelectedSnapshotId("");
                     }}
                   />
@@ -339,10 +412,11 @@ export default function InsuranceAudit() {
                 <Form.Item label="就诊信息" htmlFor="insurance-snapshot-encounter">
                   <Input
                     id="insurance-snapshot-encounter"
-                    value={snapshotEncounterId}
+                    value={snapshotEncounterDisplay}
                     placeholder="可按住院号、门诊号或就诊信息检索"
                     onChange={(event) => {
                       setSnapshotEncounterId(event.target.value);
+                      setSnapshotEncounterDisplay(event.target.value);
                       setSelectedSnapshotId("");
                     }}
                   />
@@ -353,10 +427,11 @@ export default function InsuranceAudit() {
                 enabled={hasSnapshotFilter}
                 loading={snapshotsQuery.isLoading}
                 error={snapshotsQuery.isError}
-                snapshots={snapshotsQuery.data?.items ?? []}
+                snapshots={snapshotSummaries}
                 selectedSnapshotId={selectedSnapshotId}
-                onSelect={setSelectedSnapshotId}
+                onSelect={selectSnapshot}
                 noun="病案快照"
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
               />
 
               {snapshotDetailQuery.data && (
@@ -381,6 +456,21 @@ export default function InsuranceAudit() {
                 </Descriptions>
               )}
 
+              {useScopeDepartmentOption ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="未读取到可选科室，已使用当前组织范围作为责任归属。"
+                />
+              ) : null}
+              {useManualIndicatorOption ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。"
+                />
+              ) : null}
+
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item
                   label="责任科室"
@@ -393,15 +483,15 @@ export default function InsuranceAudit() {
                     onSearch={setDepartmentSearch}
                     onClear={() => setDepartmentSearch("")}
                     placeholder="选择责任科室"
-                    options={departmentOptions}
+                    options={effectiveDepartmentOptions}
                     loading={departmentsQuery.isLoading}
                     notFoundContent="暂无可选科室"
                   />
                 </Form.Item>
                 <Form.Item
-                  label="质控指标"
+                  label="评价指标"
                   name="indicatorId"
-                  rules={[{ required: true, message: "请选择质控指标" }]}
+                  rules={[{ required: true, message: "请选择评价指标" }]}
                 >
                   <Select
                     showSearch
@@ -410,9 +500,9 @@ export default function InsuranceAudit() {
                     onSearch={setIndicatorSearch}
                     onClear={() => setIndicatorSearch("")}
                     placeholder="选择已生效指标"
-                    options={indicatorOptions}
+                    options={effectiveIndicatorOptions}
                     loading={indicatorsQuery.isLoading}
-                    notFoundContent="暂无已生效质控指标"
+                    notFoundContent="暂无已生效评价指标"
                   />
                 </Form.Item>
               </Space>
@@ -424,13 +514,7 @@ export default function InsuranceAudit() {
                 >
                   <Input placeholder="输入本次医保审核场景" />
                 </Form.Item>
-                <Form.Item
-                  label="整改截止时间"
-                  name="dueAt"
-                  rules={[{ required: true, message: "请输入 ISO-8601 截止时间" }]}
-                >
-                  <Input placeholder="例如 2026-06-12T00:00:00Z" />
-                </Form.Item>
+                <RectificationDueAtField />
               </Space>
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item
@@ -524,8 +608,8 @@ export default function InsuranceAudit() {
         ) : null}
 
         <Space wrap size="middle" className="mk-full-width">
-          <MetricCard title="真实医保问题总数" value={`${issuesQuery.data?.total ?? 0} 条`} />
-          <MetricCard title="未处理问题" value={`${countOpenIssues(issues)} 个`} />
+          <MetricCard title="医保问题总数" value={`${issuesQuery.data?.total ?? 0} 条`} />
+          <MetricCard title="当前页未处理" value={`${countOpenIssues(issues)} 个`} />
           <MetricCard title="最近审核整改" value={latestRectificationText(auditResult)} />
         </Space>
 
@@ -534,7 +618,7 @@ export default function InsuranceAudit() {
             <Space direction="vertical" size="middle" className="mk-full-width">
               {caseReviewResult && (
                 <Descriptions bordered size="small" column={1}>
-                  <Descriptions.Item label="病案内涵质控">
+                  <Descriptions.Item label="病案内涵质量评价">
                     {caseReviewStatusText(caseReviewResult.reviewStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="评估运行">
@@ -591,7 +675,24 @@ export default function InsuranceAudit() {
         <Card title="医保问题列表">
           <List
             dataSource={issues}
-            locale={{ emptyText: <Empty description="当前筛选下暂无真实医保问题" /> }}
+            locale={{ emptyText: <Empty description="当前筛选下暂无医保问题" /> }}
+            footer={
+              issueTotal > 0 ? (
+                <Space direction="vertical" size="small" className="mk-full-width">
+                  <Text type="secondary">{issueRangeText}</Text>
+                  {issueTotal > INSURANCE_ISSUE_PAGE_SIZE ? (
+                    <Pagination
+                      current={issuePage}
+                      pageSize={INSURANCE_ISSUE_PAGE_SIZE}
+                      total={issueTotal}
+                      showSizeChanger={false}
+                      size="small"
+                      onChange={setIssuePage}
+                    />
+                  ) : null}
+                </Space>
+              ) : null
+            }
             renderItem={(issue) => (
               <List.Item
                 actions={[
@@ -622,7 +723,14 @@ export default function InsuranceAudit() {
                         <Text type="secondary">规则</Text>
                         <Text>{ruleText(issue, evidenceDetailsEnabled)}</Text>
                         <Text type="secondary">科室</Text>
-                        <Text>{issue.departmentId ?? "未指定"}</Text>
+                        <Text>
+                          {formatDepartmentName(
+                            issue.departmentId,
+                            departmentNames,
+                            scopeDepartmentLabels,
+                            evidenceDetailsEnabled,
+                          )}
+                        </Text>
                       </Space>
                       <Text>{`证据摘要：${insuranceEvidenceSummary(issue, evidenceDetailsEnabled)}`}</Text>
                       <Space wrap>
@@ -670,6 +778,14 @@ export default function InsuranceAudit() {
             </Descriptions.Item>
             <Descriptions.Item label="问题状态">
               {issueStatusTag(selectedIssue.status)}
+            </Descriptions.Item>
+            <Descriptions.Item label="责任科室">
+              {formatDepartmentName(
+                selectedIssue.departmentId,
+                departmentNames,
+                scopeDepartmentLabels,
+                evidenceDetailsEnabled,
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="证据摘要">
               {insuranceEvidenceSummary(selectedIssue, evidenceDetailsEnabled)}
@@ -792,10 +908,10 @@ function ruleText(
 
 function caseReviewStatusText(status: string) {
   if (status === "PASS") {
-    return "病案内涵质控通过";
+    return "病案内涵质量评价通过";
   }
   if (status === "NON_COMPLIANT") {
-    return "病案内涵质控发现问题";
+    return "病案内涵质量评价发现问题";
   }
   return customerEnumLabel(status);
 }
@@ -868,6 +984,65 @@ function formatAmount(value: number | null) {
 function optionalText(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function resolveScopeDepartmentOption(dataScope: SecurityProfile["dataScope"] | undefined) {
+  const candidates: Array<[string, string | null | undefined]> = [
+    ["当前科室", dataScope?.departmentId],
+    ["当前病区", dataScope?.wardId],
+    ["当前站点", dataScope?.siteId],
+    ["当前院区", dataScope?.campusId],
+    ["当前机构", dataScope?.hospitalId],
+    ["当前集团", dataScope?.groupId],
+    ["当前服务机构", dataScope?.tenantId],
+  ];
+  const fallback = candidates.find(([, value]) => Boolean(value?.trim()));
+  if (!fallback) {
+    return null;
+  }
+  const [label, value] = fallback;
+  return { value: value as string, label };
+}
+
+function buildScopeDepartmentLabels(dataScope: SecurityProfile["dataScope"] | undefined) {
+  const labels = new Map<string, string>();
+  const candidates: Array<[string, string | null | undefined]> = [
+    ["当前科室", dataScope?.departmentId],
+    ["当前病区", dataScope?.wardId],
+    ["当前站点", dataScope?.siteId],
+    ["当前院区", dataScope?.campusId],
+    ["当前机构", dataScope?.hospitalId],
+    ["当前集团", dataScope?.groupId],
+    ["当前服务机构", dataScope?.tenantId],
+  ];
+  for (const [label, rawValue] of candidates) {
+    const value = rawValue?.trim();
+    if (value && !labels.has(value)) {
+      labels.set(value, label);
+    }
+  }
+  return labels;
+}
+
+function formatDepartmentName(
+  departmentId: string | null | undefined,
+  departmentNames: Map<string, string>,
+  scopeDepartmentLabels: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  const normalized = departmentId?.trim();
+  if (!normalized) {
+    return "未指定";
+  }
+  const catalogName = departmentNames.get(normalized);
+  if (catalogName) {
+    return catalogName;
+  }
+  const scopeLabel = scopeDepartmentLabels.get(normalized);
+  if (scopeLabel) {
+    return evidenceDetailsEnabled ? `${scopeLabel} · ${normalized}` : scopeLabel;
+  }
+  return evidenceDetailsEnabled ? normalized : "未匹配组织";
 }
 
 function numberOrUndefined(value?: string) {

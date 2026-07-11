@@ -17,6 +17,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.clinical.model.ClinicalClaim;
+import com.medkernel.engine.clinical.model.ClinicalClaimRepository;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -48,7 +50,7 @@ import com.medkernel.shared.context.RequestContext;
  * 标准上下文核心业务编排。
  *
  * <p>承担 GA-ENG-API-01 三接口（创建 / 按 ID 查 / 按患者或就诊列表）的业务规则：
- * 当前机构生效版本锁定、schema 缺失字段分级、quality_status 聚合、字典映射端口调用、
+ * 当前机构生效版本锁定、schema 缺失字段分级、quality_status 聚合、术语映射端口调用、
  * 幂等键命中复用与失败兜底。
  *
  * <p>所有方法从 {@link RequestContext} 取 tenantId / userId / traceId，
@@ -63,6 +65,7 @@ public class ContextSnapshotService {
     private final CanonicalResourceRepository resources;
     private final ContextIdempotencyKeyRepository idemRepo;
     private final ContextValidator validator;
+    private final ClinicalClaimRepository clinicalClaims;
     private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private final TerminologyMappingPort mapping;
     private final AuditRecorder auditRecorder;
@@ -75,6 +78,7 @@ public class ContextSnapshotService {
                                   CanonicalResourceRepository resources,
                                   ContextIdempotencyKeyRepository idemRepo,
                                   ContextValidator validator,
+                                  ClinicalClaimRepository clinicalClaims,
                                   CurrentClinicalRuntimeReleaseResolver runtimeReleases,
                                   TerminologyMappingPort mapping,
                                   AuditRecorder auditRecorder,
@@ -86,6 +90,7 @@ public class ContextSnapshotService {
         this.resources = resources;
         this.idemRepo = idemRepo;
         this.validator = validator;
+        this.clinicalClaims = clinicalClaims;
         this.runtimeReleases = runtimeReleases;
         this.mapping = mapping;
         this.auditRecorder = auditRecorder;
@@ -162,7 +167,7 @@ public class ContextSnapshotService {
             quality, traceId, null, now, userId
         ));
 
-        persistResources(saved.snapshotId(), tenantId, req.resources());
+        persistResources(saved, req.resources());
 
         if (hasText(effectiveIdempotencyKey)) {
             idemRepo.save(new ContextIdempotencyKey(
@@ -277,7 +282,9 @@ public class ContextSnapshotService {
         }
     }
 
-    private void persistResources(String snapshotId, String tenantId, ContextSnapshotResources r) {
+    private void persistResources(ContextSnapshot snapshot, ContextSnapshotResources r) {
+        String snapshotId = snapshot.snapshotId();
+        String tenantId = snapshot.tenantId();
         int seq = 0;
         if (r.patient() != null) {
             seq = persistOne(snapshotId, tenantId, CanonicalResourceType.PATIENT,
@@ -320,7 +327,35 @@ public class ContextSnapshotService {
         }
         for (CanonicalClaim c : safeList(r.claims())) {
             seq = persistOne(snapshotId, tenantId, CanonicalResourceType.CLAIM, c, c.qualityStatus(), seq);
+            persistFrontdeskClaimAuthority(snapshot, c);
         }
+    }
+
+    private void persistFrontdeskClaimAuthority(ContextSnapshot snapshot, CanonicalClaim claim) {
+        if (!"MEDKERNEL_FRONTDESK".equals(claim.sourceSystem()) || claim.totalCost() == null) {
+            return;
+        }
+        String claimId = hasText(claim.claimId()) ? claim.claimId() : "claim-" + UUID.randomUUID();
+        String sourceId = ContextSnapshotRequest.firstNonBlank(claim.sourceRecordId(), claimId);
+        Instant now = Instant.now();
+        clinicalClaims.insert(new ClinicalClaim(
+            claimId,
+            snapshot.tenantId(),
+            ContextSnapshotRequest.firstNonBlank(snapshot.orgPath(), snapshot.orgUnitId(), snapshot.tenantId()),
+            claim.sourceSystem(),
+            sourceId,
+            null,
+            snapshot.patientId(),
+            snapshot.encounterId(),
+            hasText(claim.drgCode()) ? "DRG" : "CLAIM",
+            "SUBMITTED",
+            claim.totalCost(),
+            now,
+            RequestContext.currentUserId().orElse("system"),
+            now,
+            RequestContext.currentUserId().orElse("system"),
+            RequestContext.currentTraceId()
+        ));
     }
 
     private int persistOne(String snapshotId, String tenantId, CanonicalResourceType type,

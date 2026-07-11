@@ -45,7 +45,11 @@ class BusinessMetricsTest {
         assertThat(registry.find("medkernel_audit_fallback_written_total").counter()).isNotNull();
         assertThat(registry.find("medkernel_audit_fallback_failures_total").counter()).isNotNull();
         assertThat(registry.find("medkernel_pathway_active").gauge()).isNotNull();
-        assertThat(registry.find("medkernel_quality_findings_open").gauge()).isNotNull();
+        var openFindingsGauge = registry.find("medkernel_quality_findings_open").gauge();
+        assertThat(openFindingsGauge).isNotNull();
+        assertThat(openFindingsGauge.getId().getDescription())
+            .isEqualTo("质量管理：当前未闭环质量问题数")
+            .doesNotContain("质控问题");
     }
 
     @Test

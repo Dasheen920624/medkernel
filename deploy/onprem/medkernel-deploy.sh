@@ -53,7 +53,7 @@ MedKernel 快捷发布脚本
   --jar <path>        后端 jar（默认取 incoming 下最新 *.jar）
   --frontend <path>   前端 dist 包 .tar.gz（内含 dist/；默认取 incoming 下 dist*.tar.gz）
   --incoming <dir>    上传暂存目录（默认 ${INCOMING_DEFAULT}）
-  --source <text>     记入 manifest 的来源说明（如 git 短哈希）
+  --source <text>     发布来源；仅后端/完整发布写入 manifest，前端-only 只用于前端制品追溯
   --no-restart        只替换不重启
   --skip-health       重启后不做健康检查
   --health-timeout N  健康检查最长等待秒数（默认 ${HEALTH_TIMEOUT}）
@@ -65,6 +65,7 @@ MedKernel 快捷发布脚本
 
 约定：把新包传到 ${INCOMING_DEFAULT}/ （后端 *.jar 任意命名；前端打成 dist.tar.gz 内含 dist/），再执行 sudo medkernel-deploy
 注意：制品切换后的任何失败、ERR、INT 或 TERM 都会强制恢复发布前配置、systemd、前后端制品并验证旧版 readiness。
+说明：前端-only 发布不会改写运行 manifest；manifest/JAR 来源仍以最近一次完整或后端发布为准。
 USAGE
 }
 

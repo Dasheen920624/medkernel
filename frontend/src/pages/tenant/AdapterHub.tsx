@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Alert,
+  App as AntdApp,
   Button,
   Card,
   Descriptions,
@@ -17,7 +18,6 @@ import {
   Tabs,
   Tag,
   Typography,
-  message,
 } from "antd";
 import {
   ApiOutlined,
@@ -69,7 +69,8 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -98,12 +99,33 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
+const FIELD_MAPPING_PAGE_SIZE = 10;
 
 const signaturePreviewEventOptions = [
   { value: "clinical.test", label: "临床事件联调" },
   { value: "quality.alert.opened", label: "质控事件联调" },
   { value: "mpi.patient.updated", label: "患者主数据变更" },
 ];
+
+const THIRD_PARTY_SYSTEM_FAMILY_OPTIONS = [
+  { value: "HIS_EMR_CDR", label: "HIS、EMR、CDR、医嘱与费用" },
+  { value: "LIS_MONITORING_CRITICAL", label: "LIS、监护与危急值" },
+  { value: "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG", label: "PACS/RIS、超声、病理、内镜、心电" },
+  { value: "PHARMACY_REVIEW", label: "药房、审方和药事平台" },
+  { value: "NURSING_ANESTHESIA_TRANSFUSION_ICU", label: "护理、手麻、手术室、输血和 ICU" },
+  { value: "MEDICAL_RECORD_INSURANCE_PAYMENT", label: "病案、医保和支付" },
+  { value: "PUBLIC_HEALTH_INFECTION_REGULATORY", label: "公卫、院感、不良事件和监管" },
+  { value: "FOLLOWUP_PATIENT_SERVICE", label: "随访、消息和患者服务" },
+  { value: "CA_OIDC_SSO_HR", label: "CA、OIDC、SSO、HR/OA" },
+  { value: "REGIONAL_REMOTE", label: "区域平台、医联体和远程协同" },
+  { value: "SPD_UDI_DEVICE", label: "SPD、UDI、器械耗材" },
+  { value: "RESEARCH_ETHICS_DATA", label: "科研、伦理和数据平台" },
+  { value: "MODEL_DIFY_AGENT", label: "模型服务、Dify 和 Agent" },
+] as const;
+
+function systemFamilyLabel(code: string) {
+  return THIRD_PARTY_SYSTEM_FAMILY_OPTIONS.find((option) => option.value === code)?.label ?? code;
+}
 
 interface AdapterFieldMappingFormValue {
   sourcePath: string;
@@ -206,6 +228,24 @@ const MASTER_DATA_RESOURCE_LABEL: Record<
   LOCAL_TERM: "院内字典",
 };
 
+const CONTRACT_RESOURCE_LABEL: Record<string, string> = {
+  Patient: "患者信息",
+  Encounter: "就诊信息",
+  AllergyIntolerance: "过敏与不良反应",
+  Condition: "诊断与问题",
+  Observation: "检验检查观测",
+  DiagnosticReport: "医技报告",
+  MedicationRequest: "用药医嘱",
+  MedicationAdministration: "用药执行",
+  Procedure: "诊疗操作",
+  ServiceRequest: "医嘱申请",
+  CarePlan: "照护计划",
+  DocumentReference: "临床文书",
+  Coverage: "医保与支付",
+  Organization: "机构信息",
+  Practitioner: "医务人员",
+};
+
 const TERM_CATEGORY_OPTIONS = [
   { value: "DIAGNOSIS", label: "诊断" },
   { value: "PROCEDURE", label: "手术/操作" },
@@ -230,6 +270,10 @@ function percent(numerator: number, denominator: number) {
   return Math.round((numerator / denominator) * 100);
 }
 
+function businessTimeText(value: string | null | undefined, prefix: string) {
+  return `${prefix} ${formatClinicalDateTime(value, "待确认")}`;
+}
+
 function healthTag(status: string) {
   return <Tag color={HEALTH_COLOR[status] ?? "default"}>{customerEnumLabel(status)}</Tag>;
 }
@@ -240,6 +284,16 @@ function trustLevelLabel(value: string) {
 
 function messageDirectionLabel(value: string) {
   return MESSAGE_DIRECTION_LABEL[value] ?? customerEnumLabel(value);
+}
+
+function sourceStatusText(value: string, evidenceDetailsEnabled: boolean) {
+  let label = customerEnumLabel(value);
+  if (value === "ACTIVE") {
+    label = "启用中";
+  } else if (value === "SUSPENDED") {
+    label = "已挂起";
+  }
+  return evidenceDetailsEnabled ? `${label}（${value}）` : label;
 }
 
 function evidenceText(
@@ -268,6 +322,34 @@ function adapterEvidenceText(onboarding: IntegrationOnboarding) {
   return `字段映射 ${onboarding.mappedFieldCount} 项，健康状态 ${customerEnumLabel(
     onboarding.healthStatus,
   )}，缺口 ${onboarding.blockers.length} 项。`;
+}
+
+function contractResourceLabel(resourceType: string | null | undefined) {
+  return resourceType ? (CONTRACT_RESOURCE_LABEL[resourceType] ?? "标准患者资源") : "标准患者资源";
+}
+
+function contractFieldAccessText(field: IntegrationDataContractResponse["fields"][number]) {
+  const accessText = field.externalWritable ? "可由外部系统接入" : "平台自动派生";
+  return `${contractResourceLabel(field.resourceType)} · ${accessText}`;
+}
+
+function contractFieldStructureText(field: IntegrationDataContractResponse["fields"][number]) {
+  if (field.externalWritable) return field.required ? "外部系统必传" : "外部系统可传";
+  return "由平台按确定性规则派生";
+}
+
+function contractFieldDataText(field: IntegrationDataContractResponse["fields"][number]) {
+  return field.required ? "必填业务字段" : "可选业务字段";
+}
+
+function qualityGapSummaryText(
+  summary: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  const rawText = summary?.trim();
+  if (!rawText) return "平台未返回额外报告缺口";
+  if (evidenceDetailsEnabled) return rawText;
+  return customerDisplayText(rawText).replace(/([\u3400-\u9fff])\s+(适配器|接入|系统)/g, "$1$2");
 }
 
 function getErrorTrace(error: unknown) {
@@ -325,6 +407,7 @@ function buildSignaturePreviewPayload(
 }
 
 export default function AdapterHub() {
+  const { message: messageApi } = AntdApp.useApp();
   const [adapterPage, setAdapterPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
   const [onboardingPage, setOnboardingPage] = useState(1);
@@ -338,7 +421,13 @@ export default function AdapterHub() {
   const [masterDataSource, setMasterDataSource] = useState("");
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
   const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
+  const [lastCreatedOnboarding, setLastCreatedOnboarding] = useState<IntegrationOnboarding | null>(
+    null,
+  );
   const [createdWebhook, setCreatedWebhook] = useState<WebhookCreateResult | null>(null);
+  const [lastCreatedWebhook, setLastCreatedWebhook] = useState<IntegrationWebhookConfig | null>(
+    null,
+  );
   const [signatureResult, setSignatureResult] = useState<WebhookSignatureTestResult | null>(null);
   const [signatureWebhookId, setSignatureWebhookId] = useState<string>();
 
@@ -396,9 +485,27 @@ export default function AdapterHub() {
   const adapters = adaptersQuery.data?.items ?? [];
   const status = statusQuery.data;
   const logs = logsQuery.data?.items ?? [];
-  const onboardings = onboardingsQuery.data?.items ?? [];
-  const webhooks = webhooksQuery.data?.items ?? [];
-  const firstWebhookId = webhooks[0]?.webhookId;
+  const visibleOnboardings = useMemo(() => {
+    const onboardings = onboardingsQuery.data?.items ?? [];
+    const merged = lastCreatedOnboarding ? [lastCreatedOnboarding, ...onboardings] : onboardings;
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      if (seen.has(item.onboardingId)) return false;
+      seen.add(item.onboardingId);
+      return true;
+    });
+  }, [lastCreatedOnboarding, onboardingsQuery.data?.items]);
+  const visibleWebhooks = useMemo(() => {
+    const webhooks = webhooksQuery.data?.items ?? [];
+    const merged = lastCreatedWebhook ? [lastCreatedWebhook, ...webhooks] : webhooks;
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      if (seen.has(item.webhookId)) return false;
+      seen.add(item.webhookId);
+      return true;
+    });
+  }, [lastCreatedWebhook, webhooksQuery.data?.items]);
+  const firstWebhookId = visibleWebhooks[0]?.webhookId;
   const regionalSources = regionalSourcesQuery.data?.items ?? [];
   const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
@@ -436,6 +543,28 @@ export default function AdapterHub() {
   async function handleCreateAdapter() {
     try {
       const values = (await adapterForm.validateFields()) as AdapterFormValue;
+      const invalidMappingIndexes = (values.fieldMappings ?? [])
+        .map((mapping, index) => {
+          const hasDictionary = Boolean(mapping.targetDictionaryKey?.trim());
+          const hasCategory = Boolean(mapping.category);
+          return hasDictionary === hasCategory ? null : index;
+        })
+        .filter((index): index is number => index !== null);
+      if (invalidMappingIndexes.length > 0) {
+        adapterForm.setFields(
+          invalidMappingIndexes.flatMap((index) => [
+            {
+              name: ["fieldMappings", index, "targetDictionaryKey"],
+              errors: ["目标标准字典与术语分类必须同时填写"],
+            },
+            {
+              name: ["fieldMappings", index, "category"],
+              errors: ["目标标准字典与术语分类必须同时填写"],
+            },
+          ]),
+        );
+        return;
+      }
       const configJson = evidenceDetailsEnabled
         ? values.configJson?.trim()
         : JSON.stringify({
@@ -463,14 +592,14 @@ export default function AdapterHub() {
         protocolType: values.protocolType,
         configJson,
       });
-      message.success("适配器已提交到接入总线。");
+      messageApi.success("适配器已提交到接入总线。");
       setAdapterModalOpen(false);
       adapterForm.resetFields();
       void adaptersQuery.refetch();
       void statusQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(adapterForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建适配器失败，请检查参数"));
+      messageApi.error(getApiErrorMessage(error, "创建适配器失败，请检查参数"));
     }
   }
 
@@ -485,11 +614,11 @@ export default function AdapterHub() {
           status: adapter.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
         },
       });
-      message.success("适配器状态已更新。");
+      messageApi.success("适配器状态已更新。");
       void adaptersQuery.refetch();
       void statusQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "更新适配器状态失败"));
+      messageApi.error(getApiErrorMessage(error, "更新适配器状态失败"));
     }
   }
 
@@ -500,14 +629,14 @@ export default function AdapterHub() {
       void adaptersQuery.refetch();
       void statusQuery.refetch();
       if (result.healthStatus === "HEALTHY") {
-        message.success("健康检查完成。");
+        messageApi.success("健康检查完成。");
       } else if (result.healthStatus === "MISCONFIGURED") {
-        message.error("连接配置无效，请修正后重试。");
+        messageApi.error("连接配置无效，请修正后重试。");
       } else {
-        message.warning("外部系统当前不可达。");
+        messageApi.warning("外部系统当前不可达。");
       }
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "健康检查失败"));
+      messageApi.error(getApiErrorMessage(error, "健康检查失败"));
     }
   }
 
@@ -516,43 +645,44 @@ export default function AdapterHub() {
       const report = await qualityReportMutation.mutateAsync();
       setQualityReport(report);
       void statusQuery.refetch();
-      message.success("数据质量报告已生成。");
+      messageApi.success("数据质量报告已生成。");
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "生成质量报告失败"));
+      messageApi.error(getApiErrorMessage(error, "生成质量报告失败"));
     }
   }
 
   async function handleRetryMessage(messageId: string) {
     try {
       await retryMessageMutation.mutateAsync(messageId);
-      message.success("已提交重试请求。");
+      messageApi.success("已提交重试请求。");
       void logsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "重试失败"));
+      messageApi.error(getApiErrorMessage(error, "重试失败"));
     }
   }
 
   async function handleReplayDeadLetter(messageId: string) {
     try {
       await replayDeadLetterMutation.mutateAsync(messageId);
-      message.success("已提交死信重放请求。");
+      messageApi.success("已提交死信重放请求。");
       void logsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "死信重放失败"));
+      messageApi.error(getApiErrorMessage(error, "死信重放失败"));
     }
   }
 
   async function handleCreateOnboarding() {
     try {
       const values = await onboardingForm.validateFields();
-      await createOnboardingMutation.mutateAsync(values);
-      message.success("接入申请已创建。");
+      const created = await createOnboardingMutation.mutateAsync(values);
+      setLastCreatedOnboarding(created);
+      messageApi.success("接入申请已创建。");
       setOnboardingModalOpen(false);
       onboardingForm.resetFields();
       void onboardingsQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(onboardingForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建接入申请失败"));
+      messageApi.error(getApiErrorMessage(error, "创建接入申请失败"));
     }
   }
 
@@ -563,10 +693,10 @@ export default function AdapterHub() {
         targetStatus: "ONLINE",
         evidenceText: adapterEvidenceText(onboarding),
       });
-      message.success("接入阶段推进请求已提交。");
+      messageApi.success("接入阶段推进请求已提交。");
       void onboardingsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "推进接入阶段失败"));
+      messageApi.error(getApiErrorMessage(error, "推进接入阶段失败"));
     }
   }
 
@@ -575,12 +705,24 @@ export default function AdapterHub() {
       const values = await webhookForm.validateFields();
       const result = await createWebhookMutation.mutateAsync(values);
       setCreatedWebhook(result);
+      setLastCreatedWebhook({
+        id: result.id,
+        webhookId: result.webhookId,
+        name: result.name,
+        callbackUrl: result.callbackUrl,
+        eventsSubscribed: result.eventsSubscribed,
+        status: result.status,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+      });
+      setSignatureWebhookId(result.webhookId);
+      setWebhookPage(1);
       setWebhookModalOpen(false);
       webhookForm.resetFields();
-      void webhooksQuery.refetch();
+      await webhooksQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(webhookForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建回调通道失败"));
+      messageApi.error(getApiErrorMessage(error, "创建回调通道失败"));
     }
   }
 
@@ -588,7 +730,7 @@ export default function AdapterHub() {
     try {
       const values = (await signatureForm.validateFields()) as SignaturePreviewFormValue;
       if (!signatureWebhookId) {
-        message.warning("请选择回调通道。");
+        messageApi.warning("请选择回调通道。");
         return;
       }
       const result = await testWebhookSignatureMutation.mutateAsync({
@@ -598,7 +740,7 @@ export default function AdapterHub() {
       setSignatureResult(result);
     } catch (error: unknown) {
       if (applyApiFieldErrors(signatureForm, error)) return;
-      message.error(getApiErrorMessage(error, "生成签名预览失败"));
+      messageApi.error(getApiErrorMessage(error, "生成签名预览失败"));
     }
   }
 
@@ -617,20 +759,20 @@ export default function AdapterHub() {
         ...(values.onboardingId?.trim() ? { onboardingId: values.onboardingId.trim() } : {}),
       };
       await registerRegionalSourceMutation.mutateAsync(payload);
-      message.success("区域来源已登记并纳入可信分级。");
+      messageApi.success("区域来源已登记并纳入可信分级。");
       setRegionalSourceModalOpen(false);
       regionalSourceForm.resetFields();
       void regionalSourcesQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(regionalSourceForm, error)) return;
-      message.error(getApiErrorMessage(error, "登记区域来源失败"));
+      messageApi.error(getApiErrorMessage(error, "登记区域来源失败"));
     }
   }
 
   function handleLoadMasterDataReconciliation() {
     const source = masterDataSourceInput.trim().toUpperCase();
     if (!source) {
-      message.warning("请输入来源系统。");
+      messageApi.warning("请输入来源系统。");
       return;
     }
     setMasterDataSource(source);
@@ -662,7 +804,7 @@ export default function AdapterHub() {
       render: (value) => healthTag(String(value)),
     },
     {
-      title: "RTT",
+      title: "响应耗时",
       dataIndex: "rttMs",
       key: "rttMs",
       render: (value) => <Text>{Number(value) > 0 ? `${value}ms` : "未测量"}</Text>,
@@ -678,11 +820,11 @@ export default function AdapterHub() {
       ),
     },
     {
-      title: "最近探活",
+      title: "最近健康检查",
       dataIndex: "lastHeartbeatAt",
       key: "lastHeartbeatAt",
       render: (value) => (
-        <Text type="secondary">{value ? new Date(String(value)).toLocaleString() : "暂无"}</Text>
+        <Text type="secondary">{formatClinicalDateTime(String(value), "暂无")}</Text>
       ),
     },
     {
@@ -800,8 +942,26 @@ export default function AdapterHub() {
         </Space>
       ),
     },
-    { title: "来源系统", dataIndex: "sourceSystem", key: "sourceSystem" },
+    {
+      title: "系统族 / 来源系统",
+      key: "systemFamily",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{systemFamilyLabel(record.systemFamilyCode)}</Text>
+          <Text type="secondary">{record.sourceSystem}</Text>
+        </Space>
+      ),
+    },
     { title: "业务场景", dataIndex: "businessScenario", key: "businessScenario" },
+    {
+      title: "最近更新",
+      dataIndex: "updatedAt",
+      key: "updatedAt",
+      width: 190,
+      render: (value: string) => (
+        <Text type="secondary">{businessTimeText(value, "最近更新")}</Text>
+      ),
+    },
     {
       title: "阶段",
       dataIndex: "status",
@@ -831,7 +991,9 @@ export default function AdapterHub() {
         ) : (
           <ul className={styles.gapList}>
             {record.blockers.map((blocker) => (
-              <li key={blocker}>{blocker}</li>
+              <li key={blocker}>
+                {evidenceText(blocker, evidenceDetailsEnabled, customerDisplayText(blocker))}
+              </li>
             ))}
           </ul>
         ),
@@ -890,7 +1052,7 @@ export default function AdapterHub() {
       title: "更新时间",
       dataIndex: "updatedAt",
       key: "updatedAt",
-      render: (value) => new Date(String(value)).toLocaleString(),
+      render: (value) => formatClinicalDateTime(String(value)),
     },
   ];
 
@@ -938,7 +1100,14 @@ export default function AdapterHub() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (value) => <Tag color={value === "ACTIVE" ? "green" : "default"}>{value}</Tag>,
+      render: (value) => {
+        const statusValue = String(value);
+        return (
+          <Tag color={ADAPTER_STATUS_COLOR[statusValue] ?? "default"}>
+            {sourceStatusText(statusValue, evidenceDetailsEnabled)}
+          </Tag>
+        );
+      },
     },
   ];
 
@@ -1048,7 +1217,7 @@ export default function AdapterHub() {
                 <Space direction="vertical" size="small">
                   <Text strong>适配器接入 7 步流</Text>
                   <Text type="secondary">
-                    适配器属于配置类资产，必须按“选模板/导入 → 自动校验 → 看影响 → 提交审核 →
+                    适配器属于配置类资产，必须按“选来源/导入 → 自动校验 → 看影响 → 提交审核 →
                     灰度发布 → 全量 → 留证据/可回滚”留证。
                   </Text>
                   <Text type="secondary">
@@ -1066,7 +1235,7 @@ export default function AdapterHub() {
               message={HEALTH_ALERT_MESSAGE[healthResult.healthStatus] ?? "外部系统当前不可达"}
               description={`适配器 ${
                 evidenceDetailsEnabled ? healthResult.adapterId : healthResult.name
-              } 当前${customerEnumLabel(healthResult.healthStatus)}，RTT ${
+              } 当前${customerEnumLabel(healthResult.healthStatus)}，响应耗时 ${
                 healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
               }。页面仅展示平台记录的真实状态。`}
             />
@@ -1090,7 +1259,7 @@ export default function AdapterHub() {
                     <Alert
                       type="info"
                       showIcon
-                      message="连接状态来自实时探活"
+                      message="连接状态来自实时健康检查"
                       description="HTTP、FHIR、Webhook 和 WebService 使用真实连接器；外部不可达显示“未连接”，配置非法显示“配置不完整”。"
                     />
                     <Table
@@ -1184,9 +1353,7 @@ export default function AdapterHub() {
                             {masterDataQuery.data.cursor ?? "尚无游标"}
                           </Descriptions.Item>
                           <Descriptions.Item label="最近同步">
-                            {masterDataQuery.data.lastSyncedAt
-                              ? new Date(masterDataQuery.data.lastSyncedAt).toLocaleString()
-                              : "尚未同步"}
+                            {formatClinicalDateTime(masterDataQuery.data.lastSyncedAt, "尚未同步")}
                           </Descriptions.Item>
                         </Descriptions>
                         <Table
@@ -1217,19 +1384,14 @@ export default function AdapterHub() {
                 label: "数据质量看板",
                 children: (
                   <div className={styles.sectionStack}>
-                    {qualityReport ? (
-                      <QualityReportCard
-                        report={qualityReport}
-                        evidenceDetailsEnabled={evidenceDetailsEnabled}
-                      />
-                    ) : (
+                    {!qualityReport ? (
                       <Alert
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
-                        description="点击页面右上角“生成质量报告”，平台会基于当前服务机构的适配器、字段映射和探活事实生成快照。"
+                        description="点击页面右上角“生成质量报告”，平台会基于当前服务机构的适配器、字段映射和健康检查事实生成快照。"
                       />
-                    )}
+                    ) : null}
                     <div className={styles.qualityGrid}>
                       <MetricCard title="未连接" value={status?.notConnectedAdapters ?? 0} />
                       <MetricCard title="配置非法" value={status?.misconfiguredAdapters ?? 0} />
@@ -1258,13 +1420,15 @@ export default function AdapterHub() {
                     <Table
                       rowKey="onboardingId"
                       columns={onboardingColumns}
-                      dataSource={onboardings}
+                      dataSource={visibleOnboardings}
                       loading={onboardingsQuery.isLoading}
                       pagination={{
                         current: onboardingPage,
                         pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
                         total: onboardingsQuery.data?.total ?? 0,
                         onChange: setOnboardingPage,
+                        showTotal: (total, range) =>
+                          `共 ${total} 条接入申请，当前显示 ${range[0]}-${range[1]} 条`,
                       }}
                       scroll={{ x: 900 }}
                     />
@@ -1291,12 +1455,12 @@ export default function AdapterHub() {
                     <Table
                       rowKey="webhookId"
                       columns={webhookColumns}
-                      dataSource={webhooks}
+                      dataSource={visibleWebhooks}
                       loading={webhooksQuery.isLoading}
                       pagination={{
                         current: webhookPage,
                         pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
-                        total: webhooksQuery.data?.total ?? 0,
+                        total: Math.max(webhooksQuery.data?.total ?? 0, visibleWebhooks.length),
                         onChange: setWebhookPage,
                       }}
                       scroll={{ x: 900 }}
@@ -1316,7 +1480,7 @@ export default function AdapterHub() {
                           <Select
                             value={signatureWebhookId}
                             onChange={setSignatureWebhookId}
-                            options={webhooks.map((item) => ({
+                            options={visibleWebhooks.map((item) => ({
                               label: evidenceDetailsEnabled
                                 ? `${item.name}（${item.webhookId}）`
                                 : item.name,
@@ -1352,7 +1516,7 @@ export default function AdapterHub() {
                         ) : null}
                         <Button
                           loading={testWebhookSignatureMutation.isPending}
-                          disabled={!canExecute || webhooks.length === 0}
+                          disabled={!canExecute || visibleWebhooks.length === 0}
                           onClick={handleTestWebhookSignature}
                         >
                           生成签名预览
@@ -1427,6 +1591,7 @@ export default function AdapterHub() {
         okText="创建回调通道"
         cancelText="取消"
         confirmLoading={createWebhookMutation.isPending}
+        destroyOnClose
       >
         <Form form={webhookForm} layout="vertical">
           <Form.Item name="webhookId" label="稳定回调通道身份" rules={[{ required: true }]}>
@@ -1477,6 +1642,7 @@ export default function AdapterHub() {
         okText="保存区域来源"
         cancelText="取消"
         confirmLoading={registerRegionalSourceMutation.isPending}
+        destroyOnClose
       >
         <Form form={regionalSourceForm} layout="vertical">
           <Form.Item name="sourceId" label="稳定来源身份" rules={[{ required: true }]}>
@@ -1510,6 +1676,7 @@ export default function AdapterHub() {
           </Form.Item>
           <Form.Item name="adapterId" label="绑定适配器">
             <Select
+              aria-label="绑定适配器"
               allowClear
               showSearch
               optionFilterProp="label"
@@ -1523,13 +1690,14 @@ export default function AdapterHub() {
           </Form.Item>
           <Form.Item name="onboardingId" label="绑定接入申请">
             <Select
+              aria-label="绑定接入申请"
               allowClear
               showSearch
               optionFilterProp="label"
               placeholder="可选，按名称选择"
-              options={onboardings.map((item) => ({
+              options={visibleOnboardings.map((item) => ({
                 value: item.onboardingId,
-                label: `${item.name} · ${customerEnumLabel(item.status)}`,
+                label: `${item.name} · ${customerEnumLabel(item.status)} · ${item.onboardingId}`,
               }))}
               notFoundContent="暂无可绑定接入申请"
             />
@@ -1539,7 +1707,7 @@ export default function AdapterHub() {
               scope="BUSINESS_SCOPE"
               valueMode="PATH"
               placeholder="从组织树选择适用范围"
-              notFoundContent="暂无可选组织，请先维护组织架构"
+              notFoundContent="暂无可选组织，请先到“服务机构”补充组织节点。"
             />
           </Form.Item>
         </Form>
@@ -1553,6 +1721,7 @@ export default function AdapterHub() {
         okText="提交适配器"
         cancelText="取消"
         width={760}
+        destroyOnClose
       >
         <Form
           form={adapterForm}
@@ -1611,7 +1780,7 @@ export default function AdapterHub() {
                   <Space align="start" wrap className="mk-full-width">
                     <Form.Item
                       name="healthPath"
-                      label="探活路径"
+                      label="健康检查路径"
                       rules={[{ pattern: /^\/(?!\/)/, message: "请输入以 / 开头的站内路径" }]}
                     >
                       <Input placeholder="/health" />
@@ -1675,6 +1844,8 @@ export default function AdapterHub() {
                         >
                           <Select
                             allowClear
+                            showSearch
+                            optionFilterProp="label"
                             placeholder="选择标准术语分类"
                             options={[...TERM_CATEGORY_OPTIONS]}
                           />
@@ -1706,6 +1877,7 @@ export default function AdapterHub() {
         onCancel={() => setOnboardingModalOpen(false)}
         okText="提交申请"
         cancelText="取消"
+        destroyOnClose
       >
         <Form form={onboardingForm} layout="vertical">
           <Form.Item name="onboardingId" label="稳定接入申请身份" rules={[{ required: true }]}>
@@ -1748,6 +1920,14 @@ export default function AdapterHub() {
               ]}
             />
           </Form.Item>
+          <Form.Item name="systemFamilyCode" label="系统族" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="选择产品范围内的第三方系统族"
+              options={[...THIRD_PARTY_SYSTEM_FAMILY_OPTIONS]}
+            />
+          </Form.Item>
           <Form.Item name="sourceSystem" label="来源系统" rules={[{ required: true }]}>
             <Input placeholder="例如 HIS / EMR / LIS" />
           </Form.Item>
@@ -1759,7 +1939,7 @@ export default function AdapterHub() {
               scope="BUSINESS_SCOPE"
               valueMode="PATH"
               placeholder="从组织树选择适用范围"
-              notFoundContent="暂无可选组织，请先维护组织架构"
+              notFoundContent="暂无可选组织，请先到“服务机构”补充组织节点。"
             />
           </Form.Item>
           <Form.Item name="callbackWebhookId" label="回调通道">
@@ -1768,7 +1948,7 @@ export default function AdapterHub() {
               showSearch
               optionFilterProp="label"
               placeholder="可选，选择已配置回调通道"
-              options={webhooks.map((item) => ({
+              options={visibleWebhooks.map((item) => ({
                 value: item.webhookId,
                 label: `${item.name} · ${customerEnumLabel(item.status)}`,
               }))}
@@ -1782,34 +1962,79 @@ export default function AdapterHub() {
 }
 
 function FieldMappingPanel({ items }: { items: AdapterHubSourceStatus[] }) {
+  const columns: ColumnsType<AdapterHubSourceStatus> = [
+    {
+      title: "接入来源",
+      key: "name",
+      render: (_, item) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{item.name}</Text>
+          <Text type="secondary">{item.protocolType}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "健康状态",
+      dataIndex: "healthStatus",
+      key: "healthStatus",
+      width: 120,
+      render: (value) => healthTag(String(value)),
+    },
+    {
+      title: "映射字段",
+      dataIndex: "mappedFieldCount",
+      key: "mappedFieldCount",
+      width: 110,
+    },
+    {
+      title: "最近健康检查",
+      dataIndex: "lastHeartbeatAt",
+      key: "lastHeartbeatAt",
+      width: 170,
+      render: (value) => <Text type="secondary">{formatClinicalDateTime(value, "暂无")}</Text>,
+    },
+    {
+      title: "接入缺口",
+      key: "gaps",
+      render: (_, item) =>
+        item.gaps.length === 0 ? (
+          <Text type="secondary">无缺口</Text>
+        ) : (
+          <Space direction="vertical" size={0} className="mk-full-width">
+            {item.gaps.slice(0, 2).map((gap) => (
+              <Text key={gap}>{gap}</Text>
+            ))}
+            {item.gaps.length > 2 && (
+              <Text type="secondary">另有 {item.gaps.length - 2} 项缺口</Text>
+            )}
+          </Space>
+        ),
+    },
+  ];
+
   return (
     <Card title="字段映射与缺口" className={styles.sectionCard}>
       {items.length === 0 ? (
         <Text type="secondary">暂无字段映射来源状态。</Text>
       ) : (
-        <Space direction="vertical" size="middle" className="mk-full-width">
-          {items.map((item) => (
-            <Descriptions key={item.adapterId} bordered size="small" column={2}>
-              <Descriptions.Item label="适配器">{item.name}</Descriptions.Item>
-              <Descriptions.Item label="状态">{healthTag(item.healthStatus)}</Descriptions.Item>
-              <Descriptions.Item label="映射字段">{item.mappedFieldCount}</Descriptions.Item>
-              <Descriptions.Item label="最近探活">
-                {item.lastHeartbeatAt ? new Date(item.lastHeartbeatAt).toLocaleString() : "暂无"}
-              </Descriptions.Item>
-              <Descriptions.Item label="缺口" span={2}>
-                {item.gaps.length === 0 ? (
-                  <Text type="secondary">无</Text>
-                ) : (
-                  <ul className={styles.gapList}>
-                    {item.gaps.map((gap) => (
-                      <li key={gap}>{gap}</li>
-                    ))}
-                  </ul>
-                )}
-              </Descriptions.Item>
-            </Descriptions>
-          ))}
-        </Space>
+        <Table
+          rowKey="adapterId"
+          columns={columns}
+          dataSource={items}
+          size="small"
+          tableLayout="fixed"
+          pagination={
+            items.length > FIELD_MAPPING_PAGE_SIZE
+              ? {
+                  pageSize: FIELD_MAPPING_PAGE_SIZE,
+                  showSizeChanger: false,
+                  showTotal: (total, range) =>
+                    `共 ${total} 个接入来源，当前显示 ${range[0]}-${range[1]} 个`,
+                }
+              : false
+          }
+          scroll={{ x: 760 }}
+        />
       )}
     </Card>
   );
@@ -1823,7 +2048,7 @@ function RequiredSourcesPanel({ items }: { items: AdapterHubRequiredSourceStatus
       ) : (
         <div className={styles.requiredSourceGrid}>
           {items.map((item) => (
-            <div key={item.sourceSystem} className={styles.requiredSourceItem}>
+            <div key={item.systemFamilyCode} className={styles.requiredSourceItem}>
               <Space direction="vertical" size="small" className="mk-full-width">
                 <Space wrap>
                   <Text strong>{item.label}</Text>
@@ -1865,20 +2090,39 @@ function DataContractPanel({
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
   const fieldColumns: ColumnsType<IntegrationDataContractResponse["fields"][number]> = [
-    { title: "标准字段", dataIndex: "fieldPath", key: "fieldPath", width: 180 },
+    {
+      title: "字段名称",
+      dataIndex: "displayName",
+      key: "displayName",
+      width: "42%",
+      render: (_value, field) => (
+        <Space direction="vertical" size={0} className={styles.contractFieldCell}>
+          <Text strong>{field.displayName}</Text>
+          {evidenceDetailsEnabled && (
+            <Text type="secondary" className={styles.contractFieldCode}>
+              {field.fieldPath}
+            </Text>
+          )}
+        </Space>
+      ),
+    },
     {
       title: "接入字段",
       key: "payload",
-      width: 160,
-      render: (_value, field) => `${field.payloadKey}.${field.propertyName}`,
+      width: "36%",
+      render: (_value, field) => (
+        <Text className={evidenceDetailsEnabled ? styles.contractFieldCode : undefined}>
+          {evidenceDetailsEnabled
+            ? `${field.payloadKey}.${field.propertyName}`
+            : contractFieldAccessText(field)}
+        </Text>
+      ),
     },
-    { title: "字段结构", dataIndex: "jsonSchemaType", key: "jsonSchemaType", width: 96 },
-    { title: "类型", dataIndex: "dataType", key: "dataType", width: 96 },
     {
-      title: "接入",
+      title: "接入要求",
       dataIndex: "externalWritable",
       key: "externalWritable",
-      width: 112,
+      width: 96,
       render: (externalWritable: boolean, field) =>
         externalWritable ? (
           <Tag color={field.required ? "red" : "green"}>{field.required ? "必传" : "可接入"}</Tag>
@@ -1886,7 +2130,6 @@ function DataContractPanel({
           <Tag color="orange">派生不可写</Tag>
         ),
     },
-    { title: "说明", dataIndex: "description", key: "description" },
   ];
   return (
     <Card title="数据接入契约" className={styles.sectionCard}>
@@ -1914,12 +2157,52 @@ function DataContractPanel({
                 : "字段要求由当前机构生效版本自动确定"}
             </Text>
             <Table
+              className={styles.contractTable}
               rowKey="fieldPath"
               dataSource={contract.fields}
               columns={fieldColumns}
               pagination={{ pageSize: 6, hideOnSinglePage: true }}
               size="small"
-              scroll={{ x: 860 }}
+              tableLayout="fixed"
+              expandable={{
+                expandedRowRender: (field) => (
+                  <Descriptions
+                    className={styles.contractFieldDetails}
+                    size="small"
+                    column={1}
+                    items={[
+                      {
+                        key: "resource",
+                        label: "资源",
+                        children: evidenceDetailsEnabled
+                          ? field.resourceType
+                          : contractResourceLabel(field.resourceType),
+                      },
+                      {
+                        key: "schema",
+                        label: evidenceDetailsEnabled ? "字段结构" : "接入结构",
+                        children: evidenceDetailsEnabled
+                          ? field.jsonSchemaType
+                          : contractFieldStructureText(field),
+                      },
+                      {
+                        key: "type",
+                        label: evidenceDetailsEnabled ? "数据类型" : "数据口径",
+                        children: evidenceDetailsEnabled
+                          ? field.dataType
+                          : contractFieldDataText(field),
+                      },
+                      {
+                        key: "unit",
+                        label: "单位/字典",
+                        children:
+                          [field.unit, field.codeSystem].filter(Boolean).join(" / ") || "无",
+                      },
+                      { key: "description", label: "说明", children: field.description },
+                    ]}
+                  />
+                ),
+              }}
             />
           </Space>
         ) : (
@@ -1939,8 +2222,16 @@ function QualityReportCard({
   report: DataQualityReport;
   evidenceDetailsEnabled: boolean;
 }) {
+  const action = buildQualityReportAction(report, evidenceDetailsEnabled);
+  const gapSummary = qualityGapSummaryText(report.gapSummary, evidenceDetailsEnabled);
   return (
     <Card title="数据质量报告" className={styles.sectionCard}>
+      <Alert
+        type={action.blocking ? "warning" : "success"}
+        showIcon
+        message={action.message}
+        description={action.description}
+      />
       <div className={styles.qualityGrid}>
         <MetricCard title="必填率" value={report.requiredFieldRate} suffix="%" />
         <MetricCard title="映射率" value={report.mappingRate} suffix="%" />
@@ -1956,11 +2247,44 @@ function QualityReportCard({
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
         <Descriptions.Item label="缺口摘要" span={2}>
-          {report.gapSummary}
+          {gapSummary}
         </Descriptions.Item>
       </Descriptions>
     </Card>
   );
+}
+
+function buildQualityReportAction(report: DataQualityReport, evidenceDetailsEnabled: boolean) {
+  const blocking =
+    report.notConnectedCount > 0 ||
+    report.misconfiguredCount > 0 ||
+    report.requiredFieldRate < 100 ||
+    report.mappingRate < 100 ||
+    report.timelinessRate < 100;
+  if (!blocking) {
+    return {
+      blocking,
+      message: "上线判断：可继续接入验收",
+      description: "当前报告未发现断连、配置非法、字段映射或时效缺口，可进入接入验收和证据归档。",
+    };
+  }
+
+  const blockers = [];
+  if (report.notConnectedCount > 0) blockers.push(`${report.notConnectedCount} 个断连接入`);
+  if (report.misconfiguredCount > 0) blockers.push(`${report.misconfiguredCount} 个配置非法接入`);
+  const firstStep = blockers.length > 0 ? `先处理 ${blockers.join("、")}` : "先补齐数据质量缺口";
+  const gapText =
+    report.mappingRate < 100
+      ? "再补齐字段映射缺口，并核对必填字段和时效要求"
+      : "再核对必填字段和时效要求";
+  return {
+    blocking,
+    message: "上线判断：暂缓上线",
+    description: `${firstStep}，${gapText}。报告缺口：${qualityGapSummaryText(
+      report.gapSummary,
+      evidenceDetailsEnabled,
+    )}`,
+  };
 }
 
 function MetricCard({ title, value, suffix }: { title: string; value: number; suffix?: string }) {

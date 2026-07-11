@@ -402,6 +402,15 @@ describe("PatientPathways", () => {
     expect(screen.queryByText("enc-1")).not.toBeInTheDocument();
   });
 
+  it("associates the patient pathway list filter with its visible label", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.type(screen.getByLabelText("患者检索"), "mpi-1");
+
+    expect(screen.getByLabelText("患者检索")).toHaveValue("mpi-1");
+  });
+
   it("loads only runtime-release pathway candidates for the selected snapshot", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
@@ -412,6 +421,23 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
 
     expect(mockUsePathwayEntryCandidates).toHaveBeenLastCalledWith("ctx-active-1", "patient-view");
+    expect(
+      await screen.findByText("已读取 1 条当前机构生效候选路径，确认后才会入径。"),
+    ).toBeInTheDocument();
+  });
+
+  it("associates entry modal patient and encounter controls with visible labels", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("button", { name: /办理患者入径/ }));
+    const dialog = screen.getByRole("dialog", { name: "办理患者临床路径准入" });
+
+    await user.type(within(dialog).getByLabelText("患者信息"), "mpi-1");
+    await user.type(within(dialog).getByLabelText("就诊信息"), "enc-1");
+
+    expect(within(dialog).getByLabelText("患者信息")).toHaveValue("mpi-1");
+    expect(within(dialog).getByLabelText("就诊信息")).toHaveValue("enc-1");
   });
 
   it("enters a pathway from an ACTIVE context snapshot without manual patient identifiers", async () => {
@@ -427,8 +453,13 @@ describe("PatientPathways", () => {
     await user.type(patientInputs[patientInputs.length - 1], "mpi-1");
     await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
     await user.click(screen.getByRole("combobox", { name: "选择当前运行候选路径" }));
+    expect(
+      await screen.findByRole("option", { name: "卒中急诊路径 · STROKE" }),
+    ).toBeInTheDocument();
     await user.click(await screen.findByText("卒中急诊路径 · STROKE"));
-    expect(screen.getByText("候选来自当前机构生效版本，确认后才会入径。")).toBeInTheDocument();
+    expect(
+      screen.getByText("已读取 1 条当前机构生效候选路径，确认后才会入径。"),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
 
     await waitFor(() => {
@@ -451,7 +482,7 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
 
     expect(mockUsePatientPathwayDetail).toHaveBeenCalledWith("pp-real-1");
-    expect(screen.getByText("患者路径推进与解释追溯")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "患者路径推进与解释追溯" })).toBeInTheDocument();
     expect(screen.queryByText("clock-1")).not.toBeInTheDocument();
     expect(screen.queryByText(/STROKE.TIME_TO_CT/)).not.toBeInTheDocument();
     expect(screen.getByText("急诊 / 第 0 天")).toBeInTheDocument();
@@ -460,13 +491,31 @@ describe("PatientPathways", () => {
     expect(screen.getAllByText("已超时").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/质控记录/).length).toBeGreaterThan(0);
     expect(screen.getByRole("columnheader", { name: "结局指标身份" })).toBeInTheDocument();
+    expect(screen.getAllByText("全路径").length).toBeGreaterThan(0);
+    expect(screen.queryByText("全模板")).not.toBeInTheDocument();
+    expect(screen.getByText(/系统会按临床路径出边计算下一步/)).toBeInTheDocument();
+    expect(screen.queryByText(/系统会按模板出边/)).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "指标编码" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("2026年06月04日 08:00").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/6\/4\/2026/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看变异事实与审计线索/ }));
 
     expect(refetchVariances).toHaveBeenCalled();
     expect(screen.queryByText("var-1")).not.toBeInTheDocument();
     expect(screen.getByText("影像检查发现高危指征")).toBeInTheDocument();
+    expect(screen.getByText("2026年06月04日 09:00")).toBeInTheDocument();
+  });
+
+  it("uses evaluation indicator wording for pathway clock evidence", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
+
+    expect(screen.getByText("关联评价指标: STROKE.TIME_TO_CT")).toBeInTheDocument();
+    expect(screen.queryByText(/关联质控指标/)).not.toBeInTheDocument();
   });
 
   it("shows the full pathway graph as a doctor read-only view with the current node highlighted", async () => {

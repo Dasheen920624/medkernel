@@ -102,6 +102,18 @@ class StandardClinicalModelRepositoryTest {
         assertThat(patients.findByTenantIdAndPatientId("tenant-B", tenantAPatient.patientId())).isEmpty();
     }
 
+    @Test
+    void claimInsertCreatesAssignedBusinessIdInsteadOfUpdating() {
+        String patientId = patients.save(patient("tenant-A", null, "SRC-CLAIM-PATIENT")).patientId();
+        ClinicalClaim frontdeskClaim = claim("tenant-A", "claim-frontdesk-assigned", patientId);
+
+        claims.insert(frontdeskClaim);
+
+        assertThat(claims.findByTenantIdAndPatientId("tenant-A", patientId))
+            .extracting(ClinicalClaim::claimId)
+            .containsExactly("claim-frontdesk-assigned");
+    }
+
     private ClinicalPatient patient(String tenantId, String patientId, String sourceId) {
         Instant now = Instant.parse("2026-06-01T00:00:00Z");
         return new ClinicalPatient(patientId, tenantId, "/platform/group/hospital/dept", "HIS", sourceId,

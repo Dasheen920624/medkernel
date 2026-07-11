@@ -13,6 +13,7 @@ public record IntegrationOnboardingCreateRequest(
     @NotBlank @Pattern(regexp = "ADAPTER|FHIR") String accessMode,
     @Size(max = 64) String adapterId,
     @Size(max = 16) String fhirVersion,
+    @NotBlank @Size(max = 64) String systemFamilyCode,
     @NotBlank @Size(max = 128) String sourceSystem,
     @NotBlank @Size(max = 256) String businessScenario,
     @NotBlank @Size(max = 512) String orgPath,

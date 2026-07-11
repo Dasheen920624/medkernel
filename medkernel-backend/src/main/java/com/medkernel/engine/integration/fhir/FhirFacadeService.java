@@ -276,14 +276,14 @@ public class FhirFacadeService {
             adapter.adapterId(),
             adapter.name(),
             PROTOCOL_FHIR,
-            "FHIR " + resourceType + " create 已回流标准引擎并登记外部补偿",
+            "FHIR " + resourceType + " create 已回流标准临床事件链路并登记外部补偿",
             outboundPayload(saved, mapping, command),
             3
         ));
 
         ObjectNode body = outcome(merge(mapped.issues(), new FhirOperationOutcomeIssue(
             "information", "informational",
-            "FHIR " + resourceType + " 已保存为标准资源并进入临床事件引擎；总线状态 " + outbound.status())));
+            "FHIR " + resourceType + " 已保存为标准资源并进入临床事件协同链路；总线状态 " + outbound.status())));
         body.put("canonicalResourceId", String.valueOf(saved.id()));
         body.put("fhirMappingId", String.valueOf(mapping.id()));
         body.put("integrationStatus", outbound.status());

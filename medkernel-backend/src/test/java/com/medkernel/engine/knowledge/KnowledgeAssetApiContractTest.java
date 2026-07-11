@@ -220,6 +220,20 @@ class KnowledgeAssetApiContractTest {
     }
 
     @Test
+    void sourceVersionFragmentsRouteReturnsParsedFragmentReadback() throws Exception {
+        when(identityService.listSourceVersionFragments(8L)).thenReturn(List.of(sourceFragment()));
+
+        mvc.perform(get("/api/v1/engine/knowledge/sources/versions/8/fragments")
+                .with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].id").value(20))
+            .andExpect(jsonPath("$.data[0].sourceVersionId").value(8))
+            .andExpect(jsonPath("$.data[0].anchorPath").value("section-3.2.1"))
+            .andExpect(jsonPath("$.data[0].textExcerpt").value("用于符合适应证的患者。"))
+            .andExpect(jsonPath("$.data[0].contentHash").value("fragment-hash"));
+    }
+
+    @Test
     void provenanceRouteReturnsExactSourceChainInsteadOfAuditSnapshot() throws Exception {
         when(identityService.getProvenance(eq(1L), any())).thenReturn(provenance());
 
@@ -493,6 +507,19 @@ class KnowledgeAssetApiContractTest {
             "A 法规 · 主证据",
             "按可信分级、来源发布时间和适用域精确度排序",
             null
+        );
+    }
+
+    private static SourceFragment sourceFragment() {
+        return new SourceFragment(
+            20L,
+            "t-1",
+            8L,
+            "section-3.2.1",
+            "适应证",
+            "用于符合适应证的患者。",
+            "fragment-hash",
+            Instant.parse("2026-01-01T00:00:00Z")
         );
     }
 

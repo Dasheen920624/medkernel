@@ -3,6 +3,8 @@ package com.medkernel.engine.safety;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -24,6 +26,7 @@ import com.medkernel.engine.recommendation.RecommendationSourceRequest;
 import com.medkernel.engine.recommendation.RecommendationSourceType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.PlatformTenant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -67,6 +70,20 @@ class ClinicalSafetyGuardTest {
     }
 
     @Test
+    void recommendationSourceUsesCitationSourceTenantForPlatformKnowledge() {
+        when(versions.findByTenantIdAndId(PlatformTenant.ID, 5L))
+            .thenReturn(Optional.of(version(5L, PlatformTenant.ID, KnowledgeVersionStatus.ACTIVE)));
+
+        assertThatCode(() -> guard.assertRecommendationSourcesAllowed("tenant-A", List.of(
+                new RecommendationSourceRequest(
+                    RecommendationSourceType.KNOWLEDGE, "LAB.POTASSIUM", "v1", "血钾检验说明书",
+                    "knowledge_version:" + PlatformTenant.ID + ":5", "sha256:source", "平台知识命中"))))
+            .doesNotThrowAnyException();
+        verify(versions).findByTenantIdAndId(PlatformTenant.ID, 5L);
+        verify(versions, never()).findByTenantIdAndId("tenant-A", 5L);
+    }
+
+    @Test
     void pathwayTemplateRejectsWithdrawnKnowledgeSourceRef() {
         when(versions.findByTenantIdAndId("tenant-A", 5L))
             .thenReturn(Optional.of(version(5L, KnowledgeVersionStatus.WITHDRAWN)));
@@ -77,12 +94,16 @@ class ClinicalSafetyGuardTest {
     }
 
     private KnowledgeAssetVersion version(Long versionId, KnowledgeVersionStatus status) {
+        return version(versionId, "tenant-A", status);
+    }
+
+    private KnowledgeAssetVersion version(Long versionId, String tenantId, KnowledgeVersionStatus status) {
         Instant now = Instant.now();
         return new KnowledgeAssetVersion(
-            versionId, "tenant-A", 1L, "v1", "抗凝禁忌指南", 1L, 1L, "sha256:version",
+            versionId, tenantId, 1L, "v1", "抗凝禁忌指南", 1L, 1L, "sha256:version",
             "anchors", status, KnowledgeRiskLevel.HIGH, SourceAuthorityLevel.B_GUIDELINE,
             GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.STRONG, null,
-            "tenant:tenant-A", "ALL", status == KnowledgeVersionStatus.ACTIVE ? "1|tenant:tenant-A|ALL" : "version:" + versionId,
+            "tenant:" + tenantId, "ALL", status == KnowledgeVersionStatus.ACTIVE ? "1|tenant:" + tenantId + "|ALL" : "version:" + versionId,
             now.minusSeconds(3600), now.plusSeconds(3600), "reviewer", now.minusSeconds(1800),
             status == KnowledgeVersionStatus.ACTIVE ? now.minusSeconds(1200) : null,
             null, status == KnowledgeVersionStatus.WITHDRAWN ? now.minusSeconds(60) : null,

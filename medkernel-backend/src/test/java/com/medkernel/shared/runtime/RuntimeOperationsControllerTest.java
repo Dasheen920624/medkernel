@@ -102,7 +102,7 @@ class RuntimeOperationsControllerTest {
         mvc.perform(get("/api/v1/system/operations/domestic-report"))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith("text/plain"))
-            .andExpect(content().string(containsString("MedKernel 国产化自检报告")))
+            .andExpect(content().string(containsString("MedKernel 国产化适配自检报告")))
             .andExpect(content().string(containsString("国产浏览器")))
             .andExpect(content().string(containsString("不标记通过")))
             .andExpect(content().string(not(containsString("password"))))

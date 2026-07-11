@@ -1,147 +1,58 @@
 # 会话接力
 
 > 开工先读本文件。这里只保留当前可执行事实；产品范围见
-> [PRODUCT_SCOPE](PRODUCT_SCOPE.md)，历史过程使用 Git 追溯，不在当前工作树保留第二套事实源。
+> [PRODUCT_SCOPE](PRODUCT_SCOPE.md)，实施契约见当前 OpenSpec。历史过程使用 Git 追溯，不在当前工作树保留第二套事实源。
 
-## 当前主线
+## 当前唯一主线
 
-- 当前分支：`codex/golive-platform-unification`。
-- 最新远端基线：`origin/main` / `main` 为
-  `9d19fb317f8c51f8de6db70c59a01acab6ade02c`（`更新远端主线合并接力`）。
-- 当前本地候选：`228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`
-  （`完善全角色上线演练与真实页面能力`），包含本轮功能、契约、E2E、部署验收脚本和接力文档改动。
-- 当前用户约束：不使用子代理；只做本地提交；不推送远程；不合并 `main`。
-- `.codex/config.toml` 为未跟踪本地配置，不提交。
+- OpenSpec 变更：`converge-full-launch-and-knowledge-platform`，schema 为 `spec-driven`。
+- 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`；实施分支：`codex/launch-convergence`。
+- 固定输入锚点：`sourceBaseCommit=7217504ce82e1aa119c3402e3b5d054f9369e018`；该提交不是 RC，禁止直接提升。
+- 原 `candidateCommit=d4514938e6ba7d6f0d09eb736a0c66ab72863b07` 及其 run-id `rc0-20260710T155756Z-d4514938e` 已作废，禁止推送、提升或复用其 `PROMOTABLE` 结论和制品摘要。
+- 试运行候选 `b81f2e9b84a7874e89485ce32ff2b9238e60b32a` 已作废：clean 后端测试本身退出 0，但无 Docker/未开启专项容量环境的 3 组条件套件生成 7 条 skipped，独立验证器按合同正确拒绝；其 checkout、bundle、run 只能保留作失败诊断，禁止提升或复用。
+- 试运行候选 `c369a4be2c842820bac4872538cae068c308b712` 已作废：clean 后端门禁全绿，Playwright 两项目实际 `expected=114, unexpected=0, flaky=0, skipped=0`，但同步 E2E 子进程阻塞事件循环约 33 分钟后，`AFTER_E2E` 单次 fetch 返回 `fetch failed`；后端当时仍存活并随后由运行器优雅停止，该现象与长阻塞后的陈旧连接复用一致，但旧错误包装已丢失底层 cause，不能把推断冒充已观测错误码。其 checkout、bundle、run 和通过报告只能用于根因诊断，禁止提升、复制或拼接到新候选。
+- 试运行候选 `6b72c7bf4dbcd5ed40d6e2422e2c368338ac7451` 已作废：首次 detached clean 运行被桌面长任务续接机制终止前台 PTY，未形成最终清单；随后 one-shot LaunchAgent 误设 `ProcessType=Background`，后端全测从前台约 4 分钟被宿主 QoS 限速至约 25 分钟，并在已成功导出 10 万条数据后触发 `KnowledgeExportServiceLargeScaleTest` 的墙钟断言（实际 56 秒，要求小于 30 秒）。该失败同时暴露四处 10 万级墙钟合同漏标 `performance`，因此该候选及全部运行根目录只作诊断，禁止提升或复用。
+- 试运行候选 `118969301fe03f03278877c8c23ef5def2544255` 已作废：r4 起跑后发现旧作废运行残留的 `embed-business-host-server` 占用 4174，Playwright 正确拒绝端口污染；清理残留后建立的全新 r5 由本轮进程独占 4174/5173/28086，后端 clean 门禁实际 `tests=3175, failures=0, errors=0, skipped=0`，真实 Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`。但 RC 解析器的单测夹具错误地把 Playwright 官方 JSON 中可选的叶子 `suites` 字段假定为必填数组，因而在 E2E 全绿后报“Playwright suite 结构非法”；r5 未生成完整九门禁、六制品清单，仍不得提升、复制或拼接证据。
+- 试运行候选 `88a1663777260e66c325588c3ce1948a03700c9f` 已作废：r6 因操作者把合同要求的“预先存在且为空” bundle/run 根目录误设为不存在，在执行任何门禁前被总控拒绝；使用全新根目录、run-id 和端口重建的 r7 完整通过九类门禁，其中后端为 519 份报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 114/114，CLI、五方言数据库、部署、格式/OpenSpec、前端 verify/build、MCP、T-GATE 均退出 0。r7 随后构建出前五类制品，但 `ONPREM_DELIVERY` 校验器错误地用规范化 LF 的 Git raw blob 比较 `.gitattributes` 要求导出为 BOM+CRLF 的 `mk-publish.ps1`，在实际 tar、构建暂存源和 `git archive` 三者字节一致时误拒；未形成六制品清单，r6/r7 全部证据仍禁止提升或拼接。
+- 试运行候选 `2e60d2a9fa47917d73157153b7fc7c377cb9b742` 已作废：r8 从 detached clean checkout 按锁文件重建依赖，完整通过九类门禁并构建六类制品；后端为 519 份报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 114/114，前端为 116 文件、2210 项测试全绿且生产构建成功。但运行器与终态清单各维护一套 Playwright 结构解析器，终态副本仍把叶子 suite 的可选 `suites` 当必填；继续诊断又确认终态日志解析器写死旧 `#` 前缀且未处理 Vitest 原生 ANSI SGR 显示码。原始运行因此未生成终态清单，r8 checkout、bundle、run 和全部通过证据永久禁止提升、复制或拼接；修复后的代码对完整 r8 bundle 成功执行诊断性 `CREATED` 与 `VERIFIED`，仅证明根因和证据完整性，不改变 r8 作废状态。
+- 候选 `6bd805b3c40e68b95efeeb2e07e7eefe07ef3f96`（r9）已作废：本地 clean RC0 的九类门禁、六类制品、复制复验和篡改拒绝均真实通过，但 PR #654 的 required CI 运行 `29153747137` 在前端全量覆盖率中暴露两个测试时序合同不稳定点；按“测试有任何变化即形成新候选并完整重跑”的规则，r9 不再可提升。其原始 bundle `/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-6bd805b3c-r9/bundle`、复制件和诊断副本仅保留作根因与完整性证据，禁止发布、部署、拼接或复用 `PROMOTABLE/VERIFIED` 结论。
+- 当前唯一可提升 RC0 为冻结候选 `7674532fdb4f3db8373bb996369cfc1fe359c553`，run-id `rc0-20260711T132737Z-7674532fd-r10`，来源锚点仍为 `7217504ce82e1aa119c3402e3b5d054f9369e018`。它从 detached clean checkout 按锁文件重建依赖，九类门禁、六类制品和候选内独立验证器均真实通过；原始 bundle 位于 `/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-7674532fd-r10/bundle`。PR #654 的同候选 required CI 运行 `29154337443` 为 8/8 success。候选代码、测试与发布合同已冻结；后续证据文档提交不是新候选，不得用其提交哈希替代该 candidateCommit。
+- 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍有用户改动；不得回滚、暂存、清理或污染。
 
-## 当前目标闭环结论
+## 旧 RC0 作废原因
 
-- 本轮已完成 MedKernel 全新项目上线级整体梳理与落地：统一平台权威版本与全链路能力，补齐全角色真实页面表达，
-  同步统一迁移生成与全系统演练覆盖矩阵，并完成代码、契约、前后端、文档、测试、构建核查。
-- 134 已按本地候选 `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d` 清库重新部署，并完成全功能、全知识、
-  全流程、全角色真实演练闭环。不要再把旧“134 未更新/未复演”或旧 `9d19fb3` 证据当作当前事实。
-- 远端仍未推送、未合并 `main`；本轮只保留本地提交，后续若要进入 PR/合并，必须重新按当前约束确认。
+1. `ClinicalRuntimeReleaseService` 曾允许当前机构版本里的 `WITHDRAWN` 医疗资产进入新的机构生效版本，违反 `CONSTITUTION §3`“撤回阻止危险或错误版本进入新的机构生效版本；历史证据仍可重放”的红线。
+2. 旧 RC 验证器只校验自报 `PASSED` 的摘要 JSON 和任意文件哈希，没有独立解析原始执行结果、退出码、依赖重建和制品格式/来源。删除原始日志与报告后仍可返回 `VERIFIED`，普通文本也可冒充 JAR/TAR 制品。
+3. 因候选代码和证据契约都将变化，旧候选的九类门禁日志只能作为诊断材料，不能作为发布证据；不得在新清单里继承其状态或摘要。
 
-## 本轮落地结论
+## 当前实施状态
 
-- 已生成候选制品并在 134 清库部署：
-  - 主机：`193.112.107.134`，hostname：`VM-0-13-opencloudos`。
-  - manifest：`/zoesoft/medkernel/manifest.properties`。
-  - `source=228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`。
-  - `commit=228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`。
-  - `deployedAt=2026-06-29T15:37:16+08:00`。
-  - `jarSha256=e420ffac8c3ff791ebd02913500982826e87486031d2253aef46fba54137cd0c`。
-- 清库部署后数据库验证：
-  - public base tables：`208`（207 业务表 + `flyway_schema_history`）。
-  - 业务表数：`207`。
-  - Flyway 成功版本：`1`。
-  - 服务 `active=active` / `enabled=enabled`，readiness HTTP 200 / `{"status":"UP"}`。
-- 清库备份：
-  - fresh pre-clear 备份：`/zoesoft/medkernel/backups/fresh-preclear-228b16a8d8da-20260629-153700`。
-  - 发布后验收隔离恢复备份：`/zoesoft/medkernel/backups/launch-acceptance-228b16a8d8da-20260629-161442`。
-- TLS：本轮使用 `/zoesoft/medkernel/nginx/ssl/server.crt` 作为可信 SAN 证书校验根；
-  远端命令需带 `MEDKERNEL_TLS_CA_FILE=/zoesoft/medkernel/nginx/ssl/server.crt`。
-  Playwright/Node 只追加 `NODE_EXTRA_CA_CERTS=/zoesoft/medkernel/nginx/ssl/server.crt`，不要用
-  `SSL_CERT_FILE` 覆盖系统 CA。
-- 模型提供方：`ollama-launch`，类型 `OLLAMA`，端点 `http://127.0.0.1:11434`，
-  模型版本 `medkernel-qwen25:1.5b-v1`。
+- 前后端 `WITHDRAWN` 穿透已按 TDD 修复：平台标准发布、机构激活、历史回滚和离线恢复会在事务内按稳定顺序锁定精确版本账本行，重新核对租户、层级、类型、身份、版次、内容摘要和状态；撤回版本只能保留历史重放，不能进入任何新版本。前端只允许本次查询确认的 `DRAFT/PUBLISHED` 候选进入评估和提交。
+- 候选后端 JAR 内嵌 `META-INF/medkernel-build.json`，公开 ping 只从制品资源解析完整提交；RC 浏览器门禁同时保存 readiness 与运行时身份原始响应，拒绝误连任意返回 `UP` 的旧服务。
+- RC schema v2、六制品构建器和无人工中间门的运行器已实现：全新检出按锁文件重建依赖，执行九类门禁，直接解析 Surefire/Playwright/T-GATE 原始输出，构建并核验六类候选制品，绑定运行标识、完整提交、时间窗、命令、退出码、来源树、逐文件摘要和内嵌元数据；复制、删除、篡改、越界、符号链接、旧 schema、伪制品和工作区残留攻击均有拒绝用例。
+- clean RC0 首次真实执行暴露并确认了专项环境边界：普通后端 clean 门禁显式排除 `docker,performance` 标签，机器可读计划声明这些套件必须在后续 PostgreSQL 16/openEuler 目标环境和 10 万级容量门禁中独立完成；实际生成的 Surefire 报告仍严格要求零 skipped。定向 Maven 验证仅执行未标记的 H2 方言测试，报告 `tests=1, failures=0, errors=0, skipped=0`。
+- RC 机器计划现显式枚举五个 10 万级墙钟套件；起跑前扫描全部 Java 测试并拒绝漏登记、漏类级或方法级 `performance` 标签。三个纯容量类使用类级标签，`KnowledgeIdentityRepositoryTest` 只标记单个 10 万级方法，保留其余普通仓储回归；定向 Maven 排除验证实际执行 `tests=7, failures=0, errors=0, skipped=0`，三个纯容量类未生成 Surefire 报告。
+- Playwright 原始报告解析器现遵守仓内锁定版本官方 `JSONReportSuite` 契约：`specs` 必须为数组，叶子 suite 可省略可选的嵌套 `suites`，但显式非数组值仍立即拒绝。修复测试先以真实叶子结构稳定复现旧误拒，再转绿；新解析器直接重算已作废 r5 的原始 JSON，得到两个项目各 57/57、合计 114/114，仅用于证明解析根因，不把旧运行提升为 RC。
+- 运行器与终态清单现调用同一共享 Playwright suite/spec 结构解析器，消除两份契约独立漂移。终态日志解析器按锁定 Node 24 同时接受 TAP/spec reporter 的 `#` 与 `ℹ` 计数前缀，并仅剥离标准 ANSI SGR 显示码后核验原始语义；计数不一致、真实失败、缺构建标记和畸形结构的反例仍全部拒绝。
+- 候选制品来源校验现按同一候选提交的 `git archive` 导出字节逐文件重算，保留 `.gitattributes` 的确定性 EOL/导出语义后再与 tar 比较，不以文本归一化或跳过校验放行。测试夹具显式证明 PowerShell raw blob 为 LF、交付包为 CRLF，并继续拒绝任何非候选来源或字节篡改。
+- 候选运行探针已改为每次显式短连接，并仅对带 `RUNTIME_PROBE_TRANSPORT`/网络错误码的瞬断做最多 30 秒条件重试；每次尝试仍须完整通过 readiness 和 JAR 内嵌提交身份。身份错配、响应结构或内容错误立即失败，持续瞬断会保留完整 cause/code 后阻断，不能把不稳定运行时伪报为通过。
+- r9 的本地真实结果仍是后端 519 份 Surefire 报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`，九类门禁与六类制品完整；这些事实只用于诊断验证器和运行链，不能抵消远端 required CI 失败，也不能提升 r9。运行结束后 LaunchAgent 已卸载，4174/5173/28090 无监听。
+- r10 后端生成 519 份 Surefire 报告、3175 项测试，失败/错误/跳过均为 0；Browser E2E 的 Chromium 与国产 Chromium 模拟各 57/57，合计 `expected=114, unexpected=0, flaky=0, skipped=0`，且 E2E 前后 readiness 与 JAR 内嵌完整提交均匹配。CLI、五方言数据库、部署合同、格式/OpenSpec、前端 verify/build、MCP、T-GATE 其余门禁均退出 0；六类制品为后端 JAR、CLI 包、五方言迁移包、前端静态包、MCP 包和院内离线交付包。运行结束后 LaunchAgent `com.medkernel.rc0.7674532fd.r10` 已卸载，4174/5173/28091 均无监听，checkout 保持 clean。
+- r10 完整 bundle 已复制至 `/Users/zhikunzheng/.medkernel-rc0-verification/7674532fd-r10-copy` 并由候选内验证器独立返回 `VERIFIED`。原包、复制件和恢复后的篡改验证副本各有 567 个文件、0 个符号链接，按逐文件 SHA-256 排序聚合后的摘要均为 `bf84dc649759edfd11cebff2016b6ef3f59c988f2af8a258c88beaab66ccbba3`。验证器分别对缺 `BACKEND_TESTS` 门禁记录、缺其原始日志、缺 Maven 本次解析报告和 CLI 制品摘要漂移返回非零拒绝；每次恢复后重新返回同一 candidateCommit/run-id 的 `VERIFIED`。
+- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（6 完成、199 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
+- 新候选提交一旦冻结，不得再修改其代码、测试或发布合同；任何此类变化都必须再次形成新候选并完整重跑 RC0。证据状态与接力文档可在候选之后单独提交，但不得把文档提交哈希冒充候选。
 
-## 134 证据
+## 下一执行序列
 
-- 统一证据目录：`/zoesoft/medkernel/var/evidence/current-launch`。
-- 八段总证据：`/zoesoft/medkernel/var/evidence/current-launch/full-system.json`：
-  `status=PASSED`，`source=228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`，8 段全部通过。
-  - `account-bootstrap`：9 个账号验证通过。
-  - `model-provider`：`ollama-launch`，3 个评估用例通过。
-  - `platform-baseline`：基线发布与字段目录版本创建通过。
-  - `sandbox`：10 条规则、40 个用例、运行时就绪。
-  - `full-knowledge`：11 个知识域，最终版本 `V2` / `ACTIVE`。
-  - `runtime-resilience`：模型关闭诚实降级，B0 主链路 `17/17`，恢复后 readiness 与模型调用恢复。
-  - `browser-e2e`：Playwright `52 passed`，`unexpected=0`，`flaky=0`。
-  - `launch-coverage`：6 产品层、13 标准患者资源、13 版本资产、11 知识域、41 场景、12 角色视角等全部通过。
-- 全知识证据：`/zoesoft/medkernel/var/evidence/current-launch/full-knowledge.json`：
-  `status=PASSED`，阶段 `FULL_FUNCTION_FULL_KNOWLEDGE`，11 个知识域全部 `ACTIVE`，
-  11 个权威来源校验通过，`requests=220`，V1/V2 回滚与恢复验证通过。
-- 运行韧性证据：`/zoesoft/medkernel/var/evidence/current-launch/runtime-resilience.json`：
-  `status=PASSED`，阶段 `RUNTIME_RESILIENCE_REHEARSAL`，禁用模型 Provider 时 readiness 诚实降级且
-  `MODEL_PROVIDER` 阻断，B0 `evidenceCount=17` / `passedCount=17`，恢复后 Provider/Readiness/模型调用均恢复。
-- 浏览器 E2E 证据：
-  `/zoesoft/medkernel/var/evidence/current-launch/e2e/report/results.json`，
-  Playwright `52 passed (17.2m)`，包含新增全角色真实视角。
-- 独立全角色 E2E 复验：
-  `/zoesoft/medkernel/var/evidence/current-launch/e2e-stakeholder-final/report/results.json`，
-  `expected=1`，`unexpected=0`，`flaky=0`，`skipped=0`，耗时 `59583.751ms`；
-  12 类视角截图与运行记录位于
-  `/zoesoft/medkernel/var/evidence/current-launch/e2e-stakeholder-final/artifacts`。
-- 完整覆盖审计：
-  `/zoesoft/medkernel/var/evidence/current-launch/launch-coverage.json`，
-  `status=PASSED`，覆盖 S0-S40 共 41 项、版本资产 13、标准患者资源 13、交付形态 5、服务组合 7、
-  第三方系统族 13、组织层级 9、专病阶段 10、模型赋能界面 12、全角色视角 12。
-- 发布后独立验收：
-  `/zoesoft/medkernel/var/evidence/current-launch/release-acceptance.properties`：
-  `release_status=PASSED`，`verified_at=2026-06-29T16:14:51+08:00`，
-  `source=228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`，
-  `strict_tls_verified=true`，`full_system_stage_count=8`，
-  `database_restore_status=PASSED`。
-  严格 TLS、八段证据结构、真实重启 readiness、登录、Provider、知识 readiness、关系库持久化、
-  演练后数据库备份与隔离恢复均通过。
+1. 只提交 1.6 完成状态与 r10 证据索引并推送既有 PR #654；不得修改冻结候选 `7674532fdb4f3db8373bb996369cfc1fe359c553` 的代码、测试或发布合同，也不得重打制品。
+2. 等待证据文档提交对应的 required CI 全绿；若任一检查失败，先按真实根因判断是否影响候选。若影响代码、测试或发布合同则立即作废 r10 并形成新候选，不能用文档修饰失败。
+3. CI 全绿后执行 1.7，以 squash 合入 `main`，fetch 后证明 squash commit 是 `origin/main` 祖先；从最新主线建立新的隔离分支，按 `tasks.md` 从 2.1 顺序推进 35 入口、平台知识权威、`.mkp`、16 语义族资源工厂、离线空机安装、openEuler/容量验证与医院复制。
+4. 只在系统、资源包、离线部署和目标环境证据全部稳定后进入 134；134 继续保持只读，最终清库、停机、覆盖部署只申请一次绑定范围的原子确认。
 
-## 本轮代码改动
+## 上线与 134 边界
 
-- `frontend/e2e/stakeholder-view-rehearsal.spec.ts`：
-  新增 12 类真实视角复演，覆盖医生、护士、药师、医技、质控、患者/代理、平台管理员、医疗引擎运营员、
-  审计员、信息科长、实施工程师、院长，验证可通过四职责账号进入真实页面并看到对应业务能力。
-- `scripts/release/full-system-rehearsal-lib.mjs`：
-  覆盖矩阵新增 `stakeholderViews`，并纳入全系统演练和覆盖审计。
-- `scripts/release/full-system-rehearsal.test.mjs`、
-  `scripts/release/launch-coverage-audit.test.mjs`：
-  断言 12 类角色视角覆盖通过。
-- `deploy/onprem/medkernel-post-rehearsal-verify.sh` 与
-  `deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`：
-  发布后验收同步校验 `.coverage.stakeholderViews | allPassed(12)`。
-- `frontend/src/pages/clinical/CdssFatigue.tsx`：
-  补齐医生确认、药师复核/DDI、医技报告解读且不改写报告的真实页面能力表达。
-- `frontend/src/pages/clinical/Followup.tsx`：
-  补齐护士代填、患者自填/报告回收、异常回院等随访闭环表达。
-- `frontend/src/pages/compliance/AdminUsers.tsx`：
-  补齐任职、登录账号、组织范围等平台管理员视角信息。
-- `frontend/src/pages/compliance/AdminAudit.tsx`：
-  补齐审计事件、导出证据、模型外调确认等审计员视角信息。
-- `frontend/e2e/d6-graph-explore.spec.ts`、
-  `frontend/e2e/pathway-graph-editor.spec.ts`、
-  `frontend/e2e/product-role-journeys.spec.ts`、
-  `frontend/e2e/real-frontdesk-rehearsal.spec.ts`：
-  校准当前产品标签、证据详情边界和国产 Chromium 仿真下的稳定等待。
-
-## 本地验证
-
-- 统一迁移生成：`node scripts/db/generate-migrations.mjs --check` 通过。
-- 脚本门禁：
-  `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`
-  通过，138 tests passed。
-- 前端：`npm --prefix frontend run verify` 通过，111 files / 867 tests passed。
-- 前端构建：`npm --prefix frontend run build` 通过。
-- 后端：`mvn -f medkernel-backend/pom.xml test` 通过，3042 tests，0 failures，0 errors，7 skipped
-  （Docker/Testcontainers 不可用相关跳过）。
-- 后端构建：`mvn -f medkernel-backend/pom.xml -Dmaven.test.skip=true clean package` 通过。
-- 统一迁移、中文注释和空白检查：
-  `node scripts/db/generate-migrations.mjs --check`、
-  `bash scripts/check-comment-zh.sh --self-test && bash scripts/check-comment-zh.sh --mode=full`、
-  `git diff --check` 均通过。
-
-## 调试记录
-
-- 初始完整 E2E 红灯：`38 passed / 7 failed / 5 did not run`。
-- 根因：
-  - E2E 仍使用旧技术标签（`适配器标识`、`资产编码`、`节点编码`、`患者主索引 MPI`）。
-  - 图谱脚本期待默认视图展示追踪号，和当前“追踪号只在证据详情中展示”的产品规则冲突。
-  - 职责旅程脚本只等 `networkidle`，国产 Chromium 仿真下目标页仍处加载态。
-- 修复后目标集：`20 passed / 2 failed`，剩余为真实前台值集旧标签。
-- 修复值集/MPI 后，真实前台单独重跑：`2 passed (1.4m)`。
-- 完整回归重跑：`52 passed (17.2m)`，随后独立全角色 E2E 再跑 `1 passed (59.6s)`。
-
-## 下一步
-
-1. 本轮只需保留本地提交，不推送远程、不合并 `main`。
-2. 后续若继续上线工作，先从当前分支和本文件核实，不要回到旧 `930745d5`、旧 `9d19fb3` 或旧“134 未部署/未复演”事实。
-3. 若要进入 PR/合并流程，先重新执行必要门禁并按当时用户约束确认是否允许推送。
-4. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。
+- 开发阶段只运行自动回归，不新增反复人工项目关卡；医疗资源发布仍必须由有资质责任人审核，AI 不自动开嘱。
+- 在系统完整验证稳定前不得部署 134。当前只允许对 134 做已授权的只读核查。
+- 清库、停机、覆盖部署只保留一次最终原子确认；确认必须绑定主机、数据库、目录、候选提交、run-id、备份恢复点和实施窗口。
+- 134 或未来其它服务器可作为平台知识管理源，但院内运行包必须固定版本、可签名校验、可离线安装、可回滚；平台更新不得绕过医院侧审核和机构生效版本。
+- 不使用真实患者数据，不把密钥、凭据、数据库密码、JWT、证书私钥或未脱敏目标机证据写入仓库和日志。

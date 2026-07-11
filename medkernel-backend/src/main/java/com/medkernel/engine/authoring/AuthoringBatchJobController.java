@@ -49,7 +49,7 @@ public class AuthoringBatchJobController {
     }
 
     /**
-     * 通过规则模板和参数表批量生成规则草稿。
+     * 通过基准规则和参数表批量生成规则草稿。
      */
     @PostMapping("/rules/generate")
     @PreAuthorize("@perm.has('rule.write')")

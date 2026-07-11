@@ -5,7 +5,7 @@ package com.medkernel.engine.terminology;
  * 术语映射模块过滤条件（Terminology Filters）。
  *
  * <p>聚合了标准术语、本地术语、映射关系、候选、冲突及映射版本的各种筛选条件，
- * 支撑 GA-ENG-API-04 字典映射 API 的多条件分页检索。
+ * 支撑 GA-ENG-API-04 术语字典 API 的多条件分页检索。
  */
 public final class TerminologyFilters {
     private TerminologyFilters() {}

@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 患者路径节点的关键时钟事实。
  *
- * <p>记录节点开始、基准事件、目标/最早/最晚时限、完成、状态和可选质控指标关联，用于路径执行时效追踪。
+ * <p>记录节点开始、基准事件、目标/最早/最晚时限、完成、状态和可选评价指标关联，用于路径执行时效追踪。
  */
 @Table("clinical_clock")
 public record ClinicalClock(

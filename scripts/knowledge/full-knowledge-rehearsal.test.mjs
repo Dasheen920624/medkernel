@@ -30,7 +30,9 @@ test("正式知识演练清单恰好覆盖全部十一知识域且不混入结�
   assert.equal(manifest.entries.length, 11);
   assert.ok(FULL_KNOWLEDGE_DOMAINS.includes("DIAGNOSTIC_ITEM"));
   assert.ok(!FULL_KNOWLEDGE_DOMAINS.includes("REPORT"));
-  assert.ok(manifest.entries.some((entry) => entry.domain === "DIAGNOSTIC_ITEM"));
+  assert.ok(
+    manifest.entries.some((entry) => entry.domain === "DIAGNOSTIC_ITEM"),
+  );
   assert.ok(!manifest.entries.some((entry) => entry.domain === "REPORT"));
   assert.equal(
     manifest.entries.every(
@@ -47,13 +49,22 @@ test("每个演练知识均绑定可核查官方 HTTPS 来源和短锚点", () =
   for (const entry of manifest.entries) {
     assert.match(entry.source.url, /^https:\/\//u);
     assert.equal(entry.source.checkedAt, manifest.checkedAt);
-    assert.ok(["OFFICIAL_PUBLICATION", "VERIFIED_SNAPSHOT"].includes(entry.source.publishedAtBasis));
+    assert.ok(
+      ["OFFICIAL_PUBLICATION", "VERIFIED_SNAPSHOT"].includes(
+        entry.source.publishedAtBasis,
+      ),
+    );
     assert.ok(entry.source.publishedAtEvidence.length >= 12);
-    assert.ok(entry.source.allowedHosts.includes(new URL(entry.source.url).hostname));
+    assert.ok(
+      entry.source.allowedHosts.includes(new URL(entry.source.url).hostname),
+    );
     assert.ok(entry.source.verificationTerms.length >= 1);
     assert.ok(entry.source.textExcerpt.length >= 12);
     assert.ok(entry.source.textExcerpt.length <= 240);
-    assert.doesNotMatch(entry.source.textExcerpt, /诊断为|应使用|剂量为|自动开嘱/u);
+    assert.doesNotMatch(
+      entry.source.textExcerpt,
+      /诊断为|应使用|剂量为|自动开嘱/u,
+    );
   }
 });
 
@@ -88,9 +99,14 @@ test("路径知识演练来源必须使用可从 134 核验的官方路径工具
 });
 
 test("文献知识演练来源必须使用可从 134 Node fetch 核验的 NLM 页面", () => {
-  const literature = manifest.entries.find((entry) => entry.domain === "LITERATURE");
+  const literature = manifest.entries.find(
+    (entry) => entry.domain === "LITERATURE",
+  );
 
-  assert.equal(literature.source.publisher, "U.S. National Library of Medicine");
+  assert.equal(
+    literature.source.publisher,
+    "U.S. National Library of Medicine",
+  );
   assert.equal(
     literature.source.url,
     "https://www.nlm.nih.gov/medline/medline_overview.html",
@@ -98,7 +114,9 @@ test("文献知识演练来源必须使用可从 134 Node fetch 核验的 NLM �
   assert.ok(literature.source.verificationTerms.includes("MEDLINE"));
   assert.ok(literature.source.verificationTerms.includes("PubMed"));
   assert.ok(
-    literature.source.verificationTerms.includes("National Library of Medicine"),
+    literature.source.verificationTerms.includes(
+      "National Library of Medicine",
+    ),
   );
   assert.doesNotMatch(literature.source.url, /pubmed\.ncbi\.nlm\.nih\.gov/u);
 });
@@ -120,13 +138,17 @@ test("正式演练会真实抓取官方来源并验证允许主机、锚点词�
 
   assert.equal(verified.status, "VERIFIED");
   assert.equal(verified.httpStatus, 200);
-  assert.equal(verified.matchedTerms.length, entry.source.verificationTerms.length);
+  assert.equal(
+    verified.matchedTerms.length,
+    entry.source.verificationTerms.length,
+  );
   assert.match(verified.contentSha256, /^[a-f0-9]{64}$/u);
 
   await assert.rejects(
     () =>
       verifyOfficialSource(entry, {
-        fetchImpl: async () => new Response("<html>unrelated page</html>", { status: 200 }),
+        fetchImpl: async () =>
+          new Response("<html>unrelated page</html>", { status: 200 }),
         effectiveUrl: "https://untrusted.example/source",
       }),
     /不在允许主机/u,
@@ -218,7 +240,9 @@ test("候选影子评测接受通过或待人工重点复核且拒绝退化", ()
 
 test("演练运行上下文不提交旧包版本参数", () => {
   const source = readFileSync(
-    fileURLToPath(new URL("./full-knowledge-rehearsal-lib.mjs", import.meta.url)),
+    fileURLToPath(
+      new URL("./full-knowledge-rehearsal-lib.mjs", import.meta.url),
+    ),
     "utf8",
   );
 
@@ -241,7 +265,9 @@ test("正式全知识演练持续输出域级进度并在证据中记录模型�
     manifest,
     fetchImpl: createKnowledgeApiFetch(manifest),
     sourceFetchImpl: async (url) => {
-      const entry = manifest.entries.find((item) => item.source.url === url.toString());
+      const entry = manifest.entries.find(
+        (item) => item.source.url === url.toString(),
+      );
       return jsonLikeResponse(
         `<html>${entry.source.verificationTerms.join(" ")}</html>`,
         { contentType: "text/html; charset=utf-8", url: url.toString() },
@@ -253,7 +279,11 @@ test("正式全知识演练持续输出域级进度并在证据中记录模型�
 
   assert.equal(evidence.status, "PASSED");
   assert.equal(progress[0].type, "stage-start");
-  assert.ok(progress.some((event) => event.type === "source-verified" && event.remaining === 10));
+  assert.ok(
+    progress.some(
+      (event) => event.type === "source-verified" && event.remaining === 10,
+    ),
+  );
   assert.ok(
     progress.some(
       (event) =>
@@ -280,9 +310,26 @@ test("正式全知识演练持续输出域级进度并在证据中记录模型�
   assert.equal(evidence.observability.totalDomains, 11);
   assert.equal(evidence.observability.completedDomains, 11);
   assert.equal(evidence.observability.modelTasks.length, 12);
+  assert.deepEqual(
+    evidence.launchCoverage.knowledgeDomains.map((item) => item.code),
+    [
+      "GUIDELINE",
+      "DRUG",
+      "PATHWAY_KNOWLEDGE",
+      "NURSING",
+      "DIAGNOSTIC_ITEM",
+      "TCM",
+      "PROTOCOL",
+      "POLICY",
+      "LITERATURE",
+      "OTHER",
+      "DIAGNOSIS",
+    ],
+  );
   assert.ok(
     evidence.knowledge.every(
-      (item) => item.progress.remainingDomains >= 0 && item.modelTaskDurationMs > 0,
+      (item) =>
+        item.progress.remainingDomains >= 0 && item.modelTaskDurationMs > 0,
     ),
   );
 });
@@ -315,8 +362,7 @@ test("配置只接受平台主源医疗引擎运营员和仓库外运行时证�
     () =>
       readRehearsalConfig(
         {
-          FULL_KNOWLEDGE_API_BASE_URL:
-            "https://127.0.0.1/medkernel/api/v1",
+          FULL_KNOWLEDGE_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
           FULL_KNOWLEDGE_CREDENTIALS_FILE: "/controlled/accounts.json",
           FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
           FULL_KNOWLEDGE_EVIDENCE_PATH:
@@ -431,16 +477,23 @@ function createKnowledgeApiFetch(rehearsalManifest) {
     const body = init.body ? JSON.parse(init.body) : {};
 
     if (method === "POST" && pathname === "/auth/login") {
-      return apiResponse({
-        tenantId: "t-1",
-        mustChangePwd: false,
-        mfaRequired: false,
-        roles: ["engine-operator"],
-      }, {
-        setCookie: "mk_session=controlled; Path=/, XSRF-TOKEN=controlled-xsrf; Path=/",
-      });
+      return apiResponse(
+        {
+          tenantId: "t-1",
+          mustChangePwd: false,
+          mfaRequired: false,
+          roles: ["engine-operator"],
+        },
+        {
+          setCookie:
+            "mk_session=controlled; Path=/, XSRF-TOKEN=controlled-xsrf; Path=/",
+        },
+      );
     }
-    if (method === "GET" && pathname === "/engine/knowledge-production/asset-templates") {
+    if (
+      method === "GET" &&
+      pathname === "/engine/knowledge-production/asset-templates"
+    ) {
       return apiResponse(
         rehearsalManifest.entries.map((entry) => ({
           assetType: "KNOWLEDGE",
@@ -452,7 +505,10 @@ function createKnowledgeApiFetch(rehearsalManifest) {
         })),
       );
     }
-    if (method === "GET" && pathname === "/engine/knowledge-production/readiness") {
+    if (
+      method === "GET" &&
+      pathname === "/engine/knowledge-production/readiness"
+    ) {
       return apiResponse({
         capabilityCode: rehearsalManifest.capabilityCode,
         providerCode: "ollama-launch",
@@ -465,7 +521,8 @@ function createKnowledgeApiFetch(rehearsalManifest) {
     if (method === "POST" && pathname === "/engine/knowledge/sources") {
       return apiResponse({ id: nextSourceId++, sourceCode: body.sourceCode });
     }
-    const sourceVersionMatch = /^\/engine\/knowledge\/sources\/(\d+)\/versions$/u.exec(pathname);
+    const sourceVersionMatch =
+      /^\/engine\/knowledge\/sources\/(\d+)\/versions$/u.exec(pathname);
     if (method === "POST" && sourceVersionMatch) {
       return apiResponse({
         id: nextSourceVersionId++,
@@ -473,8 +530,14 @@ function createKnowledgeApiFetch(rehearsalManifest) {
         contentHash: body.contentHash,
       });
     }
-    if (method === "POST" && pathname === "/engine/knowledge/sources/fragments") {
-      return apiResponse({ id: nextFragmentId++, sourceVersionId: body.sourceVersionId });
+    if (
+      method === "POST" &&
+      pathname === "/engine/knowledge/sources/fragments"
+    ) {
+      return apiResponse({
+        id: nextFragmentId++,
+        sourceVersionId: body.sourceVersionId,
+      });
     }
     if (method === "POST" && pathname === "/engine/knowledge-production/jobs") {
       const entry = rehearsalManifest.entries.find((item) =>
@@ -485,7 +548,9 @@ function createKnowledgeApiFetch(rehearsalManifest) {
       return apiResponse({ jobCode, assetType: "KNOWLEDGE" });
     }
     const modelCandidateMatch =
-      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/model-candidates$/u.exec(pathname);
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/model-candidates$/u.exec(
+        pathname,
+      );
     if (method === "POST" && modelCandidateMatch) {
       const jobCode = decodeURIComponent(modelCandidateMatch[1]);
       const job = jobs.get(jobCode);
@@ -526,7 +591,9 @@ function createKnowledgeApiFetch(rehearsalManifest) {
         promptVersion: "prompt-v1",
         toolVersion: "tool-v1",
         summary: {
-          candidates: [{ candidateRef: `kv:${identity.id}:${version.versionNo}` }],
+          candidates: [
+            { candidateRef: `kv:${identity.id}:${version.versionNo}` },
+          ],
           blocked: [],
           skipped: [],
         },
@@ -535,7 +602,9 @@ function createKnowledgeApiFetch(rehearsalManifest) {
     const identityByCodeMatch =
       /^\/engine\/knowledge\/identities\/by-code\/([^/]+)$/u.exec(pathname);
     if (method === "GET" && identityByCodeMatch) {
-      return apiResponse(identitiesByCode.get(decodeURIComponent(identityByCodeMatch[1])));
+      return apiResponse(
+        identitiesByCode.get(decodeURIComponent(identityByCodeMatch[1])),
+      );
     }
     const candidatesMatch =
       /^\/engine\/knowledge\/identities\/(\d+)\/candidates$/u.exec(pathname);
@@ -544,18 +613,23 @@ function createKnowledgeApiFetch(rehearsalManifest) {
       const versions = versionsByIdentity.get(identityId) ?? [];
       return apiResponse({
         candidates: { items: versions },
-        classifications: versions.map((version) => classificationsByVersion.get(version.id)),
+        classifications: versions.map((version) =>
+          classificationsByVersion.get(version.id),
+        ),
       });
     }
     if (method === "POST" && pathname === "/engine/knowledge/citations") {
       return apiResponse({ id: 1 });
     }
     const technicalMatch =
-      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/(gate-results|triage-results|shadow-runs)$/u.exec(pathname);
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/(gate-results|triage-results|shadow-runs)$/u.exec(
+        pathname,
+      );
     if (method === "GET" && technicalMatch) {
       const suffix = technicalMatch[2];
       if (suffix === "gate-results") return apiResponse([{ passed: true }]);
-      if (suffix === "triage-results") return apiResponse([{ action: "MANUAL_REVIEW" }]);
+      if (suffix === "triage-results")
+        return apiResponse([{ action: "MANUAL_REVIEW" }]);
       return apiResponse([
         {
           status: "PASSED",
@@ -566,7 +640,9 @@ function createKnowledgeApiFetch(rehearsalManifest) {
       ]);
     }
     const qualityMatch =
-      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/publication-quality-records$/u.exec(pathname);
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/publication-quality-records$/u.exec(
+        pathname,
+      );
     if (method === "POST" && qualityMatch) {
       return apiResponse({
         id: nextQualityRecordId++,
@@ -574,47 +650,70 @@ function createKnowledgeApiFetch(rehearsalManifest) {
         versionId: body.versionId,
       });
     }
-    const reviewMatch = /^\/engine\/knowledge\/candidates\/(\d+)\/review$/u.exec(pathname);
+    const reviewMatch =
+      /^\/engine\/knowledge\/candidates\/(\d+)\/review$/u.exec(pathname);
     if (method === "POST" && reviewMatch) {
       const classificationId = Number(reviewMatch[1]);
       const version = [...versionsByIdentity.values()]
         .flat()
-        .find((item) => classificationsByVersion.get(item.id)?.id === classificationId);
+        .find(
+          (item) =>
+            classificationsByVersion.get(item.id)?.id === classificationId,
+        );
       version.status = "ACTIVE";
-      const [identityId] = [...versionsByIdentity.entries()].find(([, versions]) =>
-        versions.some((item) => item.id === version.id),
+      const [identityId] = [...versionsByIdentity.entries()].find(
+        ([, versions]) => versions.some((item) => item.id === version.id),
       );
       activeVersionByIdentity.set(identityId, version);
-      return apiResponse({ reasonCode: "APPROVED", candidates: { items: [version] } });
+      return apiResponse({
+        reasonCode: "APPROVED",
+        candidates: { items: [version] },
+      });
     }
     const completeMatch =
-      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/complete$/u.exec(pathname);
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/complete$/u.exec(
+        pathname,
+      );
     if (method === "POST" && completeMatch) {
       return apiResponse({ status: "COMPLETED" });
     }
-    const activeMatch = /^\/engine\/knowledge\/identities\/(\d+)\/active$/u.exec(pathname);
+    const activeMatch =
+      /^\/engine\/knowledge\/identities\/(\d+)\/active$/u.exec(pathname);
     if (method === "GET" && activeMatch) {
       return apiResponse(activeVersionByIdentity.get(Number(activeMatch[1])));
     }
     const lineageMatch =
-      /^\/engine\/knowledge\/identities\/(\d+)\/(provenance|citations|source-evidence)$/u.exec(pathname);
+      /^\/engine\/knowledge\/identities\/(\d+)\/(provenance|citations|source-evidence)$/u.exec(
+        pathname,
+      );
     if (method === "GET" && lineageMatch) {
-      return apiResponse(lineageMatch[2] === "provenance" ? { source: "controlled" } : [{ id: 1 }]);
+      return apiResponse(
+        lineageMatch[2] === "provenance"
+          ? { source: "controlled" }
+          : [{ id: 1 }],
+      );
     }
     const activateMatch =
-      /^\/engine\/knowledge\/identities\/(\d+)\/versions\/(\d+)\/activate$/u.exec(pathname);
+      /^\/engine\/knowledge\/identities\/(\d+)\/versions\/(\d+)\/activate$/u.exec(
+        pathname,
+      );
     if (method === "POST" && activateMatch) {
       const identityId = Number(activateMatch[1]);
       const versionId = Number(activateMatch[2]);
-      const version = (versionsByIdentity.get(identityId) ?? []).find((item) => item.id === versionId);
+      const version = (versionsByIdentity.get(identityId) ?? []).find(
+        (item) => item.id === versionId,
+      );
       version.status = "ACTIVE";
       activeVersionByIdentity.set(identityId, version);
       return apiResponse(version);
     }
 
-    return jsonLikeResponse(JSON.stringify({ success: false, message: `${method} ${pathname}` }), {
-      status: 404,
-    });
+    return jsonLikeResponse(
+      JSON.stringify({ success: false, message: `${method} ${pathname}` }),
+      {
+        status: 404,
+      },
+    );
   };
 }
 
@@ -632,7 +731,8 @@ function jsonLikeResponse(text, options = {}) {
       get: (name) => {
         const normalized = name.toLowerCase();
         if (normalized === "set-cookie") return options.setCookie ?? null;
-        if (normalized === "content-type") return options.contentType ?? "application/json";
+        if (normalized === "content-type")
+          return options.contentType ?? "application/json";
         return null;
       },
     },

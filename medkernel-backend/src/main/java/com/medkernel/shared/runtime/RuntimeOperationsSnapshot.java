@@ -80,12 +80,20 @@ public record RuntimeOperationsSnapshot(
         Instant completedAt,
         Integer migrationCount,
         String evidenceReference,
+        String checksumEvidence,
+        Boolean drillDatabaseIsIsolated,
+        String rpo,
+        String rto,
         String detail
     ) {
 
         public static RuntimeBackupDrillEvidence notAvailable() {
             return new RuntimeBackupDrillEvidence(
                 "NOT_AVAILABLE",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -96,6 +104,10 @@ public record RuntimeOperationsSnapshot(
         public static RuntimeBackupDrillEvidence invalid() {
             return new RuntimeBackupDrillEvidence(
                 "INVALID",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

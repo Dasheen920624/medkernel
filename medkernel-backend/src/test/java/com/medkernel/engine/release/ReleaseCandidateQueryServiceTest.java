@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -42,27 +43,63 @@ class ReleaseCandidateQueryServiceTest {
     }
 
     @Test
-    void listsPlatformDraftRuntimeAssetsWithoutAnyReleaseContainer() {
+    void listsEveryRuntimeConfigurationAssetTypeAsPlatformCandidate() {
+        List<AssetVersion> allRuntimeAssets = Arrays.stream(VersionedAssetType.values())
+            .map(type -> version(
+                PlatformTenant.ID,
+                type,
+                "BASELINE." + type.name(),
+                "av-" + type.name().toLowerCase(),
+                "V1",
+                AssetVersionStatus.PUBLISHED,
+                "/platform"))
+            .toList();
+        when(versions.pagePlatformReleaseCandidates(
+                PlatformTenant.ID, null, null, 0, 100))
+            .thenReturn(allRuntimeAssets);
+        when(versions.countPlatformReleaseCandidates(
+                PlatformTenant.ID, null, null))
+            .thenReturn((long) allRuntimeAssets.size());
+
+        var result = service.platformCandidates(
+            null, null, new PageRequest(1, 100, null));
+
+        assertThat(result.items())
+            .extracting(ReleaseCandidateAsset::assetType)
+            .containsExactly(VersionedAssetType.values());
+        assertThat(result.items())
+            .allSatisfy(candidate -> {
+                assertThat(candidate.sourceLayer()).isEqualTo(ReleaseSourceLayer.PLATFORM);
+                assertThat(candidate.versionId()).isNotBlank();
+                assertThat(candidate.contentHash()).matches("[0-9a-f]{64}");
+            });
+    }
+
+    @Test
+    void listsPlatformDraftOrPublishedRuntimeAssetsWithoutAnyReleaseContainer() {
         when(versions.pagePlatformReleaseCandidates(
                 PlatformTenant.ID, null, null, 0, 20))
             .thenReturn(List.of(
                 version(PlatformTenant.ID, VersionedAssetType.RULE, "RULE.CKD", "rule-v2",
-                    "V2", AssetVersionStatus.DRAFT, "/platform")
+                    "V2", AssetVersionStatus.DRAFT, "/platform"),
+                version(PlatformTenant.ID, VersionedAssetType.KNOWLEDGE, "DIAGNOSTIC_ITEM.HYPERKALEMIA",
+                    "knowledge-v1", "V1", AssetVersionStatus.PUBLISHED, "/platform")
             ));
         when(versions.countPlatformReleaseCandidates(
                 PlatformTenant.ID, null, null))
-            .thenReturn(1L);
+            .thenReturn(2L);
 
         var result = service.platformCandidates(
             null, null, new PageRequest(1, 20, null));
 
         assertThat(result.items())
             .extracting(ReleaseCandidateAsset::assetType)
-            .containsExactly(VersionedAssetType.RULE);
+            .containsExactly(VersionedAssetType.RULE, VersionedAssetType.KNOWLEDGE);
         assertThat(result.items().getFirst().sourceLayer())
             .isEqualTo(ReleaseSourceLayer.PLATFORM);
         assertThat(result.items().getFirst().versionId()).isEqualTo("rule-v2");
         assertThat(result.items().getFirst().applicableScope()).isEqualTo("ALL");
+        assertThat(result.items().get(1).versionId()).isEqualTo("knowledge-v1");
     }
 
     @Test

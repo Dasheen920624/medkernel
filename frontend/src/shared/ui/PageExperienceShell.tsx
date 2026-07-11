@@ -1,4 +1,4 @@
-import { Space } from "antd";
+import { Space, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 
 import type { SecurityProfile } from "@/shared/api/hooks";
@@ -8,6 +8,8 @@ import { PageShell } from "./PageShell";
 import type { PageStateProps } from "./PageState";
 import type { PageStateKind } from "./PageState.contract";
 import type { RouteExperience } from "./experienceTypes";
+
+const { Text } = Typography;
 
 interface PageExperienceShellProps {
   meta: { title: string; experience: RouteExperience };
@@ -40,6 +42,24 @@ export function PageExperienceShell({
         onEvidenceDetailsChange={onEvidenceDetailsChange}
       />
     ) : null;
+  const stakeholderViews = meta.experience.stakeholderViews ?? [];
+  const stakeholderSummary =
+    stakeholderViews.length > 0 ? (
+      <section aria-label="角色视角">
+        <Space direction="vertical" size="small" className="mk-full-width">
+          <Text strong>角色视角</Text>
+          <Space wrap>
+            {stakeholderViews.map((view) => (
+              <Space key={`${view.role}-${view.responsibility}`} wrap size="small">
+                <Tag color="blue">{view.role}</Tag>
+                <Text>{view.responsibility}</Text>
+                <Text type="secondary">{view.boundary}</Text>
+              </Space>
+            ))}
+          </Space>
+        </Space>
+      </section>
+    ) : null;
 
   return (
     <PageShell
@@ -55,7 +75,14 @@ export function PageExperienceShell({
         </Space>
       }
     >
-      {children}
+      {stakeholderSummary ? (
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          {stakeholderSummary}
+          {children}
+        </Space>
+      ) : (
+        children
+      )}
     </PageShell>
   );
 }

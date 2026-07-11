@@ -164,6 +164,66 @@ class SecurityMeControllerTest {
     }
 
     @Test
+    void currentUserKeepsAssignmentScopeWhenJwtCarriesSameRoleCode() throws Exception {
+        jdbcTemplate.update("""
+            INSERT INTO user_role_assignment
+                (tenant_id, user_id, role_code, scope_level, scope_code)
+            VALUES (?, ?, ?, ?, ?)
+            """, "t-1", "doctor-1", RoleCode.CLINICAL_USER.code(), "DEPARTMENT", "d-1");
+
+        mvc.perform(get("/api/v1/security/me")
+                .with(jwt().jwt(token -> token
+                    .subject("doctor-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("hospital_id", "h-1")
+                    .claim("department_id", "d-1")
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].source",
+                hasItem("ASSIGNMENT")))
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].scopeLevel",
+                hasItem("DEPARTMENT")))
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].scopeCode",
+                hasItem("d-1")))
+            .andExpect(jsonPath("$.data.dataScope.departmentId").value("d-1"));
+    }
+
+    @Test
+    void currentUserKeepsEveryApplicableScopeWhenSameRoleIsAssignedMultipleTimes() throws Exception {
+        jdbcTemplate.update("""
+            INSERT INTO user_role_assignment
+                (tenant_id, user_id, role_code, scope_level, scope_code)
+            VALUES (?, ?, ?, ?, ?)
+            """, "t-1", "doctor-1", RoleCode.CLINICAL_USER.code(), "FACILITY", "h-1");
+        jdbcTemplate.update("""
+            INSERT INTO user_role_assignment
+                (tenant_id, user_id, role_code, scope_level, scope_code)
+            VALUES (?, ?, ?, ?, ?)
+            """, "t-1", "doctor-1", RoleCode.CLINICAL_USER.code(), "DEPARTMENT", "d-1");
+
+        mvc.perform(get("/api/v1/security/me")
+                .with(jwt().jwt(token -> token
+                    .subject("doctor-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("hospital_id", "h-1")
+                    .claim("department_id", "d-1")
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].scopeLevel",
+                hasItem("FACILITY")))
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].scopeCode",
+                hasItem("h-1")))
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].scopeLevel",
+                hasItem("DEPARTMENT")))
+            .andExpect(jsonPath("$.data.roles[?(@.code=='clinical-user')].scopeCode",
+                hasItem("d-1")))
+            .andExpect(jsonPath("$.data.permissions[*].code",
+                hasItem(PermissionCode.RECOMMENDATION_ACCEPT.code())));
+    }
+
+    @Test
     void ordinaryUserCannotAcquireEmergencyPermissionFromDatabaseGrant() throws Exception {
         jdbcTemplate.update("""
             INSERT INTO emergency_permission_grant

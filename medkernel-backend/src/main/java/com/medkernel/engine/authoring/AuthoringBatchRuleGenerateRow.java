@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 模板参数表中的一行规则生成参数。
+ * 批量参数表中的一行规则生成参数。
  */
 public record AuthoringBatchRuleGenerateRow(
     @NotBlank String rowId,

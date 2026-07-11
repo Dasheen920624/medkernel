@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +27,7 @@ import com.medkernel.engine.release.PlatformBaselineItem;
 import com.medkernel.engine.release.PlatformBaselineItemRepository;
 import com.medkernel.engine.release.PlatformBaselineRelease;
 import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
+import com.medkernel.engine.release.ClinicalRuntimeReleaseItemOfflineSnapshot;
 import com.medkernel.engine.release.ReleaseEntryState;
 import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.versioning.AssetDependency;
@@ -96,6 +99,79 @@ class ClinicalRuntimeReleaseServiceTest {
             .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
                 any(), any(), any(), any()))
             .thenReturn(List.of());
+    }
+
+    @Test
+    void activatesEveryRuntimeAssetTypeFromPlatformBaselineIntoHospitalManifest() {
+        stubHospitalAndBaseline();
+        List<PlatformBaselineItem> allRuntimeAssets = Arrays.stream(VersionedAssetType.values())
+            .map(type -> baselineItem(
+                type,
+                "BASELINE." + type.name(),
+                "av-" + type.name().toLowerCase(),
+                "V1",
+                Integer.toHexString(type.ordinal() + 1).repeat(64).substring(0, 64)))
+            .toList();
+        allRuntimeAssets.forEach(this::stubPublishedPlatformVersion);
+        when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+            "baseline-A8"))
+            .thenReturn(allRuntimeAssets);
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A")).thenReturn(Optional.empty());
+
+        service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            null,
+            allRuntimeAssets.stream()
+                .map(item -> ClinicalRuntimeAssetSelection.platform(
+                    item.assetType(),
+                    item.assetIdentity()))
+                .toList(),
+            "operator-A",
+            "trace-all-assets"
+        ));
+
+        ArgumentCaptor<ClinicalRuntimeReleaseItem> saved =
+            ArgumentCaptor.forClass(ClinicalRuntimeReleaseItem.class);
+        verify(runtimeItems, org.mockito.Mockito.times(VersionedAssetType.values().length))
+            .save(saved.capture());
+        assertThat(saved.getAllValues())
+            .filteredOn(item -> item.entryState() == ReleaseEntryState.ACTIVE)
+            .extracting(ClinicalRuntimeReleaseItem::assetType)
+            .containsExactly(Arrays.stream(VersionedAssetType.values())
+                .sorted(Comparator.comparing(VersionedAssetType::name))
+                .toArray(VersionedAssetType[]::new));
+        assertThat(saved.getAllValues())
+            .allSatisfy(item -> {
+                assertThat(item.sourceLayer()).isEqualTo(ReleaseSourceLayer.PLATFORM);
+                assertThat(item.versionId()).isNotBlank();
+                assertThat(item.versionNo()).isEqualTo("V1");
+                assertThat(item.contentHash()).matches("[0-9a-f]{64}");
+            });
+    }
+
+    @Test
+    void rejectsEmptyActiveAssetSelectionBeforeCreatingRuntimeRelease() {
+        stubHospitalAndBaseline();
+
+        assertThatThrownBy(() -> service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            null,
+            List.of(),
+            "operator-A",
+            "trace-empty-assets"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("启用资产不能为空")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(runtimeItems, org.mockito.Mockito.never()).save(any(ClinicalRuntimeReleaseItem.class));
     }
 
     @Test
@@ -187,20 +263,22 @@ class ClinicalRuntimeReleaseServiceTest {
     @Test
     void activatesMultipleAssetsOfTheSameTypeTogetherWithOtherAssetTypes() {
         stubHospitalAndBaseline();
+        List<PlatformBaselineItem> baseline = List.of(
+            baselineItem(VersionedAssetType.FIELD_CATALOG, "FIELD.CANONICAL",
+                "field-v1", "V1", "1".repeat(64)),
+            baselineItem(VersionedAssetType.KNOWLEDGE, "KNOW.CKD",
+                "know-v2", "V2", "2".repeat(64)),
+            baselineItem(VersionedAssetType.PATHWAY, "PATH.CKD",
+                "path-v1", "V1", "3".repeat(64)),
+            baselineItem(VersionedAssetType.RULE, "RULE.CKD.DOSE",
+                "rule-dose-v3", "V3", "4".repeat(64)),
+            baselineItem(VersionedAssetType.RULE, "RULE.CKD.ALERT",
+                "rule-alert-v2", "V2", "5".repeat(64))
+        );
+        baseline.forEach(this::stubPublishedPlatformVersion);
         when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
             "baseline-A8"))
-            .thenReturn(List.of(
-                baselineItem(VersionedAssetType.FIELD_CATALOG, "FIELD.CANONICAL",
-                    "field-v1", "V1", "1".repeat(64)),
-                baselineItem(VersionedAssetType.KNOWLEDGE, "KNOW.CKD",
-                    "know-v2", "V2", "2".repeat(64)),
-                baselineItem(VersionedAssetType.PATHWAY, "PATH.CKD",
-                    "path-v1", "V1", "3".repeat(64)),
-                baselineItem(VersionedAssetType.RULE, "RULE.CKD.DOSE",
-                    "rule-dose-v3", "V3", "4".repeat(64)),
-                baselineItem(VersionedAssetType.RULE, "RULE.CKD.ALERT",
-                    "rule-alert-v2", "V2", "5".repeat(64))
-            ));
+            .thenReturn(baseline);
 
         service.activate(new ClinicalRuntimeReleaseCommand(
             "tenant-A",
@@ -383,6 +461,129 @@ class ClinicalRuntimeReleaseServiceTest {
     }
 
     @Test
+    void rejectsWithdrawnLocalVersionEvenWhenActiveInExpectedCurrentRelease() {
+        stubHospitalAndBaseline();
+        AssetVersion withdrawn = version(
+            "risk-v2",
+            "tenant-A",
+            VersionedAssetType.CDSS_RISK,
+            "CDSS.RISK.MATRIX",
+            "V2",
+            "7".repeat(64),
+            "/tenant-A/group-A/hospital-A")
+            .withStatus(
+                AssetVersionStatus.WITHDRAWN,
+                null,
+                NOW.minusSeconds(30),
+                "operator-old");
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-H9", 9L)));
+        when(runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+            "runtime-H9"))
+            .thenReturn(List.of(runtimeItem(
+                "runtime-H9",
+                ReleaseSourceLayer.HOSPITAL,
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                ReleaseEntryState.ACTIVE,
+                "risk-v2",
+                "V2",
+                "7".repeat(64))));
+        when(identities.findByTenantIdAndAssetTypeAndAssetIdentity(
+            "tenant-A", VersionedAssetType.CDSS_RISK, "CDSS.RISK.MATRIX"))
+            .thenReturn(Optional.of(new AssetIdentity(
+                1L, "tenant-A", VersionedAssetType.CDSS_RISK, "CDSS.RISK.MATRIX",
+                AssetIdentityStatus.ACTIVE, 2L,
+                NOW.minusSeconds(3600), "operator-old",
+                NOW.minusSeconds(60), "operator-old", "trace-old")));
+        when(versions.findByVersionIdAndTenantId("risk-v2", "tenant-A"))
+            .thenReturn(Optional.of(withdrawn));
+        assertThatThrownBy(() -> service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            "runtime-H9",
+            List.of(ClinicalRuntimeAssetSelection.local(
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                "risk-v2")),
+            "operator-A",
+            "trace-reject-active-withdrawn"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("只能启用草稿或已发布的本地资产版本")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(versions, org.mockito.Mockito.never()).save(any(AssetVersion.class));
+        verify(runtimeItems, org.mockito.Mockito.never())
+            .save(any(ClinicalRuntimeReleaseItem.class));
+    }
+
+    @Test
+    void rejectsWithdrawnLocalVersionThatIsNotActiveInExpectedCurrentRelease() {
+        stubHospitalAndBaseline();
+        AssetVersion withdrawn = version(
+            "risk-v2",
+            "tenant-A",
+            VersionedAssetType.CDSS_RISK,
+            "CDSS.RISK.MATRIX",
+            "V2",
+            "7".repeat(64),
+            "/tenant-A/group-A/hospital-A")
+            .withStatus(
+                AssetVersionStatus.WITHDRAWN,
+                null,
+                NOW.minusSeconds(30),
+                "operator-old");
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-H9", 9L)));
+        when(runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+            "runtime-H9"))
+            .thenReturn(List.of(runtimeItem(
+                "runtime-H9",
+                ReleaseSourceLayer.HOSPITAL,
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                ReleaseEntryState.ACTIVE,
+                "risk-v1",
+                "V1",
+                "6".repeat(64))));
+        when(identities.findByTenantIdAndAssetTypeAndAssetIdentity(
+            "tenant-A", VersionedAssetType.CDSS_RISK, "CDSS.RISK.MATRIX"))
+            .thenReturn(Optional.of(new AssetIdentity(
+                1L, "tenant-A", VersionedAssetType.CDSS_RISK, "CDSS.RISK.MATRIX",
+                AssetIdentityStatus.ACTIVE, 2L,
+                NOW.minusSeconds(3600), "operator-old",
+                NOW.minusSeconds(60), "operator-old", "trace-old")));
+        when(versions.findByVersionIdAndTenantId("risk-v2", "tenant-A"))
+            .thenReturn(Optional.of(withdrawn));
+
+        assertThatThrownBy(() -> service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            "runtime-H9",
+            List.of(ClinicalRuntimeAssetSelection.local(
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                "risk-v2")),
+            "operator-A",
+            "trace-reject-withdrawn"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("只能启用草稿或已发布的本地资产版本")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(versions, org.mockito.Mockito.never()).save(any(AssetVersion.class));
+    }
+
+    @Test
     void requiredDependencyPrefersHospitalThenGroupThenPlatform() {
         stubHospitalAndBaseline();
         AssetIdentity pathwayIdentity = new AssetIdentity(
@@ -414,6 +615,8 @@ class ClinicalRuntimeReleaseServiceTest {
             "/tenant-A/group-A/hospital-A");
         when(versions.findByVersionIdAndTenantId("path-local-v1", "tenant-A"))
             .thenReturn(Optional.of(pathway));
+        when(versions.findByVersionIdAndTenantId("rule-hospital-v4", "tenant-A"))
+            .thenReturn(Optional.of(hospitalRule));
         when(versions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             "tenant-A", VersionedAssetType.PATHWAY, "PATH.CKD.LOCAL",
             AssetVersionStatus.PUBLISHED))
@@ -524,6 +727,15 @@ class ClinicalRuntimeReleaseServiceTest {
                 VersionedAssetType.RULE, "RULE.CKD", ReleaseEntryState.ACTIVE,
                 "rule-v1", "V1", "3".repeat(64),
                 NOW.minusSeconds(3600), "operator-old", "trace-old")));
+        when(versions.findByVersionIdAndTenantId("rule-v1", PlatformTenant.ID))
+            .thenReturn(Optional.of(version(
+                "rule-v1",
+                PlatformTenant.ID,
+                VersionedAssetType.RULE,
+                "RULE.CKD",
+                "V1",
+                "3".repeat(64),
+                "/t-1")));
 
         ClinicalRuntimeRelease rolledBack = service.rollback(
             "tenant-A",
@@ -543,6 +755,317 @@ class ClinicalRuntimeReleaseServiceTest {
         assertThat(copied.getValue().versionId()).isEqualTo("rule-v1");
     }
 
+    @Test
+    void rollbackRejectsHistoricalReleaseContainingWithdrawnActiveAsset() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L)));
+        when(runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc("runtime-H3"))
+            .thenReturn(List.of(runtimeItem(
+                "runtime-H3",
+                ReleaseSourceLayer.HOSPITAL,
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                ReleaseEntryState.ACTIVE,
+                "risk-v2",
+                "V2",
+                "7".repeat(64))));
+        when(versions.findByVersionIdAndTenantId("risk-v2", "tenant-A"))
+            .thenReturn(Optional.of(version(
+                "risk-v2",
+                "tenant-A",
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                "V2",
+                "7".repeat(64),
+                "/tenant-A/group-A/hospital-A")
+                .withStatus(
+                    AssetVersionStatus.WITHDRAWN,
+                    null,
+                    NOW.minusSeconds(30),
+                    "operator-old")));
+
+        assertThatThrownBy(() -> service.rollback(
+            "tenant-A",
+            "hospital-A",
+            "runtime-H3",
+            "operator-A",
+            "trace-reject-withdrawn-rollback"
+        ))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("已撤回")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(runtimeItems, org.mockito.Mockito.never())
+            .save(any(ClinicalRuntimeReleaseItem.class));
+        verify(versions).lockByVersionIdAndTenantId("risk-v2", "tenant-A");
+    }
+
+    @Test
+    void rejectsWithdrawnPlatformVersionFromNewRuntimeRelease() {
+        stubHospitalAndBaseline();
+        when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+            "baseline-A8"))
+            .thenReturn(List.of(baselineItem(
+                VersionedAssetType.RULE,
+                "RULE.CKD",
+                "rule-v3",
+                "V3",
+                "3".repeat(64))));
+        when(versions.findByVersionIdAndTenantId("rule-v3", PlatformTenant.ID))
+            .thenReturn(Optional.of(version(
+                "rule-v3",
+                PlatformTenant.ID,
+                VersionedAssetType.RULE,
+                "RULE.CKD",
+                "V3",
+                "3".repeat(64),
+                "/")
+                .withStatus(
+                    AssetVersionStatus.WITHDRAWN,
+                    "version:rule-v3",
+                    NOW.minusSeconds(30),
+                    "platform-operator")));
+
+        assertThatThrownBy(() -> service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            null,
+            List.of(ClinicalRuntimeAssetSelection.platform(
+                VersionedAssetType.RULE,
+                "RULE.CKD")),
+            "operator-A",
+            "trace-reject-withdrawn-platform"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("已撤回")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(runtimeItems, org.mockito.Mockito.never())
+            .save(any(ClinicalRuntimeReleaseItem.class));
+        verify(versions).lockByVersionIdAndTenantId("rule-v3", PlatformTenant.ID);
+    }
+
+    @Test
+    void restoreOfflineSnapshotCopiesValidatedItemsIntoANewHigherRevision() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L)));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+        when(versions.findByVersionIdAndTenantId("rule-v1", PlatformTenant.ID))
+            .thenReturn(Optional.of(version(
+                "rule-v1",
+                PlatformTenant.ID,
+                VersionedAssetType.RULE,
+                "RULE.CKD",
+                "V1",
+                "3".repeat(64),
+                "/t-1")));
+
+        ClinicalRuntimeRelease restored = service.restoreOfflineSnapshot(
+            new ClinicalRuntimeReleaseOfflineRestoreCommand(
+                "tenant-A",
+                "hospital-A",
+                "runtime-current",
+                "runtime-H3",
+                "baseline-A8",
+                "b".repeat(64),
+                List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                    PlatformTenant.ID,
+                    ReleaseSourceLayer.PLATFORM,
+                    VersionedAssetType.RULE,
+                    "RULE.CKD",
+                    ReleaseEntryState.ACTIVE,
+                    "rule-v1",
+                    "V1",
+                    "3".repeat(64)
+                )),
+                "operator-A",
+                "trace-restore"
+            ));
+
+        assertThat(restored.releaseId()).startsWith("runtime-");
+        assertThat(restored.releaseId()).isNotEqualTo("runtime-H3");
+        assertThat(restored.revisionNo()).isEqualTo(10L);
+        assertThat(restored.rollbackFromReleaseId()).isEqualTo("runtime-H3");
+        assertThat(restored.manifestSha256()).isEqualTo("b".repeat(64));
+        ArgumentCaptor<ClinicalRuntimeReleaseItem> copied =
+            ArgumentCaptor.forClass(ClinicalRuntimeReleaseItem.class);
+        verify(runtimeItems).save(copied.capture());
+        assertThat(copied.getValue().releaseId()).isEqualTo(restored.releaseId());
+        assertThat(copied.getValue().assetIdentity()).isEqualTo("RULE.CKD");
+        assertThat(copied.getValue().traceId()).isEqualTo("trace-restore");
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsWithdrawnActiveAsset() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L)));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+        when(versions.findByVersionIdAndTenantId("risk-v2", "tenant-A"))
+            .thenReturn(Optional.of(version(
+                "risk-v2",
+                "tenant-A",
+                VersionedAssetType.CDSS_RISK,
+                "CDSS.RISK.MATRIX",
+                "V2",
+                "7".repeat(64),
+                "/tenant-A/group-A/hospital-A")
+                .withStatus(
+                    AssetVersionStatus.WITHDRAWN,
+                    null,
+                    NOW.minusSeconds(30),
+                    "operator-old")));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(
+            new ClinicalRuntimeReleaseOfflineRestoreCommand(
+                "tenant-A",
+                "hospital-A",
+                "runtime-current",
+                "runtime-H3",
+                "baseline-A8",
+                "b".repeat(64),
+                List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                    "tenant-A",
+                    ReleaseSourceLayer.HOSPITAL,
+                    VersionedAssetType.CDSS_RISK,
+                    "CDSS.RISK.MATRIX",
+                    ReleaseEntryState.ACTIVE,
+                    "risk-v2",
+                    "V2",
+                    "7".repeat(64)
+                )),
+                "operator-A",
+                "trace-reject-withdrawn-restore"
+            )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("已撤回")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+        verify(runtimeItems, org.mockito.Mockito.never())
+            .save(any(ClinicalRuntimeReleaseItem.class));
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsMissingSourceRuntimeLedger() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.empty());
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(restoreCommand(
+            "runtime-current",
+            "runtime-H3",
+            "hospital-A",
+            "baseline-A8",
+            "b".repeat(64)
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("来源机构生效版本不存在")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsSourceRuntimeLedgerMismatch() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L, "other-hospital", "b".repeat(64))));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(restoreCommand(
+            "runtime-current",
+            "runtime-H3",
+            "hospital-A",
+            "baseline-A8",
+            "b".repeat(64)
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("来源机构生效版本不一致")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void restoreOfflineSnapshotRejectsStaleExpectedCurrentRelease() {
+        stubHospital();
+        when(releases.findByTenantIdAndReleaseId("tenant-A", "runtime-H3"))
+            .thenReturn(Optional.of(release("runtime-H3", 3L)));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-current", 9L)));
+
+        assertThatThrownBy(() -> service.restoreOfflineSnapshot(
+            new ClinicalRuntimeReleaseOfflineRestoreCommand(
+                "tenant-A",
+                "hospital-A",
+                "runtime-old",
+                "runtime-H3",
+                "baseline-A8",
+                "b".repeat(64),
+                List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                    PlatformTenant.ID,
+                    ReleaseSourceLayer.PLATFORM,
+                    VersionedAssetType.RULE,
+                    "RULE.CKD",
+                    ReleaseEntryState.ACTIVE,
+                    "rule-v1",
+                    "V1",
+                    "3".repeat(64)
+                )),
+                "operator-A",
+                "trace-restore"
+            )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("当前机构生效版本已变化")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    private ClinicalRuntimeReleaseOfflineRestoreCommand restoreCommand(
+            String expectedCurrentReleaseId,
+            String sourceReleaseId,
+            String hospitalId,
+            String platformBaselineReleaseId,
+            String manifestSha256) {
+        return new ClinicalRuntimeReleaseOfflineRestoreCommand(
+            "tenant-A",
+            hospitalId,
+            expectedCurrentReleaseId,
+            sourceReleaseId,
+            platformBaselineReleaseId,
+            manifestSha256,
+            List.of(new ClinicalRuntimeReleaseItemOfflineSnapshot(
+                PlatformTenant.ID,
+                ReleaseSourceLayer.PLATFORM,
+                VersionedAssetType.RULE,
+                "RULE.CKD",
+                ReleaseEntryState.ACTIVE,
+                "rule-v1",
+                "V1",
+                "3".repeat(64)
+            )),
+            "operator-A",
+            "trace-restore"
+        );
+    }
+
     private void stubHospitalAndBaseline() {
         stubHospital();
         when(baselines.findByBaselineReleaseId("baseline-A8"))
@@ -550,16 +1073,30 @@ class ClinicalRuntimeReleaseServiceTest {
                 8L, "baseline-A8", 8L, "a".repeat(64),
                 NOW.minusSeconds(3600), "platform-operator",
                 NOW.minusSeconds(3600), "platform-operator", "trace-platform")));
+        List<PlatformBaselineItem> baseline = List.of(
+            baselineItem(VersionedAssetType.FIELD_CATALOG, "FIELD.CANONICAL",
+                "field-v1", "V1", "1".repeat(64)),
+            baselineItem(VersionedAssetType.KNOWLEDGE, "KNOW.CKD",
+                "know-v2", "V2", "2".repeat(64)),
+            baselineItem(VersionedAssetType.RULE, "RULE.CKD",
+                "rule-v3", "V3", "3".repeat(64))
+        );
+        baseline.forEach(this::stubPublishedPlatformVersion);
         when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
             "baseline-A8"))
-            .thenReturn(List.of(
-                baselineItem(VersionedAssetType.FIELD_CATALOG, "FIELD.CANONICAL",
-                    "field-v1", "V1", "1".repeat(64)),
-                baselineItem(VersionedAssetType.KNOWLEDGE, "KNOW.CKD",
-                    "know-v2", "V2", "2".repeat(64)),
-                baselineItem(VersionedAssetType.RULE, "RULE.CKD",
-                    "rule-v3", "V3", "3".repeat(64))
-            ));
+            .thenReturn(baseline);
+    }
+
+    private void stubPublishedPlatformVersion(PlatformBaselineItem item) {
+        when(versions.findByVersionIdAndTenantId(item.versionId(), PlatformTenant.ID))
+            .thenReturn(Optional.of(version(
+                item.versionId(),
+                PlatformTenant.ID,
+                item.assetType(),
+                item.assetIdentity(),
+                item.versionNo(),
+                item.contentHash(),
+                "/")));
     }
 
     private void stubHospital() {
@@ -613,6 +1150,32 @@ class ClinicalRuntimeReleaseServiceTest {
             NOW.minusSeconds(60), "operator-old", "trace-old");
     }
 
+    private ClinicalRuntimeReleaseItem runtimeItem(
+            String releaseId,
+            ReleaseSourceLayer sourceLayer,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            ReleaseEntryState entryState,
+            String versionId,
+            String versionNo,
+            String contentHash) {
+        return new ClinicalRuntimeReleaseItem(
+            1L,
+            releaseId,
+            "tenant-A",
+            sourceLayer,
+            assetType,
+            assetIdentity,
+            entryState,
+            versionId,
+            versionNo,
+            contentHash,
+            NOW.minusSeconds(3600),
+            "operator-old",
+            "trace-old"
+        );
+    }
+
     private AssetDependency dependency(
             String tenantId,
             VersionedAssetType ownerType,
@@ -630,14 +1193,22 @@ class ClinicalRuntimeReleaseServiceTest {
     }
 
     private ClinicalRuntimeRelease release(String releaseId, long revision) {
+        return release(releaseId, revision, "hospital-A", "b".repeat(64));
+    }
+
+    private ClinicalRuntimeRelease release(
+            String releaseId,
+            long revision,
+            String hospitalId,
+            String manifestSha256) {
         return new ClinicalRuntimeRelease(
             1L,
             releaseId,
             "tenant-A",
-            "hospital-A",
+            hospitalId,
             revision,
             "baseline-A8",
-            "b".repeat(64),
+            manifestSha256,
             null,
             NOW.minusSeconds(3600),
             "operator-old",

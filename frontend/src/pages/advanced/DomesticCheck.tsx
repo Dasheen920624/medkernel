@@ -142,7 +142,7 @@ export default function DomesticCheck() {
   if (runtime.isLoading) {
     return (
       <PageShell
-        title="国产化自检"
+        title="国产化适配自检"
         description="正在读取操作系统、Java 运行环境、数据库、中间件和国密能力自检快照"
       >
         <PageState state="loading" />
@@ -152,10 +152,10 @@ export default function DomesticCheck() {
 
   if (runtime.isError) {
     return (
-      <PageShell title="国产化自检" description="国产化自检快照读取失败">
+      <PageShell title="国产化适配自检" description="国产化适配自检快照读取失败">
         <PageState
           state="error"
-          title="暂时无法读取国产化自检"
+          title="暂时无法读取国产化适配自检"
           description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
@@ -170,8 +170,8 @@ export default function DomesticCheck() {
   const data = runtime.data;
   if (!data) {
     return (
-      <PageShell title="国产化自检" description="国产化自检暂无数据">
-        <PageState state="empty" title="暂无国产化自检快照" />
+      <PageShell title="国产化适配自检" description="国产化适配自检暂无数据">
+        <PageState state="empty" title="暂无国产化适配自检快照" />
       </PageShell>
     );
   }
@@ -209,7 +209,7 @@ export default function DomesticCheck() {
 
   return (
     <PageShell
-      title="国产化自检"
+      title="国产化适配自检"
       description="真实探测当前国产化适配状态"
       extras={
         <>
@@ -262,7 +262,7 @@ export default function DomesticCheck() {
         <Alert
           type={compatibility.overallStatus === "PASS" ? "success" : "warning"}
           showIcon
-          message={`国产化自检：${CHECK_LABEL[compatibility.overallStatus] ?? compatibility.overallStatus}`}
+          message={`国产化适配自检：${CHECK_LABEL[compatibility.overallStatus] ?? compatibility.overallStatus}`}
           description={`${compatibility.summary}；自检时间：${compatibility.checkedAt || data.generatedAt}`}
         />
 

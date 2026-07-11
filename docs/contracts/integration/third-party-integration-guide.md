@@ -50,7 +50,7 @@
 
 联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前服务机构存在已确认院内对照。标准字典由平台主空间统一维护，`LocalTerm` 与 `TermMapping` 只表达当前服务机构差异；正式映射版本由机构生效版本锁定后参与临床归一。
 
-术语与字典页面独立负责标准术语、本地术语、映射确认和下一版本快照的维护。适配器配置不得保存
+术语字典页面独立负责标准术语、本地术语、映射确认和下一版本快照的维护。适配器配置不得保存
 `termMappingId`；运行配置只声明 `targetDictionaryKey` 与 `category`，由临床事件携带的
 实际映射版本由服务端锁定的 `runtimeReleaseId` 及其中精确资产版本决定，调用方不得自行选择。
 
@@ -83,8 +83,8 @@
 
 - `POST /api/v1/engine/interoperability/rules/cds-hooks:export` 将规则草稿 DSL 导出为 CDS Hooks 服务声明、Card、CQL 与 Arden 概念映射。
 - `POST /api/v1/engine/interoperability/rules/cds-hooks:import` 从映射回导规则草稿，完整语义以 MedKernel DSL 扩展为准。
-- `POST /api/v1/engine/interoperability/pathways/plan-definition:export` 将路径模板草稿导出为 FHIR PlanDefinition 与 GLIF 概念映射。
-- `POST /api/v1/engine/interoperability/pathways/plan-definition:import` 从映射回导路径模板草稿；回导后仍走既有路径创建、校验和发布流程。
+- `POST /api/v1/engine/interoperability/pathways/plan-definition:export` 将临床路径草稿导出为 FHIR PlanDefinition 与 GLIF 概念映射。
+- `POST /api/v1/engine/interoperability/pathways/plan-definition:import` 从映射回导临床路径草稿；回导后仍走既有路径创建、校验和发布流程。
 
 ## OpenAPI
 

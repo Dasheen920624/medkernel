@@ -21,7 +21,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
-/** 导入、复验、查询及撤销演练机构自持的不可变历史重放清单。 */
+/** 导入、复验、查询及撤销当前机构自持的不可变历史重放清单。 */
 @Service
 public class SandboxReplayService {
 

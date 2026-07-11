@@ -11,6 +11,7 @@ import {
   useLargeListExportJob,
   useLocalTerms,
   useRejectTerminologyCandidate,
+  useRegisterStandardTerm,
   useResolveTerminologyConflict,
   useSaveView,
   useSavedViews,
@@ -44,6 +45,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useLargeListExportJob: vi.fn(),
   useLocalTerms: vi.fn(),
   useRejectTerminologyCandidate: vi.fn(),
+  useRegisterStandardTerm: vi.fn(),
   useResolveTerminologyConflict: vi.fn(),
   useSaveView: vi.fn(),
   useSavedViews: vi.fn(),
@@ -100,14 +102,14 @@ const profile: SecurityProfile = {
       code: "term.read",
       dimension: "ACTION",
       target: "terminology",
-      displayName: "读取字典映射",
+      displayName: "读取术语字典",
       risk: "LOW",
     },
     {
       code: "term.write",
       dimension: "ACTION",
       target: "terminology",
-      displayName: "维护字典映射",
+      displayName: "维护术语字典",
       risk: "MEDIUM",
     },
   ],
@@ -272,6 +274,7 @@ function configureQuery(
   } as never);
   vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useRejectTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useRegisterStandardTerm).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useResolveTerminologyConflict).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
     mutateAsync: vi.fn(),
@@ -347,7 +350,18 @@ describe("TerminologyMapping", () => {
     expect(screen.getByRole("button", { name: "生成术语版本" })).toBeEnabled();
     expect(screen.getByText("候选映射")).toBeInTheDocument();
     expect(screen.getByText("冲突待裁")).toBeInTheDocument();
-    expect(screen.getByText("术语维护与上线修订分离")).toBeInTheDocument();
+    expect(screen.getByText("术语校准与上线生效分离")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "本页校准院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("术语维护与上线修订分离")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "本页维护院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。",
+      ),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "发布映射包" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "回滚映射包" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "批量确认候选" })).toBeDisabled();
@@ -358,6 +372,67 @@ describe("TerminologyMapping", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "查看 1" }));
     expect(screen.getByText("实施核查证据")).toBeInTheDocument();
+  });
+
+  it("registers a standard terminology entry from the standard dictionary workspace", async () => {
+    const register = vi.fn().mockResolvedValue({
+      ...standardTerm,
+      standardSystem: "TERM.LAB",
+      termCode: "TERM.LAB.FRONTDESK.K",
+      displayName: "前台演练血钾",
+      versionNo: "2026.07",
+    });
+    const refetch = vi.fn();
+    vi.mocked(useRegisterStandardTerm).mockReturnValue({ mutateAsync: register } as never);
+    vi.mocked(useStandardTerms).mockReturnValue({
+      data: pageData([]),
+      isLoading: false,
+      isError: false,
+      refetch,
+    } as never);
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "登记标准术语" }));
+    await userEvent.clear(screen.getByLabelText("标准体系"));
+    await userEvent.type(screen.getByLabelText("标准体系"), "TERM.LAB");
+    await userEvent.type(screen.getByLabelText("标准编码"), "TERM.LAB.FRONTDESK.K");
+    await userEvent.type(screen.getByLabelText("标准名称"), "前台演练血钾");
+    await userEvent.type(screen.getByLabelText("依据说明"), "上线演练登记标准术语");
+    await userEvent.click(screen.getByRole("button", { name: "提交登记" }));
+
+    expect(register).toHaveBeenCalledWith({
+      standardSystem: "TERM.LAB",
+      termCode: "TERM.LAB.FRONTDESK.K",
+      category: "LAB",
+      displayName: "前台演练血钾",
+      normalizedName: "前台演练血钾",
+      versionNo: "2026.07",
+      evidenceText: "上线演练登记标准术语",
+    });
+    expect(refetch).toHaveBeenCalled();
+    expect(await screen.findByText(/标准术语 前台演练血钾 已登记/)).toBeInTheDocument();
+  });
+
+  it("opens standard terminology registration without touching an unmounted form", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderPage();
+      await userEvent.click(screen.getByRole("button", { name: "登记标准术语" }));
+
+      expect(await screen.findByRole("dialog", { name: "登记标准术语" })).toBeInTheDocument();
+      expect(screen.getByLabelText("标准体系")).toHaveValue("TERM.LAB");
+      expect(screen.getByLabelText("版本号")).toHaveValue("2026.07");
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some((arg) =>
+            String(arg).includes("Instance created by `useForm` is not connected"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("starts and tracks candidate generation without a package version", async () => {
@@ -588,7 +663,10 @@ describe("TerminologyMapping", () => {
     await userEvent.click(screen.getByRole("button", { name: "提交导出任务" }));
 
     expect(submit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceType: "TERMINOLOGY_MAPPING" }),
+      expect.objectContaining({
+        resourceType: "TERMINOLOGY_MAPPING",
+        reason: "导出术语字典核查结果",
+      }),
     );
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
   });

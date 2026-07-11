@@ -126,6 +126,8 @@
   background: var(--ant-color-bg-container);
   border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-outer);
   border-radius: var(--ant-border-radius-lg);
+  min-width: 0;
+  overflow: hidden;
   padding: calc(var(--mk-unit) * 24);
   box-shadow: 0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12) var(--ant-color-fill-quaternary);
 }

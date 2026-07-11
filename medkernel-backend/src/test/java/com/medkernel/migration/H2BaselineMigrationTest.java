@@ -247,6 +247,39 @@ class H2BaselineMigrationTest {
             2,
             "test");
         assertThat(nullableHistoryInserted).as("H2 允许回滚历史记录未配置值").isEqualTo(1);
+
+        String largeAssets = String.join(",",
+            java.util.Collections.nCopies(180, "\"ACTION_CARD.RUNTIME.RELEASE.SNAPSHOT\""));
+        String largePayload = """
+            {"deliveryKind":"CLINICAL_RUNTIME_RELEASE","signatureAlgorithm":"SM3_WITH_SM2","runtimeMutation":false,"assets":[%s]}
+            """.formatted(largeAssets);
+        assertThat(largePayload.length()).as("回归样本必须超过旧 VARCHAR(4000) 上限").isGreaterThan(4_000);
+        int evidenceInserted = jdbc.update("""
+            INSERT INTO evidence_snapshot (
+                evidence_id, tenant_id, trace_id, evidence_type, action, subject_type,
+                subject_id, evidence_summary, payload_snapshot, payload_hash, file_uri,
+                file_digest, signature_algorithm, signature_value, signer_public_key,
+                created_by, updated_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "evd-long-runtime-delivery",
+            "tenant-version",
+            "trace-long-runtime-delivery",
+            "RUNTIME_RELEASE_OFFLINE_DELIVERY",
+            "EXPORT",
+            "clinical_runtime_release",
+            "runtime-release-long",
+            "机构生效版本离线交付完整 JSON 快照",
+            largePayload,
+            "sm3:" + "a".repeat(64),
+            "/api/v1/compliance/evidence/snapshots/evd-long-runtime-delivery/file",
+            "sm3:" + "b".repeat(64),
+            "SM3_WITH_SM2",
+            "signature",
+            "public-key",
+            "engine-operator",
+            "engine-operator");
+        assertThat(evidenceInserted).as("H2 基线允许完整离线交付 JSON 存证").isEqualTo(1);
     }
 
     private HikariConfig hikari() {

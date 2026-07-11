@@ -48,9 +48,11 @@ MedKernel macOS/Linux 一键发布
   --frontend             只发布前端；未指定 backend/frontend 时默认两者都发
   --clean-install        前端先 npm ci
   --stage-only           只上传到 incoming，不触发远程发布
-  --source HASH          manifest 来源；只能是当前 HEAD 的完整 40 位哈希
+  --source HASH          发布来源；完整/后端发布写入 manifest，前端-only 只用于前端制品追溯；只能是当前 HEAD 的完整 40 位哈希
   --strict-host-key      SSH StrictHostKeyChecking=yes；默认 accept-new
   -h, --help             显示帮助
+
+说明：前端-only 发布不会改写运行 manifest；manifest/JAR 来源仍以最近一次完整或后端发布为准，前端版本以 index/assets 与本命令来源追溯。
 USAGE
 }
 

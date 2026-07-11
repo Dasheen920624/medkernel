@@ -34,6 +34,41 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
         new ClinicalRuntimeDeclarativeAssetResolver(runtime, versions, contents);
 
     @Test
+    void resolvesEveryUnifiedContentStoreAssetTypeFromTheHospitalRuntimeRelease() throws Exception {
+        for (VersionedAssetType type : VersionedAssetType.values()) {
+            if (!type.usesUnifiedContentStore()) {
+                continue;
+            }
+            String identity = "BASELINE." + type.name();
+            String versionId = "av-" + type.name().toLowerCase();
+            String body = "{\"schemaVersion\":\"1.0\",\"assetType\":\"" + type.name() + "\"}";
+            String hash = sha256(body);
+            ClinicalRuntimeReleaseItem runtimeItem = item(type, "tenant-A", identity, versionId, "V1", hash);
+            when(runtime.resolve("tenant-A", "release-" + type.name())).thenReturn(content(runtimeItem));
+            when(versions.findByVersionIdAndTenantId(versionId, "tenant-A"))
+                .thenReturn(Optional.of(version(
+                    type,
+                    "tenant-A",
+                    versionId,
+                    identity,
+                    "V1",
+                    hash,
+                    AssetVersionStatus.PUBLISHED)));
+            when(contents.findByTenantIdAndVersionId("tenant-A", versionId))
+                .thenReturn(Optional.of(new AssetVersionContent(
+                    null, versionId, "tenant-A", body, hash,
+                    NOW, "operator", NOW, "operator", "trace-" + type.name())));
+
+            ResolvedDeclarativeAsset resolved = resolver.resolve(
+                "tenant-A", "release-" + type.name(), type, identity).orElseThrow();
+
+            assertThat(resolved.assetType()).isEqualTo(type);
+            assertThat(resolved.assetIdentity()).isEqualTo(identity);
+            assertThat(resolved.contentJson()).isEqualTo(body);
+        }
+    }
+
+    @Test
     void resolvesExactPublishedBodyFromTheHospitalRuntimeRelease() throws Exception {
         ClinicalRuntimeReleaseItem item = item(
             PlatformTenant.ID, "VS.ANTICOAGULANT", "av-1", "V2", "pending");
@@ -97,6 +132,46 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
 
         assertThat(resolved.assetType()).isEqualTo(VersionedAssetType.FIELD_CATALOG);
         assertThat(resolved.assetVersion()).isEqualTo("V3");
+        assertThat(resolved.contentJson()).isEqualTo(body);
+    }
+
+    @Test
+    void resolvesPathwayBodyForRuntimeRuleReferenceEvidence() throws Exception {
+        String body = """
+            {"schemaVersion":"1.0","pathwayCode":"PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION","entryMode":"MANUAL_CONFIRM","nodes":[{"nodeCode":"TRIAGE","nodeType":"MANUAL_GATE"}]}
+            """.trim();
+        String hash = sha256(body);
+        ClinicalRuntimeReleaseItem item = item(
+            VersionedAssetType.PATHWAY,
+            "tenant-A",
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+            "av-pathway-critical",
+            "V1",
+            hash);
+        when(runtime.resolve("tenant-A", "release-4")).thenReturn(content(item));
+        when(versions.findByVersionIdAndTenantId("av-pathway-critical", "tenant-A"))
+            .thenReturn(Optional.of(version(
+                VersionedAssetType.PATHWAY,
+                "tenant-A",
+                "av-pathway-critical",
+                "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+                "V1",
+                hash,
+                AssetVersionStatus.PUBLISHED)));
+        when(contents.findByTenantIdAndVersionId("tenant-A", "av-pathway-critical"))
+            .thenReturn(Optional.of(new AssetVersionContent(
+                3L, "av-pathway-critical", "tenant-A", body, hash,
+                NOW, "operator", NOW, "operator", "trace")));
+
+        ResolvedDeclarativeAsset resolved = resolver.resolve(
+            "tenant-A",
+            "release-4",
+            VersionedAssetType.PATHWAY,
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION").orElseThrow();
+
+        assertThat(resolved.assetType()).isEqualTo(VersionedAssetType.PATHWAY);
+        assertThat(resolved.assetVersion()).isEqualTo("V1");
+        assertThat(resolved.contentHash()).isEqualTo(hash);
         assertThat(resolved.contentJson()).isEqualTo(body);
     }
 

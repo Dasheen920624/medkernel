@@ -35,7 +35,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 依据内置场景、标准请求上下文和认证角色构造真实引擎请求。
+ * 依据内置场景、标准请求上下文和认证角色构造真实医疗智能请求。
  */
 final class SandboxRequestFactory {
 
@@ -160,7 +160,7 @@ final class SandboxRequestFactory {
             "SBX." + scenario.playbook(),
             cardType,
             scenario.title(),
-            "沙盘引擎编排根据标准上下文生成可追溯的人工确认建议。",
+            "沙盘智能协同根据标准上下文生成可追溯的人工确认建议。",
             scenario.expectedAction(),
             riskLevel,
             interruptLevel,

@@ -6,12 +6,12 @@
 
 ## 1. 库存结论
 
-- 前端路由：43 项。
-- 后端菜单：34 项。
-- 页面与页内组件：53 项。
+- 前端路由：44 项。
+- 后端菜单：35 项。
+- 页面与页内组件：54 项。
 - 后端控制器：94 项。
 - 批量、导入、导出和异步任务承载类：16 项。
-- 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
+- 目标客户业务域：工作台、机构与人员、知识治理、知识生产、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
 
 | 裁决 | 数量 |
@@ -22,7 +22,7 @@
 | MOVE | 60 |
 | REMOVE | 1 |
 | RENAME | 24 |
-| SPLIT | 8 |
+| SPLIT | 11 |
 
 ## 2. 前端路由与客户任务裁决
 
@@ -51,22 +51,22 @@
 | `/tenant/onboarding` | 服务机构 | organization-people | tenant-onboarding | primary | MOVE | 机构与人员 | 服务机构 | 维护服务机构、稳定组织层级和机构类型 |
 <!-- capability:route:route@%2Fconfig%2Freleases decision=MERGE -->
 <!-- route:/config/releases -->
-| `/config/releases` | 发布治理 | knowledge-governance | runtime-releases | primary | MERGE | 知识治理 | 机构生效版本 | 维护平台标准版本、机构生效版本、发布影响和回滚证据 |
+| `/config/releases` | 机构生效版本 | knowledge-governance | runtime-releases | primary | MERGE | 知识治理 | 机构生效版本 | 发布平台标准版本、生成机构生效版本并保留影响和回滚证据 |
 <!-- capability:route:route@%2Fauthoring%2Fassets decision=MERGE -->
 <!-- route:/authoring/assets -->
 | `/authoring/assets` | 知识资产 | knowledge-governance | — | hidden | MERGE | 知识治理 | 知识资产 | 在统一知识资产页内编目、复用和批量处理资产 |
 <!-- capability:route:route@%2Fpathway%2Ftemplates decision=MOVE -->
 <!-- route:/pathway/templates -->
-| `/pathway/templates` | 路径配置 | knowledge-governance | pathway-templates | primary | MOVE | 知识治理 | 路径配置 | 配置、审核、发布和回滚临床路径模板 |
+| `/pathway/templates` | 临床路径库 | knowledge-governance | pathway-templates | primary | MOVE | 知识治理 | 临床路径库 | 编排、审核、发布和回滚临床路径版本 |
 <!-- capability:route:route@%2Frule%2Fdefinitions decision=MOVE -->
 <!-- route:/rule/definitions -->
-| `/rule/definitions` | 规则配置 | knowledge-governance | rule-definitions | primary | MOVE | 知识治理 | 规则配置 | 配置、试运行、审核和发布临床规则 |
+| `/rule/definitions` | 临床规则 | knowledge-governance | rule-definitions | primary | MOVE | 知识治理 | 临床规则 | 配置、试运行、审核和发布临床规则 |
 <!-- capability:route:route@%2Fterminology%2Fmapping decision=MOVE -->
 <!-- route:/terminology/mapping -->
-| `/terminology/mapping` | 术语与字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语与字典 | 维护院内术语映射、冲突和高风险确认 |
+| `/terminology/mapping` | 术语字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语字典 | 校准院内术语映射、裁定冲突并逐条确认高危近似 |
 <!-- capability:route:route@%2Fadapter%2Fhub decision=MOVE -->
 <!-- route:/adapter/hub -->
-| `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |
+| `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 治理外部系统接入、字段映射、健康检查和失败补偿 |
 <!-- capability:route:route@%2Fmpi decision=MOVE -->
 <!-- route:/mpi -->
 | `/mpi` | 患者索引 | clinical-collaboration | mpi | primary | MOVE | 临床协同 | 患者索引 | 在授权范围内核查患者主索引和合并拆分问题 |
@@ -78,7 +78,7 @@
 | `/cdss/fatigue` | 提醒与推荐 | clinical-collaboration | cdss-fatigue | primary | RENAME | 临床协同 | 提醒与推荐 | 查看推荐、来源、处置状态和反馈闭环 |
 <!-- capability:route:route@%2Frule%2Fvalidate decision=MERGE -->
 <!-- route:/rule/validate -->
-| `/rule/validate` | 规则试运行 | knowledge-governance | — | hidden | MERGE | 知识治理 | 规则配置 / 试运行 | 并入规则试运行与提醒详情，不保留客户独立菜单 |
+| `/rule/validate` | 规则试运行 | knowledge-governance | — | hidden | MERGE | 知识治理 | 临床规则 / 试运行 | 并入规则试运行与提醒详情，不保留客户独立菜单 |
 <!-- capability:route:route@%2Fworkflow%2Ftodos decision=RENAME -->
 <!-- route:/workflow/todos -->
 | `/workflow/todos` | 协同任务 | clinical-collaboration | workflow-todos | primary | RENAME | 临床协同 | 协同任务 | 处理、转派、升级和完成职责范围内任务 |
@@ -90,10 +90,10 @@
 | `/clinical/followup` | 随访协同 | clinical-collaboration | clinical-followup | primary | RENAME | 临床协同 | 随访协同 | 生成随访计划、处理任务和异常回院事件 |
 <!-- capability:route:route@%2Fsandbox decision=KEEP -->
 <!-- route:/sandbox -->
-| `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 | 以院内业务系统视角复演真实引擎、嵌入终端与人工反馈闭环 |
+| `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 | 以院内业务系统视角复演真实医疗智能链路、嵌入终端与人工反馈闭环 |
 <!-- capability:route:route@%2Fqc%2Fdashboard decision=RENAME -->
 <!-- route:/qc/dashboard -->
-| `/qc/dashboard` | 质量管理概览 | quality-management | qc-dashboard | primary | RENAME | 质量管理 | 质量管理概览 | 查看质量风险、运营趋势并下钻到责任问题 |
+| `/qc/dashboard` | 质量风险概览 | quality-management | qc-dashboard | primary | RENAME | 质量管理 | 质量风险概览 | 查看质量风险、运营趋势并下钻到责任问题 |
 <!-- capability:route:route@%2Fqc%2Falerts decision=RENAME -->
 <!-- route:/qc/alerts -->
 | `/qc/alerts` | 质量问题与整改 | quality-management | qc-alerts | primary | RENAME | 质量管理 | 质量问题与整改 | 确认问题、派发整改、复核并闭环 |
@@ -102,22 +102,25 @@
 | `/qc/insurance` | 医保审核 | quality-management | insurance-audit | primary | RENAME | 质量管理 | 医保审核 | 核查医保问题、依据和处置结果 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fsets decision=RENAME -->
 <!-- route:/qc/eval/sets -->
-| `/qc/eval/sets` | 评价指标 | quality-management | qc-eval-sets | primary | RENAME | 质量管理 | 评价指标 | 维护评价指标、影响分析和发布状态 |
+| `/qc/eval/sets` | 评价指标 | quality-management | qc-eval-sets | primary | RENAME | 质量管理 | 评价指标 | 定义评价指标、试算影响分析并发布生效 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fresults decision=MERGE -->
 <!-- route:/qc/eval/results -->
 | `/qc/eval/results` | 质量问题来源 | quality-management | — | hidden | MERGE | 质量管理 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
-| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核统一候选池中的平台主源或机构派生差异并发布、退修或驳回 |
+| `/knowledge/governance` | 知识审核发布中心 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核发布中心 | 审核统一候选池中的平台主源或机构派生差异并发布、退修或驳回 |
 <!-- capability:route:route@%2Fknowledge%2Finstitution decision=SPLIT -->
 <!-- route:/knowledge/institution -->
-| `/knowledge/institution` | 机构知识 | knowledge-governance | institution-knowledge | primary | SPLIT | 知识治理 | 机构知识 | 从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准 |
+| `/knowledge/institution` | 机构知识库 | knowledge-governance | institution-knowledge | primary | SPLIT | 知识治理 | 机构知识库 | 从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准 |
 <!-- capability:route:route@%2Fknowledge%2Fdiagnosis decision=SPLIT -->
 <!-- route:/knowledge/diagnosis -->
-| `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |
+| `/knowledge/diagnosis` | 诊断知识库 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识库 | 管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |
 <!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
 <!-- route:/knowledge/production -->
-| `/knowledge/production` | 知识生产 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试 |
+| `/knowledge/production` | 知识生产工作台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产工作台 | 核查知识生产准备、生产任务、候选血缘、安全校验、候选分流、影子证据和高敏患者上下文用途确认重试 |
+<!-- capability:route:route@%2Fknowledge%2Fdomain-facades%2Fb0-evidence decision=SPLIT -->
+<!-- route:/knowledge/domain-facades/b0-evidence -->
+| `/knowledge/domain-facades/b0-evidence` | 领域门面无模型证据 | knowledge-governance | domain-facade-b0-evidence | primary | SPLIT | 知识治理 | 领域门面无模型证据 | 核查 17 张专业领域门面复用无模型 B0 主链路、缺资产诚实空态和无新增专属业务引擎边界 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -132,7 +135,7 @@
 | `/security/baseline` | 安全与配置 | compliance-security | security-baseline | primary | MOVE | 合规安全 | 安全与配置 | 维护安全基线、系统配置、数据权限和脱敏策略 |
 <!-- capability:route:route@%2Fsystem%2Fproviders decision=RENAME -->
 <!-- route:/system/providers -->
-| `/system/providers` | 运行保障 | system-operations | system-providers | primary | RENAME | 系统运维 | 运行保障 | 查看外部依赖、备份恢复、降级和部署健康状态 |
+| `/system/providers` | 服务运行保障 | system-operations | system-providers | primary | RENAME | 系统运维 | 服务运行保障 | 查看外部依赖、备份恢复、降级和部署健康状态 |
 <!-- capability:route:route@%2Fnotifications%2Fsettings decision=MOVE -->
 <!-- route:/notifications/settings -->
 | `/notifications/settings` | 通知偏好 | workbench | notification-settings | profile | MOVE | 工作台 | 通知偏好（个人菜单） | 维护个人通知偏好和有权限的机构默认策略 |
@@ -144,10 +147,10 @@
 | `/advanced/graph` | 知识关系 | knowledge-governance | graph-explore | primary | MOVE | 知识治理 | 知识关系 | 查询可重建的知识关系投影 |
 <!-- capability:route:route@%2Fadvanced%2Fai-workflows decision=MOVE -->
 <!-- route:/advanced/ai-workflows -->
-| `/advanced/ai-workflows` | 模型能力 | knowledge-production | ai-workflows | primary | MOVE | 知识生产 | 模型能力 | 查看模型能力、任务和诚实降级状态 |
+| `/advanced/ai-workflows` | 模型能力与安全 | knowledge-production | ai-workflows | primary | MOVE | 知识生产 | 模型能力与安全 | 查看模型能力、安全边界和诚实降级状态 |
 <!-- capability:route:route@%2Fadvanced%2Fdomestic decision=MOVE -->
 <!-- route:/advanced/domestic -->
-| `/advanced/domestic` | 国产化自检 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化自检 | 核查国产化适配与部署证据 |
+| `/advanced/domestic` | 国产化适配自检 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化适配自检 | 核查国产化适配与部署证据 |
 <!-- capability:route:route@%2Fsystem%2Fruntime-diagnostics decision=MOVE -->
 <!-- route:/system/runtime-diagnostics -->
 | `/system/runtime-diagnostics` | 运行诊断 | system-operations | runtime-diagnostics | primary | MOVE | 系统运维 | 运行诊断 | 由信息科和实施角色执行受控诊断 |
@@ -176,25 +179,28 @@
 | `identity-bindings` | 身份来源 | `organization-people` | primary | `MENU_IDENTITY_BINDINGS` | MOVE | 机构与人员 | 身份来源 |
 <!-- capability:menu:menu@knowledge-governance decision=MOVE -->
 <!-- menu:knowledge-governance -->
-| `knowledge-governance` | 知识审核与发布 | `knowledge-governance` | primary | `MENU_KNOWLEDGE_GOVERNANCE` | MOVE | 知识治理 | 知识审核与发布 |
-<!-- capability:menu:menu@institution-knowledge decision=SPLIT -->
-<!-- menu:institution-knowledge -->
-| `institution-knowledge` | 机构知识 | `knowledge-governance` | primary | `MENU_INSTITUTION_KNOWLEDGE` | SPLIT | 知识治理 | 机构知识 |
-<!-- capability:menu:menu@diagnosis-knowledge decision=SPLIT -->
-<!-- menu:diagnosis-knowledge -->
-| `diagnosis-knowledge` | 诊断知识维护 | `knowledge-governance` | primary | `MENU_DIAGNOSIS_KNOWLEDGE` | SPLIT | 知识治理 | 诊断知识维护 |
+| `knowledge-governance` | 知识审核发布中心 | `knowledge-governance` | primary | `MENU_KNOWLEDGE_GOVERNANCE` | MOVE | 知识治理 | 知识审核发布中心 |
 <!-- capability:menu:menu@runtime-releases decision=MERGE -->
 <!-- menu:runtime-releases -->
-| `runtime-releases` | 发布治理 | `knowledge-governance` | primary | `MENU_RUNTIME_RELEASES` | MERGE | 知识治理 | 机构生效版本 |
+| `runtime-releases` | 机构生效版本 | `knowledge-governance` | primary | `MENU_RUNTIME_RELEASES` | MERGE | 知识治理 | 机构生效版本 |
+<!-- capability:menu:menu@institution-knowledge decision=SPLIT -->
+<!-- menu:institution-knowledge -->
+| `institution-knowledge` | 机构知识库 | `knowledge-governance` | primary | `MENU_INSTITUTION_KNOWLEDGE` | SPLIT | 知识治理 | 机构知识库 |
+<!-- capability:menu:menu@diagnosis-knowledge decision=SPLIT -->
+<!-- menu:diagnosis-knowledge -->
+| `diagnosis-knowledge` | 诊断知识库 | `knowledge-governance` | primary | `MENU_DIAGNOSIS_KNOWLEDGE` | SPLIT | 知识治理 | 诊断知识库 |
 <!-- capability:menu:menu@terminology-mapping decision=MOVE -->
 <!-- menu:terminology-mapping -->
-| `terminology-mapping` | 术语与字典 | `knowledge-governance` | primary | `MENU_TERMINOLOGY_MAPPING` | MOVE | 知识治理 | 术语与字典 |
+| `terminology-mapping` | 术语字典 | `knowledge-governance` | primary | `MENU_TERMINOLOGY_MAPPING` | MOVE | 知识治理 | 术语字典 |
+<!-- capability:menu:menu@domain-facade-b0-evidence decision=SPLIT -->
+<!-- menu:domain-facade-b0-evidence -->
+| `domain-facade-b0-evidence` | 领域门面无模型证据 | `knowledge-governance` | primary | `MENU_DOMAIN_FACADE_B0_EVIDENCE` | SPLIT | 知识治理 | 领域门面无模型证据 |
 <!-- capability:menu:menu@rule-definitions decision=MOVE -->
 <!-- menu:rule-definitions -->
-| `rule-definitions` | 规则配置 | `knowledge-governance` | primary | `MENU_RULE_DEFINITIONS` | MOVE | 知识治理 | 规则配置 |
+| `rule-definitions` | 临床规则 | `knowledge-governance` | primary | `MENU_RULE_DEFINITIONS` | MOVE | 知识治理 | 临床规则 |
 <!-- capability:menu:menu@pathway-templates decision=MOVE -->
 <!-- menu:pathway-templates -->
-| `pathway-templates` | 路径配置 | `knowledge-governance` | primary | `MENU_PATHWAY_TEMPLATES` | MOVE | 知识治理 | 路径配置 |
+| `pathway-templates` | 临床路径库 | `knowledge-governance` | primary | `MENU_PATHWAY_TEMPLATES` | MOVE | 知识治理 | 临床路径库 |
 <!-- capability:menu:menu@provenance decision=MOVE -->
 <!-- menu:provenance -->
 | `provenance` | 来源与血缘 | `knowledge-governance` | primary | `MENU_PROVENANCE` | MOVE | 知识治理 | 来源与血缘 |
@@ -203,10 +209,10 @@
 | `graph-explore` | 知识关系 | `knowledge-governance` | primary | `MENU_GRAPH_EXPLORE` | MOVE | 知识治理 | 知识关系 |
 <!-- capability:menu:menu@knowledge-production decision=SPLIT -->
 <!-- menu:knowledge-production -->
-| `knowledge-production` | 知识生产 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产 |
+| `knowledge-production` | 知识生产工作台 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产工作台 |
 <!-- capability:menu:menu@ai-workflows decision=MOVE -->
 <!-- menu:ai-workflows -->
-| `ai-workflows` | 模型能力 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力 |
+| `ai-workflows` | 模型能力与安全 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力与安全 |
 <!-- capability:menu:menu@mpi decision=MOVE -->
 <!-- menu:mpi -->
 | `mpi` | 患者索引 | `clinical-collaboration` | primary | `MENU_MPI` | MOVE | 临床协同 | 患者索引 |
@@ -227,7 +233,7 @@
 | `sandbox` | 全真体验沙盘 | `clinical-collaboration` | primary | `MENU_SANDBOX` | KEEP | 临床协同 | 全真体验沙盘 |
 <!-- capability:menu:menu@qc-dashboard decision=RENAME -->
 <!-- menu:qc-dashboard -->
-| `qc-dashboard` | 质量管理概览 | `quality-management` | primary | `MENU_QC_DASHBOARD` | RENAME | 质量管理 | 质量管理概览 |
+| `qc-dashboard` | 质量风险概览 | `quality-management` | primary | `MENU_QC_DASHBOARD` | RENAME | 质量管理 | 质量风险概览 |
 <!-- capability:menu:menu@qc-alerts decision=RENAME -->
 <!-- menu:qc-alerts -->
 | `qc-alerts` | 质量问题与整改 | `quality-management` | primary | `MENU_QC_ALERTS` | RENAME | 质量管理 | 质量问题与整改 |
@@ -251,13 +257,13 @@
 | `adapter-hub` | 系统接入 | `system-operations` | primary | `MENU_ADAPTER_HUB` | MOVE | 系统运维 | 系统接入 |
 <!-- capability:menu:menu@system-providers decision=RENAME -->
 <!-- menu:system-providers -->
-| `system-providers` | 运行保障 | `system-operations` | primary | `MENU_SYSTEM_PROVIDERS` | RENAME | 系统运维 | 运行保障 |
-<!-- capability:menu:menu@domestic-check decision=MOVE -->
-<!-- menu:domestic-check -->
-| `domestic-check` | 国产化自检 | `system-operations` | primary | `MENU_DOMESTIC_CHECK` | MOVE | 系统运维 | 国产化自检 |
+| `system-providers` | 服务运行保障 | `system-operations` | primary | `MENU_SYSTEM_PROVIDERS` | RENAME | 系统运维 | 服务运行保障 |
 <!-- capability:menu:menu@runtime-diagnostics decision=MOVE -->
 <!-- menu:runtime-diagnostics -->
 | `runtime-diagnostics` | 运行诊断 | `system-operations` | primary | `MENU_RUNTIME_DIAGNOSTICS` | MOVE | 系统运维 | 运行诊断 |
+<!-- capability:menu:menu@domestic-check decision=MOVE -->
+<!-- menu:domestic-check -->
+| `domestic-check` | 国产化适配自检 | `system-operations` | primary | `MENU_DOMESTIC_CHECK` | MOVE | 系统运维 | 国产化适配自检 |
 <!-- capability:menu:menu@notifications decision=MOVE -->
 <!-- menu:notifications -->
 | `notifications` | 消息通知 | `workbench` | header | `MENU_NOTIFICATIONS` | MOVE | 工作台 | 消息通知（页头入口） |
@@ -278,9 +284,9 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2FNotFound.tsx decision=KEEP -->
 | `frontend/src/pages/NotFound.tsx` | `*` | KEEP | 系统反馈 | 未找到页面 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FAiWorkflows.tsx decision=MOVE -->
-| `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识生产 | 模型能力 |
+| `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识生产 | 模型能力与安全 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FDomesticCheck.tsx decision=MOVE -->
-| `frontend/src/pages/advanced/DomesticCheck.tsx` | `/advanced/domestic` | MOVE | 系统运维 | 国产化自检 |
+| `frontend/src/pages/advanced/DomesticCheck.tsx` | `/advanced/domestic` | MOVE | 系统运维 | 国产化适配自检 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FGraphExplore.tsx decision=MOVE -->
 | `frontend/src/pages/advanced/GraphExplore.tsx` | `/advanced/graph` | MOVE | 知识治理 | 知识关系 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FProjectionGraphCanvas.tsx decision=MERGE -->
@@ -300,7 +306,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fclinical%2FPatientPathways.tsx decision=MOVE -->
 | `frontend/src/pages/clinical/PatientPathways.tsx` | `/pathway/patients` | MOVE | 临床协同 | 患者路径 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fclinical%2FRuleValidate.tsx decision=MERGE -->
-| `frontend/src/pages/clinical/RuleValidate.tsx` | `/rule/validate` | MERGE | 知识治理 | 规则配置 / 试运行 |
+| `frontend/src/pages/clinical/RuleValidate.tsx` | `/rule/validate` | MERGE | 知识治理 | 临床规则 / 试运行 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fclinical%2FWorkflowTodos.tsx decision=RENAME -->
 | `frontend/src/pages/clinical/WorkflowTodos.tsx` | `/workflow/todos` | RENAME | 临床协同 | 协同任务 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FAdminAudit.tsx decision=MOVE -->
@@ -316,7 +322,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSecurityBaselinePanels.tsx decision=MERGE -->
 | `frontend/src/pages/compliance/SecurityBaselinePanels.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSystemProviders.tsx decision=RENAME -->
-| `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 运行保障 |
+| `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 服务运行保障 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FKnowledgeProductionPage.tsx decision=MERGE -->
 | `frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FMedicalEvaluationPanel.tsx decision=MERGE -->
@@ -331,18 +337,20 @@
 | `frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgePanel.tsx decision=MERGE -->
 | `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDomainFacadeB0Evidence.tsx decision=SPLIT -->
+| `frontend/src/pages/quality/DomainFacadeB0Evidence.tsx` | `/knowledge/domain-facades/b0-evidence` | SPLIT | 知识治理 | 领域门面无模型证据 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInstitutionKnowledge.tsx decision=SPLIT -->
-| `frontend/src/pages/quality/InstitutionKnowledge.tsx` | `/knowledge/institution` | SPLIT | 知识治理 | 机构知识 |
+| `frontend/src/pages/quality/InstitutionKnowledge.tsx` | `/knowledge/institution` | SPLIT | 知识治理 | 机构知识库 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInsuranceAudit.tsx decision=RENAME -->
 | `frontend/src/pages/quality/InsuranceAudit.tsx` | `/qc/insurance` | RENAME | 质量管理 | 医保审核 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FKnowledgeGovernance.tsx decision=MOVE -->
-| `frontend/src/pages/quality/KnowledgeGovernance.tsx` | `/knowledge/governance` | MOVE | 知识治理 | 知识审核与发布 |
+| `frontend/src/pages/quality/KnowledgeGovernance.tsx` | `/knowledge/governance` | MOVE | 知识治理 | 知识审核发布中心 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FKnowledgeProduction.tsx decision=SPLIT -->
-| `frontend/src/pages/quality/KnowledgeProduction.tsx` | `/knowledge/production` | SPLIT | 知识生产 | 知识生产 |
+| `frontend/src/pages/quality/KnowledgeProduction.tsx` | `/knowledge/production` | SPLIT | 知识生产 | 知识生产工作台 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcAlerts.tsx decision=RENAME -->
 | `frontend/src/pages/quality/QcAlerts.tsx` | `/qc/alerts` | RENAME | 质量管理 | 质量问题与整改 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcDashboard.tsx decision=RENAME -->
-| `frontend/src/pages/quality/QcDashboard.tsx` | `/qc/dashboard` | RENAME | 质量管理 | 质量管理概览 |
+| `frontend/src/pages/quality/QcDashboard.tsx` | `/qc/dashboard` | RENAME | 质量管理 | 质量风险概览 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcEvalResults.tsx decision=MERGE -->
 | `frontend/src/pages/quality/QcEvalResults.tsx` | `/qc/eval/results` | MERGE | 质量管理 | 质量问题与整改 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcEvalSets.tsx decision=RENAME -->
@@ -364,15 +372,15 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FPathwayGraphEditor.tsx decision=MERGE -->
 | `frontend/src/pages/tenant/PathwayGraphEditor.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FPathwayTemplates.tsx decision=MOVE -->
-| `frontend/src/pages/tenant/PathwayTemplates.tsx` | `/pathway/templates` | MOVE | 知识治理 | 路径配置 |
+| `frontend/src/pages/tenant/PathwayTemplates.tsx` | `/pathway/templates` | MOVE | 知识治理 | 临床路径库 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FReleaseGovernance.tsx decision=MERGE -->
 | `frontend/src/pages/tenant/ReleaseGovernance.tsx` | `/config/releases` | MERGE | 知识治理 | 机构生效版本 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FRuleDefinitions.tsx decision=MOVE -->
-| `frontend/src/pages/tenant/RuleDefinitions.tsx` | `/rule/definitions` | MOVE | 知识治理 | 规则配置 |
+| `frontend/src/pages/tenant/RuleDefinitions.tsx` | `/rule/definitions` | MOVE | 知识治理 | 临床规则 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FTenantOnboarding.tsx decision=MOVE -->
 | `frontend/src/pages/tenant/TenantOnboarding.tsx` | `/tenant/onboarding` | MOVE | 机构与人员 | 服务机构 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FTerminologyMapping.tsx decision=MOVE -->
-| `frontend/src/pages/tenant/TerminologyMapping.tsx` | `/terminology/mapping` | MOVE | 知识治理 | 术语与字典 |
+| `frontend/src/pages/tenant/TerminologyMapping.tsx` | `/terminology/mapping` | MOVE | 知识治理 | 术语字典 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fworkbench%2FReadinessValidation.tsx decision=MERGE -->
 | `frontend/src/pages/workbench/ReadinessValidation.tsx` | `/workbench/readiness-validation` | MERGE | 工作台 | 验收自检（工作台页内） |
 
@@ -463,7 +471,7 @@
 <!-- capability:controller:controller@KnowledgeExportController decision=MERGE -->
 | `KnowledgeExportController` | POST /api/v1/engine/knowledge/exports<br>GET /api/v1/engine/knowledge/exports/{jobCode}<br>GET /api/v1/engine/knowledge/exports<br>POST /api/v1/engine/knowledge/exports/{jobCode}/cancel<br>GET /api/v1/engine/knowledge/exports/{jobCode}/download | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@KnowledgeIdentityController decision=KEEP -->
-| `KnowledgeIdentityController` | GET /api/v1/engine/knowledge/identities<br>POST /api/v1/engine/knowledge/identities<br>GET /api/v1/engine/knowledge/identities/{id}<br>GET /api/v1/engine/knowledge/identities/by-code/{identityCode}<br>GET /api/v1/engine/knowledge/identities/{id}/active<br>GET /api/v1/engine/knowledge/identities/{id}/lineage<br>GET /api/v1/engine/knowledge/identities/{id}/provenance<br>GET /api/v1/engine/knowledge/identities/{id}/citations<br>其余 5 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `KnowledgeIdentityController` | GET /api/v1/engine/knowledge/identities<br>POST /api/v1/engine/knowledge/identities<br>GET /api/v1/engine/knowledge/identities/{id}<br>GET /api/v1/engine/knowledge/identities/by-code/{identityCode}<br>GET /api/v1/engine/knowledge/identities/{id}/active<br>GET /api/v1/engine/knowledge/identities/{id}/lineage<br>GET /api/v1/engine/knowledge/identities/{id}/provenance<br>GET /api/v1/engine/knowledge/identities/{id}/citations<br>其余 6 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeRetirementController decision=KEEP -->
 | `KnowledgeRetirementController` | POST /api/v1/engine/knowledge/identities/{identityId}/deprecate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeVersionController decision=KEEP -->
@@ -521,7 +529,7 @@
 <!-- capability:controller:controller@RecommendationEvaluateSuffixController decision=KEEP -->
 | `RecommendationEvaluateSuffixController` | POST /api/v1/engine/recommendations:evaluate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuntimeReleaseController decision=KEEP -->
-| `RuntimeReleaseController` | GET /api/v1/engine/releases/platform-baselines/current<br>GET /api/v1/engine/releases/platform-baselines/candidates<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases/current<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-candidates<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases<br>POST /api/v1/engine/releases/platform-baselines<br>POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases<br>POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases:rollback | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `RuntimeReleaseController` | GET /api/v1/engine/releases/platform-baselines/current<br>GET /api/v1/engine/releases/platform-baselines/candidates<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases/current<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-candidates<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/platform-upgrade-analysis<br>POST /api/v1/engine/releases/platform-baselines<br>POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases<br>其余 4 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ReportInterpretationController decision=KEEP -->
 | `ReportInterpretationController` | POST /api/v1/engine/recommendations/report-interpretation | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuleEngineController decision=KEEP -->
@@ -529,7 +537,7 @@
 <!-- capability:controller:controller@RuntimeDiagnosticsController decision=KEEP -->
 | `RuntimeDiagnosticsController` | GET /api/v1/system/runtime-diagnostics/api-contracts | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ClinicalRedlineController decision=KEEP -->
-| `ClinicalRedlineController` | GET /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines:dry-run<br>POST /api/v1/engine/safety/redlines:promote | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `ClinicalRedlineController` | GET /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines:dry-run<br>POST /api/v1/engine/safety/redlines:promote | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@SafetyWithdrawalController decision=MERGE -->
 | `SafetyWithdrawalController` | POST /api/v1/engine/safety/withdrawals<br>GET /api/v1/engine/safety/withdrawals/{withdrawalId}/impact<br>GET /api/v1/engine/safety/withdrawals/{withdrawalId}/impact/export | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@SandboxScenarioController decision=KEEP -->

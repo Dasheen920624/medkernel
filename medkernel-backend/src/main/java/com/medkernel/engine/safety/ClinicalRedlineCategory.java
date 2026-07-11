@@ -10,7 +10,8 @@ public enum ClinicalRedlineCategory {
     CRITICAL_VALUE,
     DOSE_LIMIT,
     ANTIMICROBIAL_RESTRICTION,
-    SPECIAL_POPULATION_CONTRAINDICATION;
+    SPECIAL_POPULATION_CONTRAINDICATION,
+    SURGERY_ANESTHESIA_TRANSFUSION;
 
     public static List<ClinicalRedlineCategory> requiredSafetyCategories() {
         return List.of(
@@ -18,6 +19,7 @@ public enum ClinicalRedlineCategory {
             CRITICAL_VALUE,
             DOSE_LIMIT,
             ANTIMICROBIAL_RESTRICTION,
-            SPECIAL_POPULATION_CONTRAINDICATION);
+            SPECIAL_POPULATION_CONTRAINDICATION,
+            SURGERY_ANESTHESIA_TRANSFUSION);
     }
 }

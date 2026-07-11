@@ -256,6 +256,51 @@
   overflow: hidden;
 }
 
+.followupPlanPrimaryColumn {
+  vertical-align: top;
+}
+
+.followupPlanCell {
+  min-width: 0;
+  width: 100%;
+}
+
+.followupEvidenceText {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.followupEvidenceTag {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.6;
+}
+
+.workflowTodoPrimaryColumn {
+  vertical-align: top;
+}
+
+.workflowTodoContent {
+  min-width: 0;
+  width: 100%;
+}
+
+.workflowTodoSummary {
+  line-height: 1.6;
+}
+
+.workflowTodoEvidence {
+  margin-top: calc(var(--mk-unit) * 4);
+}
+
+.workflowTodoActionColumn {
+  vertical-align: top;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -304,6 +349,32 @@
 
 .notificationBody {
   flex: 1;
+  min-width: 0;
+}
+
+.notificationTitleRow,
+.notificationContent {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.notificationContent :global(.ant-space) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.notificationTitleRow :global(.ant-space-item),
+.notificationContent :global(.ant-space-item) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.notificationTitleRow span,
+.notificationContent span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .notificationTitle {
@@ -430,6 +501,24 @@
 
 .formGap {
   margin-top: calc(var(--mk-unit) * 16);
+}
+
+.drawerActionBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(var(--mk-unit) * 12);
+  padding-top: calc(var(--mk-unit) * 12);
+  padding-bottom: calc(var(--mk-unit) * 16);
+  margin-top: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+  border-top: var(--mk-line-width) solid var(--ant-color-border-secondary);
+}
+
+.drawerActionBar :global(.ant-btn) {
+  min-height: calc(var(--mk-unit) * 40);
 }
 
 .formSectionTitle {
@@ -1047,6 +1136,14 @@
   }
 
   .actionItem :global(.ant-btn) {
+    width: 100%;
+  }
+
+  .drawerActionBar {
+    justify-content: stretch;
+  }
+
+  .drawerActionBar :global(.ant-btn) {
     width: 100%;
   }
 

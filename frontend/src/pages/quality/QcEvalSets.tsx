@@ -49,6 +49,12 @@ import {
   validateTree,
   type RuleGroup,
 } from "@/shared/config/conditionModel";
+import {
+  qualityOrganizationScopeLabels,
+  qualityOrganizationScopeOptions,
+  qualityTimeWindowLabels,
+  qualityTimeWindowOptions,
+} from "@/shared/config/qualityEvaluationCatalog";
 import { PageShell } from "@/shared/ui/PageShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
@@ -98,7 +104,7 @@ const RELEASE_ACTION_SUCCESS: Record<IndicatorReleaseAction, string> = {
 const SUBJECT_LABELS: Record<EvaluationSubjectType, string> = {
   PATIENT: "患者主体",
   MEDICAL_RECORD: "临床病历",
-  DEPARTMENT: "科室质控",
+  DEPARTMENT: "科室质量评价",
   DOCTOR: "医师效能",
   DISEASE: "专病包",
   PATHWAY: "临床路径",
@@ -127,9 +133,62 @@ const STATUS_COLORS: Record<EvaluationIndicatorStatus, string> = {
 };
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
 
+const TIME_WINDOW_ANCHOR_LABELS: Record<string, string> = {
+  ADMISSION: "入院",
+  DISCHARGE: "出院",
+  SURGERY: "手术",
+  VISIT: "就诊",
+};
+
 function optionalText(value?: string) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function hasChineseText(value: string) {
+  return /[\u4e00-\u9fa5]/.test(value);
+}
+
+function departmentDisplayText(
+  departmentId: string | null | undefined,
+  departmentNames: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return departmentId || "--";
+  if (!departmentId) return "责任科室未返回";
+  return (
+    departmentNames.get(departmentId) ??
+    (hasChineseText(departmentId) ? departmentId : "责任科室已关联")
+  );
+}
+
+function timeWindowDisplayText(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return value || "--";
+  if (!value) return "时间窗口未返回";
+  if (hasChineseText(value)) return value;
+  if (qualityTimeWindowLabels[value]) return qualityTimeWindowLabels[value];
+
+  const match = value.match(/^(ADMISSION|DISCHARGE|SURGERY|VISIT)([+-])(\d+)(H|D)$/);
+  if (match) {
+    const [, anchor, direction, amount, unit] = match;
+    const anchorLabel = TIME_WINDOW_ANCHOR_LABELS[anchor] ?? "关键节点";
+    const directionLabel = direction === "+" ? "后" : "前";
+    const unitLabel = unit === "H" ? "小时" : "天";
+    return `${anchorLabel}${directionLabel} ${Number(amount)} ${unitLabel}`;
+  }
+
+  return "时间窗口已配置";
+}
+
+function organizationScopeDisplayText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return value || "--";
+  if (!value) return "组织范围未返回";
+  if (qualityOrganizationScopeLabels[value]) return qualityOrganizationScopeLabels[value];
+  if (hasChineseText(value)) return value;
+  return "组织范围已配置";
 }
 
 function getResponseStatus(error: unknown): number | undefined {
@@ -197,6 +256,15 @@ export default function QcEvalSets() {
       value: unit.id as string,
       label: `${unit.name} · ${unit.code}`,
     }));
+  const departmentNames = useMemo(
+    () =>
+      new Map(
+        (departmentsQuery.data?.items ?? [])
+          .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && unit.id)
+          .map((unit) => [unit.id as string, unit.name]),
+      ),
+    [departmentsQuery.data?.items],
+  );
   const [status, setStatus] = useState<EvaluationIndicatorStatus | undefined>();
   const [subjectType, setSubjectType] = useState<EvaluationSubjectType | undefined>();
   const [indicatorCode, setIndicatorCode] = useState("");
@@ -251,7 +319,7 @@ export default function QcEvalSets() {
   const total = indicatorsQuery.data?.total ?? indicators.length;
   const visibleIndicator = selectedIndicator ?? indicators[0] ?? null;
   const parsedError = indicatorsQuery.isError
-    ? parseApiError(indicatorsQuery.error, "评估指标读取失败")
+    ? parseApiError(indicatorsQuery.error, "评价指标读取失败")
     : null;
   const pageState = resolvePageState(
     indicatorsQuery.isLoading,
@@ -288,6 +356,9 @@ export default function QcEvalSets() {
       title: "责任科室",
       dataIndex: "responsibleDepartmentId",
       key: "responsibleDepartmentId",
+      render: (value: string) => (
+        <Text>{departmentDisplayText(value, departmentNames, evidenceDetailsEnabled)}</Text>
+      ),
     },
     {
       title: "状态",
@@ -353,12 +424,12 @@ export default function QcEvalSets() {
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
         sourceRef: values.sourceRef.trim(),
       });
-      message.success("评估指标草稿已创建");
+      message.success("评价指标草稿已创建");
       setCreateOpen(false);
       indicatorsQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(form, error)) return;
-      message.error(getApiErrorMessage(error, "评估指标创建失败"));
+      message.error(getApiErrorMessage(error, "评价指标创建失败"));
     }
   }
 
@@ -425,7 +496,7 @@ export default function QcEvalSets() {
 
   const stepPanels = useMemo(
     () => ({
-      select_template: <Text type="secondary">当前查询返回 {total} 个真实指标版本。</Text>,
+      select_template: <Text type="secondary">当前查询返回 {total} 个评价指标版本。</Text>,
       auto_validate: visibleIndicator ? (
         <Descriptions size="small" column={1}>
           <Descriptions.Item label="指标">
@@ -445,8 +516,13 @@ export default function QcEvalSets() {
       ),
       impact_preview: visibleIndicator ? (
         <Text type="secondary">
-          {visibleIndicator.responsibleDepartmentId} · {visibleIndicator.timeWindow} ·{" "}
-          {visibleIndicator.organizationScope}
+          {departmentDisplayText(
+            visibleIndicator.responsibleDepartmentId,
+            departmentNames,
+            evidenceDetailsEnabled,
+          )}{" "}
+          · {timeWindowDisplayText(visibleIndicator.timeWindow, evidenceDetailsEnabled)} ·{" "}
+          {organizationScopeDisplayText(visibleIndicator.organizationScope, evidenceDetailsEnabled)}
         </Text>
       ) : (
         <Text type="secondary">暂无影响范围。</Text>
@@ -474,14 +550,14 @@ export default function QcEvalSets() {
         </Text>
       ),
     }),
-    [evidenceDetailsEnabled, total, visibleIndicator],
+    [departmentNames, evidenceDetailsEnabled, total, visibleIndicator],
   );
 
   return (
     <>
       <PageShell
-        title="评估指标库"
-        description="按真实指标版本维护质控口径"
+        title="评价指标"
+        description="定义质量评价指标，试算影响范围并通过机构生效版本统一发布。"
         primary={
           <Button
             aria-label="新建指标"
@@ -516,10 +592,10 @@ export default function QcEvalSets() {
         }
         state={pageState}
         stateProps={{
-          title: parsedError?.message ?? "正在加载评估指标",
+          title: parsedError?.message ?? "正在加载评价指标",
           description: parsedError
             ? "请稍后重试；若持续失败，请联系信息科核查评价指标服务。失败已留痕，可在审计证据中追溯。"
-            : "正在读取 EVAL-01 指标版本台账。",
+            : "正在读取评价指标版本台账。",
           traceId: parsedError?.traceId,
           onRetry: () => indicatorsQuery.refetch(),
         }}
@@ -527,7 +603,7 @@ export default function QcEvalSets() {
         <Space direction="vertical" size="large" className={styles.fullWidth}>
           <Space wrap>
             <Card size="small">
-              <Text type="secondary">真实评估指标总数</Text>
+              <Text type="secondary">评价指标总数</Text>
               <Title level={3} className="mk-title-tight">
                 {total}
               </Title>
@@ -584,22 +660,30 @@ export default function QcEvalSets() {
           </Space>
 
           <Card title="指标台账">
-            <Table
-              rowKey={(record) => record.indicatorId}
-              columns={columns}
-              dataSource={indicators}
-              loading={indicatorsQuery.isLoading}
-              pagination={{ pageSize: 20, total, showSizeChanger: false }}
-              locale={{ emptyText: <Empty description="当前筛选下暂无真实评估指标" /> }}
-            />
+            <div className={styles.tableViewport} data-testid="evaluation-indicator-table-viewport">
+              <Table
+                rowKey={(record) => record.indicatorId}
+                columns={columns}
+                dataSource={indicators}
+                loading={indicatorsQuery.isLoading}
+                pagination={{ pageSize: 20, total, showSizeChanger: false }}
+                locale={{ emptyText: <Empty description="当前筛选下暂无评价指标" /> }}
+                tableLayout="fixed"
+              />
+            </div>
           </Card>
 
-          <StepFlow currentStep={stepForIndicator(visibleIndicator)} panelByStep={stepPanels} />
+          <div
+            className={styles.mobileSafeViewport}
+            data-testid="evaluation-indicator-release-flow-viewport"
+          >
+            <StepFlow currentStep={stepForIndicator(visibleIndicator)} panelByStep={stepPanels} />
+          </div>
         </Space>
       </PageShell>
 
       <Modal
-        title="新建评估指标"
+        title="新建评价指标"
         open={createOpen}
         width={980}
         okText="创建指标草稿"
@@ -624,7 +708,7 @@ export default function QcEvalSets() {
                 name="indicatorCode"
                 label="稳定评价指标身份"
                 rules={[{ required: true, message: "请输入稳定评价指标身份" }]}
-                extra="用于版本发布、质控追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"
+                extra="用于版本发布、质量追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"
               >
                 <Input placeholder="输入稳定评价指标身份" />
               </Form.Item>
@@ -663,22 +747,22 @@ export default function QcEvalSets() {
               <Form.Item
                 name="timeWindow"
                 label="时间窗口"
-                rules={[{ required: true, message: "请输入时间窗口" }]}
+                rules={[{ required: true, message: "请选择时间窗口" }]}
               >
-                <Input />
+                <Select options={qualityTimeWindowOptions} />
               </Form.Item>
               <Form.Item
                 name="organizationScope"
                 label="组织范围"
-                rules={[{ required: true, message: "请输入组织范围" }]}
+                rules={[{ required: true, message: "请选择组织范围" }]}
               >
-                <Input />
+                <Select options={qualityOrganizationScopeOptions} />
               </Form.Item>
               <Alert
                 type="info"
                 showIcon
-                message="指标版本独立维护"
-                description="创建时只形成指标草稿版本；通过发布治理后，再由机构生效版本确定真正上线的版本。"
+                message="指标草稿统一发布"
+                description="创建时只形成指标草稿版本；通过安全复核并纳入机构生效版本后，才成为真正上线的版本。"
               />
             </div>
             <Form.Item
@@ -774,12 +858,21 @@ export default function QcEvalSets() {
               <Descriptions.Item label="评估主体">
                 {SUBJECT_LABELS[selectedIndicator.subjectType]}
               </Descriptions.Item>
-              <Descriptions.Item label="时间窗口">{selectedIndicator.timeWindow}</Descriptions.Item>
+              <Descriptions.Item label="时间窗口">
+                {timeWindowDisplayText(selectedIndicator.timeWindow, evidenceDetailsEnabled)}
+              </Descriptions.Item>
               <Descriptions.Item label="组织范围">
-                {selectedIndicator.organizationScope}
+                {organizationScopeDisplayText(
+                  selectedIndicator.organizationScope,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="责任科室">
-                {selectedIndicator.responsibleDepartmentId}
+                {departmentDisplayText(
+                  selectedIndicator.responsibleDepartmentId,
+                  departmentNames,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="来源依据">{selectedIndicator.sourceRef}</Descriptions.Item>
               <Descriptions.Item label="证据">

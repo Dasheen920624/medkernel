@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
@@ -693,16 +696,16 @@ describe("KnowledgeGovernance", () => {
 
       renderPage(<InstitutionKnowledge />);
       expect(mockUseKnowledgeCustomizations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
-      await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
-      expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /创建机构差异版本/ }));
+      expect(screen.getByRole("dialog", { name: /创建机构差异版本/ })).toBeInTheDocument();
       await user.click(screen.getByRole("combobox", { name: "生效机构" }));
       await user.click(
         await screen.findByText("示范医院 · 医疗服务机构", {
           selector: ".ant-select-item-option-content",
         }),
       );
-      await user.type(screen.getByLabelText("定制原因"), "适配本院诊疗流程");
-      await user.click(screen.getByRole("button", { name: "创建定制草稿" }));
+      await user.type(screen.getByLabelText("差异原因"), "适配本院诊疗流程");
+      await user.click(screen.getByRole("button", { name: "创建差异草稿" }));
 
       await waitFor(() =>
         expect(createCustomization).toHaveBeenCalledWith({
@@ -759,7 +762,9 @@ describe("KnowledgeGovernance", () => {
       });
 
       renderPage(<InstitutionKnowledge />);
-      await user.click(screen.getByRole("button", { name: "发布机构版本" }));
+      expect(screen.getByText("机构差异草稿")).toBeInTheDocument();
+      expect(screen.getByText("差异原因")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "发布机构差异版本" }));
 
       await user.type(screen.getByLabelText("发布依据"), "医务与质控联合复核通过");
       await user.click(screen.getByRole("button", { name: "确认发布" }));
@@ -774,7 +779,7 @@ describe("KnowledgeGovernance", () => {
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );
 
-  it("keeps diagnosis maintenance out of the review workspace while the candidate queue is loading", () => {
+  it("keeps the diagnosis knowledge library out of the review workspace while the candidate queue is loading", () => {
     mockUseKnowledgeIdentities.mockReturnValue({
       data: undefined,
       refetch: refetchIdentities,
@@ -878,7 +883,7 @@ describe("KnowledgeGovernance", () => {
     );
     expect(mockUseKnowledgeCandidates).toHaveBeenLastCalledWith(42, { page: 1, size: 20 });
 
-    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核发布中心" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("按主题或知识身份搜索")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("按主题或编码搜索")).not.toBeInTheDocument();
@@ -888,7 +893,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("知识身份已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("来源证据已记录").length).toBeGreaterThan(0);
     expect(screen.getByText("VTE 防治指南")).toBeInTheDocument();
-    expect(screen.getByText("待审 VTE 指南 2026.06")).toBeInTheDocument();
+    expect(screen.getAllByText("待审 VTE 指南 2026.06").length).toBeGreaterThan(0);
     expect(
       screen.getByText("同一 identity 下来源版本更新，GRADE 强度与现行版冲突"),
     ).toBeInTheDocument();
@@ -923,7 +928,7 @@ describe("KnowledgeGovernance", () => {
   it("keeps review desk focused on candidate review without institution or production tabs", () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核发布中心" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "机构知识" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "知识生产" })).not.toBeInTheDocument();
@@ -954,14 +959,47 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<InstitutionKnowledge />);
 
-    expect(screen.getByRole("heading", { name: "机构知识" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构知识库" })).toBeInTheDocument();
+    expect(screen.getByText("治理院内覆盖、机构差异、换基线和恢复平台标准")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "机构差异版本会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("机构定制会复制当前平台版本及完整证据链")).not.toBeInTheDocument();
     expect(screen.getByText("平台标准知识")).toBeInTheDocument();
     expect(screen.getAllByText("平台主源只读").length).toBeGreaterThan(0);
     expect(screen.getByText("机构知识血缘")).toBeInTheDocument();
     expect(screen.getAllByText("院内覆盖可治理").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
+    expect(screen.getByText("差异原因")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /创建机构差异版本/ })).toBeInTheDocument();
+    expect(screen.queryByText("机构定制")).not.toBeInTheDocument();
+    expect(screen.queryByText("定制原因")).not.toBeInTheDocument();
+    expect(screen.queryByText("定制草稿")).not.toBeInTheDocument();
     expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
     expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
+  });
+
+  it("keeps institution knowledge tables contained on mobile viewports", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/pages/quality/KnowledgeGovernance.tsx"),
+      {
+        encoding: "utf8",
+      },
+    );
+    const institutionBody = source.slice(
+      source.indexOf("let customizationListContent: ReactNode;"),
+      source.indexOf("let institutionKnowledgeContent: ReactNode;"),
+    );
+    const institutionPageBody = source.slice(
+      source.indexOf("if (isPlatformTenant)"),
+      source.indexOf("const reviewContent = ("),
+    );
+
+    expect(institutionBody).toContain("scroll={{ x: 920 }}");
+    expect(institutionBody).toContain('tableLayout="fixed"');
+    expect(institutionPageBody).toContain("scroll={{ x: 760 }}");
+    expect(institutionPageBody).toContain('tableLayout="fixed"');
   });
 
   it("keeps platform-source guidance in service institution language", () => {
@@ -976,8 +1014,9 @@ describe("KnowledgeGovernance", () => {
 
     expect(screen.getByText("当前位于平台治理入口")).toBeInTheDocument();
     expect(
-      screen.getByText("平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"),
+      screen.getByText("平台负责管理权威标准；机构差异、发布和恢复操作在对应医疗机构内完成。"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("平台负责维护权威标准")).not.toBeInTheDocument();
   });
 
   it("separates platform-source and tenant-overlay production lanes with visible ownership labels", async () => {
@@ -1056,8 +1095,15 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("模型生产策略").length).toBeGreaterThan(1);
     expect(screen.getAllByText("生产任务已登记").length).toBeGreaterThan(0);
     expect(screen.getByText("模型生产策略已配置")).toBeInTheDocument();
+    expect(screen.getAllByText("候选分流").length).toBeGreaterThan(0);
+    expect(screen.getByText("候选分流队列")).toBeInTheDocument();
+    expect(screen.queryByText("八类状态分流")).not.toBeInTheDocument();
+    expect(screen.queryByText("八类状态队列")).not.toBeInTheDocument();
     expect(screen.queryByText("job-ai-1")).not.toBeInTheDocument();
     expect(screen.queryByText("gpt-pipeline")).not.toBeInTheDocument();
+    expect(screen.queryByText("SOURCE_ANCHOR")).not.toBeInTheDocument();
+    expect(screen.queryByText("8 态分流")).not.toBeInTheDocument();
+    expect(screen.queryByText("8 态队列")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
@@ -1065,9 +1111,9 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
     expect(screen.getAllByText("统一模型服务").length).toBeGreaterThan(0);
     expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
-    expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
-    expect(screen.getByText("8 态分流")).toBeInTheDocument();
-    expect(screen.getByText("CONFLICT")).toBeInTheDocument();
+    expect(screen.getByText("来源锚点 · SOURCE_ANCHOR")).toBeInTheDocument();
+    expect(screen.getAllByText("候选分流").length).toBeGreaterThan(0);
+    expect(screen.getByText("冲突仲裁 · CONFLICT")).toBeInTheDocument();
     expect(screen.getByText("影子评测")).toBeInTheDocument();
     expect(screen.getByText("误报率超过阈值")).toBeInTheDocument();
     expect(screen.getByTestId("production-readiness-table")).toBeInTheDocument();
@@ -1082,6 +1128,14 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
+  it("does not load review-desk candidates while rendering the production center", () => {
+    renderPage(<KnowledgeProduction />);
+
+    expect(
+      mockUseKnowledgeCandidates.mock.calls.every(([identityId]) => identityId === undefined),
+    ).toBe(true);
+  });
+
   it("blocks production job creation while model production prerequisites are not ready", () => {
     mockUseSecurityProfile.mockReturnValue({
       data: {
@@ -1094,6 +1148,84 @@ describe("KnowledgeGovernance", () => {
 
     expect(screen.getByText("模型生产前置仍有阻断")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "创建生产任务" })).toBeDisabled();
+  });
+
+  it("默认用业务语言展示模型生产上线准备，证据详情打开后才展示原始追溯字段", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        menuKeys: ["knowledge-production"],
+        permissions: [{ code: "knowledge.write" }, { code: "asset.read" }],
+      },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge.production.knowledge",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: false,
+        modelInvocationAllowed: false,
+        items: [
+          {
+            code: "LITERATURE_ROOT",
+            ready: true,
+            required: true,
+            message: "平台知识文献资料库根地址已配置",
+            evidence: "file:///zoesoft/medkernel/var/platform-knowledge/literature-materials/",
+          },
+          {
+            code: "MODEL_PROVIDER",
+            ready: false,
+            required: true,
+            message: "未发现匹配的模型服务",
+            evidence: "生产方式：模型服务生产",
+          },
+          {
+            code: "EGRESS_GOVERNANCE",
+            ready: false,
+            required: true,
+            message: "公网模型使用边界不可执行",
+            evidence: "能力：knowledge.production.knowledge；原因：未配置字段允许字段",
+          },
+          {
+            code: "VERSION_TRIPLE",
+            ready: false,
+            required: true,
+            message: "已生效模型版本、提示词和工具版本组合不可执行",
+            evidence:
+              "能力：knowledge.production.knowledge；原因：当前能力方案未包含提示词、工具与模型版本组合",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("文献资料库")).toBeInTheDocument();
+    expect(screen.getByText("模型服务")).toBeInTheDocument();
+    expect(screen.getByText("模型使用边界")).toBeInTheDocument();
+    expect(screen.getByText("提示词、工具与模型版本")).toBeInTheDocument();
+    expect(screen.getAllByText("证据已记录").length).toBeGreaterThan(0);
+    expect(screen.queryByText("LITERATURE_ROOT")).not.toBeInTheDocument();
+    expect(screen.queryByText("MODEL_PROVIDER")).not.toBeInTheDocument();
+    expect(screen.queryByText("VERSION_TRIPLE")).not.toBeInTheDocument();
+    expect(screen.queryByText(/file:\/\/\/zoesoft/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/knowledge\.production\.knowledge/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("文献资料库 · LITERATURE_ROOT")).toBeInTheDocument();
+    expect(screen.getByText("模型服务 · MODEL_PROVIDER")).toBeInTheDocument();
+    expect(screen.getByText("提示词、工具与模型版本 · VERSION_TRIPLE")).toBeInTheDocument();
+    expect(screen.getByText(/file:\/\/\/zoesoft/)).toBeInTheDocument();
+    expect(screen.getAllByText(/knowledge\.production\.knowledge/).length).toBeGreaterThan(0);
   });
 
   it("creates production jobs and exposes only persisted initialization batches for bulk approval", async () => {
@@ -1489,7 +1621,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
-  it("shows agent progress, 8-state queue, side-by-side coexistence and a cancellable job action", async () => {
+  it("shows agent progress, triage queue, side-by-side coexistence and a cancellable job action", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({
       data: {
@@ -1538,20 +1670,20 @@ describe("KnowledgeGovernance", () => {
     });
     mockUseKnowledgeProductionTriageResults.mockReturnValue({
       data: [
-        "NEW_ASSET",
-        "DUPLICATE",
-        "MINOR_REVISION",
-        "MAJOR_UPGRADE",
-        "CONFLICT",
-        "DOWNGRADE",
-        "DEPRECATION",
-        "UNCERTAIN",
-      ].map((triageState) => ({
+        ["NEW_ASSET", "SUBMIT_REVIEW", "未指定现有知识身份，按新知识身份候选进入审核"],
+        ["DUPLICATE", "SKIP_DUPLICATE", "content_hash 与既有版本一致，跳过重复入审"],
+        ["MINOR_REVISION", "MERGE_REVIEW", "同一知识身份内容变更，按小修订进入对照审核"],
+        ["MAJOR_UPGRADE", "UPGRADE_REVIEW", "候选来源高于现行版本，进入升级审核"],
+        ["CONFLICT", "CONFLICT_REVIEW", "候选声明与现行版本存在冲突，进入冲突仲裁审核"],
+        ["DOWNGRADE", "DOWNGRADE_REVIEW", "候选来源低于现行版本，进入降级风险审核"],
+        ["DEPRECATION", "RETIREMENT_REVIEW", "候选声明废止现行知识，进入废止审核"],
+        ["UNCERTAIN", "MANUAL_REVIEW", "缺少现行基线或判定依据不足，人工分流"],
+      ].map(([triageState, action, basis]) => ({
         jobCode: "job-agent-7",
         contentHash: triageState.toLowerCase(),
         triageState,
-        action: `${triageState}_ACTION`,
-        basis: `${triageState} 分流依据`,
+        action,
+        basis,
       })),
       isLoading: false,
       isError: false,
@@ -1617,7 +1749,9 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("Agent 进度与中止")).toBeInTheDocument();
     expect(screen.getByText("Agent 工具")).toBeInTheDocument();
     expect(screen.getByText("生成候选 4 条")).toBeInTheDocument();
-    expect(screen.getByText("8 态队列")).toBeInTheDocument();
+    expect(screen.getByText("候选分流队列")).toBeInTheDocument();
+    expect(screen.queryByText("八类状态队列")).not.toBeInTheDocument();
+    expect(screen.queryByText("8 态队列")).not.toBeInTheDocument();
     for (const label of [
       "新资产",
       "重复",
@@ -1630,6 +1764,32 @@ describe("KnowledgeGovernance", () => {
     ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
+    for (const rawText of [
+      "NEW_ASSET",
+      "DUPLICATE",
+      "MINOR_REVISION",
+      "MAJOR_UPGRADE",
+      "CONFLICT",
+      "DOWNGRADE",
+      "DEPRECATION",
+      "UNCERTAIN",
+      "SUBMIT_REVIEW",
+      "SKIP_DUPLICATE",
+      "MERGE_REVIEW",
+      "UPGRADE_REVIEW",
+      "CONFLICT_REVIEW",
+      "DOWNGRADE_REVIEW",
+      "RETIREMENT_REVIEW",
+      "MANUAL_REVIEW",
+      "PASSED",
+      "content_hash",
+    ]) {
+      expect(screen.queryByText(new RegExp(rawText))).not.toBeInTheDocument();
+    }
+    expect(screen.getAllByText("进入审核").length).toBeGreaterThan(0);
+    expect(screen.getByText("跳过重复")).toBeInTheDocument();
+    expect(screen.getByText(/内容摘要 与既有版本一致/)).toBeInTheDocument();
+    expect(screen.getAllByText("通过").length).toBeGreaterThan(0);
     expect(screen.getByText("待审候选版本")).toBeInTheDocument();
     expect(screen.getByText("现行权威版本")).toBeInTheDocument();
     expect(screen.getByText("2026.07")).toBeInTheDocument();
@@ -1703,7 +1863,7 @@ describe("KnowledgeGovernance", () => {
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
-    expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(2002);
+    expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(9001);
     expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
     expect(screen.getByText("现行 VTE 指南")).toBeInTheDocument();
     expect(screen.getByText("现行摘要")).toBeInTheDocument();
@@ -1723,6 +1883,47 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("candidate-real-hash").length).toBeGreaterThan(0);
     expect(screen.getByText("source-fragment-candidate")).toBeInTheDocument();
     expect(screen.getByText("候选与现行权威版本存在高危条款冲突。")).toBeInTheDocument();
+  });
+
+  it("does not use the candidate version id as the diff endpoint id while classification is missing", async () => {
+    const user = userEvent.setup();
+    mockUseKnowledgeCandidates.mockReturnValue({
+      data: {
+        identityId: 42,
+        candidates: pageResponse([candidateVersion], 21),
+        classifications: [],
+        available: true,
+        reasonCode: "CONFLICT",
+        message: "存在冲突候选，需人工审核。",
+      },
+      refetch: refetchCandidates,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseKnowledgeCandidateDiff.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+
+    expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(undefined);
+    expect(mockUseKnowledgeCandidateDiff).not.toHaveBeenCalledWith(2002);
+    expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
+    expect(screen.getAllByText("待审 VTE 指南 2026.06").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "缺少审核分类记录时不得提交。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).not.toHaveBeenCalled();
+      expect(screen.getByText("未找到候选分类审核记录")).toBeInTheDocument();
+    });
   });
 
   it("shows AI production provenance in hospital language without exposing technical tokens by default", async () => {
@@ -1886,6 +2087,29 @@ describe("KnowledgeGovernance", () => {
         },
         idempotencyKey: expect.stringContaining("knowledge-review-9001"),
       });
+    });
+  });
+
+  it("closes the review drawer after returning a candidate for revision", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "请补充来源锚点后重提。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          request: expect.objectContaining({ decision: "RETURN" }),
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("知识候选审核对照")).not.toBeVisible();
     });
   });
 

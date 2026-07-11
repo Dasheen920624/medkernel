@@ -20,6 +20,7 @@ import { PageState } from "@/shared/ui/PageState";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/hooks";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
@@ -53,7 +54,7 @@ const RISK_COLOR: Record<string, string> = {
 const route = findRouteByPath("/system/providers");
 
 if (!route?.experience) {
-  throw new Error("运行保障页面缺少体验声明");
+  throw new Error("服务运行保障页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -116,8 +117,7 @@ function formatDateTime(value?: string | null) {
   if (!value) {
     return "未提供";
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 function backupReadinessLabel(backup: { enabled: boolean; drillEvidence: { status: string } }) {
@@ -137,7 +137,7 @@ export default function SystemProviders() {
 
   if (security.isLoading) {
     return (
-      <PageShell title={PAGE_META.title} description="正在核对运行保障权限">
+      <PageShell title={PAGE_META.title} description="正在核对服务运行保障权限">
         <PageState state="loading" />
       </PageShell>
     );
@@ -153,7 +153,7 @@ export default function SystemProviders() {
 
   if (!routeAllowed) {
     return (
-      <PageShell title={PAGE_META.title} description="运行保障包含受控运维信息">
+      <PageShell title={PAGE_META.title} description="服务运行保障包含受控运维信息">
         <PageState state="forbidden" />
       </PageShell>
     );
@@ -161,7 +161,7 @@ export default function SystemProviders() {
 
   if (runtime.isLoading) {
     return (
-      <PageShell title={PAGE_META.title} description="正在读取运行保障信息">
+      <PageShell title={PAGE_META.title} description="正在读取服务运行保障信息">
         <PageState state="loading" />
       </PageShell>
     );
@@ -169,10 +169,10 @@ export default function SystemProviders() {
 
   if (runtime.isError) {
     return (
-      <PageShell title={PAGE_META.title} description="运行保障信息读取失败">
+      <PageShell title={PAGE_META.title} description="服务运行保障信息读取失败">
         <PageState
           state="error"
-          title="暂时无法读取运行保障信息"
+          title="暂时无法读取服务运行保障信息"
           description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
@@ -187,7 +187,7 @@ export default function SystemProviders() {
   const data = runtime.data;
   if (!data) {
     return (
-      <PageShell title={PAGE_META.title} description="暂无运行保障信息">
+      <PageShell title={PAGE_META.title} description="暂无服务运行保障信息">
         <PageState state="empty" />
       </PageShell>
     );
@@ -311,7 +311,7 @@ export default function SystemProviders() {
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="国产化 profile">
+            <Card title="国产化适配档案">
               <Space direction="vertical" size="small" className="mk-full-width">
                 <Typography.Text>目标操作系统：{data.domesticProfile.targetOs}</Typography.Text>
                 <Typography.Text>目标 JDK：{data.domesticProfile.targetJdk}</Typography.Text>
@@ -336,7 +336,7 @@ export default function SystemProviders() {
             <Alert
               type={data.healthStatus === "UP" ? "success" : "warning"}
               showIcon
-              message={`当前 profile：${data.activeProfiles.join(" / ") || "default"}`}
+              message={`当前部署档案：${data.activeProfiles.join(" / ") || "默认档案"}`}
               description={
                 <Space size="small" wrap>
                   <Typography.Text>迁移路径：</Typography.Text>
@@ -420,6 +420,21 @@ export default function SystemProviders() {
                       {data.backup.drillEvidence.evidenceReference}
                     </Typography.Text>
                   </Space>
+                ) : null}
+                {data.backup.drillEvidence.checksumEvidence ? (
+                  <Space size="small" wrap>
+                    <Typography.Text>校验证据：</Typography.Text>
+                    <Typography.Text>{data.backup.drillEvidence.checksumEvidence}</Typography.Text>
+                  </Space>
+                ) : null}
+                {data.backup.drillEvidence.drillDatabaseIsIsolated ? (
+                  <Typography.Text>隔离库已验证</Typography.Text>
+                ) : null}
+                {data.backup.drillEvidence.rpo ? (
+                  <Typography.Text>证据 RPO：{data.backup.drillEvidence.rpo}</Typography.Text>
+                ) : null}
+                {data.backup.drillEvidence.rto ? (
+                  <Typography.Text>证据 RTO：{data.backup.drillEvidence.rto}</Typography.Text>
                 ) : null}
               </Space>
             </Card>

@@ -5,7 +5,7 @@ import java.time.Instant;
 import org.springframework.stereotype.Service;
 
 /**
- * EMR 评级差距联动质控问题与整改任务的 owner 内桥接服务。
+ * EMR 评级差距联动质量问题与整改任务的 owner 内桥接服务。
  *
  * <p>电子病历评级模块只提供差距事实，本服务在 evaluation owner 边界内落库
  * {@code quality_finding} 与 {@code rectification_task}，保持表归属清晰。
@@ -23,7 +23,7 @@ public class EmrLevelRectificationBridge {
     }
 
     /**
-     * 确保 EMR 评级差距存在对应的质控问题和整改任务。
+     * 确保 EMR 评级差距存在对应的质量问题和整改任务。
      */
     public void ensureTask(EmrLevelRectificationCommand command) {
         if (findings.findByFindingIdAndTenantId(command.findingId(), command.tenantId()).isEmpty()) {

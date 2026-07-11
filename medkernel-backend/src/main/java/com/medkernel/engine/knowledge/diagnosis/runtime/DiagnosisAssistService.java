@@ -23,6 +23,7 @@ import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferential;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferentialRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatchResult;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatcher;
+import com.medkernel.engine.recommendation.KnowledgeSourceLocator;
 import com.medkernel.engine.recommendation.RecommendationCardRequest;
 import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
@@ -134,7 +135,7 @@ public class DiagnosisAssistService {
                 result.supporting(), result.refuting(), result.missingRequired(),
                 differentialSuggestions,
                 careSuggestions,
-                diagnosis.authorityLevel(), redline, diagnosis.knowledgeVersionId()));
+                diagnosis.authorityLevel(), redline, diagnosis.sourceTenantId(), diagnosis.knowledgeVersionId()));
         }
         candidates.sort(rankComparator());
         // 可观测（设计 §4.8）：调用数 + 候选分级分布；采纳率由推荐卡反馈层覆盖（诊断卡即推荐卡）。
@@ -177,8 +178,9 @@ public class DiagnosisAssistService {
             null,
             null,
             List.of(new RecommendationSourceRequest(
-                RecommendationSourceType.KNOWLEDGE, String.valueOf(c.sourceVersionId()), null,
-                name, null, null, "诊断知识命中")));
+                RecommendationSourceType.KNOWLEDGE, c.icdCode(), null,
+                name, KnowledgeSourceLocator.citationLocator(c.sourceTenantId(), c.sourceVersionId()),
+                null, "诊断知识命中")));
     }
 
     private String explanationJson(DiagnosisCandidate c) {

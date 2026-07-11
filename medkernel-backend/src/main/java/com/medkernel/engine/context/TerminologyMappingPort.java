@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 字典映射端口。
+ * 术语映射端口。
  *
  * <p>{@code ContextSnapshotService} 通过此端口查询每类资源的映射状态，
  * 而非直连 {@code engine.terminology} 内部实现，避免循环依赖。

@@ -166,7 +166,7 @@ function renderPage(page: React.ReactElement) {
 describe("page smoke coverage", () => {
   it("renders the unified release governance console", () => {
     renderPage(<ReleaseGovernance />);
-    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构生效版本" })).toBeInTheDocument();
     expect(screen.queryByText("配置" + "包与发布")).not.toBeInTheDocument();
   });
 
@@ -219,14 +219,18 @@ describe("page smoke coverage", () => {
 
   it("renders the quality qc-alerts page with the real empty state", () => {
     renderPage(<QcAlerts />);
-    expect(screen.getByRole("heading", { name: "质量问题" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实质量问题")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题与整改" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "质量问题" })).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无待整改质量问题")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实质量问题")).not.toBeInTheDocument();
   });
 
   it("renders the quality insurance-audit page with the real empty state", () => {
     renderPage(<InsuranceAudit />);
-    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实医保问题")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医保审核" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "医保智能审核" })).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无医保问题")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实医保问题")).not.toBeInTheDocument();
   });
 
   it("renders the compliance admin-users console", () => {
@@ -238,13 +242,13 @@ describe("page smoke coverage", () => {
 
   it("renders the knowledge graph page with projection-source messaging", () => {
     renderPage(<GraphExplore />);
-    expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
-    expect(screen.getByText("关系库权威源的可重建投影")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识关系" })).toBeInTheDocument();
+    expect(screen.getByText("查看知识之间的来源、适应证、禁忌和相互作用关系")).toBeInTheDocument();
   });
 
   it("renders the model capability status page", () => {
     renderPage(<AiWorkflows />);
-    expect(screen.getByRole("heading", { name: "模型能力" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型能力与安全" })).toBeInTheDocument();
   });
 
   it("renders the knowledge provenance console", () => {
@@ -256,7 +260,8 @@ describe("page smoke coverage", () => {
         <Provenance />
       </MemoryRouter>,
     );
-    expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "来源与血缘" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "知识来源追溯" })).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("输入知识主题或知识身份")).toBeInTheDocument();
     expect(screen.getByText("知识身份")).toBeInTheDocument();
   });
@@ -288,7 +293,7 @@ describe("page smoke coverage", () => {
 
     expect(await screen.findByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
-    expect(screen.getByText("使用平台治理账号继续")).toBeInTheDocument();
+    expect(screen.getByText("使用平台管理员账号登录")).toBeInTheDocument();
     expect(await screen.findByText("平台治理入口")).toBeInTheDocument();
     expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
@@ -329,12 +334,14 @@ describe("page smoke coverage", () => {
   it("renders the quality qc-eval-results console", () => {
     renderPage(<QcEvalResults />);
     expect(screen.getByRole("heading", { name: "质量问题来源" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实评价结果")).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无评价结果")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实评价结果")).not.toBeInTheDocument();
   });
 
   it("renders the quality qc-eval-sets simulation with real snapshot filters", async () => {
     renderPage(<QcEvalSets />);
-    expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "评价指标" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "评估指标库" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "仿真评估" }));
 
@@ -346,7 +353,7 @@ describe("page smoke coverage", () => {
 
   it("renders the knowledge governance page through the real candidate loading state", () => {
     renderPage(<KnowledgeGovernance />);
-    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核发布中心" })).toBeInTheDocument();
     expect(screen.getByText("正在加载知识候选审核")).toBeInTheDocument();
   });
 
@@ -357,26 +364,40 @@ describe("page smoke coverage", () => {
   });
 
   it("renders the clinical mpi console", () => {
-    renderPage(<Mpi />);
+    renderPage(
+      <MemoryRouter
+        initialEntries={["/mpi"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Mpi />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole("heading", { name: "患者索引" })).toBeInTheDocument();
     expect(screen.getByText(/活跃患者主索引/)).toBeInTheDocument();
   });
 
   it("renders the clinical reminder and recommendation page", () => {
-    renderPage(<CdssFatigue />);
+    renderPage(
+      <MemoryRouter
+        initialEntries={["/cdss/fatigue"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <CdssFatigue />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole("heading", { name: "提醒与推荐" })).toBeInTheDocument();
     expect(screen.getByText("全部状态")).toBeInTheDocument();
   });
 
   it("renders the tenant pathway configuration page", () => {
     renderPage(<PathwayTemplates />);
-    expect(screen.getByRole("heading", { name: "路径配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "临床路径库" })).toBeInTheDocument();
     expect(screen.getByText("适用病种身份")).toBeInTheDocument();
   });
 
   it("renders the tenant rule configuration page", () => {
     renderPage(<RuleDefinitions />);
-    expect(screen.getByRole("heading", { name: "规则配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "临床规则" })).toBeInTheDocument();
     expect(screen.getByText("全部评级")).toBeInTheDocument();
   });
 
@@ -389,6 +410,6 @@ describe("page smoke coverage", () => {
 
   it("renders the tenant terminology-mapping console", () => {
     renderPage(<TerminologyMapping />);
-    expect(screen.getByRole("heading", { name: "术语与字典" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "术语字典" })).toBeInTheDocument();
   });
 });

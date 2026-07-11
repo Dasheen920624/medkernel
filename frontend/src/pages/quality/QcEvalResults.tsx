@@ -7,7 +7,6 @@ import {
   Drawer,
   Empty,
   Form,
-  Input,
   Select,
   Space,
   Table,
@@ -44,8 +43,15 @@ import type {
 import { PageShell } from "@/shared/ui/PageShell";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
+import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { buildStableIdempotencyKey } from "@/shared/lib/idempotencyKey";
+import {
+  clinicalDateTimeInputToIso,
+  formatClinicalDateTime,
+  formatClinicalDateTimeInputValue,
+} from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
@@ -164,7 +170,7 @@ export default function QcEvalResults() {
       return;
     }
     const responsibleDepartmentIdValue = values.responsibleDepartmentId.trim();
-    const dueAt = values.dueAt.trim();
+    const dueAt = clinicalDateTimeInputToIso(values.dueAt);
     try {
       await dispatchMutation.mutateAsync({
         request: {
@@ -333,7 +339,7 @@ export default function QcEvalResults() {
     <>
       <PageShell
         title="质量问题来源"
-        description="按真实评价结果追溯问题证据"
+        description="按评价结果追溯问题证据"
         extras={
           <Space wrap>
             <EvidenceDetailsToggle securityProfile={security.data} />
@@ -350,10 +356,10 @@ export default function QcEvalResults() {
           findings,
         )}
         stateProps={{
-          title: parsedError?.message ?? "当前筛选下暂无真实评价结果",
+          title: parsedError?.message ?? "当前筛选下暂无评价结果",
           description: parsedError
             ? "请稍后重试；若持续失败，请联系信息科核查质量问题来源服务。失败已留痕，可在审计证据中追溯。"
-            : "当前没有符合筛选条件的评价结果或问题。",
+            : "当前没有符合筛选条件的评价结果或质量问题。",
           traceId: parsedError?.traceId,
           onRetry: refreshAll,
         }}
@@ -367,7 +373,7 @@ export default function QcEvalResults() {
                 className="mk-select-narrow"
                 onChange={setResultLevel}
                 options={[
-                  { value: "NON_COMPLIANT", label: "质控缺陷" },
+                  { value: "NON_COMPLIANT", label: "质量缺陷" },
                   { value: "CRITICAL", label: "严重红线" },
                   { value: "ATTENTION", label: "需关注" },
                   { value: "PASS", label: "达标" },
@@ -405,7 +411,7 @@ export default function QcEvalResults() {
           <Space wrap size="middle" className="mk-full-width">
             <MetricCard
               icon={<DatabaseOutlined />}
-              title="真实评价结果总数"
+              title="评价结果总数"
               value={`${metrics.totalResults} 例`}
             />
             <MetricCard
@@ -433,7 +439,7 @@ export default function QcEvalResults() {
               columns={resultColumns}
               rowKey={(record) => record.resultId}
               loading={resultsQuery.isLoading}
-              locale={{ emptyText: <Empty description="暂无真实评价结果" /> }}
+              locale={{ emptyText: <Empty description="暂无评价结果" /> }}
               pagination={{
                 total: resultsQuery.data?.total ?? 0,
                 pageSize: 20,
@@ -442,13 +448,13 @@ export default function QcEvalResults() {
             />
           </Card>
 
-          <Card title="质控问题与整改入口">
+          <Card title="质量问题与整改入口">
             <Table
               dataSource={findings}
               columns={findingColumns}
               rowKey={(record) => record.findingId}
               loading={findingsQuery.isLoading}
-              locale={{ emptyText: <Empty description="暂无待整改质控问题" /> }}
+              locale={{ emptyText: <Empty description="暂无待整改质量问题" /> }}
               pagination={{
                 total: findingsQuery.data?.total ?? 0,
                 pageSize: 20,
@@ -515,9 +521,9 @@ export default function QcEvalResults() {
             />
 
             <Card title="整改任务状态">
-              {selectedFindingDetail?.task ? (
+              {selectedFindingDetail?.rectificationTask ? (
                 <TaskSummary
-                  task={selectedFindingDetail.task}
+                  task={selectedFindingDetail.rectificationTask}
                   departmentNames={departmentNames}
                   evidenceDetailsEnabled={evidenceDetailsEnabled}
                 />
@@ -558,13 +564,7 @@ export default function QcEvalResults() {
                   preserve={false}
                 >
                   <RectificationAssignmentFields />
-                  <Form.Item
-                    name="dueAt"
-                    label="整改截止时间"
-                    rules={[{ required: true, message: "请输入整改截止时间" }]}
-                  >
-                    <Input />
-                  </Form.Item>
+                  <RectificationDueAtField />
                   <Button
                     aria-label="派发整改任务"
                     type="primary"
@@ -657,7 +657,7 @@ function renderLevelTag(level: EvaluationResultLevel) {
     case "ATTENTION":
       return <Tag color="warning">需关注</Tag>;
     case "NON_COMPLIANT":
-      return <Tag color="error">质控缺陷</Tag>;
+      return <Tag color="error">质量缺陷</Tag>;
     case "CRITICAL":
       return <Tag color="red">严重红线</Tag>;
     default:
@@ -742,11 +742,11 @@ function defaultDueAt(value: string | undefined) {
   if (!value) {
     return "";
   }
-  return value;
+  return formatClinicalDateTimeInputValue(value);
 }
 
 function formatTime(value: string | undefined) {
-  return value ? value.replace("T", " ").slice(0, 16) : "--";
+  return formatClinicalDateTime(value, "--");
 }
 
 function evidenceText(
@@ -768,5 +768,10 @@ function buildDispatchIdempotencyKey(
   responsibleDepartmentId: string,
   dueAt: string,
 ) {
-  return `qc-eval-result-dispatch-${findingId}-${responsibleDepartmentId}-${dueAt}`.slice(0, 160);
+  return buildStableIdempotencyKey(
+    "qc-eval-result-dispatch",
+    findingId,
+    responsibleDepartmentId,
+    dueAt,
+  );
 }

@@ -28,6 +28,7 @@ export function OrgUnitSelect({
   valueMode = "ID",
   onChange,
   onUnitChange,
+  notFoundContent,
   ...selectProps
 }: OrgUnitSelectProps) {
   const [keyword, setKeyword] = useState("");
@@ -65,7 +66,9 @@ export function OrgUnitSelect({
       onSearch={setKeyword}
       options={options}
       loading={query.isLoading}
-      notFoundContent={query.isError ? "组织目录读取失败，请稍后重试" : "暂无匹配组织"}
+      notFoundContent={
+        query.isError ? "组织目录读取失败，请稍后重试" : (notFoundContent ?? "暂无匹配组织")
+      }
       onChange={(value, option) => {
         const unit = units.find((item) =>
           valueMode === "PATH" ? item.orgPath === value : item.id === value,

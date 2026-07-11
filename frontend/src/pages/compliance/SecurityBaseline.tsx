@@ -32,6 +32,8 @@ import {
   SystemConfigPanel,
 } from "./SecurityBaselinePanels";
 
+const SECURITY_PAGE_TITLE = "安全与配置";
+
 const STATUS_LABEL: Record<string, string> = {
   UP: "正常",
   DEGRADED: "降级",
@@ -40,6 +42,13 @@ const STATUS_LABEL: Record<string, string> = {
   DOWN: "异常",
   OUT_OF_SERVICE: "停服",
   UNKNOWN: "未知",
+};
+
+const DEPLOYMENT_MODE_LABEL: Record<string, string> = {
+  "docker-core": "容器化部署",
+  docker: "容器化部署",
+  local: "本地部署",
+  kubernetes: "集群部署",
 };
 
 type BaselineRow = {
@@ -77,6 +86,19 @@ function environmentText(environmentKeys: string[], evidenceDetailsEnabled = fal
   if (environmentKeys.length === 0) return "未返回";
   if (evidenceDetailsEnabled) return environmentKeys.join(" / ");
   return `已限定 ${environmentKeys.length} 个运行环境`;
+}
+
+function runtimeEnvironmentText(
+  environment: string,
+  deploymentMode: string,
+  evidenceDetailsEnabled = false,
+): string {
+  if (evidenceDetailsEnabled) return `${environment || "未返回"} / ${deploymentMode || "未返回"}`;
+  const environmentLabel = environment ? customerEnumLabel(environment) : "运行环境待确认";
+  const deploymentModeLabel = deploymentMode
+    ? (DEPLOYMENT_MODE_LABEL[deploymentMode] ?? "已配置部署模式")
+    : "部署形态待确认";
+  return `${environmentLabel} / ${deploymentModeLabel}`;
 }
 
 function permissionTargetLabel(target?: string | null) {
@@ -177,7 +199,11 @@ function BaselineOverview({
         type={profile.mfaRequired && !profile.mfaBound ? "warning" : "success"}
         showIcon
         message={profile.mfaRequired ? "多因素认证全局配置已开启" : "多因素认证全局配置已关闭"}
-        description={`数据范围：${dataScopeText(profile, evidenceDetailsEnabled)}；运行环境：${snapshot.environment} / ${snapshot.deploymentMode}`}
+        description={`数据范围：${dataScopeText(profile, evidenceDetailsEnabled)}；运行环境：${runtimeEnvironmentText(
+          snapshot.environment,
+          snapshot.deploymentMode,
+          evidenceDetailsEnabled,
+        )}`}
       />
 
       <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
@@ -264,7 +290,7 @@ export default function SecurityBaseline() {
 
   if (security.isLoading || runtime.isLoading) {
     return (
-      <PageShell title="安全基线与系统配置" description="正在读取安全画像与运行环境">
+      <PageShell title={SECURITY_PAGE_TITLE} description="正在读取安全画像与运行环境">
         <PageState state="loading" />
       </PageShell>
     );
@@ -272,10 +298,10 @@ export default function SecurityBaseline() {
 
   if (security.isError || runtime.isError) {
     return (
-      <PageShell title="安全基线与系统配置" description="安全基线状态读取失败">
+      <PageShell title={SECURITY_PAGE_TITLE} description="安全与配置状态读取失败">
         <PageState
           state="error"
-          title="暂时无法读取安全基线"
+          title="暂时无法读取安全与配置状态"
           description="请稍后重试，或让信息科检查安全画像与运行环境。"
           action={
             <Space wrap>
@@ -294,8 +320,8 @@ export default function SecurityBaseline() {
   const snapshot = runtime.data;
   if (!profile || !snapshot) {
     return (
-      <PageShell title="安全基线与系统配置" description="安全基线合同暂无数据">
-        <PageState state="empty" title="暂无安全基线状态" />
+      <PageShell title={SECURITY_PAGE_TITLE} description="安全与配置暂无数据">
+        <PageState state="empty" title="暂无安全与配置状态" />
       </PageShell>
     );
   }
@@ -304,7 +330,7 @@ export default function SecurityBaseline() {
   const evidenceDetailsEnabled = canUseEvidenceDetails(profile) && globalEvidenceDetails;
   return (
     <PageShell
-      title="安全基线与系统配置"
+      title={SECURITY_PAGE_TITLE}
       description="统一管理运行配置、数据访问、数据脱敏与互操作测评证据"
       extras={<EvidenceDetailsToggle securityProfile={profile} />}
     >

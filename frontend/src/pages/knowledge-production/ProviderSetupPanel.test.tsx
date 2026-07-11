@@ -1,4 +1,4 @@
-import { ConfigProvider } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,6 +30,16 @@ const saveCredential = vi.fn();
 const upsertProvider = vi.fn();
 const removeCredential = vi.fn();
 const setProviderEnabled = vi.fn();
+
+function renderProviderSetupPanel() {
+  return render(
+    <ConfigProvider>
+      <AntdApp>
+        <ProviderSetupPanel />
+      </AntdApp>
+    </ConfigProvider>,
+  );
+}
 
 function mutation(mutateAsync = vi.fn()) {
   return { mutateAsync, isPending: false };
@@ -95,25 +105,19 @@ describe("ProviderSetupPanel", () => {
   });
 
   it("shows only safe credential metadata and never renders a stored secret", () => {
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     expect(screen.getByText("模型服务与密钥")).toBeInTheDocument();
     expect(screen.getByText("尾号 1234")).toBeInTheDocument();
     expect(screen.getByText("待健康检查")).toBeInTheDocument();
     expect(screen.queryByText(/sk-/)).not.toBeInTheDocument();
+    expect(screen.getByText(/必须重新健康检查、评测并受控启用/)).toBeInTheDocument();
+    expect(screen.queryByText(/探活/)).not.toBeInTheDocument();
   });
 
   it("hides provider implementation identifiers by default and reveals them as evidence details", async () => {
     const user = userEvent.setup();
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     expect(screen.getByText("OpenAI 兼容服务")).toBeInTheDocument();
     expect(screen.getByText("medical-v1")).toBeInTheDocument();
@@ -129,11 +133,7 @@ describe("ProviderSetupPanel", () => {
   });
 
   it("blocks enablement until the latest real health check passes", () => {
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     const enableButton = screen.getByRole("button", { name: /启\s*用/ });
     expect(enableButton).toBeDisabled();
@@ -171,11 +171,7 @@ describe("ProviderSetupPanel", () => {
       refetch: vi.fn(),
     } as never);
 
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await user.click(screen.getByTitle("2"));
 
@@ -183,22 +179,14 @@ describe("ProviderSetupPanel", () => {
   });
 
   it("keeps the wide provider table inside an internal scroll panel", () => {
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     expect(screen.getByTestId("model-provider-table-panel")).toBeInTheDocument();
   });
 
   it("uses a non-autofilled password input and clears it after rotation", async () => {
     const user = userEvent.setup();
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await user.click(screen.getByRole("button", { name: "轮换密钥" }));
     const credential = screen.getByLabelText("模型密钥");
@@ -224,11 +212,7 @@ describe("ProviderSetupPanel", () => {
 
   it("blocks a vague credential change reason before calling the service", async () => {
     const user = userEvent.setup();
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await screen.findByText("OpenAI 兼容服务");
     await user.click(screen.getByRole("button", { name: "轮换密钥" }));
@@ -248,11 +232,7 @@ describe("ProviderSetupPanel", () => {
       isError: false,
     } as never);
 
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     expect(
       screen.getByText(/由医疗引擎运营员维护模型服务、密钥、健康检查和医学评测/),
@@ -262,11 +242,7 @@ describe("ProviderSetupPanel", () => {
 
   it("edits an existing provider with optimistic locking", async () => {
     const user = userEvent.setup();
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await user.click(screen.getByRole("button", { name: "编辑配置" }));
     expect(screen.getByRole("dialog", { name: "编辑模型服务" })).toBeInTheDocument();
@@ -292,11 +268,7 @@ describe("ProviderSetupPanel", () => {
 
   it("requires an explicit reason and confirmation before removing a key", async () => {
     const user = userEvent.setup();
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await user.click(screen.getByRole("button", { name: "移除密钥" }));
     await user.type(screen.getByLabelText("移除原因"), "供应商凭据已作废，执行受控撤销");
@@ -316,11 +288,7 @@ describe("ProviderSetupPanel", () => {
   it("uses the governed medical capability catalog when enabling a provider", async () => {
     const user = userEvent.setup();
     vi.mocked(useModelProviders).mockReturnValue(providerQuery("HEALTHY") as never);
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await user.click(screen.getByRole("button", { name: /启\s*用/ }));
     await user.click(screen.getByRole("combobox", { name: "已通过评测的模型能力" }));
@@ -348,11 +316,7 @@ describe("ProviderSetupPanel", () => {
   it("blocks a vague provider activation reason before calling the service", async () => {
     const user = userEvent.setup();
     vi.mocked(useModelProviders).mockReturnValue(providerQuery("HEALTHY") as never);
-    render(
-      <ConfigProvider>
-        <ProviderSetupPanel />
-      </ConfigProvider>,
-    );
+    renderProviderSetupPanel();
 
     await user.click(screen.getByRole("button", { name: /启\s*用/ }));
     await user.click(screen.getByRole("combobox", { name: "已通过评测的模型能力" }));
@@ -363,5 +327,36 @@ describe("ProviderSetupPanel", () => {
 
     expect(await screen.findByText("请填写至少 8 个字符的具体原因")).toBeInTheDocument();
     expect(setProviderEnabled).not.toHaveBeenCalled();
+  });
+
+  it("does not emit an unmounted form warning when opening provider registration", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    renderProviderSetupPanel();
+
+    await user.click(screen.getByRole("button", { name: "登记模型服务" }));
+    await screen.findByRole("dialog", { name: "登记模型服务" });
+
+    const warningText = [...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join("\n");
+    expect(warningText).not.toContain("Instance created by `useForm` is not connected");
+    consoleError.mockRestore();
+    consoleWarn.mockRestore();
+  });
+
+  it("uses App scoped messages after saving provider settings", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    renderProviderSetupPanel();
+
+    await user.click(screen.getByRole("button", { name: "编辑配置" }));
+    await user.click(screen.getByRole("button", { name: "保存并保持停用" }));
+
+    await waitFor(() => expect(upsertProvider).toHaveBeenCalled());
+    const warningText = [...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join("\n");
+    expect(warningText).not.toContain("Static function can not consume context");
+    consoleError.mockRestore();
+    consoleWarn.mockRestore();
   });
 });

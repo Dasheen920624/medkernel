@@ -181,6 +181,294 @@ class RuleDslAssetMaterializerTest {
     }
 
     @Test
+    void recordsPathwayReferenceAsRuntimeEvidenceWithoutCopyingPathwayBody() throws Exception {
+        DeclarativeAssetRuntimePort assets = (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+            assertThat(assetType).isEqualTo(VersionedAssetType.PATHWAY);
+            assertThat(assetIdentity).isEqualTo("PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION");
+            return Optional.of(new ResolvedDeclarativeAsset(
+                assetType,
+                assetIdentity,
+                "V7",
+                runtimeReleaseId,
+                """
+                    {
+                      "schemaVersion": "1.0",
+                      "pathwayCode": "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+                      "name": "急危重症升级路径",
+                      "entryMode": "MANUAL_CONFIRM",
+                      "nodes": [
+                        {"nodeCode": "TRIAGE", "nodeType": "MANUAL_GATE"},
+                        {"nodeCode": "ICU_REVIEW", "nodeType": "MANUAL_GATE"}
+                      ]
+                    }
+                    """,
+                "d".repeat(64)
+            ));
+        };
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(json, assets);
+        JsonNode dsl = json.readTree("""
+            {
+              "when": {"fact": "extensions.local.emergencyTriage.triageLevel", "operator": "equals", "value": "LEVEL_1"},
+              "then": [{
+                "pathwayRef": "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION",
+                "actionCode": "STRONG_REMINDER"
+              }]
+            }
+            """);
+
+        JsonNode materialized = materializer.materialize("tenant-A", "release-critical", dsl);
+        JsonNode action = materialized.path("then").get(0);
+        JsonNode evidence = materialized.path("runtimeAssetEvidence");
+
+        assertThat(action.path("pathwayRef").asText()).isEqualTo(
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION");
+        assertThat(action.path("resolvedPathwayVersion").asText()).isEqualTo("V7");
+        assertThat(action.path("resolvedPathwayHash").asText()).isEqualTo("d".repeat(64));
+        assertThat(action.has("nodes")).isFalse();
+        assertThat(evidence).hasSize(1);
+        assertThat(evidence.get(0).path("assetType").asText()).isEqualTo("PATHWAY");
+        assertThat(evidence.get(0).path("assetIdentity").asText()).isEqualTo(
+            "PATHWAY.CRITICAL.EMERGENCY.ICU.ESCALATION");
+        assertThat(evidence.get(0).path("assetVersion").asText()).isEqualTo("V7");
+        assertThat(evidence.get(0).path("runtimeReleaseId").asText()).isEqualTo("release-critical");
+        assertThat(evidence.get(0).path("contentHash").asText()).isEqualTo("d".repeat(64));
+    }
+
+    @Test
+    void appendsRuntimeAssetEvidenceAndOverridesAuthoredRuntimeEvidence() throws Exception {
+        DeclarativeAssetRuntimePort assets = (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+            if (assetType == VersionedAssetType.VALUE_SET) {
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V2",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion":"1.0",
+                          "name":"氨基糖苷类",
+                          "codeSystem":"ATC",
+                          "members":[{"code":"J01GB03","display":"庆大霉素"}]
+                        }
+                        """,
+                    "a".repeat(64)
+                ));
+            }
+            if (assetType == VersionedAssetType.FORMULA) {
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V3",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion":"1.0",
+                          "name":"BMI",
+                          "runtimeFunction":"BMI",
+                          "inputs":[
+                            {"name":"height","fieldPath":"patient.heightCm","unit":"cm"},
+                            {"name":"weight","fieldPath":"patient.weightKg","unit":"kg"}
+                          ],
+                          "output":{"dataType":"number","unit":"kg/m2"}
+                        }
+                        """,
+                    "b".repeat(64)
+                ));
+            }
+            if (assetType == VersionedAssetType.ACTION_CARD) {
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V4",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion": "1.0",
+                          "title": "用药复核",
+                          "actionCode": "STRONG_REMINDER",
+                          "atSeverity": "HIGH",
+                          "indicator": "critical",
+                          "summary": "需人工复核",
+                          "detail": "当前规则命中运行时临床提示卡。",
+                          "source": {"label": "本地上线演练"},
+                          "suggestions": [{"label": "确认已复核", "actionType": "ACKNOWLEDGE"}],
+                          "overrideReasons": ["医师判断继续执行"],
+                          "requiresPhysicianConfirmation": true
+                        }
+                        """,
+                    "c".repeat(64)
+                ));
+            }
+            return Optional.empty();
+        };
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(json, assets);
+        JsonNode dsl = json.readTree("""
+            {
+              "runtimeAssetEvidence": [{"assetType": "VALUE_SET", "assetIdentity": "FORGED"}],
+              "when": {
+                "all": [
+                  {
+                    "fact": "medications[].code",
+                    "operator": "in",
+                    "value": {"valueSet": "VALUE_SET.CDSS.RUNTIME"}
+                  },
+                  {
+                    "fact": "patient.patientId",
+                    "operator": "derived",
+                    "value": {"formula": "FORMULA.CDSS.RUNTIME", "parameters": {}}
+                  }
+                ]
+              },
+              "then": [{"actionCardRef": "ACTION_CARD.CDSS.RUNTIME"}]
+            }
+            """);
+
+        JsonNode evidence = materializer.materialize("tenant-A", "release-12", dsl)
+            .path("runtimeAssetEvidence");
+
+        assertThat(evidence).hasSize(3);
+        assertThat(evidence.get(0).path("assetType").asText()).isEqualTo("VALUE_SET");
+        assertThat(evidence.get(0).path("assetIdentity").asText()).isEqualTo("VALUE_SET.CDSS.RUNTIME");
+        assertThat(evidence.get(0).path("assetVersion").asText()).isEqualTo("V2");
+        assertThat(evidence.get(0).path("contentHash").asText()).isEqualTo("a".repeat(64));
+        assertThat(evidence.get(0).path("expandedCount").asInt()).isEqualTo(1);
+        assertThat(evidence.get(1).path("assetType").asText()).isEqualTo("FORMULA");
+        assertThat(evidence.get(1).path("assetIdentity").asText()).isEqualTo("FORMULA.CDSS.RUNTIME");
+        assertThat(evidence.get(1).path("runtimeFunction").asText()).isEqualTo("BMI");
+        assertThat(evidence.get(2).path("assetType").asText()).isEqualTo("ACTION_CARD");
+        assertThat(evidence.get(2).path("actionCardRef").asText()).isEqualTo(
+            "ACTION_CARD.CDSS.RUNTIME");
+        assertThat(evidence.get(2).path("contentHash").asText()).isEqualTo("c".repeat(64));
+        assertThat(evidence.toString()).doesNotContain("FORGED");
+    }
+
+    @Test
+    void materializedDeclarativeAssetsHitFrontdeskContextMedicationAndBmi() throws Exception {
+        DeclarativeAssetRuntimePort assets = (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+            if (assetType == VersionedAssetType.VALUE_SET) {
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V1",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion":"1.0",
+                          "name":"氨基糖苷类",
+                          "codeSystem":"ATC",
+                          "members":[{"code":"J01GB03","display":"庆大霉素"}]
+                        }
+                        """,
+                    "a".repeat(64)
+                ));
+            }
+            if (assetType == VersionedAssetType.FORMULA) {
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V1",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion":"1.0",
+                          "name":"BMI",
+                          "runtimeFunction":"BMI",
+                          "inputs":[
+                            {"name":"heightCm","fieldPath":"extensions.local.frontdeskContext.heightCm","unit":"cm"},
+                            {"name":"weightKg","fieldPath":"extensions.local.frontdeskContext.weightKg","unit":"kg"}
+                          ],
+                          "output":{"dataType":"number","unit":"kg/m2"}
+                        }
+                        """,
+                    "b".repeat(64)
+                ));
+            }
+            if (assetType == VersionedAssetType.ACTION_CARD) {
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V1",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion": "1.0",
+                          "title": "用药复核",
+                          "actionCode": "STRONG_REMINDER",
+                          "atSeverity": "HIGH",
+                          "indicator": "critical",
+                          "summary": "需人工复核",
+                          "detail": "当前规则命中运行时临床提示卡。",
+                          "source": {"label": "本地上线演练"},
+                          "suggestions": [{"label": "确认已复核", "actionType": "ACKNOWLEDGE"}],
+                          "overrideReasons": ["医师判断继续执行"],
+                          "requiresPhysicianConfirmation": true
+                        }
+                        """,
+                    "c".repeat(64)
+                ));
+            }
+            return Optional.empty();
+        };
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(json, assets);
+        RuleDslEvaluator evaluator = new RuleDslEvaluator(
+            json,
+            new ConditionEvaluator(json),
+            materializer);
+        JsonNode dsl = json.readTree("""
+            {
+              "when": {
+                "all": [
+                  {
+                    "fact": "medications[].code",
+                    "operator": "in",
+                    "value": {"valueSet": "VALUE_SET.CDSS.RUNTIME"}
+                  },
+                  {"fact": "patient.age", "operator": "gte", "value": 18},
+                  {
+                    "fact": "patient.age",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "FORMULA.CDSS.RUNTIME",
+                      "parameters": {
+                        "heightCm": "extensions.local.frontdeskContext.heightCm",
+                        "weightKg": "extensions.local.frontdeskContext.weightKg"
+                      },
+                      "comparison": "gte",
+                      "value": 20,
+                      "unit": "kg/m2"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCardRef": "ACTION_CARD.CDSS.RUNTIME"}]
+            }
+            """);
+        JsonNode context = json.readTree("""
+            {
+              "patient": {"age": 64},
+              "encounters": [{"encounterType": "OUTPATIENT"}],
+              "medications": [{"code": "J01GB03", "prescriptionStatus": "ACTIVE"}],
+              "extensions": {
+                "local": {
+                  "frontdeskContext": {
+                    "heightCm": 170,
+                    "weightKg": 82
+                  }
+                }
+              }
+            }
+            """);
+
+        RuleDslEvaluation evaluation = evaluator.evaluate(dsl, context, "tenant-A", "runtime-s5");
+
+        assertThat(evaluation.hit()).isTrue();
+        assertThat(evaluation.actions()).singleElement()
+            .satisfies(action -> assertThat(action.actionCode())
+                .isEqualTo(RuleActionCode.STRONG_REMINDER));
+        assertThat(evaluation.explanation().path("runtimeAssetEvidence")).hasSize(3);
+    }
+
+    @Test
     void rejectsMissingAssetsAndManualRuntimeVersion() throws Exception {
         RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(
             json,

@@ -3,7 +3,7 @@ package com.medkernel.engine.quality.dashboard;
 import java.time.Instant;
 
 /**
- * 质控驾驶舱查询过滤条件。
+ * 质量风险概览查询过滤条件。
  *
  * @param from 起始时间（含），按来源事实发生时间过滤
  * @param to 截止时间（不含），按来源事实发生时间过滤

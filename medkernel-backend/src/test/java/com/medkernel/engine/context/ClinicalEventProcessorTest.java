@@ -30,6 +30,7 @@ import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.shared.observability.TransitionError;
 
@@ -106,6 +107,8 @@ class ClinicalEventProcessorTest {
             auditSummaryCap.capture());
         assertThat(auditSummaryCap.getValue())
             .contains("处理临床事件成功 type=DIAGNOSIS")
+            .contains("capabilities=")
+            .doesNotContain("engines=")
             .contains("RULE:DISPATCHED:已接收")
             .contains("PATHWAY:DISPATCHED:已接收")
             .contains("CDSS:DISPATCHED:已接收");
@@ -130,6 +133,71 @@ class ClinicalEventProcessorTest {
             snapshotCap.capture(), eq("clinical-event:evt-1"), releaseIdCap.capture());
         assertThat(snapshotCap.getValue().orgUnitId()).isEqualTo("dept-A");
         assertThat(releaseIdCap.getValue()).isEqualTo("runtime-release-test");
+    }
+
+    @Test
+    void processCreatesSnapshotUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant() {
+        ClinicalEvent event = event(ClinicalEventStatus.RECEIVED);
+        when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(payload()));
+        when(contextSnapshots.createBound(any(ContextSnapshotRequest.class), any(), anyString()))
+            .thenAnswer(inv -> {
+                OrgScope currentScope = RequestContext.currentOrgScope();
+                assertThat(currentScope.hospitalId()).isEqualTo("hospital-A");
+                assertThat(currentScope.departmentId()).isEqualTo("dept-A");
+                ContextSnapshotRequest req = inv.getArgument(0);
+                return new ContextSnapshotResponse(
+                    "ctx-event-evt-1",
+                    ContextSnapshotStatus.ACTIVE,
+                    req.resources(),
+                    "runtime-release-test",
+                    QualityStatus.VALID,
+                    List.of(),
+                    Map.of(),
+                    Instant.parse("2026-05-27T01:00:02Z"),
+                    req.traceId());
+            });
+        RequestContext.restore(new RequestContext.Snapshot(
+            "worker-trace", OrgScope.tenant("tenant-A"), "platform-admin"));
+
+        try {
+            ClinicalEventStatus status = processor.process("evt-1", "tenant-A");
+
+            assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        } finally {
+            RequestContext.clear();
+        }
+    }
+
+    @Test
+    void markFailedRecordsTransitionUnderPersistedEventOrgScopeWhenWorkerContextOnlyHasTenant() {
+        ClinicalEvent event = event(ClinicalEventStatus.RECEIVED);
+        when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));
+        org.mockito.Mockito.doAnswer(inv -> {
+            OrgScope currentScope = RequestContext.currentOrgScope();
+            assertThat(currentScope.hospitalId()).isEqualTo("hospital-A");
+            assertThat(currentScope.departmentId()).isEqualTo("dept-A");
+            return null;
+        }).when(transitions).record(
+            eq("clinical_event"), eq("evt-1"),
+            eq("RECEIVED"), eq("FAILED"),
+            eq("PROCESS_FAILED"), any(TransitionError.class));
+        org.mockito.Mockito.doAnswer(inv -> {
+            OrgScope currentScope = RequestContext.currentOrgScope();
+            assertThat(currentScope.hospitalId()).isEqualTo("hospital-A");
+            assertThat(currentScope.departmentId()).isEqualTo("dept-A");
+            return null;
+        }).when(auditPublisher).publish(any(AuditEvent.class));
+        RequestContext.restore(new RequestContext.Snapshot(
+            "worker-trace", OrgScope.tenant("tenant-A"), "platform-admin"));
+
+        try {
+            processor.markFailed(
+                "evt-1", "tenant-A", ErrorCode.ENG_EVENT_005, 1, false,
+                Instant.parse("2026-05-27T01:00:03Z"));
+        } finally {
+            RequestContext.clear();
+        }
     }
 
     @Test
@@ -188,6 +256,344 @@ class ClinicalEventProcessorTest {
             assertThat(anchor.targetDictionaryKey()).isEqualTo("TERM.DRUG");
             assertThat(anchor.mappedVersion()).isEqualTo("TERM-2026.06");
         });
+    }
+
+    @Test
+    void processProjectsPharmacyReviewInboundPayloadToCanonicalResourcesAndReviewExtension() {
+        ClinicalEvent event = event(
+            "evt-pharmacy-review",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE,
+            ClinicalEventStatus.RECEIVED,
+            "PHARMACY_REVIEW");
+        when(events.findByEventIdAndTenantId("evt-pharmacy-review", "tenant-A"))
+            .thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-pharmacy-review", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-pharmacy-review", """
+                {
+                  "patient": {
+                    "mpi": "MPI-1"
+                  },
+                  "medications": [
+                    {
+                      "standardCode": "J01C",
+                      "codeSystem": "ATC",
+                      "localCode": "J01C",
+                      "localCodeSystem": "PHARMACY_REVIEW",
+                      "sourceSystem": "PHARMACY_REVIEW",
+                      "runtimeReleaseId": "runtime-release-test",
+                      "mappingId": 3,
+                      "standardTermId": 2,
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "conditions": [
+                    {
+                      "standardCode": "J18.900",
+                      "codeSystem": "ICD-10",
+                      "localCode": "J18.900",
+                      "localCodeSystem": "PHARMACY_REVIEW",
+                      "sourceSystem": "PHARMACY_REVIEW",
+                      "runtimeReleaseId": "runtime-release-test",
+                      "mappingId": 5,
+                      "standardTermId": 3,
+                      "mappedVersion": "V1"
+                    }
+                  ],
+	                  "observations": [
+	                    {
+	                      "code": "PCT",
+	                      "valueNumeric": 2.4
+	                    }
+	                  ],
+	                  "extensions": {
+	                    "local": {
+	                      "existingFlag": "Y",
+	                      "sourceTraceId": "pharmacy-review-request-1"
+	                    }
+	                  },
+	                  "pharmacyReview": {
+	                    "reviewResult": "REQUIRES_PHYSICIAN_CONFIRMATION",
+	                    "pharmacistOpinion": "抗菌药物使用需结合感染指标与病原学复核。"
+	                  }
+	                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-pharmacy-review", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-pharmacy-review"), anyString());
+        ContextSnapshotResources resources = snapshotCap.getValue().resources();
+        assertThat(resources.medications()).singleElement().satisfies(medication -> {
+            assertThat(medication.code()).isEqualTo("J01C");
+            assertThat(medication.sourceSystem()).isEqualTo("PHARMACY_REVIEW");
+        });
+        assertThat(resources.conditions()).singleElement().satisfies(condition -> {
+            assertThat(condition.code()).isEqualTo("J18.900");
+            assertThat(condition.sourceSystem()).isEqualTo("PHARMACY_REVIEW");
+        });
+        assertThat(resources.observations()).singleElement().satisfies(observation -> {
+            assertThat(observation.code()).isEqualTo("PCT");
+            assertThat(observation.valueNumeric()).isEqualByComparingTo("2.4");
+        });
+        assertThat(resources.extensions().at("/local/pharmacyReview/reviewResult").asText())
+            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
+	        assertThat(resources.extensions().at("/local/pharmacyReview/pharmacistOpinion").asText())
+	            .isEqualTo("抗菌药物使用需结合感染指标与病原学复核。");
+	        assertThat(resources.extensions().at("/local/sourceTraceId").asText())
+	            .isEqualTo("pharmacy-review-request-1");
+	        assertThat(resources.extensions().at("/local/existingFlag").asText()).isEqualTo("Y");
+
+	        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+	        assertThat(context.payload().path("eventPayload").path("pharmacyReview").path("reviewResult").asText())
+	            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
+	        assertThat(context.payload().at("/extensions/local/pharmacyReview/reviewResult").asText())
+	            .isEqualTo("REQUIRES_PHYSICIAN_CONFIRMATION");
+	        assertThat(context.payload().at("/extensions/local/sourceTraceId").asText())
+	            .isEqualTo("pharmacy-review-request-1");
+        assertThat(context.payload().at("/extensions/local/existingFlag").asText()).isEqualTo("Y");
+    }
+
+    @Test
+    void processProjectsInfectionPublicHealthPayloadToCanonicalResourcesAndLocalExtensions() {
+        ClinicalEvent event = event(
+            "evt-infection-public-health",
+            ClinicalEventType.REPORT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            ClinicalEventStatus.RECEIVED,
+            "PUBLIC_HEALTH_INFECTION_REGULATORY");
+        when(events.findByEventIdAndTenantId("evt-infection-public-health", "tenant-A"))
+            .thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-infection-public-health", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-infection-public-health", """
+                {
+                  "patient": {
+                    "mpi": "MPI-1"
+                  },
+                  "conditions": [
+                    {
+                      "standardCode": "U07.100",
+                      "codeSystem": "ICD-10",
+                      "displayName": "新型冠状病毒感染",
+                      "localCode": "PH-COVID-19",
+                      "localCodeSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "sourceSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "observations": [
+                    {
+                      "observationId": "obs-nat-1",
+                      "code": "NAT_RESULT",
+                      "displayName": "核酸检测结果",
+                      "valueString": "POSITIVE",
+                      "sourceSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "documents": [
+                    {
+                      "documentId": "doc-report-card-1",
+                      "documentType": "PUBLIC_HEALTH_REPORT_PREFILL",
+                      "contentDigest": "sha256:public-health-report-prefill",
+                      "sourceSystem": "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "extensions": {
+                    "local": {
+                      "existingFlag": "Y",
+                      "sourceTraceId": "infection-public-health-trace-1"
+                    }
+                  },
+                  "publicHealthReport": {
+                    "reportType": "INFECTIOUS_DISEASE_PREFILL",
+                    "reportableCondition": "SUSPECTED_COVID_19",
+                    "manualSubmitRequired": true,
+                    "legalSubmissionDelegated": false,
+                    "prefillStatus": "READY_FOR_HUMAN_REVIEW"
+                  },
+                  "safetyEvent": {
+                    "eventType": "OCCUPATIONAL_EXPOSURE",
+                    "riskLevel": "HIGH",
+                    "rootCause": "ISOLATION_PROTOCOL_GAP",
+                    "rectificationRequired": true,
+                    "reviewRequired": true
+                  }
+                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-infection-public-health", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-infection-public-health"), anyString());
+        ContextSnapshotResources resources = snapshotCap.getValue().resources();
+        assertThat(resources.conditions()).singleElement().satisfies(condition -> {
+            assertThat(condition.code()).isEqualTo("U07.100");
+            assertThat(condition.sourceSystem()).isEqualTo("PUBLIC_HEALTH_INFECTION_REGULATORY");
+        });
+        assertThat(resources.observations()).singleElement().satisfies(observation -> {
+            assertThat(observation.code()).isEqualTo("NAT_RESULT");
+            assertThat(observation.valueString()).isEqualTo("POSITIVE");
+            assertThat(observation.sourceSystem()).isEqualTo("PUBLIC_HEALTH_INFECTION_REGULATORY");
+        });
+        assertThat(resources.documents()).singleElement().satisfies(document -> {
+            assertThat(document.documentType()).isEqualTo("PUBLIC_HEALTH_REPORT_PREFILL");
+            assertThat(document.contentDigest()).isEqualTo("sha256:public-health-report-prefill");
+        });
+        assertThat(resources.extensions().at("/local/publicHealthReport/manualSubmitRequired").asBoolean())
+            .isTrue();
+        assertThat(resources.extensions().at("/local/publicHealthReport/legalSubmissionDelegated").asBoolean())
+            .isFalse();
+        assertThat(resources.extensions().at("/local/publicHealthReport/prefillStatus").asText())
+            .isEqualTo("READY_FOR_HUMAN_REVIEW");
+        assertThat(resources.extensions().at("/local/safetyEvent/eventType").asText())
+            .isEqualTo("OCCUPATIONAL_EXPOSURE");
+        assertThat(resources.extensions().at("/local/safetyEvent/rectificationRequired").asBoolean())
+            .isTrue();
+        assertThat(resources.extensions().at("/local/sourceTraceId").asText())
+            .isEqualTo("infection-public-health-trace-1");
+
+        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+        assertThat(context.payload().at("/extensions/local/publicHealthReport/reportableCondition").asText())
+            .isEqualTo("SUSPECTED_COVID_19");
+        assertThat(context.payload().at("/extensions/local/safetyEvent/reviewRequired").asBoolean())
+            .isTrue();
+        assertThat(context.payload().path("eventPayload").path("publicHealthReport")
+            .path("legalSubmissionDelegated").asBoolean()).isFalse();
+    }
+
+    @Test
+    void processProjectsSurgeryAnesthesiaTransfusionPayloadToCanonicalResourcesAndLocalExtensions() {
+        ClinicalEvent event = event(
+            "evt-surgery-anesthesia-transfusion",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            ClinicalEventStatus.RECEIVED,
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU");
+        when(events.findByEventIdAndTenantId("evt-surgery-anesthesia-transfusion", "tenant-A"))
+            .thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-surgery-anesthesia-transfusion", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-surgery-anesthesia-transfusion", """
+                {
+                  "patient": {
+                    "mpi": "MPI-S26"
+                  },
+                  "procedures": [
+                    {
+                      "procedureId": "proc-appendectomy-1",
+                      "standardCode": "47.0901",
+                      "displayName": "腹腔镜阑尾切除术",
+                      "localCode": "OR-LAP-APP",
+                      "localCodeSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "anesthesiaType": "GENERAL",
+                      "surgeonId": "doctor-surgery-1",
+                      "performedAt": "2026-07-07T02:30:00Z",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "observations": [
+                    {
+                      "observationId": "obs-asa-1",
+                      "code": "ASA_CLASS",
+                      "displayName": "ASA 麻醉分级",
+                      "valueString": "III",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "medications": [
+                    {
+                      "medicationId": "med-anesthesia-1",
+                      "standardCode": "N01AB06",
+                      "displayName": "七氟烷",
+                      "dose": "2.0",
+                      "doseUnit": "%",
+                      "route": "INHALATION",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "documents": [
+                    {
+                      "documentId": "doc-safety-checklist-1",
+                      "documentType": "SURGERY_SAFETY_CHECKLIST",
+                      "contentDigest": "sha256:surgery-safety-checklist",
+                      "sourceSystem": "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                      "mappedVersion": "V1"
+                    }
+                  ],
+                  "extensions": {
+                    "local": {
+                      "existingFlag": "Y",
+                      "sourceTraceId": "s26-surgery-trace-1"
+                    }
+                  },
+                  "surgeryPlan": {
+                    "surgeryLevel": "LEVEL_3",
+                    "preOpAssessmentStatus": "PASSED_WITH_RISK",
+                    "timeOutRequired": true
+                  },
+                  "anesthesiaAssessment": {
+                    "asaClass": "III",
+                    "airwayRisk": "DIFFICULT_AIRWAY",
+                    "anesthesiologistReviewRequired": true
+                  },
+                  "transfusionRequest": {
+                    "bloodType": "A+",
+                    "crossmatchStatus": "MATCHED",
+                    "transfusionConsentConfirmed": true,
+                    "noAutoTransfusion": true
+                  }
+                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-surgery-anesthesia-transfusion", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-surgery-anesthesia-transfusion"), anyString());
+        ContextSnapshotResources resources = snapshotCap.getValue().resources();
+        assertThat(resources.procedures()).singleElement().satisfies(procedure -> {
+            assertThat(procedure.code()).isEqualTo("47.0901");
+            assertThat(procedure.displayName()).isEqualTo("腹腔镜阑尾切除术");
+            assertThat(procedure.anesthesiaType()).isEqualTo("GENERAL");
+            assertThat(procedure.sourceSystem()).isEqualTo("NURSING_ANESTHESIA_TRANSFUSION_ICU");
+        });
+        assertThat(resources.observations()).singleElement().satisfies(observation -> {
+            assertThat(observation.code()).isEqualTo("ASA_CLASS");
+            assertThat(observation.valueString()).isEqualTo("III");
+        });
+        assertThat(resources.medications()).singleElement().satisfies(medication -> {
+            assertThat(medication.code()).isEqualTo("N01AB06");
+            assertThat(medication.route()).isEqualTo("INHALATION");
+        });
+        assertThat(resources.documents()).singleElement().satisfies(document -> {
+            assertThat(document.documentType()).isEqualTo("SURGERY_SAFETY_CHECKLIST");
+            assertThat(document.contentDigest()).isEqualTo("sha256:surgery-safety-checklist");
+        });
+        assertThat(resources.extensions().at("/local/surgeryPlan/timeOutRequired").asBoolean()).isTrue();
+        assertThat(resources.extensions().at("/local/anesthesiaAssessment/airwayRisk").asText())
+            .isEqualTo("DIFFICULT_AIRWAY");
+        assertThat(resources.extensions().at("/local/transfusionRequest/noAutoTransfusion").asBoolean()).isTrue();
+        assertThat(resources.extensions().at("/local/sourceTraceId").asText())
+            .isEqualTo("s26-surgery-trace-1");
+
+        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+        assertThat(context.payload().at("/extensions/local/surgeryPlan/preOpAssessmentStatus").asText())
+            .isEqualTo("PASSED_WITH_RISK");
+        assertThat(context.payload().at("/extensions/local/anesthesiaAssessment/anesthesiologistReviewRequired")
+            .asBoolean()).isTrue();
+        assertThat(context.payload().at("/extensions/local/transfusionRequest/crossmatchStatus").asText())
+            .isEqualTo("MATCHED");
+        assertThat(context.payload().path("eventPayload").path("transfusionRequest")
+            .path("noAutoTransfusion").asBoolean()).isTrue();
     }
 
     @Test
@@ -267,11 +673,18 @@ class ClinicalEventProcessorTest {
     private ClinicalEvent event(String eventId, ClinicalEventType eventType,
                                 ClinicalEventTriggerPoint triggerPoint,
                                 ClinicalEventStatus status) {
+        return event(eventId, eventType, triggerPoint, status, "HIS");
+    }
+
+    private ClinicalEvent event(String eventId, ClinicalEventType eventType,
+                                ClinicalEventTriggerPoint triggerPoint,
+                                ClinicalEventStatus status,
+                                String sourceSystem) {
         return new ClinicalEvent(
             1L, eventId, "tenant-A", eventType,
             triggerPoint, null, null,
-            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\",\"specialtyId\":\"specialty-A\"}",
-            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "runtime-release-test", "digest",
+            "{\"tenantId\":\"tenant-A\",\"hospitalId\":\"hospital-A\",\"departmentId\":\"dept-A\",\"specialtyId\":\"specialty-A\"}",
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, sourceSystem, "runtime-release-test", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-1");
     }

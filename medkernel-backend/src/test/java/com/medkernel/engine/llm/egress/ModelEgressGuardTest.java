@@ -201,6 +201,33 @@ class ModelEgressGuardTest {
     }
 
     @Test
+    void noneOperatorMasksHospitalPatientIdentifiersInStructuredContext() {
+        policy("[\"clinicalContext\"]", "LOW", "{\"clinicalContext\":\"NONE\"}", "HIGH");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract",
+            "{\"clinicalContext\":{\"patientMpi\":\"mpi-20260703001\","
+                + "\"mrn\":\"MRN-20260703001\",\"medicalRecordNo\":\"MR-20260703001\","
+                + "\"encounterId\":\"enc-20260703001\",\"visitNo\":\"VIS-20260703001\","
+                + "\"ageYears\":72,\"diagnosisText\":\"疑似肺炎，需医生确认\"}}",
+            "task-structured-none", "openai-compatible");
+
+        assertThat(prep.payload())
+            .contains("\"patientMpi\":null")
+            .contains("\"mrn\":null")
+            .contains("\"medicalRecordNo\":null")
+            .contains("\"encounterId\":null")
+            .contains("\"visitNo\":null")
+            .contains("\"ageYears\":72")
+            .contains("疑似肺炎")
+            .doesNotContain("mpi-20260703001")
+            .doesNotContain("MRN-20260703001")
+            .doesNotContain("MR-20260703001")
+            .doesNotContain("enc-20260703001")
+            .doesNotContain("VIS-20260703001");
+    }
+
+    @Test
     void configuredNullifyRuleClearsWhitelistedField() {
         policy("[\"clinicalText\"]", "LOW", "{\"clinicalText\":\"NULLIFY\"}", "HIGH");
 

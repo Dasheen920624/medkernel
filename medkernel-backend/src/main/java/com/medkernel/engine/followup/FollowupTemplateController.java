@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 随访模板配置资产入口。
+ * 随访方案配置资产入口。
  */
 @RestController
 @RequestMapping("/api/v1/engine/followup/templates")

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,6 +41,9 @@ class IdentityBindingControllerTest {
 
     @Autowired
     TenantUserRepository users;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @BeforeEach
     void resetBindings() {
@@ -80,6 +84,10 @@ class IdentityBindingControllerTest {
         org.assertj.core.api.Assertions.assertThat(saved.externalSubjectDigest())
             .startsWith("sm3:")
             .doesNotContain("EMP-001");
+        org.assertj.core.api.Assertions.assertThat(saved.subjectHint())
+            .isEqualTo("****-001")
+            .doesNotContain("EMP-001");
+        org.assertj.core.api.Assertions.assertThat(identityBindingPlaintextColumnCount()).isZero();
     }
 
     @Test
@@ -324,5 +332,13 @@ class IdentityBindingControllerTest {
             .subject(userId)
             .claim("tenant_id", tenantId))
             .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+    }
+
+    private Integer identityBindingPlaintextColumnCount() {
+        return jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'MK_COMPLIANCE_IDENTITY_BINDING'
+              AND COLUMN_NAME IN ('EXTERNAL_SUBJECT', 'EXTERNAL_IDENTITY', 'SUBJECT_PLAINTEXT')
+            """, Integer.class);
     }
 }

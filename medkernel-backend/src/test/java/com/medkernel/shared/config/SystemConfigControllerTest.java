@@ -10,6 +10,7 @@ import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -18,6 +19,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
@@ -62,12 +64,16 @@ class SystemConfigControllerTest {
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
+    private static final String MFA_USER_PASSWORD = "ConfigMfa@2026!";
 
     @Autowired
     MockMvc mvc;
 
     @Autowired
     RuntimeOperationsService runtimeOperationsService;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -80,6 +86,9 @@ class SystemConfigControllerTest {
 
     @Autowired
     MfaSecretCodec mfaSecretCodec;
+
+    @Autowired
+    PasswordEncoder passwordEncoder;
 
     @Autowired
     LoggingSystem loggingSystem;
@@ -110,8 +119,11 @@ class SystemConfigControllerTest {
             """, EXTERNAL_PROVIDER_FLAG_KEY);
         jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?, ?)",
             GRAPH_FLAG_KEY, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY, EXTERNAL_PROVIDER_FLAG_KEY);
-        jdbcTemplate.update("DELETE FROM mk_config_item WHERE tenant_id = 'SYSTEM' AND config_key = ?",
-            MFA_ENABLED_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, MFA_ENABLED_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -258,6 +270,41 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.code").value("ENG-API-002"));
 
         assertThat(configValue(AUTH_MODE_KEY)).isEqualTo("PLATFORM");
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
+    void mfaSwitchIsSeededAsProtectedConfigCenterPolicy() throws Exception {
+        mvc.perform(get("/api/v1/system/configs")
+                .queryParam("prefix", "medkernel.auth.mfa"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.key=='medkernel.auth.mfa.enabled')].value").value(hasItem("false")))
+            .andExpect(jsonPath("$.data[?(@.key=='medkernel.auth.mfa.enabled')].valueType").value(hasItem("BOOLEAN")))
+            .andExpect(jsonPath("$.data[?(@.key=='medkernel.auth.mfa.enabled')].risk").value(hasItem("HIGH")))
+            .andExpect(jsonPath("$.data[?(@.key=='medkernel.auth.mfa.enabled')].protectedConfig").value(hasItem(true)));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
+    void mfaSwitchIsBackedByConfigCenterWithoutRestart() throws Exception {
+        assertThat(loginMfaRequired()).isFalse();
+
+        mvc.perform(patch("/api/v1/system/configs/{key}", MFA_ENABLED_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "true",
+                      "reason": "验证 MFA 开关由配置中心热生效",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.value").value("true"))
+            .andExpect(jsonPath("$.data.source").value("API"));
+
+        assertThat(loginMfaRequired()).isTrue();
     }
 
     @Test
@@ -621,6 +668,23 @@ class SystemConfigControllerTest {
             key);
     }
 
+    private boolean loginMfaRequired() throws Exception {
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tenantId": "t-1",
+                      "username": "%s",
+                      "password": "%s"
+                    }
+                    """.formatted(MFA_USER, MFA_USER_PASSWORD)))
+            .andExpect(status().isOk())
+            .andReturn();
+        return objectMapper.readTree(login.getResponse().getContentAsByteArray())
+            .at("/data/mfaRequired")
+            .asBoolean(false);
+    }
+
     private void patchConfig(String key, String value, String reason) throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", key)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -667,17 +731,15 @@ class SystemConfigControllerTest {
     }
 
     private void seedMfaCredential(String userId) {
-        if (credentialRepository.findByTenantIdAndUserId("t-1", userId).isPresent()) {
-            return;
-        }
         java.time.Instant now = java.time.Instant.now();
+        PlatformCredential current = credentialRepository.findByTenantIdAndUserId("t-1", userId).orElse(null);
         credentialRepository.save(new PlatformCredential(
-            null,
+            current == null ? null : current.id(),
             "cred-" + userId,
             "t-1",
             userId,
             userId,
-            "$2a$10$hash",
+            passwordEncoder.encode(MFA_USER_PASSWORD),
             "ACTIVE",
             "N",
             mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),

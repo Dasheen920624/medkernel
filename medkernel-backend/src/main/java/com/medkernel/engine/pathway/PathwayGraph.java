@@ -3,7 +3,7 @@ package com.medkernel.engine.pathway;
 import java.util.List;
 
 /**
- * 路径模板图。
+ * 临床路径图。
  *
  * <p>由节点集合和边集合组成，供试运行和真实推进时按同一规则计算下一节点。
  */

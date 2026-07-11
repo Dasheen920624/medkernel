@@ -81,7 +81,7 @@ const routeDecisions = {
     decision: "MERGE",
     targetDomain: "知识治理",
     targetEntry: "机构生效版本",
-    task: "维护平台标准版本、机构生效版本、发布影响和回滚证据",
+    task: "发布平台标准版本、生成机构生效版本并保留影响和回滚证据",
   },
   "/authoring/assets": {
     decision: "MERGE",
@@ -92,26 +92,26 @@ const routeDecisions = {
   "/pathway/templates": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "路径配置",
-    task: "配置、审核、发布和回滚临床路径模板",
+    targetEntry: "临床路径库",
+    task: "编排、审核、发布和回滚临床路径版本",
   },
   "/rule/definitions": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "规则配置",
+    targetEntry: "临床规则",
     task: "配置、试运行、审核和发布临床规则",
   },
   "/terminology/mapping": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "术语与字典",
-    task: "维护院内术语映射、冲突和高风险确认",
+    targetEntry: "术语字典",
+    task: "校准院内术语映射、裁定冲突并逐条确认高危近似",
   },
   "/adapter/hub": {
     decision: "MOVE",
     targetDomain: "系统运维",
     targetEntry: "系统接入",
-    task: "由集成和实施角色维护外部系统接入及失败补偿",
+    task: "治理外部系统接入、字段映射、健康检查和失败补偿",
   },
   "/mpi": {
     decision: "MOVE",
@@ -134,7 +134,7 @@ const routeDecisions = {
   "/rule/validate": {
     decision: "MERGE",
     targetDomain: "知识治理",
-    targetEntry: "规则配置 / 试运行",
+    targetEntry: "临床规则 / 试运行",
     task: "并入规则试运行与提醒详情，不保留客户独立菜单",
   },
   "/workflow/todos": {
@@ -159,12 +159,12 @@ const routeDecisions = {
     decision: "KEEP",
     targetDomain: "临床协同",
     targetEntry: "全真体验沙盘",
-    task: "以院内业务系统视角复演真实引擎、嵌入终端与人工反馈闭环",
+    task: "以院内业务系统视角复演真实医疗智能链路、嵌入终端与人工反馈闭环",
   },
   "/qc/dashboard": {
     decision: "RENAME",
     targetDomain: "质量管理",
-    targetEntry: "质量管理概览",
+    targetEntry: "质量风险概览",
     task: "查看质量风险、运营趋势并下钻到责任问题",
   },
   "/qc/alerts": {
@@ -183,7 +183,7 @@ const routeDecisions = {
     decision: "RENAME",
     targetDomain: "质量管理",
     targetEntry: "评价指标",
-    task: "维护评价指标、影响分析和发布状态",
+    task: "定义评价指标、试算影响分析并发布生效",
   },
   "/qc/eval/results": {
     decision: "MERGE",
@@ -194,26 +194,32 @@ const routeDecisions = {
   "/knowledge/governance": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "知识审核与发布",
+    targetEntry: "知识审核发布中心",
     task: "审核统一候选池中的平台主源或机构派生差异并发布、退修或驳回",
   },
   "/knowledge/institution": {
     decision: "SPLIT",
     targetDomain: "知识治理",
-    targetEntry: "机构知识",
+    targetEntry: "机构知识库",
     task: "从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准",
   },
   "/knowledge/diagnosis": {
     decision: "SPLIT",
     targetDomain: "知识治理",
-    targetEntry: "诊断知识维护",
-    task: "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
+    targetEntry: "诊断知识库",
+    task: "管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
+  },
+  "/knowledge/domain-facades/b0-evidence": {
+    decision: "SPLIT",
+    targetDomain: "知识治理",
+    targetEntry: "领域门面无模型证据",
+    task: "核查 17 张专业领域门面复用无模型 B0 主链路、缺资产诚实空态和无新增专属业务引擎边界",
   },
   "/knowledge/production": {
     decision: "SPLIT",
     targetDomain: "知识生产",
-    targetEntry: "知识生产",
-    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试",
+    targetEntry: "知识生产工作台",
+    task: "核查知识生产准备、生产任务、候选血缘、安全校验、候选分流、影子证据和高敏患者上下文用途确认重试",
   },
   "/admin/users": {
     decision: "MOVE",
@@ -242,7 +248,7 @@ const routeDecisions = {
   "/system/providers": {
     decision: "RENAME",
     targetDomain: "系统运维",
-    targetEntry: "运行保障",
+    targetEntry: "服务运行保障",
     task: "查看外部依赖、备份恢复、降级和部署健康状态",
   },
   "/notifications/settings": {
@@ -266,13 +272,13 @@ const routeDecisions = {
   "/advanced/ai-workflows": {
     decision: "MOVE",
     targetDomain: "知识生产",
-    targetEntry: "模型能力",
-    task: "查看模型能力、任务和诚实降级状态",
+    targetEntry: "模型能力与安全",
+    task: "查看模型能力、安全边界和诚实降级状态",
   },
   "/advanced/domestic": {
     decision: "MOVE",
     targetDomain: "系统运维",
-    targetEntry: "国产化自检",
+    targetEntry: "国产化适配自检",
     task: "核查国产化适配与部署证据",
   },
   "/system/runtime-diagnostics": {
@@ -318,6 +324,46 @@ function objectProperties(node) {
     values[propertyName(property.name)] = literalValue(property.initializer);
   }
   return values;
+}
+
+function extractRouteSections() {
+  const sourceText = readFileSync(routesPath, "utf8");
+  const sourceFile = ts.createSourceFile(
+    routesPath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let sectionArray;
+
+  sourceFile.forEachChild((node) => {
+    if (!ts.isVariableStatement(node)) return;
+    for (const declaration of node.declarationList.declarations) {
+      if (
+        ts.isIdentifier(declaration.name) &&
+        declaration.name.text === "routeSections" &&
+        declaration.initializer &&
+        ts.isArrayLiteralExpression(declaration.initializer)
+      ) {
+        sectionArray = declaration.initializer;
+      }
+    }
+  });
+
+  if (!sectionArray) {
+    throw new Error("未找到 routeSections 主导航分组");
+  }
+
+  return sectionArray.elements
+    .filter(ts.isObjectLiteralExpression)
+    .map((element) => {
+      const section = objectProperties(element);
+      if (!section.label) {
+        throw new Error(`主导航分组 ${section.key ?? "未知"} 缺少中文名称`);
+      }
+      return section;
+    });
 }
 
 function extractRoutes() {
@@ -578,7 +624,7 @@ function countByDecision(items) {
   );
 }
 
-function renderCatalog({ routes, menus, pages, controllers, batches }) {
+function renderCatalog({ routes, menus, pages, controllers, batches, routeSections }) {
   const routeByMenu = new Map(
     routes
       .filter((route) => route.menuKey)
@@ -601,6 +647,7 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
   const decisionSummary = countByDecision(allCapabilities)
     .map(([decision, count]) => `| ${decision} | ${count} |`)
     .join("\n");
+  const targetCustomerDomains = routeSections.map((section) => section.label).join("、");
 
   const routeRows = routes
     .map(
@@ -650,7 +697,7 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
 - 页面与页内组件：${pages.length} 项。
 - 后端控制器：${controllers.length} 项。
 - 批量、导入、导出和异步任务承载类：${batches.length} 项。
-- 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
+- 目标客户业务域：${targetCustomerDomains}。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
 
 | 裁决 | 数量 |
@@ -698,12 +745,13 @@ ${batchRows}
 }
 
 function generateCatalog() {
+  const routeSections = extractRouteSections();
   const routes = extractRoutes();
   const menus = extractMenus();
   const pages = extractPages(routes);
   const controllers = extractControllers();
   const batches = extractBatchCapabilities();
-  return renderCatalog({ routes, menus, pages, controllers, batches });
+  return renderCatalog({ routes, menus, pages, controllers, batches, routeSections });
 }
 
 function main() {

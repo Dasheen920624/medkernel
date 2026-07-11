@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.engine.integration.dto.IntegrationOnboardingResponse;
 import com.medkernel.engine.integration.dto.RegionalSourceResponse;
+import com.medkernel.engine.integration.dto.WebhookInboundResultDto;
 import com.medkernel.engine.integration.dto.WebhookConfigResponse;
 import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.shared.api.PageRequest;
@@ -49,7 +52,7 @@ class IntegrationControllerSecurityTest {
         {"messageId":"out-9","traceId":"trace-out-9","adapterId":"adp-9","targetSystem":"HIS","protocolType":"REST","payloadSummary":"异步同步 HIS","payload":{"patientId":"P-9"},"maxRetries":3}
         """;
     private static final String ONBOARDING_BODY = """
-        {"onboardingId":"onb-9","name":"HIS 业务接口","accessMode":"ADAPTER","adapterId":"adp-9","sourceSystem":"HIS","businessScenario":"S2 院内系统接入","orgPath":"/t-1/hospital-a"}
+        {"onboardingId":"onb-9","name":"HIS 业务接口","accessMode":"ADAPTER","adapterId":"adp-9","systemFamilyCode":"HIS_EMR_CDR","sourceSystem":"HIS","businessScenario":"S2 院内系统接入","orgPath":"/t-1/hospital-a"}
         """;
     private static final String REGIONAL_BODY = """
         {"sourceId":"regional-9","regionalNetworkName":"医联体平台","sourceOrganizationId":"org-region-9","sourceOrganizationName":"区域影像中心","trustLevel":"HIGH","evidenceText":"OPT-07 已分级证据","orgPath":"/t-1/hospital-a"}
@@ -186,6 +189,50 @@ class IntegrationControllerSecurityTest {
                 .content(INBOUND_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    void tenantOperatorReceivesRuntimeLockedInboundNormalizationContract() throws Exception {
+        ObjectNode mappedPayload = JsonNodeFactory.instance.objectNode();
+        ObjectNode diagnosis = JsonNodeFactory.instance.objectNode()
+            .put("standardCode", "718-7")
+            .put("codeSystem", "LOINC")
+            .put("localCode", "LIS-HGB")
+            .put("sourceSystem", "LIS")
+            .put("runtimeReleaseId", "runtime-H7")
+            .put("mappingId", 101)
+            .put("standardTermId", 202)
+            .put("mappedVersion", "H7");
+        mappedPayload.putArray("observations").add(diagnosis);
+        when(service.ingestWebhook(eq("tenant-1"), eq("whk-9"), eq("1780456123"),
+            eq("sha256=test"), any()))
+            .thenReturn(new WebhookInboundResultDto(
+                "msg-9",
+                "trace-9",
+                "whk-9",
+                "adp-9",
+                "SUCCESS",
+                mappedPayload,
+                2,
+                1,
+                "evt-9",
+                "RECEIVED",
+                false,
+                List.of()));
+
+        mvc.perform(post("/api/v1/engine/integration/webhooks/whk-9/inbound")
+                .contentType("application/json")
+                .header("X-MedKernel-Timestamp", "1780456123")
+                .header("X-MedKernel-Signature", "sha256=test")
+                .content(INBOUND_BODY)
+                .with(ops("tenant-1")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.data.normalizedCodeCount").value(1))
+            .andExpect(jsonPath("$.data.clinicalEventStatus").value("RECEIVED"))
+            .andExpect(jsonPath("$.data.mappedPayload.observations[0].runtimeReleaseId").value("runtime-H7"))
+            .andExpect(jsonPath("$.data.mappedPayload.observations[0].mappingId").value(101))
+            .andExpect(jsonPath("$.data.mappedPayload.observations[0].standardTermId").value(202));
     }
 
     @Test

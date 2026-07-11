@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
+  App as AntdApp,
   Badge,
   Button,
   Card,
@@ -20,7 +21,6 @@ import {
   Table,
   Tabs,
   Tag,
-  message,
 } from "antd";
 import type { BadgeProps, TableProps } from "antd";
 import {
@@ -43,18 +43,24 @@ import {
   usePublishFollowupTemplate,
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
+  useBackflowFollowupResult,
   useSecurityProfile,
+  useCurrentHospitalRuntime,
 } from "@/shared/api/hooks";
 import type {
   FollowupAbnormalReportResponse,
   FollowupPlanDetailResponse,
+  FollowupQuestionnaireResponse,
+  FollowupResultBackflowResponse,
   FollowupPlanStatus,
   FollowupTemplateResponse,
+  SecurityProfile,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { formatClinicalDate } from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import {
@@ -71,6 +77,8 @@ import styles from "./Clinical.module.css";
 const { TextArea } = Input;
 const FOLLOWUP_PLAN_PAGE_SIZE = 20;
 const FOLLOWUP_TEMPLATE_PAGE_SIZE = 20;
+const GENERATED_PATIENT_FILTER_TEXT = "已筛选刚生成计划的患者";
+const FOLLOWUP_HANDLING_DRAWER_Z_INDEX = 1200;
 
 const planStatusConfig: Record<FollowupPlanStatus, { status: BadgeProps["status"]; text: string }> =
   {
@@ -91,6 +99,8 @@ const taskTypeOptions = [
   { value: "LAB", label: "检验报告跟踪" },
   { value: "OUTPATIENT", label: "门诊复诊" },
 ];
+const TEMPLATE_RUN_SUFFIX_PATTERN = /\s+(?:[a-z]+(?:_[a-z]+)*-[a-z0-9]{6,}|[a-z0-9]{8,})$/i;
+const TEMPLATE_REHEARSAL_BATCH_PATTERN = /\s*[（(]\s*上线复演[^）)]*[）)]/g;
 
 function optionLabel(
   options: Array<{ value: string; label: string }>,
@@ -110,27 +120,79 @@ function associationText(
   return value ? `${businessLabel}已关联` : `${businessLabel}未关联`;
 }
 
+function followupProtocolText(value: string) {
+  return value.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
+}
+
+function templateBusinessName(name: string | null | undefined, fallback = "已绑定随访方案") {
+  const trimmed = name?.trim();
+  if (!trimmed) return fallback;
+  if (!/^(全角色|真实前台)/.test(trimmed)) return followupProtocolText(trimmed);
+  const cleaned =
+    trimmed
+      .replace(TEMPLATE_REHEARSAL_BATCH_PATTERN, "")
+      .replace(TEMPLATE_RUN_SUFFIX_PATTERN, "")
+      .trim() || trimmed;
+  return followupProtocolText(cleaned);
+}
+
+function templateVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!version) return "";
+  return evidenceDetailsEnabled ? ` · v${version}` : `（第 ${version} 版）`;
+}
+
 function planTemplateText(
-  plan: Pick<FollowupPlanDetailResponse, "templateId" | "templateVersion">,
+  plan: Pick<
+    FollowupPlanDetailResponse,
+    "templateId" | "templateVersion" | "templateName" | "templateCode"
+  >,
   templateNameById: Map<string, string>,
   evidenceDetailsEnabled: boolean,
 ) {
   if (!plan.templateId) return "未绑定随访方案";
-  const version = plan.templateVersion ? ` · v${plan.templateVersion}` : "";
-  if (evidenceDetailsEnabled) return `${plan.templateId}${version}`;
-  const templateName = templateNameById.get(plan.templateId) ?? "已绑定随访方案";
+  const version = templateVersionText(plan.templateVersion, evidenceDetailsEnabled);
+  const templateName = templateBusinessName(
+    plan.templateName ?? templateNameById.get(plan.templateId),
+  );
+  if (evidenceDetailsEnabled) return `${templateName} · ${plan.templateId}${version}`;
   return `${templateName}${version}`;
 }
 
+function FollowupEvidenceText({ children }: { children: ReactNode }) {
+  return <span className={styles.followupEvidenceText}>{children}</span>;
+}
+
+function FollowupEvidenceTag({ children, color }: { children: ReactNode; color?: string }) {
+  return (
+    <Tag color={color} className={styles.followupEvidenceTag}>
+      <FollowupEvidenceText>{children}</FollowupEvidenceText>
+    </Tag>
+  );
+}
+
+function hasPermission(profile: SecurityProfile | undefined, code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
+function publishImpactDigest(template: FollowupTemplateResponse) {
+  const templateIdentity = template.templateCode
+    ? `${template.templateCode}@v${template.versionNo}`
+    : `${template.name}@v${template.versionNo}`;
+  return `仅影响新生成随访计划：${templateIdentity}`.slice(0, 128);
+}
+
 export default function Followup() {
+  const { message: messageApi } = AntdApp.useApp();
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
+  const canPublishFollowupTemplate = hasPermission(security.data, "followup.publish");
   const [activeTab, setActiveTab] = useState("plans");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
-  const [patientFilter, setPatientFilter] = useState("");
+  const [patientFilterQuery, setPatientFilterQuery] = useState("");
+  const [patientFilterDisplay, setPatientFilterDisplay] = useState("");
   const [planPage, setPlanPage] = useState(1);
   const [templatePage, setTemplatePage] = useState(1);
   const [templateSearch, setTemplateSearch] = useState("");
@@ -142,6 +204,11 @@ export default function Followup() {
   const [abnormalEvidence, setAbnormalEvidence] = useState<FollowupAbnormalReportResponse | null>(
     null,
   );
+  const [backflowEvidence, setBackflowEvidence] = useState<FollowupResultBackflowResponse | null>(
+    null,
+  );
+  const [questionnaireEvidence, setQuestionnaireEvidence] =
+    useState<FollowupQuestionnaireResponse | null>(null);
 
   const [generateForm] = Form.useForm();
   const [templateForm] = Form.useForm();
@@ -154,7 +221,7 @@ export default function Followup() {
     isLoading,
     isError,
   } = useFollowupPlans({
-    patientId: patientFilter.trim() || undefined,
+    patientId: patientFilterQuery.trim() || undefined,
     page: planPage,
     size: FOLLOWUP_PLAN_PAGE_SIZE,
   });
@@ -164,7 +231,7 @@ export default function Followup() {
     isLoading: statsLoading,
     isError: statsError,
   } = useFollowupStats({
-    patientId: patientFilter.trim() || undefined,
+    patientId: patientFilterQuery.trim() || undefined,
   });
 
   const generatePlanMutation = useGenerateFollowupPlan();
@@ -172,6 +239,13 @@ export default function Followup() {
   const publishTemplateMutation = usePublishFollowupTemplate();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
+  const backflowResultMutation = useBackflowFollowupResult();
+  const canReadRuntimeRelease = hasPermission(security.data, "asset.read");
+  const currentHospitalRuntimeQuery = useCurrentHospitalRuntime(
+    canReadRuntimeRelease && generateModalVisible && selectedSnapshotId
+      ? (security.data?.dataScope?.hospitalId ?? undefined)
+      : undefined,
+  );
   const templateKeyword = templateSearch.trim();
   const publishedTemplateKeyword = publishedTemplateSearch.trim();
   const templatesQuery = useFollowupTemplates({
@@ -202,6 +276,13 @@ export default function Followup() {
   const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
     enabled: generateModalVisible && Boolean(selectedSnapshotId),
   });
+  const selectedSnapshotRuntimeId = snapshotDetailQuery.data?.runtimeReleaseId ?? null;
+  const currentHospitalRuntimeId = currentHospitalRuntimeQuery.data?.release.releaseId ?? null;
+  const selectedSnapshotRuntimeIsStale = Boolean(
+    selectedSnapshotRuntimeId &&
+      currentHospitalRuntimeId &&
+      selectedSnapshotRuntimeId !== currentHospitalRuntimeId,
+  );
 
   const displayPlans = useMemo(() => apiPlansData?.items ?? [], [apiPlansData?.items]);
   const templates = useMemo(() => templatesQuery.data?.items ?? [], [templatesQuery.data?.items]);
@@ -223,13 +304,23 @@ export default function Followup() {
     () =>
       publishedTemplates.map((template) => ({
         value: template.templateId,
-        label: `${template.name} · v${template.versionNo}`,
+        label: `${templateBusinessName(template.name)}${templateVersionText(
+          template.versionNo,
+          false,
+        )}`,
       })),
     [publishedTemplates],
   );
   const selectedPlanDetail = displayPlans.find((plan) => plan.planId === selectedPlanId);
   const selectedTask =
     selectedPlanDetail?.tasks.find((task) => task.taskId === selectedTaskId) ?? null;
+  const completedQuestionnaireTask = selectedPlanDetail?.tasks.find(
+    (task) =>
+      task.taskType === "QUESTIONNAIRE" &&
+      task.status === "COMPLETED" &&
+      Boolean(task.questionnaireTemplateId),
+  );
+  const followupHandlingDrawerOpen = Boolean(selectedPlanId && selectedPlanDetail);
 
   const stats = statsData ?? {
     totalPlans: 0,
@@ -262,17 +353,24 @@ export default function Followup() {
         ),
       });
 
-      message.success("随访计划已生成，请在计划列表查看");
+      messageApi.success("随访计划已生成，请在计划列表查看");
       setGenerateModalVisible(false);
       generateForm.resetFields();
       setSnapshotPatientId("");
       setSnapshotEncounterId("");
       setSelectedSnapshotId("");
+      if (response.patientId) {
+        setPatientFilterQuery(response.patientId);
+        setPatientFilterDisplay(GENERATED_PATIENT_FILTER_TEXT);
+        setPlanPage(1);
+      }
       setSelectedPlanId(response.planId);
-      await refreshFollowupData();
+      if (!response.patientId) {
+        await refreshFollowupData();
+      }
     } catch (error: unknown) {
       if (applyApiFieldErrors(generateForm, error)) return;
-      message.error(getApiErrorMessage(error, "随访计划生成失败"));
+      messageApi.error(getApiErrorMessage(error, "随访计划生成失败"));
     }
   };
 
@@ -312,14 +410,14 @@ export default function Followup() {
         sourceRef: values.sourceRef,
       });
 
-      message.success("随访模板已创建，请发布后用于计划生成");
+      messageApi.success("随访方案已创建，请发布后用于计划生成");
       setTemplateModalVisible(false);
       templateForm.resetFields();
       setTemplatePage(1);
       await templatesQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(templateForm, error)) return;
-      message.error(getApiErrorMessage(error, "随访模板创建失败"));
+      messageApi.error(getApiErrorMessage(error, "随访方案创建失败"));
     }
   };
 
@@ -328,22 +426,20 @@ export default function Followup() {
       await publishTemplateMutation.mutateAsync({
         templateId: template.templateId,
         request: {
-          impactDigest:
-            template.contentHash ||
-            `followup-template-${template.templateId}-v${template.versionNo}`,
-          reason: "随访模板发布",
+          impactDigest: publishImpactDigest(template),
+          reason: "随访方案发布",
         },
       });
-      message.success("随访模板已发布，可用于新随访计划");
+      messageApi.success("随访方案已发布，可用于新随访计划");
       await Promise.all([templatesQuery.refetch(), publishedTemplatesQuery.refetch()]);
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "随访模板发布失败"));
+      messageApi.error(getApiErrorMessage(error, "随访方案发布失败"));
     }
   };
 
   const handleSubmitQuestionnaire = async () => {
     if (!selectedTask?.questionnaireTemplateId) {
-      message.error("当前任务没有可用问卷模板，不能提交问卷。");
+      messageApi.error("当前任务没有可用问卷内容，不能提交问卷。");
       return;
     }
     try {
@@ -352,7 +448,7 @@ export default function Followup() {
         content: values.content,
         submittedAt: new Date().toISOString(),
       });
-      await submitQuestionnaireMutation.mutateAsync({
+      const response = await submitQuestionnaireMutation.mutateAsync({
         taskId: selectedTask.taskId,
         questionnaireTemplateId: selectedTask.questionnaireTemplateId,
         formData: JSON.stringify({
@@ -364,13 +460,15 @@ export default function Followup() {
         executorType: values.executorType,
       });
 
-      message.success("随访问卷内容已提交，请以刷新后的任务状态为准");
+      setQuestionnaireEvidence(response);
+      setBackflowEvidence(null);
+      messageApi.success("随访问卷内容已提交，请以刷新后的任务状态为准");
       questionnaireForm.resetFields();
       setSelectedTaskId(null);
       await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(questionnaireForm, error)) return;
-      message.error(getApiErrorMessage(error, "问卷提交失败"));
+      messageApi.error(getApiErrorMessage(error, "问卷提交失败"));
     }
   };
 
@@ -390,12 +488,41 @@ export default function Followup() {
       });
 
       setAbnormalEvidence(response);
-      message.warning("异常回院已登记，请以审计与刷新后的任务状态为准");
+      messageApi.warning("异常回院已登记，请以审计与刷新后的任务状态为准");
       abnormalForm.resetFields();
       await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(abnormalForm, error)) return;
-      message.error(getApiErrorMessage(error, "异常回院登记失败"));
+      messageApi.error(getApiErrorMessage(error, "异常回院登记失败"));
+    }
+  };
+
+  const handleBackflowResult = async () => {
+    if (!selectedPlanDetail || !completedQuestionnaireTask || !questionnaireEvidence) {
+      messageApi.error("请先完成随访问卷，再回流随访结果。");
+      return;
+    }
+    try {
+      const response = await backflowResultMutation.mutateAsync({
+        planId: selectedPlanDetail.planId,
+        taskId: completedQuestionnaireTask.taskId,
+        questionnaireId: questionnaireEvidence.questionnaireId,
+        resultPayload: JSON.stringify({
+          planId: selectedPlanDetail.planId,
+          taskId: completedQuestionnaireTask.taskId,
+          patientId: selectedPlanDetail.patientId,
+          diseaseCode: selectedPlanDetail.diseaseCode,
+          abnormalReported: Boolean(abnormalEvidence?.eventId),
+          backflowAt: new Date().toISOString(),
+        }),
+        abnormalFlag: abnormalEvidence?.eventId ? "Y" : "N",
+        idempotencyKey: `followup-result-${selectedPlanDetail.planId}-${completedQuestionnaireTask.taskId}`,
+      });
+      setBackflowEvidence(response);
+      messageApi.success("随访结果已回流为标准 FollowUp 上下文资源");
+      await refreshFollowupData();
+    } catch (error: unknown) {
+      messageApi.error(getApiErrorMessage(error, "随访结果回流失败"));
     }
   };
 
@@ -403,10 +530,14 @@ export default function Followup() {
     {
       title: "随访计划",
       key: "plan",
+      width: 220,
+      className: styles.followupPlanPrimaryColumn,
       render: (_value: unknown, record) => (
-        <Space direction="vertical" size={0}>
+        <Space direction="vertical" size={0} className={styles.followupPlanCell}>
           <span className={styles.textStrong}>
-            {evidenceDetailsEnabled ? record.planId : "已生成随访计划"}
+            <FollowupEvidenceText>
+              {evidenceDetailsEnabled ? record.planId : "已生成随访计划"}
+            </FollowupEvidenceText>
           </span>
         </Space>
       ),
@@ -414,12 +545,15 @@ export default function Followup() {
     {
       title: "随访对象",
       key: "subject",
+      width: 210,
       render: (_value: unknown, record) => (
         <Space wrap>
-          <Tag>{associationText(record.patientId, evidenceDetailsEnabled, "患者")}</Tag>
-          <Tag color="blue">
+          <FollowupEvidenceTag>
+            {associationText(record.patientId, evidenceDetailsEnabled, "患者")}
+          </FollowupEvidenceTag>
+          <FollowupEvidenceTag color="blue">
             {associationText(record.encounterId, evidenceDetailsEnabled, "就诊")}
-          </Tag>
+          </FollowupEvidenceTag>
         </Space>
       ),
     },
@@ -427,22 +561,27 @@ export default function Followup() {
       title: "随访病种",
       dataIndex: "diseaseCode",
       key: "diseaseCode",
+      width: 110,
       render: (code: string) => (
-        <Tag>{evidenceDetailsEnabled ? code : optionLabel(followupDiseaseOptions, code)}</Tag>
+        <FollowupEvidenceTag>
+          {evidenceDetailsEnabled ? code : optionLabel(followupDiseaseOptions, code)}
+        </FollowupEvidenceTag>
       ),
     },
     {
       title: "随访方案",
       key: "template",
+      width: 280,
       render: (_value: unknown, record) => (
-        <Tag color={record.templateId ? "purple" : "default"}>
+        <FollowupEvidenceTag color={record.templateId ? "purple" : "default"}>
           {planTemplateText(record, templateNameById, evidenceDetailsEnabled)}
-        </Tag>
+        </FollowupEvidenceTag>
       ),
     },
     {
       title: "任务进度",
       key: "progress",
+      width: 170,
       render: (_value: unknown, record) => {
         const total = record.tasks.length;
         const done = record.tasks.filter((task) => task.status === "COMPLETED").length;
@@ -461,6 +600,7 @@ export default function Followup() {
       title: "计划状态",
       dataIndex: "status",
       key: "status",
+      width: 110,
       render: (status: FollowupPlanStatus) => {
         const current = planStatusConfig[status] ?? {
           status: "default",
@@ -472,6 +612,7 @@ export default function Followup() {
     {
       title: "操作",
       key: "action",
+      width: 120,
       render: (_value: unknown, record) => (
         <Button
           type="link"
@@ -491,14 +632,16 @@ export default function Followup() {
 
   const templateColumns: TableProps<FollowupTemplateResponse>["columns"] = [
     {
-      title: "模板名称",
+      title: "方案名称",
       dataIndex: "name",
       key: "name",
       render: (name: string, record) => (
         <Space direction="vertical" size={0}>
-          <span className={styles.textStrong}>{name}</span>
+          <span className={styles.textStrong}>{templateBusinessName(name, "随访方案")}</span>
           <span className={styles.textMuted}>
-            {evidenceDetailsEnabled ? `${record.templateCode} · ` : ""}v{record.versionNo}
+            {evidenceDetailsEnabled
+              ? `${record.templateCode} · v${record.versionNo}`
+              : `第 ${record.versionNo} 版`}
           </span>
         </Space>
       ),
@@ -539,21 +682,52 @@ export default function Followup() {
     {
       title: "操作",
       key: "action",
-      render: (_value: unknown, record) =>
-        record.assetStatus === "PUBLISHED" ? (
-          <Tag color="green">可用于计划生成</Tag>
-        ) : (
+      render: (_value: unknown, record) => {
+        if (record.assetStatus === "PUBLISHED") {
+          return <Tag color="green">可用于计划生成</Tag>;
+        }
+        if (!canPublishFollowupTemplate) {
+          return (
+            <Space direction="vertical" size={0}>
+              <Tag color="gold">需运营发布</Tag>
+              <span className={styles.textMuted}>医疗引擎运营员复核后用于新计划</span>
+            </Space>
+          );
+        }
+        return (
           <Button
             type="link"
             onClick={() => void handlePublishTemplate(record)}
             loading={publishTemplateMutation.isPending}
             className={styles.buttonLink}
           >
-            发布模板
+            发布方案
           </Button>
-        ),
+        );
+      },
     },
   ];
+
+  let snapshotVersionAlert: ReactNode = null;
+  if (selectedSnapshotRuntimeIsStale) {
+    snapshotVersionAlert = (
+      <Alert
+        type="warning"
+        showIcon
+        message="所选快照不是当前机构生效版本"
+        description="新发布的随访方案不会自动套用到旧快照；请建立新的当前就诊上下文后再生成计划。"
+      />
+    );
+  } else if (snapshotDetailQuery.data) {
+    snapshotVersionAlert = (
+      <Alert
+        type="info"
+        showIcon
+        message="随访计划按所选快照锁定版本生成"
+        description="随访方案、规则和字段目录以快照中的机构生效版本为准，避免临床事实串版。"
+      />
+    );
+  }
 
   return (
     <PageShell
@@ -596,7 +770,7 @@ export default function Followup() {
         onChange={setActiveTab}
         items={[
           { key: "plans", label: "计划执行" },
-          { key: "templates", label: "随访模板" },
+          { key: "templates", label: "随访方案" },
         ]}
       />
       {activeTab === "plans" ? (
@@ -657,9 +831,10 @@ export default function Followup() {
                 <Input
                   placeholder="按患者线索检索"
                   allowClear
-                  value={patientFilter}
+                  value={patientFilterDisplay}
                   onChange={(event) => {
-                    setPatientFilter(event.target.value);
+                    setPatientFilterQuery(event.target.value);
+                    setPatientFilterDisplay(event.target.value);
                     setPlanPage(1);
                   }}
                   onPressEnter={() => void refreshFollowupData()}
@@ -708,12 +883,18 @@ export default function Followup() {
             />
           )}
 
-          <Card>
+          <Card
+            aria-label="随访计划列表"
+            className={styles.tablePanel}
+            hidden={followupHandlingDrawerOpen}
+          >
             <Table
               columns={columns}
               dataSource={displayPlans}
               rowKey="planId"
               loading={isLoading}
+              tableLayout="fixed"
+              scroll={{ x: 1220 }}
               locale={{ emptyText: "当前暂无随访计划" }}
               pagination={{
                 current: apiPlansData?.page ?? planPage,
@@ -731,18 +912,18 @@ export default function Followup() {
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={8}>
               <Card>
-                <Statistic title="模板总数" value={templates.length} />
+                <Statistic title="方案总数" value={templates.length} />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
               <Card>
-                <Statistic title="已发布模板" value={publishedTemplates.length} />
+                <Statistic title="已发布方案" value={publishedTemplates.length} />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
               <Card>
                 <Statistic
-                  title="待发布模板"
+                  title="待发布方案"
                   value={
                     templates.filter((template) => template.assetStatus !== "PUBLISHED").length
                   }
@@ -753,13 +934,13 @@ export default function Followup() {
           <Card>
             <Space wrap className={styles.rowBetween}>
               <Space direction="vertical" size={0}>
-                <span className={styles.textStrong}>随访模板</span>
+                <span className={styles.textStrong}>随访方案</span>
                 <span className={styles.textMuted}>
-                  模板发布后才能用于生成随访计划，已生成计划继续保留原模板版本。
+                  方案发布后才能用于生成随访计划，已生成计划继续保留原方案版本。
                 </span>
               </Space>
               <Input
-                placeholder="按模板名称或适用范围检索"
+                placeholder="按方案名称或适用范围检索"
                 allowClear
                 value={templateSearch}
                 onChange={(event) => {
@@ -773,7 +954,7 @@ export default function Followup() {
                 icon={<PlusOutlined />}
                 onClick={() => setTemplateModalVisible(true)}
               >
-                新建模板
+                新建方案
               </Button>
             </Space>
           </Card>
@@ -783,14 +964,14 @@ export default function Followup() {
               dataSource={templates}
               rowKey="templateId"
               loading={templatesQuery.isLoading}
-              locale={{ emptyText: "当前暂无随访模板" }}
+              locale={{ emptyText: "当前暂无随访方案" }}
               pagination={{
                 current: templatesQuery.data?.page ?? templatePage,
                 pageSize: templatesQuery.data?.size ?? FOLLOWUP_TEMPLATE_PAGE_SIZE,
                 total: templatesQuery.data?.total ?? templates.length,
                 showSizeChanger: false,
                 onChange: (page) => setTemplatePage(page),
-                showTotal: (total) => `共 ${total} 个随访模板`,
+                showTotal: (total) => `共 ${total} 个随访方案`,
               }}
             />
           </Card>
@@ -858,6 +1039,7 @@ export default function Followup() {
               </Descriptions.Item>
             </Descriptions>
           ) : null}
+          {snapshotVersionAlert}
           <Form.Item
             name="contextSnapshotId"
             hidden
@@ -888,8 +1070,8 @@ export default function Followup() {
           </Form.Item>
           <Form.Item
             name="templateId"
-            label="随访模板"
-            rules={[{ required: true, message: "请选择已发布随访模板" }]}
+            label="随访方案"
+            rules={[{ required: true, message: "请选择已发布随访方案" }]}
           >
             <Select
               showSearch
@@ -899,8 +1081,8 @@ export default function Followup() {
               onClear={() => setPublishedTemplateSearch("")}
               loading={publishedTemplatesQuery.isLoading}
               options={templateOptions}
-              placeholder="选择已发布随访模板"
-              notFoundContent="当前暂无已发布随访模板"
+              placeholder="选择已发布随访方案"
+              notFoundContent="当前暂无已发布随访方案"
             />
           </Form.Item>
           <Form.Item
@@ -916,8 +1098,10 @@ export default function Followup() {
 
       <Drawer
         title="随访计划办理"
-        width={860}
-        open={!!selectedPlanId}
+        aria-label="随访计划办理"
+        width="min(860px, 100vw)"
+        zIndex={FOLLOWUP_HANDLING_DRAWER_Z_INDEX}
+        open={followupHandlingDrawerOpen}
         onClose={() => {
           setSelectedPlanId(null);
           setSelectedTaskId(null);
@@ -927,28 +1111,38 @@ export default function Followup() {
       >
         {selectedPlanDetail && (
           <Space direction="vertical" size="large" className={styles.fullWidth}>
-            <Descriptions bordered size="small" column={2}>
+            <Descriptions bordered size="small" column={{ xs: 1, sm: 1, md: 2 }}>
               <Descriptions.Item label="计划证据">
-                {evidenceDetailsEnabled ? selectedPlanDetail.planId : "已生成随访计划"}
+                <FollowupEvidenceText>
+                  {evidenceDetailsEnabled ? selectedPlanDetail.planId : "已生成随访计划"}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="服务机构">
-                {evidenceDetailsEnabled ? selectedPlanDetail.tenantId : "当前服务机构"}
+                <FollowupEvidenceText>
+                  {evidenceDetailsEnabled ? selectedPlanDetail.tenantId : "当前服务机构"}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="患者">
-                {associationText(selectedPlanDetail.patientId, evidenceDetailsEnabled, "患者")}
+                <FollowupEvidenceText>
+                  {associationText(selectedPlanDetail.patientId, evidenceDetailsEnabled, "患者")}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="就诊">
-                {associationText(selectedPlanDetail.encounterId, evidenceDetailsEnabled, "就诊")}
+                <FollowupEvidenceText>
+                  {associationText(selectedPlanDetail.encounterId, evidenceDetailsEnabled, "就诊")}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="随访病种">
-                {evidenceDetailsEnabled
-                  ? selectedPlanDetail.diseaseCode
-                  : optionLabel(followupDiseaseOptions, selectedPlanDetail.diseaseCode)}
+                <FollowupEvidenceText>
+                  {evidenceDetailsEnabled
+                    ? selectedPlanDetail.diseaseCode
+                    : optionLabel(followupDiseaseOptions, selectedPlanDetail.diseaseCode)}
+                </FollowupEvidenceText>
               </Descriptions.Item>
-              <Descriptions.Item label="随访模板">
-                <Tag color={selectedPlanDetail.templateId ? "purple" : "default"}>
+              <Descriptions.Item label="随访方案">
+                <FollowupEvidenceTag color={selectedPlanDetail.templateId ? "purple" : "default"}>
                   {planTemplateText(selectedPlanDetail, templateNameById, evidenceDetailsEnabled)}
-                </Tag>
+                </FollowupEvidenceTag>
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Badge
@@ -970,14 +1164,20 @@ export default function Followup() {
                           {customerEnumLabel(task.status)}
                         </Tag>
                         <span className={styles.textStrong}>
-                          {evidenceDetailsEnabled ? task.taskId : `第 ${index + 1} 项`}
+                          <FollowupEvidenceText>
+                            {evidenceDetailsEnabled ? task.taskId : `第 ${index + 1} 项`}
+                          </FollowupEvidenceText>
                         </span>
                         <span>{customerEnumLabel(task.taskType)}</span>
                         {evidenceDetailsEnabled && task.questionnaireTemplateId ? (
-                          <span className={styles.textMuted}>{task.questionnaireTemplateId}</span>
+                          <span className={styles.textMuted}>
+                            <FollowupEvidenceText>
+                              {task.questionnaireTemplateId}
+                            </FollowupEvidenceText>
+                          </span>
                         ) : null}
                         <span className={styles.textMuted}>
-                          截止：{new Date(task.dueDate).toLocaleDateString()}
+                          截止：{formatClinicalDate(task.dueDate)}
                         </span>
                       </Space>
                       {task.taskType === "QUESTIONNAIRE" &&
@@ -1030,17 +1230,67 @@ export default function Followup() {
                   >
                     <TextArea rows={4} placeholder="请录入来自真实随访渠道的回收内容" />
                   </Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<CheckCircleOutlined />}
-                    loading={submitQuestionnaireMutation.isPending}
-                  >
-                    提交问卷
-                  </Button>
+                  <div role="group" aria-label="问卷回收操作" className={styles.drawerActionBar}>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      icon={<CheckCircleOutlined />}
+                      loading={submitQuestionnaireMutation.isPending}
+                    >
+                      提交问卷
+                    </Button>
+                  </div>
                 </Form>
               ) : (
                 <Alert type="info" showIcon message="请选择一个待办随访任务后提交问卷回收内容" />
+              )}
+            </Card>
+
+            <Card title="随访结果回流">
+              <Alert
+                type="info"
+                showIcon
+                className={styles.sectionGap}
+                message="随访结果回流会生成新的标准 FollowUp 上下文资源"
+                description="本操作只记录随访结果事实，不替代护理记录、病历归档、回院安排或医嘱执行。"
+              />
+              <div role="group" aria-label="随访结果回流操作" className={styles.drawerActionBar}>
+                <Button
+                  type="primary"
+                  icon={<FileTextOutlined />}
+                  loading={backflowResultMutation.isPending}
+                  disabled={!completedQuestionnaireTask || !questionnaireEvidence}
+                  onClick={handleBackflowResult}
+                >
+                  回流随访结果
+                </Button>
+              </div>
+              {backflowEvidence && (
+                <Alert
+                  type="success"
+                  showIcon
+                  className={styles.formGap}
+                  message="随访结果回流已完成"
+                  description={
+                    <Space wrap>
+                      <FollowupEvidenceTag color="green">
+                        {evidenceDetailsEnabled
+                          ? `回流事件 ${backflowEvidence.eventId}`
+                          : "回流事件已记录"}
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag color="blue">
+                        {evidenceDetailsEnabled
+                          ? `回流上下文 ${backflowEvidence.contextSnapshotId}`
+                          : "回流上下文已生成"}
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag>
+                        {evidenceDetailsEnabled
+                          ? `追踪号 ${backflowEvidence.traceId}`
+                          : "追踪已记录"}
+                      </FollowupEvidenceTag>
+                    </Space>
+                  }
+                />
               )}
             </Card>
 
@@ -1073,16 +1323,18 @@ export default function Followup() {
                 >
                   <TextArea rows={3} placeholder="请录入当前医护人员给出的处理建议" />
                 </Form.Item>
-                <Button
-                  type="primary"
-                  danger
-                  htmlType="submit"
-                  icon={<WarningOutlined />}
-                  loading={reportAbnormalMutation.isPending}
-                  disabled={selectedPlanDetail.status !== "ACTIVE"}
-                >
-                  登记异常回院
-                </Button>
+                <div role="group" aria-label="异常回院登记操作" className={styles.drawerActionBar}>
+                  <Button
+                    type="primary"
+                    danger
+                    htmlType="submit"
+                    icon={<WarningOutlined />}
+                    loading={reportAbnormalMutation.isPending}
+                    disabled={selectedPlanDetail.status !== "ACTIVE"}
+                  >
+                    登记异常回院
+                  </Button>
+                </div>
               </Form>
               {abnormalEvidence && (
                 <Alert
@@ -1092,26 +1344,26 @@ export default function Followup() {
                   message="异常回院证据已登记"
                   description={
                     <Space wrap>
-                      <Tag color="red">
+                      <FollowupEvidenceTag color="red">
                         {evidenceDetailsEnabled
                           ? `异常记录 ${abnormalEvidence.eventId}`
                           : "异常记录已登记"}
-                      </Tag>
-                      <Tag color="orange">
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag color="orange">
                         {evidenceDetailsEnabled
                           ? `回院任务 ${abnormalEvidence.returnTaskId}`
                           : "回院任务已生成"}
-                      </Tag>
-                      <Tag color="gold">
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag color="gold">
                         {evidenceDetailsEnabled
                           ? `通知记录 ${abnormalEvidence.notificationEventId}`
                           : "通知已发送"}
-                      </Tag>
-                      <Tag>
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag>
                         {evidenceDetailsEnabled
                           ? `追踪号 ${abnormalEvidence.traceId}`
                           : "追踪已记录"}
-                      </Tag>
+                      </FollowupEvidenceTag>
                     </Space>
                   }
                 />
@@ -1121,7 +1373,7 @@ export default function Followup() {
         )}
       </Drawer>
       <Modal
-        title="新建随访模板"
+        title="新建随访方案"
         open={templateModalVisible}
         width={720}
         onOk={handleCreateTemplate}
@@ -1157,12 +1409,12 @@ export default function Followup() {
           </Form.Item>
           <Form.Item
             name="name"
-            label="模板名称"
-            rules={[{ required: true, message: "请输入模板名称" }]}
+            label="方案名称"
+            rules={[{ required: true, message: "请输入方案名称" }]}
           >
             <Input placeholder="例如 慢阻肺出院随访" />
           </Form.Item>
-          <Form.Item name="description" label="模板说明">
+          <Form.Item name="description" label="方案说明">
             <TextArea rows={2} placeholder="说明适用场景、随访目标和触发条件" />
           </Form.Item>
           <Row gutter={12}>
@@ -1208,8 +1460,8 @@ export default function Followup() {
           </Row>
           <Form.Item
             name="questionnaireTemplateId"
-            label="问卷内容模板"
-            rules={[{ required: true, message: "请选择问卷内容模板" }]}
+            label="问卷内容"
+            rules={[{ required: true, message: "请选择问卷内容" }]}
           >
             <Select options={questionnaireTemplateOptions} />
           </Form.Item>

@@ -226,10 +226,18 @@ validate_inputs() {
 
 verify_full_system_evidence() {
   jq -e --arg source "$EXPECTED_SOURCE" '
-    def allPassed($expected):
-      type == "array" and
-      length == $expected and
-      all(.[]; .status == "PASSED" and .evidenceStage == "launch-coverage" and (.code | type == "string" and length > 0));
+	    def allPassed($expected):
+	      type == "array" and
+	      length == $expected and
+	      all(.[]; .status == "PASSED"
+	        and .evidenceStage != "launch-coverage"
+	        and (.evidenceStage | type == "string" and length > 0)
+	        and (.evidencePath | type == "string" and length > 0)
+	        and (.evidenceKey | type == "string" and length > 0)
+	        and .observedCode == .code
+	        and .observedStatus == "PASSED"
+	        and (.observedAt | type == "string" and length > 0)
+	        and (.code | type == "string" and length > 0));
     .status == "PASSED" and
     .stage == "FULL_SYSTEM_REHEARSAL" and
     .source == $source and

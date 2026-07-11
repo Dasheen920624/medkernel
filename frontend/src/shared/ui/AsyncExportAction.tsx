@@ -55,6 +55,7 @@ export function AsyncExportAction({
   const [submitting, setSubmitting] = useState(false);
   const [job, setJob] = useState<AsyncExportJob>();
   const [failure, setFailure] = useState<string>();
+  const evidenceDetailsEnabled = request.requestSnapshot.evidenceDetailsEnabled;
   const pollingRef = useRef(false);
   const activeRequestRef = useRef<AsyncExportActionProps["request"]>();
 
@@ -188,7 +189,9 @@ export function AsyncExportAction({
           message={jobStatusMessage(job)}
           description={
             <Space direction="vertical" size={0}>
-              <Text>任务编号：{job.jobId}</Text>
+              <Text>
+                {evidenceDetailsEnabled ? `导出任务编号：${job.jobId}` : "导出任务已登记"}
+              </Text>
               {(job.traceId || job.auditId) && <Text>{EXPORT_EVIDENCE_HINT}</Text>}
               {job.failureReason && (
                 <Text>

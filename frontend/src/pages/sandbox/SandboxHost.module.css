@@ -138,7 +138,7 @@
   justify-self: start;
 }
 
-@media (max-width: 78rem) {
+@media (max-width: 90rem) {
   .workspace,
   .hostGrid {
     grid-template-columns: 1fr;

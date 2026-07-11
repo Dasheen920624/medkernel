@@ -41,6 +41,7 @@ import { KNOWLEDGE_DOMAIN_OPTIONS, type KnowledgeDomain } from "@/shared/config/
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { findRouteByPath } from "@/shared/config/routes";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -72,13 +73,20 @@ const sourceRelationLabels = new Map([
 ]);
 const PROVENANCE_HISTORY_PAGE_SIZE = 20;
 const route = findRouteByPath("/advanced/provenance");
+const TECHNICAL_VERSION_LABEL_PATTERNS = [
+  /^ai-draft-task-[a-z0-9-]+$/i,
+  /^model-task-[a-z0-9-]+$/i,
+  /^(?:patient_proxy|real_frontdesk|stakeholder|frontdesk)-[a-z0-9]+$/i,
+  /^[0-9a-f]{32,}$/i,
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+];
 
 if (!route?.experience) {
   throw new Error("来源与血缘页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
-  title: "知识来源追溯",
+  title: "来源与血缘",
   experience: route.experience,
 };
 
@@ -100,13 +108,113 @@ function sourceRelationLabel(value?: string | null) {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未记录";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatClinicalDateTime(value, value);
 }
 
-function versionLabel(version: KnowledgeAssetVersion) {
-  return version.versionLabel || version.versionNo;
+function normalizedText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isTechnicalVersionLabel(value: unknown) {
+  const label = normalizedText(value);
+  return TECHNICAL_VERSION_LABEL_PATTERNS.some((pattern) => pattern.test(label));
+}
+
+function businessVersionNoLabel(value: unknown) {
+  const versionNo = normalizedText(value);
+  if (!versionNo) {
+    return "版本待确认";
+  }
+  const semanticVersion = versionNo.match(/^v(\d+(?:\.\d+)*)$/i);
+  if (semanticVersion) {
+    return `第 ${semanticVersion[1]} 版`;
+  }
+  const numericYear = Number(versionNo);
+  if (/^\d{4}$/.test(versionNo) && numericYear >= 1900 && numericYear <= 2100) {
+    return `${versionNo} 版`;
+  }
+  if (/^\d+$/.test(versionNo)) {
+    return `第 ${versionNo} 版`;
+  }
+  return versionNo;
+}
+
+function lineageVersionLabel(version: KnowledgeAssetVersion, currentVersionId?: number | null) {
+  if (version.id === currentVersionId || version.status === "ACTIVE") {
+    return "当前权威版本";
+  }
+  if (version.status === "DRAFT") {
+    return "草稿版本";
+  }
+  if (version.status === "CANDIDATE" || version.status === "PENDING_REPLACEMENT_REVIEW") {
+    return "候选版本";
+  }
+  if (version.status === "UNDER_REVIEW") {
+    return "审核中版本";
+  }
+  if (version.status === "SUPERSEDED") {
+    return "历史版本";
+  }
+  if (version.status === "WITHDRAWN") {
+    return "已撤回版本";
+  }
+  if (version.status === "REJECTED") {
+    return "已驳回版本";
+  }
+  return "知识版本";
+}
+
+function technicalVersionEvidence(...values: unknown[]) {
+  const unique = new Set<string>();
+  for (const value of values) {
+    const label = normalizedText(value);
+    if (label && isTechnicalVersionLabel(label)) {
+      unique.add(label);
+    }
+  }
+  return Array.from(unique);
+}
+
+function safeVersionLabel(
+  version: KnowledgeAssetVersion,
+  currentVersionId: number | null | undefined,
+) {
+  const rawVersionLabel = normalizedText(version.versionLabel);
+  const rawVersionNo = normalizedText(version.versionNo);
+  if (rawVersionLabel && !isTechnicalVersionLabel(rawVersionLabel)) {
+    return rawVersionLabel;
+  }
+  if (rawVersionNo && !isTechnicalVersionLabel(rawVersionNo)) {
+    return businessVersionNoLabel(rawVersionNo);
+  }
+  return lineageVersionLabel(version, currentVersionId);
+}
+
+function versionLabel(
+  version: KnowledgeAssetVersion,
+  currentVersionId: number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  const safeLabel = safeVersionLabel(version, currentVersionId);
+  const technicalEvidence = technicalVersionEvidence(version.versionLabel, version.versionNo);
+  if (evidenceDetailsEnabled && technicalEvidence.length > 0) {
+    return `${safeLabel} · ${technicalEvidence.join(" · ")}`;
+  }
+  return safeLabel;
+}
+
+function versionNoText(version: KnowledgeAssetVersion, evidenceDetailsEnabled: boolean) {
+  const rawVersionNo = normalizedText(version.versionNo);
+  if (evidenceDetailsEnabled) {
+    return rawVersionNo || "版本号未记录";
+  }
+  if (!rawVersionNo) {
+    return "版本号待确认";
+  }
+  if (isTechnicalVersionLabel(rawVersionNo)) {
+    return "版本来源已记录";
+  }
+  return rawVersionNo;
 }
 
 function versionStatus(version: KnowledgeAssetVersion, currentVersionId?: number | null) {
@@ -277,9 +385,11 @@ export default function Provenance() {
       key: "version",
       render: (_value: unknown, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{versionLabel(record)}</Text>
+          <Text strong>
+            {versionLabel(record, provenanceQuery.data?.currentVersionId, evidenceDetailsEnabled)}
+          </Text>
           <Text type="secondary" className={styles.smallText}>
-            {record.versionNo}
+            {versionNoText(record, evidenceDetailsEnabled)}
           </Text>
         </Space>
       ),

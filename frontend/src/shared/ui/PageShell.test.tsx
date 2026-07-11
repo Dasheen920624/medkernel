@@ -8,7 +8,7 @@ describe("PageShell", () => {
   it("renders one page heading, description, primary action, and extras", () => {
     render(
       <PageShell
-        title="发布治理"
+        title="机构生效版本"
         description="发布平台标准版本并管理机构生效版本"
         primary={<Button type="primary">发布平台标准版本</Button>}
         extras={<Button>保存视图</Button>}
@@ -17,7 +17,7 @@ describe("PageShell", () => {
       </PageShell>,
     );
 
-    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构生效版本" })).toBeInTheDocument();
     expect(screen.getByText("发布平台标准版本并管理机构生效版本")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "发布平台标准版本" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存视图" })).toBeInTheDocument();

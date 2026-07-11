@@ -159,6 +159,7 @@ import {
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
 import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
@@ -704,9 +705,7 @@ function formatSignedRate(rate?: number | null) {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 function renderDriftStatus(status?: string | null) {
@@ -802,7 +801,7 @@ function impactObjectBusinessName(item: RuleImpactObject, evidenceDetailsEnabled
     return item.displayName;
   }
   if (item.objectType === "PATIENT_PATHWAY") return "在径患者已关联";
-  if (item.objectType === "PATHWAY_TEMPLATE") return item.displayName || "路径模板已关联";
+  if (item.objectType === "PATHWAY_TEMPLATE") return item.displayName || "临床路径已关联";
   if (item.objectType === "INTEGRATION_ADAPTER") return item.displayName || "集成适配器已关联";
   if (item.objectType === "RULE") return item.displayName || "规则对象已关联";
   return "影响对象已关联";
@@ -3174,7 +3173,7 @@ export default function RuleDefinitions() {
       <Descriptions.Item label="规则对象">
         {impactCount(impactQuery.data?.affectedRules)}
       </Descriptions.Item>
-      <Descriptions.Item label="路径模板">
+      <Descriptions.Item label="临床路径">
         {impactCount(impactQuery.data?.affectedPathways)}
       </Descriptions.Item>
       <Descriptions.Item label="在径患者">
@@ -3493,7 +3492,7 @@ export default function RuleDefinitions() {
           key: "l1",
           label: (
             <span>
-              <ApartmentOutlined /> L1 模板
+              <ApartmentOutlined /> L1 基础信息
             </span>
           ),
           children: (
@@ -3830,7 +3829,7 @@ export default function RuleDefinitions() {
       key: "l1",
       label: (
         <span>
-          <ApartmentOutlined /> L1 模板
+          <ApartmentOutlined /> L1 基础信息
         </span>
       ),
       children: (
@@ -3838,7 +3837,7 @@ export default function RuleDefinitions() {
           <Alert
             type="info"
             showIcon
-            message="模板只提供规则结构，不内置患者、药品、诊断或剂量常量；提交前必须在 L2 填写真实上下文字段。"
+            message="规则原型只提供规则结构，不内置患者、药品、诊断或剂量常量；提交前必须在 L2 填写真实上下文字段。"
             className={styles.marginBottomMd}
           />
           <Radio.Group
@@ -4443,10 +4442,10 @@ export default function RuleDefinitions() {
             </Button>
             <Button
               icon={<ApartmentOutlined />}
-              aria-label="管理字段目录"
+              aria-label="查看字段目录"
               onClick={() => setFieldManagerOpen(true)}
             >
-              管理字段目录
+              查看字段目录
             </Button>
           </Space>
         </Space>
@@ -4565,11 +4564,11 @@ export default function RuleDefinitions() {
 
   return (
     <PageShell
-      title="规则配置"
-      description="配置规则资产，完成验证、解释和临床治理。"
+      title="临床规则"
+      description="配置临床规则草稿，完成试运行、影响分析、安全复核并纳入机构生效版本。"
       primary={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-          新建规则模板
+          新建临床规则
         </Button>
       }
       state={pageState}
@@ -4647,7 +4646,7 @@ export default function RuleDefinitions() {
       <Drawer
         title={
           <div className={styles.drawerTitle}>
-            <span>规则配置详情与试运行</span>
+            <span>临床规则详情与试运行</span>
             {detailData && detailData.governance.state !== "RETIRED" && (
               <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
                 进入治理流
@@ -4751,7 +4750,9 @@ export default function RuleDefinitions() {
                     复制为新版本
                   </Button>
                 )}
-                <Text>证据详情</Text>
+                <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+                  <Text>追溯证据</Text>
+                </Tooltip>
                 <Switch
                   aria-label="证据详情"
                   checked={detailAdvancedViewEnabled}
@@ -4796,7 +4797,7 @@ export default function RuleDefinitions() {
                 rules={[
                   { required: true, message: "请输入稳定规则资产身份，同一服务机构内不可重复" },
                 ]}
-                extra="用于发布治理、机构生效版本和审计追溯；默认列表仍按规则名称与业务状态展示。"
+                extra="用于机构生效版本和审计追溯；默认列表仍按规则名称与业务状态展示。"
               >
                 <Input placeholder="输入稳定规则资产身份" disabled={Boolean(editingRuleId)} />
               </Form.Item>
@@ -4875,8 +4876,8 @@ export default function RuleDefinitions() {
               <Alert
                 showIcon
                 type="info"
-                message="规则版本独立维护"
-                description="规则发布时由平台标准版本或机构生效版本选择上线版本；创作阶段不绑定上线范围或离线交付文件。"
+                message="规则草稿统一发布"
+                description="创建或编辑只形成规则草稿版本；完成试运行、安全复核并纳入平台标准版本或机构生效版本后，才会参与临床运行。"
               />
             </Col>
           </Row>

@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 临床通知中心控制器。
+ * 消息通知控制器。
  */
 @RestController
 @RequestMapping("/api/v1/engine/notifications")

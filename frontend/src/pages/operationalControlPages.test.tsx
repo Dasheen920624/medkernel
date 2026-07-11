@@ -250,7 +250,7 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     targetJdk: "KAE-JDK 21 / BiSheng JDK 21",
     databaseVendors: ["达梦", "人大金仓"],
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
-    evidence: "国产化自检、五方言迁移合同、国密算法 smoke",
+    evidence: "国产化适配自检、五方言迁移合同、国密算法 smoke",
   },
   domesticCompatibility: {
     overallStatus: "WARN",
@@ -317,7 +317,7 @@ const runtimeDiagnosticsContracts: RuntimeDiagnosticsApiContractDirectory = {
     },
     {
       id: "rule",
-      title: "规则引擎服务",
+      title: "临床规则服务",
       basePath: "/api/v1/engine/rule",
       openApiPaths: ["/api/v1/engine/rule/**"],
       permissions: [{ code: "rule.publish", dimension: "ACTION", purpose: "发布规则" }],
@@ -468,7 +468,7 @@ describe("operational control pages", () => {
       isPending: false,
     } as never);
     vi.mocked(downloadDomesticCompatibilityReport).mockResolvedValue(
-      new Blob(["MedKernel 国产化自检报告"]),
+      new Blob(["MedKernel 国产化适配自检报告"]),
     );
   }, 15_000);
 
@@ -539,10 +539,26 @@ describe("operational control pages", () => {
     expect(source).not.toMatch(/\bmessage,\s*\n?\} from "antd"/);
   });
 
+  it("does not render evidence disclosure as a bare technical details label", () => {
+    const files = [
+      "src/pages/clinical/RuleValidate.tsx",
+      "src/pages/clinical/EmbedLaunch.tsx",
+      "src/pages/tenant/PathwayTemplates.tsx",
+      "src/pages/tenant/RuleDefinitions.tsx",
+      "src/shared/ui/EvidenceDetailsToggle.tsx",
+    ];
+
+    for (const file of files) {
+      const source = readFileSync(resolve(process.cwd(), file), "utf8");
+      expect(source, file).not.toMatch(/<(?:span|Text)>证据详情<\/(?:span|Text)>/);
+    }
+  });
+
   it("renders security baseline from current profile and runtime facts", () => {
     renderPage(<SecurityBaseline />);
 
-    expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "安全与配置" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "安全基线与系统配置" })).not.toBeInTheDocument();
     expect(screen.getByText("平台管理员")).toBeInTheDocument();
     expect(screen.getAllByText("多因素认证已绑定").length).toBeGreaterThan(0);
     expect(screen.getAllByText("高风险权限").length).toBeGreaterThan(0);
@@ -592,7 +608,7 @@ describe("operational control pages", () => {
     );
     renderPage(<DomesticCheck />);
 
-    expect(screen.getByRole("heading", { name: "国产化自检" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "国产化适配自检" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.queryByText("WARN")).not.toBeInTheDocument();
     expect(screen.getAllByText("警告").length).toBeGreaterThan(0);
@@ -611,7 +627,7 @@ describe("operational control pages", () => {
     expect(screen.getAllByText("实际值已采集").length).toBeGreaterThan(0);
     expect(screen.getAllByText("目标值已登记").length).toBeGreaterThan(0);
     expect(screen.getAllByText("现场证据已登记").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/国产化自检、五方言迁移合同/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/国产化适配自检、五方言迁移合同/)).not.toBeInTheDocument();
     expect(screen.queryByText(/System\.getProperty/)).not.toBeInTheDocument();
     expect(screen.queryByText(/medkernel\.runtime\.database-dialect/)).not.toBeInTheDocument();
     expect(screen.getByText("当前浏览器能力预检")).toBeInTheDocument();
@@ -623,7 +639,7 @@ describe("operational control pages", () => {
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
     expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
     expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
-    expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText(/国产化适配自检、五方言迁移合同/)).toBeInTheDocument();
     expect(screen.getByText(/System\.getProperty/)).toBeInTheDocument();
     expect(screen.getByText(/medkernel\.runtime\.database-dialect/)).toBeInTheDocument();
 
@@ -635,7 +651,7 @@ describe("operational control pages", () => {
     consoleError.mockRestore();
   });
 
-  it("展示服务目录、追踪诊断和插件管理能力", async () => {
+  it("展示服务目录、追踪诊断和扩展能力", async () => {
     const user = userEvent.setup();
     renderPage(<RuntimeDiagnostics />);
 
@@ -662,15 +678,19 @@ describe("operational control pages", () => {
     await user.click(screen.getByRole("tab", { name: "追踪诊断" }));
     expect(screen.getByPlaceholderText("输入 追踪号")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "插件管理" }));
+    await user.click(screen.getByRole("tab", { name: "扩展能力" }));
+    expect(screen.queryByRole("tab", { name: "插件管理" })).not.toBeInTheDocument();
     expect(screen.getByText("病区只读看板")).toBeInTheDocument();
     expect(screen.queryByText("ward-read-model")).not.toBeInTheDocument();
     expect(screen.queryByText("read-runtime")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /注册插件/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /登记扩展能力/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /注册插件/ })).not.toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /注册插件/ }));
-    expect(screen.getByLabelText("稳定插件能力身份")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /登记扩展能力/ }));
+    expect(screen.getByRole("dialog", { name: "登记扩展能力" })).toBeInTheDocument();
+    expect(screen.getByLabelText("稳定扩展能力身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("稳定插件能力身份")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("插件编码")).not.toBeInTheDocument();
     expect(screen.queryByText("请输入插件编码")).not.toBeInTheDocument();
   });
@@ -686,7 +706,7 @@ describe("operational control pages", () => {
     expect(screen.getByText("runtime-operations")).toBeInTheDocument();
     expect(screen.getByText("rule.publish")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "插件管理" }));
+    await user.click(screen.getByRole("tab", { name: "扩展能力" }));
     expect(screen.getByText("ward-read-model")).toBeInTheDocument();
     expect(screen.getByText("read-runtime")).toBeInTheDocument();
   });
@@ -722,14 +742,14 @@ describe("operational control pages", () => {
       expect(await screen.findByText("待处理 → 成功")).toBeInTheDocument();
       expect(screen.queryByText("it-ops-1")).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("tab", { name: "插件管理" }));
+      fireEvent.click(screen.getByRole("tab", { name: "扩展能力" }));
       fireEvent.click(screen.getByRole("button", { name: /授权/ }));
       const grantDialog = screen.getByRole("dialog", { name: /授权 病区只读看板/ });
       expect(grantDialog).toBeInTheDocument();
       fireEvent.click(within(grantDialog).getByRole("button", { name: "取 消" }));
 
-      fireEvent.click(screen.getByRole("button", { name: /注册插件/ }));
-      expect(screen.getByRole("dialog", { name: "注册插件" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /登记扩展能力/ }));
+      expect(screen.getByRole("dialog", { name: "登记扩展能力" })).toBeInTheDocument();
 
       const warnings = consoleError.mock.calls.flat().join("\n");
       expect(warnings).not.toContain("`index` parameter of `rowKey` function is deprecated");

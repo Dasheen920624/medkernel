@@ -5,9 +5,9 @@ import java.util.List;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 
 /**
- * 路径模板详情响应。
+ * 临床路径详情响应。
  *
- * <p>聚合模板主数据、阶段里程碑、节点、边、指标绑定和 traceId，用于模板查看、发布校验和试运行准备。
+ * <p>聚合路径主数据、阶段里程碑、节点、边、指标绑定和 traceId，用于路径查看、发布校验和试运行准备。
  */
 public record PathwayTemplateDetailResponse(
     PathwayTemplate template,

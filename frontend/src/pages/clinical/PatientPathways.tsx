@@ -60,6 +60,7 @@ import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
@@ -120,7 +121,7 @@ function milestoneStatusText(status?: string) {
     PENDING: "待执行",
     OVERDUE: "已超期",
   };
-  return status ? (text[status] ?? "未识别状态") : "待执行";
+  return status ? (text[status] ?? "状态待确认") : "待执行";
 }
 
 function clockStatusColor(status?: string) {
@@ -139,7 +140,7 @@ function clockStatusText(status?: string) {
     MISSING_DATA: "缺少数据",
     VARIANCE: "变异暂停",
   };
-  return status ? (text[status] ?? "未识别状态") : "未记录";
+  return status ? (text[status] ?? "状态待确认") : "未记录";
 }
 
 function clockEscalationText(level?: string) {
@@ -149,17 +150,18 @@ function clockEscalationText(level?: string) {
     REPORT: "上报",
     QUALITY_RECORD: "质控记录",
   };
-  return level ? (text[level] ?? "未识别级别") : "未升级";
+  return level ? (text[level] ?? "级别待确认") : "未升级";
 }
 
 function outcomeScopeText(scope?: string) {
   if (scope === "PHASE") return "阶段";
   if (scope === "MILESTONE") return "里程碑";
-  return "模板";
+  if (scope === "TEMPLATE") return "全路径";
+  return "范围待确认";
 }
 
 function formatDateTime(value?: string) {
-  return value ? new Date(value).toLocaleString() : "未记录";
+  return formatClinicalDateTime(value);
 }
 
 function pathwayNodeTypeText(type?: string) {
@@ -310,6 +312,21 @@ export default function PatientPathways() {
     selectedContextSnapshotId,
     PATHWAY_RUNTIME_TRIGGER,
   );
+  const entryCandidateCount = entryCandidatesQuery.data?.candidates?.length ?? 0;
+  const entryCandidateOptions = (entryCandidatesQuery.data?.candidates ?? []).map((candidate) => ({
+    value: candidate.templateId,
+    label: `${candidate.name} · ${candidate.diseaseCode}`,
+  }));
+  let entryCandidateStatusMessage = "请先选择已生效临床快照，再读取当前机构生效候选路径。";
+  if (selectedContextSnapshotId) {
+    if (entryCandidatesQuery.isLoading) {
+      entryCandidateStatusMessage = "正在读取当前机构生效候选路径。";
+    } else if (entryCandidateCount > 0) {
+      entryCandidateStatusMessage = `已读取 ${entryCandidateCount} 条当前机构生效候选路径，确认后才会入径。`;
+    } else {
+      entryCandidateStatusMessage = "当前机构生效版本无可用候选路径。";
+    }
+  }
 
   const {
     data: patientPathwaysData,
@@ -329,7 +346,7 @@ export default function PatientPathways() {
     selectedPathwayId || "",
   );
 
-  // 同时拉取该路径的模板拓扑节点详情，用于左侧 Milestone Timeline 精准对比绘制
+  // 同时拉取该路径的标准拓扑节点详情，用于左侧 Milestone Timeline 精准对比绘制。
   const { data: templateDetail } = usePathwayTemplateDetail(
     detailData?.patientPathway.templateId || "",
   );
@@ -421,7 +438,7 @@ export default function PatientPathways() {
                   </Tag>
                   <span>升级: {clockEscalationText(clock.escalationLevel)}</span>
                   {evidenceDetailsEnabled && clock.metricCode && (
-                    <span>指标: {clock.metricCode}</span>
+                    <span>关联评价指标: {clock.metricCode}</span>
                   )}
                   <span>目标: {formatDateTime(clock.targetDueAt ?? clock.dueAt)}</span>
                   <span>最晚: {formatDateTime(clock.maxDueAt)}</span>
@@ -600,7 +617,7 @@ export default function PatientPathways() {
       title: "引用",
       key: "refCode",
       render: (_value, binding) =>
-        binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-",
+        binding.scope === "TEMPLATE" ? "全路径" : binding.refCode || "-",
     },
     { title: "结局指标身份", dataIndex: "indicatorCode" },
   ];
@@ -660,7 +677,7 @@ export default function PatientPathways() {
           },
         ]),
     {
-      title: "路径模板",
+      title: "当前路径",
       dataIndex: "templateId",
       key: "templateId",
       render: (text: string) => {
@@ -732,8 +749,9 @@ export default function PatientPathways() {
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
-          <Form.Item label="患者检索">
+          <Form.Item label="患者检索" htmlFor="patient-pathway-list-patient-filter">
             <Input
+              id="patient-pathway-list-patient-filter"
               placeholder="输入姓名、门急诊号或院内患者编号"
               allowClear
               value={patientFilter}
@@ -797,8 +815,9 @@ export default function PatientPathways() {
         <Form form={enterForm} layout="vertical" className={styles.formGap}>
           <Row gutter={12}>
             <Col xs={24} md={12}>
-              <Form.Item label="患者信息">
+              <Form.Item label="患者信息" htmlFor="patient-pathway-entry-patient-filter">
                 <Input
+                  id="patient-pathway-entry-patient-filter"
                   allowClear
                   placeholder="输入姓名、门急诊号或院内患者编号"
                   value={enterPatientFilter}
@@ -810,8 +829,9 @@ export default function PatientPathways() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="就诊信息">
+              <Form.Item label="就诊信息" htmlFor="patient-pathway-entry-encounter-filter">
                 <Input
+                  id="patient-pathway-entry-encounter-filter"
                   allowClear
                   placeholder="输入门急诊号、住院号或就诊编号"
                   value={enterEncounterFilter}
@@ -841,23 +861,15 @@ export default function PatientPathways() {
           >
             <Select
               showSearch
+              virtual={false}
               optionFilterProp="label"
               placeholder="选择当前机构生效版本允许的路径"
               loading={entryCandidatesQuery.isLoading}
               notFoundContent={
                 selectedContextSnapshotId ? "当前机构生效版本无可用候选路径" : "请先选择临床快照"
               }
-            >
-              {(entryCandidatesQuery.data?.candidates ?? []).map((candidate) => (
-                <Option
-                  key={candidate.templateId}
-                  value={candidate.templateId}
-                  label={`${candidate.name} ${candidate.diseaseCode}`}
-                >
-                  {candidate.name} · {candidate.diseaseCode}
-                </Option>
-              ))}
-            </Select>
+              options={entryCandidateOptions}
+            />
           </Form.Item>
           {entryCandidatesQuery.isError ? (
             <Alert
@@ -866,15 +878,16 @@ export default function PatientPathways() {
               message={getApiErrorMessage(entryCandidatesQuery.error, "运行候选路径读取失败")}
             />
           ) : (
-            <Alert type="info" showIcon message="候选来自当前机构生效版本，确认后才会入径。" />
+            <Alert type="info" showIcon message={entryCandidateStatusMessage} />
           )}
-          <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">
-            <Input placeholder="留空使用已发布模板的起始节点" />
+          <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用路径起点)">
+            <Input placeholder="留空使用已发布临床路径的起始节点" />
           </Form.Item>
         </Form>
       </Modal>
 
       <Drawer
+        aria-label="患者路径推进与解释追溯"
         title={
           <div className={styles.drawerTitle}>
             <CompassOutlined className={styles.iconInfo} />
@@ -903,7 +916,7 @@ export default function PatientPathways() {
                   <Descriptions.Item label="就诊编号">
                     <span className={styles.codeText}>{detailData.patientPathway.encounterId}</span>
                   </Descriptions.Item>
-                  <Descriptions.Item label="路径模板编号">
+                  <Descriptions.Item label="临床路径版本编号">
                     <Tag color="geekblue">{detailData.patientPathway.templateId}</Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="入径实例编号">
@@ -940,9 +953,7 @@ export default function PatientPathways() {
                 />
               </Descriptions.Item>
               <Descriptions.Item label="准入时间" span={pathwayFactColumn}>
-                {detailData.patientPathway.enteredAt
-                  ? new Date(detailData.patientPathway.enteredAt).toLocaleString()
-                  : "未知"}
+                {formatClinicalDateTime(detailData.patientPathway.enteredAt, "未知")}
               </Descriptions.Item>
             </Descriptions>
 
@@ -964,7 +975,7 @@ export default function PatientPathways() {
                         {templateDetail.template.description &&
                         templateDetail.template.description !== templateDetail.template.name
                           ? templateDetail.template.description
-                          : "按已发布路径模板显示运行态全貌。"}
+                          : "按已发布临床路径版本显示运行态全貌。"}
                       </div>
                     </div>
                     <Tag color="blue" className={styles.pathwayCurrentTag}>
@@ -1038,7 +1049,7 @@ export default function PatientPathways() {
                                   {clockStatusText(activeClock.status)}
                                 </Tag>
                                 {evidenceDetailsEnabled && activeClock.metricCode && (
-                                  <span>{activeClock.metricCode}</span>
+                                  <span>评价指标: {activeClock.metricCode}</span>
                                 )}
                               </div>
                             )}
@@ -1212,7 +1223,7 @@ export default function PatientPathways() {
                                         </div>
                                         {evidenceDetailsEnabled && activeClock.metricCode && (
                                           <div className={styles.timelineMeta}>
-                                            关联质控指标: {activeClock.metricCode}
+                                            关联评价指标: {activeClock.metricCode}
                                           </div>
                                         )}
                                       </div>
@@ -1257,7 +1268,7 @@ export default function PatientPathways() {
                             onFinish={handleCompleteAdvance}
                           >
                             <Alert
-                              message="标准推进：完成当前节点并进入下一个标准路径节点。系统会按模板出边计算下一步并刷新关键时钟。"
+                              message="标准推进：完成当前节点并进入下一个标准路径节点。系统会按临床路径出边计算下一步并刷新关键时钟。"
                               type="success"
                               showIcon
                               className={styles.sectionGap}
@@ -1268,6 +1279,7 @@ export default function PatientPathways() {
                               rules={[{ required: true }]}
                             >
                               <Select
+                                virtual={false}
                                 placeholder="选择出边允许推进的下一节点"
                                 aria-label="指定流转目标节点"
                               >
@@ -1391,7 +1403,11 @@ export default function PatientPathways() {
                                 dependencies={["resolutionDecision"]}
                                 rules={[{ required: true, message: "请选择再入径节点" }]}
                               >
-                                <Select placeholder="选择目标节点" aria-label="再入径节点">
+                                <Select
+                                  virtual={false}
+                                  placeholder="选择目标节点"
+                                  aria-label="再入径节点"
+                                >
                                   {templateDetail?.nodes.map((n) => (
                                     <Option key={n.nodeId} value={n.nodeCode}>
                                       {nodeDisplayName(
@@ -1498,6 +1514,7 @@ export default function PatientPathways() {
       </Drawer>
 
       <Drawer
+        aria-label="临床路径变异事实"
         title={
           <div className={styles.drawerTitle}>
             <WarningOutlined className={styles.iconInfo} />
@@ -1587,9 +1604,7 @@ export default function PatientPathways() {
                           </div>
                         )}
                         <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>
-                          {variance.createdAt
-                            ? new Date(variance.createdAt).toLocaleString()
-                            : "未返回时间"}
+                          {formatClinicalDateTime(variance.createdAt, "未返回时间")}
                         </div>
                       </div>
                     ),

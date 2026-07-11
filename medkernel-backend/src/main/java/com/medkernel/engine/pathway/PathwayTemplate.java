@@ -7,9 +7,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 路径模板主数据。
+ * 临床路径主数据。
  *
- * <p>保存专病路径模板的编码、病种、版本、层级、状态、起始节点、来源和准入/退出条件摘要。
+ * <p>保存专病临床路径的编码、病种、版本、层级、状态、起始节点、来源和准入/退出条件摘要。
  */
 @Table("pathway_template")
 public record PathwayTemplate(

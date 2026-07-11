@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * 路径试运行请求。
  *
- * <p>可指定试运行起点和每一步期望进入的下一节点，用于验证模板图的可达性。
+ * <p>可指定试运行起点和每一步期望进入的下一节点，用于验证临床路径图的可达性。
  */
 public record PathwaySimulateRequest(
     @JsonProperty("request_id") String requestId,

@@ -11,7 +11,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 创建路径节点的请求片段。
  *
- * <p>用于在创建模板时定义临床步骤、节点类型、所属里程碑、排序、责任角色、依赖、时间窗、禁用标记和节点配置。
+ * <p>用于在创建临床路径时定义临床步骤、节点类型、所属里程碑、排序、责任角色、依赖、时间窗、禁用标记和节点配置。
  */
 public record PathwayNodeRequest(
     @NotBlank String nodeCode,

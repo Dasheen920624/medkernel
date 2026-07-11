@@ -27,7 +27,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.clinical.model.ClinicalClaim;
+import com.medkernel.engine.clinical.model.ClinicalClaimRepository;
 import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
+import com.medkernel.engine.context.canonical.CanonicalClaim;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -48,6 +51,7 @@ class ContextSnapshotServiceTest {
     private CanonicalResourceRepository resources;
     private ContextIdempotencyKeyRepository idemRepo;
     private ContextValidator validator;
+    private ClinicalClaimRepository clinicalClaims;
     private CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private TerminologyMappingPort mapping;
     private AuditRecorder auditRecorder;
@@ -62,6 +66,7 @@ class ContextSnapshotServiceTest {
         resources = mock(CanonicalResourceRepository.class);
         idemRepo = mock(ContextIdempotencyKeyRepository.class);
         validator = new ContextValidator();
+        clinicalClaims = mock(ClinicalClaimRepository.class);
         runtimeReleases = mock(CurrentClinicalRuntimeReleaseResolver.class);
         mapping = mock(TerminologyMappingPort.class);
         auditRecorder = mock(AuditRecorder.class);
@@ -74,7 +79,7 @@ class ContextSnapshotServiceTest {
         ObjectMapper json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new ContextSnapshotService(snapshots, resources, idemRepo,
-            validator, runtimeReleases, mapping, auditRecorder, isolatedAudit, recorder,
+            validator, clinicalClaims, runtimeReleases, mapping, auditRecorder, isolatedAudit, recorder,
             diagnoseAssembler, json);
 
         when(snapshots.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -83,6 +88,56 @@ class ContextSnapshotServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-test", OrgScope.tenant("tenant-A"), "tester"));
+    }
+
+    @Test
+    void shouldBridgeFrontdeskClaimIntoClinicalClaimAuthorityTable() {
+        ContextSnapshotResources base = validResources();
+        ContextSnapshotResources withClaim = new ContextSnapshotResources(
+            base.patient(),
+            base.allergyIntolerances(),
+            base.encounters(),
+            base.conditions(),
+            base.nursingAssessments(),
+            base.observations(),
+            base.diagnosticReports(),
+            base.medications(),
+            base.procedures(),
+            base.documents(),
+            base.carePlans(),
+            base.followUps(),
+            List.of(new CanonicalClaim(
+                "claim-frontdesk-1",
+                "DRG-REAL-A",
+                new BigDecimal("1280.50"),
+                new BigDecimal("860.00"),
+                "MEDKERNEL_FRONTDESK",
+                "claim-frontdesk-1",
+                "FRONTDESK_CONTEXT_V1",
+                Instant.parse("2026-07-01T07:20:00Z"),
+                Instant.parse("2026-07-01T07:20:00Z"),
+                QualityStatus.VALID)),
+            ContextSnapshotResources.emptyExtensions());
+
+        service.create(request("MPI-1", "ENC-1", "ORG-1", withClaim), null);
+
+        ArgumentCaptor<ClinicalClaim> claim = ArgumentCaptor.forClass(ClinicalClaim.class);
+        verify(clinicalClaims).insert(claim.capture());
+        assertThat(claim.getValue()).satisfies(saved -> {
+            assertThat(saved.claimId()).isEqualTo("claim-frontdesk-1");
+            assertThat(saved.tenantId()).isEqualTo("tenant-A");
+            assertThat(saved.orgPath()).isEqualTo("ORG-1");
+            assertThat(saved.sourceSystem()).isEqualTo("MEDKERNEL_FRONTDESK");
+            assertThat(saved.sourceId()).isEqualTo("claim-frontdesk-1");
+            assertThat(saved.patientId()).isEqualTo("MPI-1");
+            assertThat(saved.encounterId()).isEqualTo("ENC-1");
+            assertThat(saved.claimType()).isEqualTo("DRG");
+            assertThat(saved.status()).isEqualTo("SUBMITTED");
+            assertThat(saved.totalAmount()).isEqualByComparingTo("1280.50");
+            assertThat(saved.createdBy()).isEqualTo("tester");
+            assertThat(saved.updatedBy()).isEqualTo("tester");
+            assertThat(saved.traceId()).isEqualTo("trace-test");
+        });
     }
 
     @AfterEach

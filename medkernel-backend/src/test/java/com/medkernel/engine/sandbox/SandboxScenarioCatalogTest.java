@@ -60,6 +60,9 @@ class SandboxScenarioCatalogTest {
             .isEqualTo("PATH.CLINICAL.CYCLE");
         assertThat(catalog.require("sbx-recommendation-composite").expectedAction())
             .isEqualTo("SUGGEST_ORDER");
+        assertThat(catalog.require("sbx-evaluation-closed-loop").title())
+            .isEqualTo("质量问题整改复核闭环")
+            .doesNotContain("质控整改");
     }
 
     @Test

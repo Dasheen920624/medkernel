@@ -120,7 +120,9 @@ describe("Login", () => {
       mfaBound: false,
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "platform-owner" } });
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
+      target: { value: "platform-owner" },
+    });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Init@2026pw" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
 
@@ -202,6 +204,7 @@ describe("Login", () => {
     render(<Login />);
 
     expect(screen.getByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "进入平台治理" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("登录上下文")).not.toBeInTheDocument();
     expect(screen.queryByText("平台管理入口")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).not.toBeInTheDocument();
@@ -211,12 +214,16 @@ describe("Login", () => {
     render(<Login />);
 
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
-    expect(screen.getByText("集团医疗智能中枢")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("请输入平台治理账号")).toBeInTheDocument();
+    expect(screen.getByText("医疗知识与决策支持平台")).toBeInTheDocument();
+    expect(screen.getByText("使用平台管理员账号登录")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入平台管理员账号")).toBeInTheDocument();
+    expect(screen.queryByText("使用平台治理登录名")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("请输入平台治理登录名")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("请输入平台治理账号")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
-    expect(screen.getByText("平台标准与全局治理入口")).toBeInTheDocument();
+    expect(screen.getByText("平台标准、人员权限与系统运维")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
   });
 
@@ -275,9 +282,11 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: "平台治理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
     expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText("请输入工号或机构账号")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入工号或院内账号")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "hosp-admin" } });
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
+      target: { value: "hosp-admin" },
+    });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
 
@@ -303,7 +312,10 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: "平台治理" }));
 
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
-    expect(screen.getByText(/仅供平台治理、知识标准维护和系统运维人员使用/)).toBeInTheDocument();
+    expect(
+      screen.getByText("面向平台管理员、知识标准治理员和系统运维人员；机构差异不会改写平台标准。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/知识标准维护|机构定制不会回写平台标准/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -329,7 +341,16 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: "登录帮助" }));
 
     expect(screen.getByText("首次登录")).toBeInTheDocument();
+    expect(
+      screen.getByText("使用院内工号或人员与账号中开通的登录名进入，首次登录按医院策略修改密码。"),
+    ).toBeInTheDocument();
     expect(screen.getByText("忘记密码")).toBeInTheDocument();
+    expect(
+      screen.getByText("请联系平台管理员或本院信息科重置密码，重置与交付会进入审计证据。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("使用管理员开通的账号进入，首次登录后按医院策略改密。"),
+    ).not.toBeInTheDocument();
   });
 
   it("登录页根容器注入主题 token，避免背景和文字失效", () => {
@@ -364,7 +385,8 @@ describe("Login", () => {
     const loginCss = readLoginCss();
     const cardStackCss = cssBlock(loginCss, ".cardStack");
 
-    expect(cardStackCss).toContain("gap: calc(var(--mk-unit) * 12)");
+    expect(cardStackCss).toContain("gap: calc(var(--mk-unit) * 7)");
+    expect(loginCss).toContain(".page :global(.ant-form-item)");
     expect(loginCss).toContain(".helpToggle");
     expect(loginCss).toContain(".compactFooter");
   });
@@ -373,10 +395,17 @@ describe("Login", () => {
     const loginCss = readLoginCss();
     const pageCss = cssBlock(loginCss, ".page");
 
+    expect(pageCss).toContain("box-sizing: border-box");
+    expect(pageCss).toContain("min-height: 100dvh");
+    expect(pageCss).toContain("height: 100dvh");
+    expect(pageCss).toContain("overflow: clip");
     expect(pageCss).toContain("place-items: center");
     expect(pageCss).toContain("justify-content: center");
     expect(pageCss).toContain("grid-template-columns: minmax(0, calc(var(--mk-unit) * 480))");
     expect(pageCss).not.toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(pageCss).not.toMatch(/overflow-y:\s*(?:hidden|auto)/);
+    expect(cssBlock(loginCss, ".pageExpanded")).toContain("overflow-y: auto");
+    expect(loginCss).toContain("@media (max-height: 44rem)");
     expect(loginCss).toContain(".secondaryEntry");
   });
 
@@ -386,6 +415,10 @@ describe("Login", () => {
 
     expect(main?.style.getPropertyValue("--mk-login-control-font")).not.toBe("");
     expect(main?.style.getPropertyValue("--mk-login-control-height")).not.toBe("");
+
+    const loginCss = readLoginCss();
+    expect(loginCss).toContain(".page :global(.ant-input-affix-wrapper input)");
+    expect(loginCss).toContain("font-size: var(--mk-login-control-font)");
   });
 
   it("提交加载时暴露页面级忙碌状态", () => {

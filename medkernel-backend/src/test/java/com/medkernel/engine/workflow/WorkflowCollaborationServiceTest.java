@@ -591,6 +591,104 @@ class WorkflowCollaborationServiceTest {
     }
 
     @Test
+    void listTodosPassesSourceIdToVisibleRepositoryFilterForCurrentRecommendationTodo() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo focusedTodo = new WorkflowTodo(
+            null,
+            "todo-regional-report",
+            "tenant-A",
+            WorkflowTodoSourceType.REPORT_INTERPRETATION,
+            "card-regional-1",
+            "医技报告解读：胸部 CT 影像报告",
+            "区域互认报告需要医生人工完成协同待办",
+            WorkflowPriority.LOW,
+            WorkflowTodoStatus.PENDING,
+            null,
+            "clinical-user",
+            "patient-regional-1",
+            "enc-regional-1",
+            now.plusSeconds(3600),
+            "/cdss/fatigue?cardId=card-regional-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-regional",
+            now,
+            "system",
+            now,
+            "system");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(todos.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1"))
+            .thenReturn(1L);
+        when(todos.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1",
+            0,
+            10))
+            .thenReturn(List.of(focusedTodo));
+
+        PageResponse<WorkflowTodoResponse> page = service.listTodos(
+            new WorkflowTodoFilter(
+                WorkflowTodoStatus.PENDING,
+                null,
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                null,
+                null,
+                null,
+                "card-regional-1"),
+            new PageRequest(1, 10, null));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.todoId()).isEqualTo("todo-regional-report");
+                assertThat(item.sourceId()).isEqualTo("card-regional-1");
+                assertThat(item.sourceType()).isEqualTo(WorkflowTodoSourceType.REPORT_INTERPRETATION);
+            });
+        verify(todos).countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1");
+        verify(todos).pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            "REPORT_INTERPRETATION",
+            null,
+            "doctor-1",
+            null,
+            null,
+            "card-regional-1",
+            0,
+            10);
+    }
+
+    @Test
     void completeTodoPersistsAuditableClosureInsteadOfOnlyChangingBrowserState() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         WorkflowTodo pending = new WorkflowTodo(
@@ -1278,8 +1376,8 @@ class WorkflowCollaborationServiceTest {
                 now,
                 "patient-1",
                 "enc-1",
-                "REPORT_SUBMIT",
-                "REPORT_REVIEW"),
+                "result-review",
+                "S36"),
             new RecommendationWorkflowTodoRow(
                 "card-knowledge-1",
                 RecommendationCardType.KNOWLEDGE,
@@ -1304,9 +1402,9 @@ class WorkflowCollaborationServiceTest {
             workflowTodo("todo-nursing-1", WorkflowTodoSourceType.NURSING_TASK,
                 "card-nursing-1", "压疮风险护理评估", "patient-1", "enc-1", "NURSING", "trace-nursing", now),
             workflowTodo("todo-report-1", WorkflowTodoSourceType.REPORT_INTERPRETATION,
-                "card-report-1", "检验报告解读", "patient-1", "enc-1", "DOCTOR", "trace-report", now),
+                "card-report-1", "检验报告解读", "patient-1", "enc-1", "clinical-user", "trace-report", now),
             workflowTodo("todo-knowledge-1", WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE,
-                "card-knowledge-1", "床旁知识卡", "patient-1", "enc-1", "DOCTOR", "trace-knowledge", now)));
+                "card-knowledge-1", "床旁知识卡", "patient-1", "enc-1", "clinical-user", "trace-knowledge", now)));
 
         PageResponse<WorkflowTodoResponse> page = service.listTodos(
             new WorkflowTodoFilter(null, null, null, null, null),
@@ -1325,7 +1423,59 @@ class WorkflowCollaborationServiceTest {
                 WorkflowTodoSourceType.REPORT_INTERPRETATION,
                 WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE);
         assertThat(todoCaptor.getAllValues()).extracting(WorkflowTodo::assigneeRole)
-            .containsExactly("NURSING", "DOCTOR", "DOCTOR");
+            .containsExactly("NURSING", "clinical-user", "clinical-user");
+    }
+
+    @Test
+    void listTodosReclassifiesOpenRecommendationTodoWhenReportInterpretationContractChanges() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of(
+            new RecommendationWorkflowTodoRow(
+                "card-report-legacy",
+                RecommendationCardType.LAB,
+                "医技报告解读：血钾检验",
+                "报告结果触发复核建议",
+                RecommendationRiskLevel.HIGH,
+                RecommendationCardStatus.PENDING,
+                now.plusSeconds(3600),
+                "trace-report-legacy",
+                now,
+                "patient-1",
+                "enc-1",
+                "result-review",
+                "S36")));
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+                "tenant-A",
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                "card-report-legacy"))
+            .thenReturn(Optional.empty());
+        when(todos.findRecommendationDerivedByTenantIdAndSourceId("tenant-A", "card-report-legacy"))
+            .thenReturn(Optional.of(workflowTodo(
+                "todo-report-legacy",
+                WorkflowTodoSourceType.RECOMMENDATION_CARD,
+                "card-report-legacy",
+                "医技报告解读：血钾检验",
+                "patient-1",
+                "enc-1",
+                "DOCTOR",
+                "trace-report-legacy",
+                now)));
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.listTodos(
+            new WorkflowTodoFilter(null, null, null, null, null),
+            new PageRequest(1, 20, null));
+
+        ArgumentCaptor<WorkflowTodo> todoCaptor = ArgumentCaptor.forClass(WorkflowTodo.class);
+        verify(todos).save(todoCaptor.capture());
+        WorkflowTodo saved = todoCaptor.getValue();
+        assertThat(saved.todoId()).isEqualTo("todo-report-legacy");
+        assertThat(saved.sourceType()).isEqualTo(WorkflowTodoSourceType.REPORT_INTERPRETATION);
+        assertThat(saved.sourceId()).isEqualTo("card-report-legacy");
+        assertThat(saved.assigneeRole()).isEqualTo("clinical-user");
+        assertThat(saved.deepLink()).isEqualTo("/cdss/fatigue?cardId=card-report-legacy");
     }
 
     @Test
@@ -1723,7 +1873,7 @@ class WorkflowCollaborationServiceTest {
                 "evt-report-1",
                 "clinical-event:evt-report-1",
                 "临床同步事件已处理",
-                "LIS 的报告查看事件已进入临床事件引擎并完成处理",
+                "LIS 的报告查看事件已进入临床事件协同链路并完成处理",
                 WorkflowNotificationLevel.INFO,
                 WorkflowNotificationStatus.UNREAD,
                 null,
@@ -1746,7 +1896,9 @@ class WorkflowCollaborationServiceTest {
         assertThat(page.items()).singleElement()
             .satisfies(item -> {
                 assertThat(item.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
-                assertThat(item.message()).contains("报告查看事件", "已进入临床事件引擎");
+                assertThat(item.message())
+                    .contains("报告查看事件", "已进入临床事件协同链路")
+                    .doesNotContain("临床事件引擎");
                 assertThat(item.patientId()).isEqualTo("patient-1");
                 assertThat(item.encounterId()).isEqualTo("enc-1");
                 assertThat(item.deepLink()).contains("evt-report-1");

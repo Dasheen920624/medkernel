@@ -1,6 +1,6 @@
 type LabelMap = Readonly<Record<string, string>>;
 
-const label = (value: string | null | undefined, labels: LabelMap, fallback = "未识别") =>
+const label = (value: string | null | undefined, labels: LabelMap, fallback = "状态待确认") =>
   value ? (labels[value] ?? fallback) : "未设置";
 const DEFAULT_CUSTOMER_SAFE_FALLBACK = "当前数据读取失败，请重试或联系信息科。";
 const TECHNICAL_DETAIL_PATTERN =
@@ -95,12 +95,12 @@ export const connectionStatusLabels: LabelMap = {
 
 export const knowledgeSourceLabels: LabelMap = {
   PLATFORM_STANDARD: "平台标准",
-  LOCAL_CUSTOMIZATION: "机构定制",
+  LOCAL_CUSTOMIZATION: "机构差异版本",
   LOCAL_ORIGINAL: "机构自建",
 };
 
 export const knowledgeCustomizationStatusLabels: LabelMap = {
-  DRAFT: "定制草稿",
+  DRAFT: "机构差异草稿",
   ACTIVE: "机构使用中",
   RESTORED: "已恢复平台标准",
 };
@@ -254,6 +254,10 @@ export const customerEnumLabels: LabelMap = {
   BASELINE: "基础规则能力",
   LOCAL_MODEL: "本地模型",
   EXTERNAL_MODEL: "外部模型",
+  RATE: "比例",
+  PERCENT: "百分比",
+  CASE_COUNT: "病例数",
+  COUNT: "数量",
   FEE: "费用",
   CODING: "编码",
   DRG: "病组管理",
@@ -330,7 +334,7 @@ export const customerEnumLabels: LabelMap = {
   ACHIEVED: "已达成",
   CURRENT: "当前阶段",
   OVERDUE: "已逾期",
-  FINDING: "质控问题",
+  FINDING: "质量问题",
   RECTIFICATION: "整改任务",
   ALERT: "预警",
   PLATFORM_SEED: "平台内置",
@@ -379,7 +383,7 @@ export const lifecycleStatusLabel = (value?: string | null) => label(value, life
 export const sourceAuthorityLabel = (value?: string | null) =>
   label(value, sourceAuthorityLabels, "来源未分级");
 export const customerEnumLabel = (value?: string | null) =>
-  label(value, customerEnumLabels, "未识别状态");
+  label(value, customerEnumLabels, "状态待确认");
 export const customerDisplayText = (value?: string | null) => {
   if (!value) return "未设置";
   if (!/[\u3400-\u9fff]/.test(value)) return customerEnumLabel(value);

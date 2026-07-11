@@ -147,7 +147,52 @@ class PlatformBaselineServiceTest {
     }
 
     @Test
-    void rejectsPublishingAWithdrawnOrAlreadyPublishedVersionAsANewDraftChange() {
+    void activatesAlreadyPublishedKnowledgeVersionInNextBaselineWithoutRepublishing() {
+        AssetVersion publishedKnowledge = version(
+            "know-v1", VersionedAssetType.KNOWLEDGE, "KNOW.REPORT.LAB", "V1", "7".repeat(64))
+            .withStatus(AssetVersionStatus.PUBLISHED, "version:know-v1", NOW.minusSeconds(600), "operator-old");
+        when(releases.findFirstByOrderByRevisionNoDesc()).thenReturn(Optional.empty());
+        when(identities.findByTenantIdOrderByAssetTypeAscAssetIdentityAsc(PlatformTenant.ID))
+            .thenReturn(List.of(identity(VersionedAssetType.KNOWLEDGE, "KNOW.REPORT.LAB")));
+        when(versions.findByVersionIdAndTenantId("know-v1", PlatformTenant.ID))
+            .thenReturn(Optional.of(publishedKnowledge));
+        when(dependencies
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
+                any(), any(), any(), any()))
+            .thenReturn(List.of());
+
+        PlatformBaselineRelease release = service.publish(new PlatformBaselinePublishCommand(
+            List.of("know-v1"),
+            List.of(),
+            "operator-A",
+            "trace-A"
+        ));
+
+        assertThat(release.revisionNo()).isEqualTo(1L);
+        ArgumentCaptor<PlatformBaselineItem> saved =
+            ArgumentCaptor.forClass(PlatformBaselineItem.class);
+        verify(items).save(saved.capture());
+        assertThat(saved.getValue()).satisfies(item -> {
+            assertThat(item.assetType()).isEqualTo(VersionedAssetType.KNOWLEDGE);
+            assertThat(item.assetIdentity()).isEqualTo("KNOW.REPORT.LAB");
+            assertThat(item.entryState()).isEqualTo(ReleaseEntryState.ACTIVE);
+            assertThat(item.versionId()).isEqualTo("know-v1");
+            assertThat(item.versionNo()).isEqualTo("V1");
+        });
+        verify(validation, never()).validateForPublish(publishedKnowledge, "operator-A", "trace-A");
+        verify(versions, never()).save(any(AssetVersion.class));
+        verify(publicationSynchronizer).afterPublished(
+            org.mockito.ArgumentMatchers.argThat(value ->
+                value.versionId().equals("know-v1")
+                    && value.assetType() == VersionedAssetType.KNOWLEDGE
+                    && value.status() == AssetVersionStatus.PUBLISHED),
+            org.mockito.ArgumentMatchers.eq(NOW),
+            org.mockito.ArgumentMatchers.eq("operator-A"),
+            org.mockito.ArgumentMatchers.eq("trace-A"));
+    }
+
+    @Test
+    void rejectsWithdrawnVersionFromPlatformBaselineChange() {
         AssetVersion withdrawn = version(
             "rule-v2", VersionedAssetType.RULE, "RULE.RENAL.DOSE", "V2", "5".repeat(64))
             .withStatus(AssetVersionStatus.WITHDRAWN, "version:rule-v2", NOW, "operator-A");
@@ -164,9 +209,71 @@ class PlatformBaselineServiceTest {
             "trace-A"
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("草稿")
+            .hasMessageContaining("草稿或已发布")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void rejectsWithdrawnVersionCarriedFromPreviousPlatformBaseline() {
+        PlatformBaselineRelease previous = new PlatformBaselineRelease(
+            1L, "baseline-A1", 1L, "a".repeat(64),
+            NOW.minusSeconds(3600), "operator-old",
+            NOW.minusSeconds(3600), "operator-old", "trace-old");
+        when(releases.findFirstByOrderByRevisionNoDesc()).thenReturn(Optional.of(previous));
+        when(items.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc("baseline-A1"))
+            .thenReturn(List.of(item(
+                "baseline-A1",
+                VersionedAssetType.RULE,
+                "RULE.RENAL.DOSE",
+                ReleaseEntryState.ACTIVE,
+                "rule-v1",
+                "V1",
+                "5".repeat(64))));
+        when(identities.findByTenantIdOrderByAssetTypeAscAssetIdentityAsc(PlatformTenant.ID))
+            .thenReturn(List.of(
+                identity(VersionedAssetType.RULE, "RULE.RENAL.DOSE"),
+                identity(VersionedAssetType.PATHWAY, "PATH.CKD")));
+        AssetVersion withdrawn = version(
+            "rule-v1",
+            VersionedAssetType.RULE,
+            "RULE.RENAL.DOSE",
+            "V1",
+            "5".repeat(64))
+            .withStatus(
+                AssetVersionStatus.WITHDRAWN,
+                "version:rule-v1",
+                NOW.minusSeconds(30),
+                "platform-operator");
+        AssetVersion newPathway = version(
+            "path-v1",
+            VersionedAssetType.PATHWAY,
+            "PATH.CKD",
+            "V1",
+            "6".repeat(64));
+        when(versions.findByVersionIdAndTenantId("rule-v1", PlatformTenant.ID))
+            .thenReturn(Optional.of(withdrawn));
+        when(versions.findByVersionIdAndTenantId("path-v1", PlatformTenant.ID))
+            .thenReturn(Optional.of(newPathway));
+        when(dependencies
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
+                any(), any(), any(), any()))
+            .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.publish(new PlatformBaselinePublishCommand(
+            List.of("path-v1"),
+            List.of(),
+            "operator-A",
+            "trace-reject-carried-withdrawn"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("已撤回")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, never()).save(any(PlatformBaselineRelease.class));
+        verify(items, never()).save(any(PlatformBaselineItem.class));
+        verify(versions).lockByVersionIdAndTenantId("rule-v1", PlatformTenant.ID);
     }
 
     @Test

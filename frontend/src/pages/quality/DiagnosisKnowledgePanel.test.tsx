@@ -22,6 +22,7 @@ const hooks = vi.hoisted(() => ({
   useAddDiagnosisCarePointer: vi.fn(),
   useAddDiagnosisTestCase: vi.fn(),
   usePublishDiagnosis: vi.fn(),
+  useStandardTerms: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => hooks);
@@ -95,6 +96,24 @@ beforeEach(() => {
   hooks.useDiagnosisDifferentials.mockReturnValue(query([]));
   hooks.useDiagnosisCarePointers.mockReturnValue(query([]));
   hooks.useDiagnosisTestCases.mockReturnValue(query([]));
+  hooks.useStandardTerms.mockReturnValue(
+    query({
+      items: [
+        {
+          id: 88,
+          tenantId: "tenant-1",
+          standardSystem: "TERM.LAB",
+          termCode: "TERM.LAB.FRONTDESK.K",
+          category: "LAB",
+          displayName: "前台演练血钾",
+          normalizedName: "前台演练血钾",
+          versionNo: "2026.07",
+          status: "ACTIVE",
+        },
+      ],
+      total: 1,
+    }),
+  );
   hooks.useSecurityProfile.mockReturnValue(
     query({
       dataScope: { tenantId: "tenant-a" },
@@ -178,6 +197,52 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.queryByText("暂无诊断知识")).not.toBeInTheDocument();
   });
 
+  it("does not reset an unmounted publish form when no diagnosis exists", async () => {
+    hooks.useKnowledgeIdentities.mockReturnValue(query({ items: [] }));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([])));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderPanel();
+
+      await waitFor(() => {
+        expect(screen.getByText("暂无诊断知识")).toBeInTheDocument();
+      });
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some((arg) =>
+            String(arg).includes("Instance created by `useForm` is not connected"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("opens the criterion dialog without resetting an unmounted form", async () => {
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderPanel();
+      fireEvent.click(await screen.findByRole("button", { name: /新增标准/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText("新增诊断标准")).toBeInTheDocument();
+      });
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some((arg) =>
+            String(arg).includes("Instance created by `useForm` is not connected"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("keeps active diagnosis versions immutable", async () => {
     const user = userEvent.setup();
     renderPanel();
@@ -202,6 +267,79 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.getAllByText("慢性肾脏病").length).toBeGreaterThan(0);
     expect(screen.queryByText("身份编码")).not.toBeInTheDocument();
     expect(screen.queryByText(/DX\.CKD/)).not.toBeInTheDocument();
+  });
+
+  it("uses business wording for diagnosis criterion weight by default", async () => {
+    hooks.useDiagnosisCriteria.mockReturnValue(
+      query([
+        {
+          id: 1,
+          findingTermCode: "EGFR_LOW",
+          direction: "SUPPORTING",
+          weight: "MAJOR",
+          valueConstraint: null,
+          temporalConstraint: null,
+        },
+      ]),
+    );
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("发现项已登记")).toBeInTheDocument();
+    });
+    expect(screen.getByText("主要")).toBeInTheDocument();
+    expect(screen.queryByText("MAJOR")).not.toBeInTheDocument();
+  });
+
+  it("默认隐藏模型生产任务版本标识，仅在证据细节中披露", async () => {
+    const technicalVersion = {
+      ...activeVersion,
+      versionNo: "3",
+      versionLabel: "ai-draft-task-b6d43db7078b4445a08dadcaf1",
+    };
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([technicalVersion])));
+
+    const { unmount } = renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("第 3 版 · 已生效")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/ai-draft-task/)).not.toBeInTheDocument();
+
+    unmount();
+    renderPanel(true);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("第 3 版 · ai-draft-task-b6d43db7078b4445a08dadcaf1 · 已生效"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("没有业务版次时默认用状态版名替代模型任务标识", async () => {
+    const technicalVersion = {
+      ...activeVersion,
+      versionNo: "ai-draft-task-b6d43db7078b4445a08dadcaf1",
+      versionLabel: "ai-draft-task-b6d43db7078b4445a08dadcaf1",
+    };
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([technicalVersion])));
+
+    const { unmount } = renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("当前生效版本 · 已生效")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/ai-draft-task/)).not.toBeInTheDocument();
+
+    unmount();
+    renderPanel(true);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("当前生效版本 · ai-draft-task-b6d43db7078b4445a08dadcaf1 · 已生效"),
+      ).toBeInTheDocument();
+    });
   });
 
   it("reveals diagnosis identity evidence only when evidence details are enabled", async () => {
@@ -390,6 +528,11 @@ describe("DiagnosisKnowledgePanel", () => {
     renderPanel();
     fireEvent.click(screen.getByRole("button", { name: /新建诊断资产/ }));
 
+    expect(screen.getByPlaceholderText("例如 manxing-shenbing")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("粘贴受控资料库地址或院内文档链接")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("例如 chronic-kidney-disease")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("repository://...")).not.toBeInTheDocument();
+
     fillField("诊断名称", "验收诊断");
     fillField("稳定诊断身份", "acceptance-diagnosis");
     fillField("来源标题", "验收指南");
@@ -506,9 +649,37 @@ describe("DiagnosisKnowledgePanel", () => {
     await user.click(screen.getByRole("button", { name: /新增病例/ }));
 
     expect(screen.getByLabelText("稳定验证病例身份")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("如 manxing-shenbing-case-001，用于复算与验收追溯"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("如 CKD-CASE-001，用于复算与验收追溯"),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("发现项身份")).toBeInTheDocument();
     expect(screen.getByText("多个标准发现项身份使用英文逗号分隔")).toBeInTheDocument();
     expect(screen.queryByText("病例编码")).not.toBeInTheDocument();
     expect(screen.queryByText("发现项编码")).not.toBeInTheDocument();
+  });
+
+  it("offers active standard terminology choices when operators add criteria", async () => {
+    const user = userEvent.setup();
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: /新增标准/ }));
+
+    expect(hooks.useStandardTerms).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "ACTIVE",
+        keyword: undefined,
+        page: 1,
+        size: 50,
+      }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "标准发现项身份" }));
+    expect(screen.getByText("前台演练血钾")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("如 EGFR_LOW，用于稳定追溯该发现项"),
+    ).not.toBeInTheDocument();
   });
 });

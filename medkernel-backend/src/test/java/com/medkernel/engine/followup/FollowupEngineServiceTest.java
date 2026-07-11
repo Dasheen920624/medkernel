@@ -26,7 +26,9 @@ import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
+import com.medkernel.engine.context.canonical.CanonicalNursingAssessment;
 import com.medkernel.engine.pathway.ClinicalClock;
 import com.medkernel.engine.pathway.ClinicalClockEscalationLevel;
 import com.medkernel.engine.pathway.ClinicalClockRepository;
@@ -35,6 +37,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -78,6 +82,8 @@ class FollowupEngineServiceTest {
     private FollowupTemplateService templateService;
     @Mock
     private RuntimeReleaseFollowupTemplateSelector runtimeTemplates;
+    @Mock
+    private AuditRecorder auditRecorder;
 
     @InjectMocks
     private FollowupEngineService service;
@@ -120,30 +126,46 @@ class FollowupEngineServiceTest {
     }
 
     @Test
+    void generatePlanRecordsFollowupPlanCreationAudit() {
+        stubActiveSnapshot("ctx-audit-1", "PAT-AUDIT", "ENC-AUDIT", "D-AUDIT");
+        when(planRepository.save(any(FollowupPlan.class))).thenAnswer(invocation -> {
+            FollowupPlan p = invocation.getArgument(0);
+            return new FollowupPlan(
+                1L, "PLAN-AUDIT", p.tenantId(), p.patientId(), p.encounterId(), p.pathwayId(),
+                p.diseaseCode(), p.riskLevel(), p.runtimeReleaseId(), p.status(), p.idempotencyKey(),
+                p.sourceFactType(), p.sourceFactId(), p.generationRuleCode(), p.generationExplanation(),
+                p.templateId(), p.templateVersion(), p.createdAt(), p.createdBy(), p.updatedAt(), p.updatedBy(),
+                p.traceId()
+            );
+        });
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FollowupPlanDetailResponse response = service.generatePlan(new FollowupPlanGenerateRequest(
+            "ctx-audit-1",
+            "HIGH",
+            List.of("QUESTIONNAIRE"),
+            "followup-audit-key-1",
+            false
+        ));
+
+        assertThat(response.planId()).isEqualTo("PLAN-AUDIT");
+        ArgumentCaptor<String> summaryCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditRecorder).record(
+            eq(AuditAction.CREATE),
+            eq("followup_plan"),
+            eq("PLAN-AUDIT"),
+            summaryCaptor.capture()
+        );
+        assertThat(summaryCaptor.getValue())
+            .contains("生成随访计划")
+            .contains("PLAN-AUDIT");
+    }
+
+    @Test
     void generatePlanUsesRuntimeReleasePinnedTemplateTasksAndQuestionnaireBinding() {
         stubActiveSnapshot("ctx-template-1", "PAT01", "ENC01", "D01");
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        FollowupTemplate template = new FollowupTemplate(
-            null,
-            "ftpl-1",
-            "tenant-1",
-            "FUP.COPD",
-            3,
-            "慢阻肺出院随访",
-            null,
-            "tenant:tenant-1",
-            "riskLevel=HIGH",
-            "[]",
-            "{}",
-            "{}",
-            "hospital://followup/copd",
-            "av-followup-3",
-            now,
-            "user-1",
-            now,
-            "user-1",
-            "trace-123"
-        );
+        FollowupTemplate template = followupTemplate("ftpl-1", 3);
         when(runtimeTemplates.requireByTemplateId("tenant-1", "runtime-release-test", "ftpl-1"))
             .thenReturn(template);
         when(templateService.tasks(template)).thenReturn(List.of(
@@ -169,6 +191,8 @@ class FollowupEngineServiceTest {
         assertThat(response.runtimeReleaseId()).isEqualTo("runtime-release-test");
         assertThat(response.templateId()).isEqualTo("ftpl-1");
         assertThat(response.templateVersion()).isEqualTo(3);
+        assertThat(response.templateCode()).isEqualTo("FUP.COPD");
+        assertThat(response.templateName()).isEqualTo("慢阻肺出院随访");
         assertThat(response.tasks()).extracting(FollowupTaskDetailResponse::taskType)
             .containsExactly(FollowupTaskType.QUESTIONNAIRE, FollowupTaskType.OUTPATIENT);
         assertThat(response.tasks().get(0).questionnaireTemplateId())
@@ -182,6 +206,95 @@ class FollowupEngineServiceTest {
         verify(planRepository).save(planCaptor.capture());
         assertThat(planCaptor.getValue().runtimeReleaseId()).isEqualTo("runtime-release-test");
         verify(templateService, never()).requirePublished("ftpl-1");
+    }
+
+    @Test
+    void generatePlanExplanationConsumesNursingAssessmentAndCarePlanFacts() {
+        Instant now = Instant.parse("2026-07-07T08:00:00Z");
+        stubActiveSnapshot("ctx-nursing-1", "PAT-NURSE", "ENC-NURSE", "NURSING_CONTINUITY");
+        ContextSnapshotResources resources = new ContextSnapshotResources(
+            null,
+            List.of(),
+            List.of(),
+            List.of(new CanonicalCondition(
+                "cond-nursing",
+                "NURSING_CONTINUITY",
+                "ICD-10",
+                "护理连续照护",
+                null,
+                "HIGH",
+                "MEDKERNEL_FRONTDESK",
+                "cond-source",
+                "FRONTDESK_CONTEXT_V1",
+                now,
+                now,
+                QualityStatus.VALID)),
+            List.of(new CanonicalNursingAssessment(
+                "na-fall-high",
+                "跌倒风险评估",
+                "HIGH",
+                "CONFIRMED",
+                "MEDKERNEL_FRONTDESK",
+                "nursing-source",
+                "FRONTDESK_CONTEXT_V1",
+                now,
+                now,
+                QualityStatus.VALID)),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(new CanonicalCarePlan(
+                "care-fall-plan",
+                "PATHWAY.NURSING.FALL",
+                "REHAB_EDUCATION",
+                null,
+                Instant.parse("2026-07-20T08:00:00Z"),
+                "MEDKERNEL_FRONTDESK",
+                "care-source",
+                "FRONTDESK_CONTEXT_V1",
+                now,
+                now,
+                QualityStatus.VALID)),
+            List.of(),
+            List.of(),
+            ContextSnapshotResources.emptyExtensions());
+        when(contextSnapshotService.findById("ctx-nursing-1")).thenReturn(new ContextSnapshotResponse(
+            "ctx-nursing-1",
+            ContextSnapshotStatus.ACTIVE,
+            resources,
+            "runtime-release-test",
+            QualityStatus.VALID,
+            List.of(),
+            Map.of(),
+            now,
+            "trace-123"));
+        FollowupTemplate template = followupTemplate("ftpl-nursing", 1);
+        when(runtimeTemplates.requireByTemplateId("tenant-1", "runtime-release-test", "ftpl-nursing"))
+            .thenReturn(template);
+        when(templateService.tasks(template)).thenReturn(List.of(
+            new FollowupTemplateTaskInput(FollowupTaskType.QUESTIONNAIRE, 1, "Q-NURSING-FALL"),
+            new FollowupTemplateTaskInput(FollowupTaskType.RETURN_VISIT, 3, null)
+        ));
+        when(planRepository.save(any(FollowupPlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FollowupPlanDetailResponse response = service.generatePlan(new FollowupPlanGenerateRequest(
+            "ctx-nursing-1",
+            "HIGH",
+            List.of(),
+            "nursing-continuity-plan-key",
+            false,
+            "ftpl-nursing"
+        ));
+
+        assertThat(response.generationExplanation()).contains("nursingAssessmentEvidence");
+        assertThat(response.generationExplanation()).contains("na-fall-high");
+        assertThat(response.generationExplanation()).contains("carePlanEvidence");
+        assertThat(response.generationExplanation()).contains("care-fall-plan");
+        assertThat(response.generationExplanation()).contains("runtimeAssetEvidence");
+        assertThat(response.generationExplanation()).contains("av-followup-1");
     }
 
     @Test
@@ -268,6 +381,12 @@ class FollowupEngineServiceTest {
         assertEquals(1, response.tasks().size());
         verify(planRepository, never()).save(any(FollowupPlan.class));
         verify(taskRepository, never()).save(any(FollowupTask.class));
+        verify(auditRecorder, never()).record(
+            eq(AuditAction.CREATE),
+            eq("followup_plan"),
+            any(String.class),
+            any(String.class)
+        );
     }
 
     @Test
@@ -358,8 +477,11 @@ class FollowupEngineServiceTest {
 
     @Test
     void testListPlans() {
-        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
-            FollowupPlanStatus.ACTIVE, Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-release-test", FollowupPlanStatus.ACTIVE, null, "DIAGNOSIS", "D01",
+            "FOLLOWUP_TEMPLATE_FUP.COPD_V3", "{}", "ftpl-1", 3,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
             
         Page<FollowupPlan> planPage = new PageImpl<>(List.of(plan));
         
@@ -371,12 +493,16 @@ class FollowupEngineServiceTest {
             
         when(taskRepository.findByTenantIdAndPlanId(any(String.class), any(String.class)))
             .thenReturn(List.of(task));
+        when(templateService.findById("tenant-1", "ftpl-1"))
+            .thenReturn(Optional.of(followupTemplate("ftpl-1", 3)));
 
         PageResponse<FollowupPlanDetailResponse> response = service.listPlans(null, new PageRequest(1, 10, null));
         
         assertNotNull(response);
         assertEquals(1, response.items().size());
         assertEquals("PLAN01", response.items().get(0).planId());
+        assertThat(response.items().get(0).templateCode()).isEqualTo("FUP.COPD");
+        assertThat(response.items().get(0).templateName()).isEqualTo("慢阻肺出院随访");
     }
 
     @Test
@@ -402,6 +528,12 @@ class FollowupEngineServiceTest {
         assertThat(response.modelStatus()).isEqualTo(FollowupModelStatus.MODEL_DISABLED);
         verify(planRepository, never()).save(any(FollowupPlan.class));
         verify(taskRepository, never()).save(any(FollowupTask.class));
+        verify(auditRecorder, never()).record(
+            eq(AuditAction.CREATE),
+            eq("followup_plan"),
+            any(String.class),
+            any(String.class)
+        );
     }
 
     @Test
@@ -617,6 +749,31 @@ class FollowupEngineServiceTest {
             "trace-123"));
     }
 
+    private FollowupTemplate followupTemplate(String templateId, int versionNo) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new FollowupTemplate(
+            null,
+            templateId,
+            "tenant-1",
+            "FUP.COPD",
+            versionNo,
+            "慢阻肺出院随访",
+            null,
+            "tenant:tenant-1",
+            "riskLevel=HIGH",
+            "[]",
+            "{}",
+            "{}",
+            "hospital://followup/copd",
+            "av-followup-" + versionNo,
+            now,
+            "user-1",
+            now,
+            "user-1",
+            "trace-123"
+        );
+    }
+
     private void stubSnapshotEntity(
             String snapshotId,
             String patientId,
@@ -789,8 +946,11 @@ class FollowupEngineServiceTest {
             new OrgScope("tenant-1", "group-1", "hospital-1", "campus-1", "site-1", "dept-1", null, "specialty-1"),
             "user-1"
         ));
-        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
-            FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-followup-plan", FollowupPlanStatus.ACTIVE, "follow-plan-key-1",
+            null, null, null, null, null, null,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
         FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
             Instant.now(), FollowupTaskStatus.COMPLETED, "nurse-1", "FOLLOWUP_NURSE", "task-key-1", Instant.now(),
             "sys", Instant.now(), "nurse-1", "trace-123");
@@ -804,9 +964,10 @@ class FollowupEngineServiceTest {
         when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
         when(taskRepository.findByTaskId("TASK01")).thenReturn(Optional.of(task));
         when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
-        when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("result-key-1")))
+        when(contextSnapshotService.createBound(
+            any(ContextSnapshotRequest.class), eq("result-key-1"), eq("runtime-followup-plan")))
             .thenReturn(new ContextSnapshotResponse(
-                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, "runtime-release-test",
+                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, "runtime-followup-plan",
                 QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
             ));
         when(eventRepository.save(any(FollowupEvent.class))).thenAnswer(inv -> {
@@ -822,7 +983,8 @@ class FollowupEngineServiceTest {
 
         assertThat(response.contextSnapshotId()).isEqualTo("ctx-follow-1");
         ArgumentCaptor<ContextSnapshotRequest> snapshotCaptor = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
-        verify(contextSnapshotService).create(snapshotCaptor.capture(), eq("result-key-1"));
+        verify(contextSnapshotService).createBound(
+            snapshotCaptor.capture(), eq("result-key-1"), eq("runtime-followup-plan"));
         assertThat(snapshotCaptor.getValue().resources().patient().name()).isEqualTo("随访回流未提供患者姓名");
         assertThat(snapshotCaptor.getValue().resources().patient().qualityStatus()).isEqualTo(QualityStatus.PARTIAL);
         assertThat(snapshotCaptor.getValue().resources().patient().mappedVersion()).isEqualTo("FOLLOWUP_RESULT");
@@ -832,6 +994,74 @@ class FollowupEngineServiceTest {
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).mappedVersion()).isEqualTo("FOLLOWUP_RESULT");
         assertThat(snapshotCaptor.getValue().orgUnitId()).isEqualTo("dept-1");
         verify(eventRepository).save(any(FollowupEvent.class));
+    }
+
+    @Test
+    void backflowResultRejectsIncompleteQuestionnaireTask() {
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-followup-plan", FollowupPlanStatus.ACTIVE, "follow-plan-key-1",
+            null, null, null, null, null, null,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.IN_PROGRESS, "nurse-1", "FOLLOWUP_NURSE", "task-key-1", Instant.now(),
+            "sys", Instant.now(), "nurse-1", "trace-123");
+        FollowupQuestionnaire questionnaire = new FollowupQuestionnaire(
+            1L, "FQ01", "tenant-1", "PLAN01", "TASK01", "Q-TPL-1",
+            "{\"title\":\"出院后症状随访\"}", "{\"painScore\":2}", new BigDecimal("2.00"), "COMPLETED",
+            "questionnaire-key-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1",
+            "trace-123"
+        );
+
+        when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
+        when(taskRepository.findByTaskId("TASK01")).thenReturn(Optional.of(task));
+        when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.backflowResult(
+            new FollowupResultBackflowRequest("PLAN01", "TASK01", "FQ01", "{\"painScore\":2}", "N",
+                "result-key-incomplete-task")
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        assertThat(exception.getMessage()).contains("随访问卷任务未完成");
+        verify(contextSnapshotService, never()).create(any(ContextSnapshotRequest.class), any(String.class));
+        verify(contextSnapshotService, never()).createBound(
+            any(ContextSnapshotRequest.class), any(String.class), any(String.class));
+        verify(eventRepository, never()).save(any(FollowupEvent.class));
+    }
+
+    @Test
+    void backflowResultRejectsIncompleteQuestionnaireRecord() {
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-followup-plan", FollowupPlanStatus.ACTIVE, "follow-plan-key-1",
+            null, null, null, null, null, null,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.COMPLETED, "nurse-1", "FOLLOWUP_NURSE", "task-key-1", Instant.now(),
+            "sys", Instant.now(), "nurse-1", "trace-123");
+        FollowupQuestionnaire questionnaire = new FollowupQuestionnaire(
+            1L, "FQ01", "tenant-1", "PLAN01", "TASK01", "Q-TPL-1",
+            "{\"title\":\"出院后症状随访\"}", null, null, "DISPATCHED",
+            "questionnaire-key-1", null, "nurse-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1",
+            "trace-123"
+        );
+
+        when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
+        when(taskRepository.findByTaskId("TASK01")).thenReturn(Optional.of(task));
+        when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.backflowResult(
+            new FollowupResultBackflowRequest("PLAN01", "TASK01", "FQ01", "{\"painScore\":2}", "N",
+                "result-key-incomplete-questionnaire")
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        assertThat(exception.getMessage()).contains("随访问卷未完成");
+        verify(contextSnapshotService, never()).create(any(ContextSnapshotRequest.class), any(String.class));
+        verify(contextSnapshotService, never()).createBound(
+            any(ContextSnapshotRequest.class), any(String.class), any(String.class));
+        verify(eventRepository, never()).save(any(FollowupEvent.class));
     }
 
     @Test

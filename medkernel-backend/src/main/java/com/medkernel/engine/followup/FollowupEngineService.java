@@ -17,7 +17,9 @@ import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalFollowUp;
+import com.medkernel.engine.context.canonical.CanonicalNursingAssessment;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.pathway.ClinicalClock;
 import com.medkernel.engine.pathway.ClinicalClockRepository;
@@ -26,6 +28,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
@@ -55,6 +59,7 @@ public class FollowupEngineService {
     private final ClinicalClockRepository clinicalClockRepository;
     private final FollowupTemplateService templateService;
     private final RuntimeReleaseFollowupTemplateSelector runtimeTemplates;
+    private final AuditRecorder auditRecorder;
     private final ObjectMapper json = new ObjectMapper();
 
     public FollowupEngineService(
@@ -66,7 +71,8 @@ public class FollowupEngineService {
         ContextSnapshotRepository contextSnapshots,
         ClinicalClockRepository clinicalClockRepository,
         FollowupTemplateService templateService,
-        RuntimeReleaseFollowupTemplateSelector runtimeTemplates
+        RuntimeReleaseFollowupTemplateSelector runtimeTemplates,
+        AuditRecorder auditRecorder
     ) {
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
@@ -77,6 +83,7 @@ public class FollowupEngineService {
         this.clinicalClockRepository = clinicalClockRepository;
         this.templateService = templateService;
         this.runtimeTemplates = runtimeTemplates;
+        this.auditRecorder = auditRecorder;
     }
 
     /**
@@ -112,7 +119,8 @@ public class FollowupEngineService {
             request.taskTypes(),
             request.idempotencyKey(),
             request.modelEnabled(),
-            request.templateId()));
+            request.templateId(),
+            resources));
     }
 
     @Transactional
@@ -153,6 +161,7 @@ public class FollowupEngineService {
             taskTypes,
             idempotencyKey,
             modelEnabled,
+            null,
             null));
     }
 
@@ -176,6 +185,7 @@ public class FollowupEngineService {
             taskTypes,
             idempotencyKey,
             modelEnabled,
+            null,
             null));
     }
 
@@ -248,6 +258,9 @@ public class FollowupEngineService {
             taskResponses.add(toTaskResponse(task));
         }
 
+        auditRecorder.record(AuditAction.CREATE, "followup_plan", plan.planId(),
+            "生成随访计划 " + plan.planId());
+
         return new FollowupPlanDetailResponse(
             plan.planId(),
             plan.tenantId(),
@@ -263,7 +276,9 @@ public class FollowupEngineService {
             plan.generationRuleCode(),
             plan.generationExplanation(),
             plan.templateId(),
-            plan.templateVersion()
+            plan.templateVersion(),
+            controlledPlan.templateCode(),
+            controlledPlan.templateName()
         );
     }
 
@@ -323,7 +338,7 @@ public class FollowupEngineService {
     public FollowupQuestionnaireResponse dispatchQuestionnaire(FollowupQuestionnaireRequest request) {
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
-        String formData = normalizeJsonObject(request.formData(), "问卷模板载荷");
+        String formData = normalizeJsonObject(request.formData(), "问卷内容载荷");
         String answerData = normalizeOptionalJsonObject(request.answerData(), "问卷作答载荷");
         Optional<FollowupQuestionnaire> existing =
             existingQuestionnaireByIdempotency(tenantId, request.idempotencyKey());
@@ -480,11 +495,14 @@ public class FollowupEngineService {
         if (!plan.planId().equals(task.planId()) || !task.taskId().equals(questionnaire.taskId())) {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访结果引用关系不一致");
         }
+        ensureQuestionnaireCompletedForBackflow(task, questionnaire);
 
-        ContextSnapshotResponse snapshot = contextSnapshotService.create(
-            contextBackflowRequest(plan, task, questionnaire, request, ctx),
-            request.idempotencyKey()
-        );
+        ContextSnapshotRequest backflowRequest = contextBackflowRequest(
+            plan, task, questionnaire, request, ctx);
+        ContextSnapshotResponse snapshot = hasText(plan.runtimeReleaseId())
+            ? contextSnapshotService.createBound(
+                backflowRequest, request.idempotencyKey(), plan.runtimeReleaseId())
+            : contextSnapshotService.create(backflowRequest, request.idempotencyKey());
         Instant now = Instant.now();
         FollowupEvent event = eventRepository.save(new FollowupEvent(
             null,
@@ -609,6 +627,23 @@ public class FollowupEngineService {
         }
     }
 
+    private void ensureQuestionnaireCompletedForBackflow(
+            FollowupTask task,
+            FollowupQuestionnaire questionnaire) {
+        if (task.taskType() != FollowupTaskType.QUESTIONNAIRE) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访结果回流仅允许问卷任务");
+        }
+        if (task.status() != FollowupTaskStatus.COMPLETED) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访问卷任务未完成，不能回流结果");
+        }
+        if (!"COMPLETED".equalsIgnoreCase(questionnaire.status())) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访问卷未完成，不能回流结果");
+        }
+        if (!hasText(questionnaire.answerData())) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访问卷缺少完成结果，不能回流结果");
+        }
+    }
+
     private double percent(long numerator, long denominator) {
         if (denominator <= 0L) {
             return 0.0;
@@ -635,7 +670,7 @@ public class FollowupEngineService {
         FollowupTemplate template = hasText(request.templateId())
             ? runtimeTemplates.requireByTemplateId(
                 tenantId,
-                requiredRuntimeRelease(request.runtimeReleaseId(), "随访模板"),
+                requiredRuntimeRelease(request.runtimeReleaseId(), "随访方案"),
                 request.templateId())
             : null;
         List<ResolvedTask> tasks = resolveTasks(request, template);
@@ -661,7 +696,9 @@ public class FollowupEngineService {
             clock.map(ClinicalClock::dueAt).orElse(null),
             clock.map(ClinicalClock::clockId).orElse(null),
             template == null ? null : template.templateId(),
-            template == null ? null : template.versionNo()
+            template == null ? null : template.versionNo(),
+            template == null ? null : template.templateCode(),
+            template == null ? null : template.name()
         );
     }
 
@@ -786,6 +823,25 @@ public class FollowupEngineService {
             explanation.put("templateId", template.templateId());
             explanation.put("templateVersion", template.versionNo());
             explanation.put("templateCode", template.templateCode());
+            if (hasText(template.assetVersionId())) {
+                explanation.put("runtimeAssetEvidence", List.of(Map.of(
+                    "assetType", "FOLLOWUP",
+                    "assetIdentity", template.templateCode(),
+                    "assetVersionId", template.assetVersionId(),
+                    "assetVersionNo", "V" + template.versionNo()
+                )));
+            }
+        }
+        ContextSnapshotResources resources = request.contextResources();
+        if (resources != null && !resources.nursingAssessments().isEmpty()) {
+            explanation.put("nursingAssessmentEvidence", resources.nursingAssessments().stream()
+                .map(FollowupEngineService::nursingEvidence)
+                .toList());
+        }
+        if (resources != null && !resources.carePlans().isEmpty()) {
+            explanation.put("carePlanEvidence", resources.carePlans().stream()
+                .map(FollowupEngineService::carePlanEvidence)
+                .toList());
         }
         clock.ifPresent(value -> {
             explanation.put("clinicalClockId", value.clockId());
@@ -794,12 +850,37 @@ public class FollowupEngineService {
         return writeJson(explanation);
     }
 
+    private static Map<String, Object> nursingEvidence(CanonicalNursingAssessment assessment) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("assessmentId", assessment.assessmentId());
+        evidence.put("assessmentType", assessment.assessmentType());
+        evidence.put("riskLevel", assessment.riskLevel());
+        evidence.put("status", assessment.status());
+        evidence.put("sourceSystem", assessment.sourceSystem());
+        evidence.put("mappedVersion", assessment.mappedVersion());
+        return evidence;
+    }
+
+    private static Map<String, Object> carePlanEvidence(CanonicalCarePlan carePlan) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("planId", carePlan.planId());
+        evidence.put("pathwayId", carePlan.pathwayId());
+        evidence.put("currentNodeId", carePlan.currentNodeId());
+        evidence.put("varianceCode", carePlan.varianceCode());
+        evidence.put("plannedFinishAt",
+            carePlan.plannedFinishAt() == null ? null : carePlan.plannedFinishAt().toString());
+        evidence.put("sourceSystem", carePlan.sourceSystem());
+        evidence.put("mappedVersion", carePlan.mappedVersion());
+        return evidence;
+    }
+
     private FollowupPlanDetailResponse toDetailResponse(FollowupPlan plan) {
         List<FollowupTaskDetailResponse> taskResponses = taskRepository
             .findByTenantIdAndPlanId(plan.tenantId(), plan.planId())
             .stream()
             .map(this::toTaskResponse)
             .toList();
+        Optional<FollowupTemplate> template = resolvePlanTemplate(plan);
 
         return new FollowupPlanDetailResponse(
             plan.planId(),
@@ -816,8 +897,25 @@ public class FollowupEngineService {
             plan.generationRuleCode(),
             plan.generationExplanation(),
             plan.templateId(),
-            plan.templateVersion()
+            plan.templateVersion(),
+            template.map(FollowupTemplate::templateCode).orElse(null),
+            template.map(FollowupTemplate::name).orElse(null)
         );
+    }
+
+    private Optional<FollowupTemplate> resolvePlanTemplate(FollowupPlan plan) {
+        if (!hasText(plan.templateId())) {
+            return Optional.empty();
+        }
+        Optional<FollowupTemplate> byId = templateService.findById(plan.tenantId(), plan.templateId());
+        if (byId.isEmpty() || plan.templateVersion() == null
+                || byId.get().versionNo() == plan.templateVersion()) {
+            return byId;
+        }
+        return templateService.findByCodeAndVersion(
+            plan.tenantId(),
+            byId.get().templateCode(),
+            plan.templateVersion());
     }
 
     private FollowupTaskDetailResponse toTaskResponse(FollowupTask task) {
@@ -1047,7 +1145,9 @@ public class FollowupEngineService {
         Instant dueAt,
         String clinicalClockId,
         String templateId,
-        Integer templateVersion
+        Integer templateVersion,
+        String templateCode,
+        String templateName
     ) {}
 
     private record ResolvedTask(

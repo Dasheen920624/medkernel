@@ -29,7 +29,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * API-04 字典映射客户面合同测试。
+ * API-04 术语字典客户面合同测试。
  *
  * <p>只验证对外路径、统一入参、高危标注和错误码；候选生成细节由服务测试覆盖。
  */
@@ -126,7 +126,8 @@ class TerminologyApiContractTest {
                     }
                     """))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+            .andExpect(jsonPath("$.code").value("ENG-API-002"))
+            .andExpect(jsonPath("$.detail").value("术语字典 API 缺少统一入参字段"));
     }
 
     @Test

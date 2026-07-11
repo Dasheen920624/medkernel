@@ -116,6 +116,7 @@ public class ReleaseSimulationService {
         ReleaseSimulationResult.Diff diff = diff(current, candidate);
         boolean releasable = safety.passed()
             && dependency.passed()
+            && conflicts.isEmpty()
             && !"UNSUPPORTED".equals(replay.status());
         Instant generatedAt = clock.instant();
         String digest = digest(

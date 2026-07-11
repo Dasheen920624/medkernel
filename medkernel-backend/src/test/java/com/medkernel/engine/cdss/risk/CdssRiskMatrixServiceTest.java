@@ -21,6 +21,7 @@ import com.medkernel.engine.versioning.AssetVersionService;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.shared.api.error.ApiException;
@@ -243,12 +244,52 @@ class CdssRiskMatrixServiceTest {
                 publish.assetType() == VersionedAssetType.CDSS_RISK
                     && publish.assetIdentity().equals("CDSS.RISK.MATRIX")
                     && publish.versionId().equals("av-cdss-risk-v1")
+                    && publish.qualityGate() != null
+                    && publish.qualityGate().schemaValid()
+                    && publish.qualityGate().terminologyBindingComplete()
+                    && publish.qualityGate().dependencyIntegrityVerified()
+                    && publish.qualityGate().safetyMonotonicityVerified()
+                    && publish.qualityGate().impactSimulationPassed()
                     && publish.impactDigest().contains("更新静默试运行门槛")));
         verify(auditRecorder).record(
             AuditAction.UPDATE,
             "mk_engine_cdss_risk_matrix",
             "4",
             "更新 CDSS 风险分级矩阵(ACTIVE) 更新静默试运行门槛");
+    }
+
+    @Test
+    void updatePassesRealQualityGateWhenPublishingActiveRiskMatrixAsset() {
+        CdssRiskMatrixUpdateRequest request = new CdssRiskMatrixUpdateRequest(
+            "4",
+            "更新静默试运行门槛",
+            CdssRiskMatrixStatus.ACTIVE,
+            List.of(new CdssRiskMatrixEntryRequest(
+                "medication-prescribe",
+                RecommendationRiskLevel.CRITICAL,
+                CdssAutomationLevel.INFORM_ONLY,
+                RecommendationRiskLevel.CRITICAL,
+                CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+                168,
+                "OPT04_REDLINE_SILENT_TRIAL",
+                false,
+                "NMPA_RESERVED",
+                "RISK_ANALYSIS_REQUIRED",
+                "红线级处方风险必须保留医师确认和静默试运行证据")));
+
+        service.updateMatrix(request);
+
+        ArgumentCaptor<VersionReleaseCommand> publishCaptor =
+            ArgumentCaptor.forClass(VersionReleaseCommand.class);
+        verify(releasePort).publish(publishCaptor.capture());
+        VersionPublishQualityGate qualityGate = publishCaptor.getValue().qualityGate();
+        assertThat(qualityGate).isNotNull();
+        assertThat(qualityGate.schemaValid()).isTrue();
+        assertThat(qualityGate.terminologyBindingComplete()).isTrue();
+        assertThat(qualityGate.dependencyIntegrityVerified()).isTrue();
+        assertThat(qualityGate.safetyMonotonicityVerified()).isTrue();
+        assertThat(qualityGate.impactSimulationPassed()).isTrue();
+        assertThat(qualityGate.summary()).contains("CDSS 风险矩阵", "安全基线", "禁止自动执行");
     }
 
     @Test

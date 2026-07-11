@@ -94,8 +94,8 @@ describe("product function catalog", () => {
         };
       });
 
-    expect(backendEntries).toHaveLength(34);
-    expect(frontendEntries).toHaveLength(34);
+    expect(backendEntries).toHaveLength(35);
+    expect(frontendEntries).toHaveLength(35);
     expect(backendEntries).toEqual(expect.arrayContaining(frontendEntries));
     expect(
       backendEntries.filter((entry) => entry.placement === "primary").map((entry) => entry.menuKey),
@@ -121,5 +121,49 @@ describe("product function catalog", () => {
       "| `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 |",
     );
     expect(catalog).toContain("<!-- capability:menu:menu@sandbox decision=KEEP -->");
+  });
+
+  it("keeps route customer tasks in hospital-facing language", () => {
+    const catalog = readCatalog();
+    const retiredReleaseTask = "维护" + "平台标准版本、机构生效版本、发布影响和回滚证据";
+    const retiredTerminologyTask = "维护" + "院内术语映射、冲突和高风险确认";
+    const retiredDiagnosisTask = "维护" + "诊断身份、诊断标准、鉴别诊断、验证病例与来源证据";
+    const retiredPathwayTask = "维护" + "、审核、发布和回滚临床路径版本";
+    const retiredEvaluationTask = "维护" + "评价指标、影响分析和发布状态";
+    const retiredAdapterTask = "维护" + "外部系统接入及失败补偿";
+
+    expect(catalog).not.toContain("知识生产 readiness");
+    expect(catalog).not.toContain("生产 job");
+    expect(catalog).toContain(
+      "| `/config/releases` | 机构生效版本 | knowledge-governance | runtime-releases | primary | MERGE | 知识治理 | 机构生效版本 | 发布平台标准版本、生成机构生效版本并保留影响和回滚证据 |",
+    );
+    expect(catalog).toContain(
+      "| `/terminology/mapping` | 术语字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语字典 | 校准院内术语映射、裁定冲突并逐条确认高危近似 |",
+    );
+    expect(catalog).toContain(
+      "| `/pathway/templates` | 临床路径库 | knowledge-governance | pathway-templates | primary | MOVE | 知识治理 | 临床路径库 | 编排、审核、发布和回滚临床路径版本 |",
+    );
+    expect(catalog).toContain(
+      "| `/qc/eval/sets` | 评价指标 | quality-management | qc-eval-sets | primary | RENAME | 质量管理 | 评价指标 | 定义评价指标、试算影响分析并发布生效 |",
+    );
+    expect(catalog).toContain(
+      "| `/knowledge/diagnosis` | 诊断知识库 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识库 | 管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |",
+    );
+    expect(catalog).toContain(
+      "| `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 治理外部系统接入、字段映射、健康检查和失败补偿 |",
+    );
+    expect(catalog).not.toContain(retiredReleaseTask);
+    expect(catalog).not.toContain(retiredTerminologyTask);
+    expect(catalog).not.toContain(retiredDiagnosisTask);
+    expect(catalog).not.toContain(retiredPathwayTask);
+    expect(catalog).not.toContain(retiredEvaluationTask);
+    expect(catalog).not.toContain(retiredAdapterTask);
+  });
+
+  it("summarizes every primary sidebar domain in the inventory conclusion", () => {
+    const catalog = readCatalog();
+    const domainLine = catalog.match(/^- 目标客户业务域：(.+)。$/m);
+
+    expect(domainLine?.[1].split("、")).toEqual(menuSections.map((section) => section.label));
   });
 });

@@ -141,7 +141,8 @@ public class ContextFieldCatalogDraftService {
         value.put("dataType", field.dataType());
         value.put("unit", field.unit());
         value.put("codeSystem", field.codeSystem());
-        value.put("description", field.description());
+        value.put("description", ContextFieldDescriptionNormalizer.normalize(
+            field.description(), field.displayName(), field.fieldPath()));
         value.put("derived", field.derived());
         return value;
     }

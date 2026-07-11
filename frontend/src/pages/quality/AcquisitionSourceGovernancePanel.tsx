@@ -32,6 +32,7 @@ import {
   KNOWLEDGE_ACQUISITION_ROBOTS_OPTIONS,
   KNOWLEDGE_ACQUISITION_SOURCE_TYPE_OPTIONS,
 } from "@/shared/config/knowledgeAcquisition";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { PageState } from "@/shared/ui/PageState";
 
 const { Text } = Typography;
@@ -61,10 +62,7 @@ function optionLabel(options: Array<{ value: string; label: string }>, value: st
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未记录";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "时间格式异常"
-    : date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, "时间格式异常");
 }
 
 function sourceIdentityText(source: KnowledgeAcquisitionSource, evidenceDetailsEnabled: boolean) {

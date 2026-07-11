@@ -39,16 +39,19 @@ public class RuntimeReleaseController {
     private final ClinicalRuntimeReleaseService runtimes;
     private final RuntimeReleaseQueryService queries;
     private final ReleaseCandidateQueryService candidates;
+    private final RuntimeReleaseOfflineDeliveryService offlineDelivery;
 
     public RuntimeReleaseController(
             PlatformBaselineService baselines,
             ClinicalRuntimeReleaseService runtimes,
             RuntimeReleaseQueryService queries,
-            ReleaseCandidateQueryService candidates) {
+            ReleaseCandidateQueryService candidates,
+            RuntimeReleaseOfflineDeliveryService offlineDelivery) {
         this.baselines = baselines;
         this.runtimes = runtimes;
         this.queries = queries;
         this.candidates = candidates;
+        this.offlineDelivery = offlineDelivery;
     }
 
     /**
@@ -57,11 +60,11 @@ public class RuntimeReleaseController {
     @GetMapping("/platform-baselines/current")
     @PreAuthorize("@perm.has('asset.read')")
     public ApiResult<PlatformBaselineDetailResponse> currentPlatformBaseline() {
-        return ApiResult.ok(queries.currentPlatformBaseline());
+        return ApiResult.ok(queries.currentPlatformBaseline().orElse(null));
     }
 
     /**
-     * 分页查询可进入下一平台标准版本的草稿资产。
+     * 分页查询可进入下一平台标准版本的草稿或已发布资产。
      */
     @GetMapping("/platform-baselines/candidates")
     @PreAuthorize("@perm.has('platform.publish')")
@@ -83,7 +86,7 @@ public class RuntimeReleaseController {
     @PreAuthorize("@perm.has('asset.read')")
     public ApiResult<ClinicalRuntimeReleaseDetailResponse> currentHospitalRuntime(
             @PathVariable String hospitalId) {
-        return ApiResult.ok(queries.currentHospitalRuntime(tenantId(), hospitalId));
+        return ApiResult.ok(queries.currentHospitalRuntime(tenantId(), hospitalId).orElse(null));
     }
 
     /**
@@ -118,7 +121,19 @@ public class RuntimeReleaseController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(queries.hospitalRuntimeHistory(
-            tenantId(), hospitalId, new PageRequest(page, size, sort)));
+                tenantId(), hospitalId, new PageRequest(page, size, sort)));
+    }
+
+    /**
+     * 只读分析目标平台标准版本升级到当前机构生效版本前的差异和冲突。
+     */
+    @GetMapping("/hospitals/{hospitalId}/platform-upgrade-analysis")
+    @PreAuthorize("@perm.has('asset.read')")
+    public ApiResult<PlatformUpgradeAnalysisResponse> analyzeHospitalPlatformUpgrade(
+            @PathVariable String hospitalId,
+            @RequestParam String targetBaselineReleaseId) {
+        return ApiResult.ok(queries.analyzePlatformUpgrade(
+            tenantId(), hospitalId, targetBaselineReleaseId));
     }
 
     /**
@@ -145,6 +160,7 @@ public class RuntimeReleaseController {
     public ApiResult<ClinicalRuntimeRelease> activateHospitalRuntime(
             @PathVariable String hospitalId,
             @Valid @RequestBody ClinicalRuntimeActivateRequest request) {
+        confirmPlatformUpgradeDigestIfRequired(hospitalId, request);
         return ApiResult.ok(runtimes.activate(new ClinicalRuntimeReleaseCommand(
             tenantId(),
             hospitalId,
@@ -173,6 +189,58 @@ public class RuntimeReleaseController {
         ));
     }
 
+    /**
+     * 导出当前机构生效版本离线交付文件。
+     *
+     * <p>文件只用于传输和导入预检，不作为临床运行指针。
+     */
+    @PostMapping("/hospitals/{hospitalId}/runtime-releases/offline-delivery")
+    @PreAuthorize("@perm.has('tenant.override')")
+    public ApiResult<RuntimeReleaseOfflineDeliveryResponse> exportHospitalRuntimeOfflineDelivery(
+            @PathVariable String hospitalId) {
+        return ApiResult.ok(offlineDelivery.exportCurrentRuntimeRelease(
+            tenantId(),
+            hospitalId,
+            actor(),
+            RequestContext.currentTraceId()
+        ));
+    }
+
+    /**
+     * 校验机构生效版本离线交付文件。
+     *
+     * <p>仅执行验签和清单对账，不修改当前机构生效版本。
+     */
+    @PostMapping("/hospitals/{hospitalId}/runtime-releases/offline-delivery:validate-import")
+    @PreAuthorize("@perm.has('asset.read')")
+    public ApiResult<RuntimeReleaseOfflineImportPreviewResponse> validateHospitalRuntimeOfflineImport(
+            @PathVariable String hospitalId,
+            @Valid @RequestBody RuntimeReleaseOfflineImportPreviewRequest request) {
+        if (!hospitalId.equals(request.expectedHospitalId())) {
+            throw new ApiException(ErrorCode.CONFLICT, "路径医院与离线交付预期医院不一致");
+        }
+        return ApiResult.ok(offlineDelivery.validateImportPreview(tenantId(), request));
+    }
+
+    /**
+     * 将已验签的机构生效版本离线交付文件恢复为新的不可变机构生效版本。
+     */
+    @PostMapping("/hospitals/{hospitalId}/runtime-releases/offline-delivery:restore")
+    @PreAuthorize("@perm.has('tenant.override')")
+    public ApiResult<RuntimeReleaseOfflineRestoreResponse> restoreHospitalRuntimeOfflineDelivery(
+            @PathVariable String hospitalId,
+            @Valid @RequestBody RuntimeReleaseOfflineRestoreRequest request) {
+        if (!hospitalId.equals(request.expectedHospitalId())) {
+            throw new ApiException(ErrorCode.CONFLICT, "路径医院与离线交付预期医院不一致");
+        }
+        return ApiResult.ok(offlineDelivery.restoreImport(
+            tenantId(),
+            request,
+            actor(),
+            RequestContext.currentTraceId()
+        ));
+    }
+
     private void requirePlatformContext() {
         if (!PlatformTenant.isPlatformTenant(tenantId())) {
             throw new ApiException(
@@ -194,5 +262,38 @@ public class RuntimeReleaseController {
             .map(String::trim)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.UNAUTHORIZED, "认证上下文缺少操作人"));
+    }
+
+    private void confirmPlatformUpgradeDigestIfRequired(
+            String hospitalId,
+            ClinicalRuntimeActivateRequest request) {
+        PlatformUpgradeAnalysisResponse analysis;
+        try {
+            analysis = queries.analyzePlatformUpgrade(
+                tenantId(), hospitalId, request.platformBaselineReleaseId());
+        } catch (ApiException exception) {
+            if (exception.errorCode() == ErrorCode.CONFLICT
+                    && exception.getMessage().contains("尚未建立当前生效版本")) {
+                return;
+            }
+            throw exception;
+        }
+        if (analysis == null) {
+            return;
+        }
+        if (analysis.currentRuntime().platformBaselineReleaseId()
+                .equals(request.platformBaselineReleaseId())) {
+            return;
+        }
+        String confirmed = request.confirmedPlatformUpgradeDigest();
+        if (confirmed == null || confirmed.isBlank()) {
+            throw new ApiException(ErrorCode.CONFLICT, "平台升级前必须先完成差异与冲突分析");
+        }
+        if (!analysis.analysisDigest().equals(confirmed.trim())) {
+            throw new ApiException(ErrorCode.CONFLICT, "平台升级分析摘要已变化，请重新评估");
+        }
+        if (analysis.diffSummary().conflictCount() > 0) {
+            throw new ApiException(ErrorCode.CONFLICT, "平台升级分析仍存在机构覆盖冲突，请先处理后再生成机构生效版本");
+        }
     }
 }

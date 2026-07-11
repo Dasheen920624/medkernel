@@ -412,7 +412,7 @@ async function openDraftRuleDrawer() {
   renderRuleDefinitions();
   await screen.findByText("规则发布校验核查");
   await user.click(screen.getByRole("button", { name: "查看配置与试运行" }));
-  await screen.findByText("规则配置详情与试运行");
+  await screen.findByText("临床规则详情与试运行");
   return user;
 }
 
@@ -447,7 +447,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   it("创建规则弹窗宽度受窄屏视口约束", async () => {
     renderRuleDefinitions();
 
-    fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+    expect(screen.queryByRole("button", { name: /新建规则模板/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
 
     const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
     expect(dialog.closest(".ant-modal")).toHaveStyle({
@@ -458,11 +459,24 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   it("创建规则不绑定旧上线容器，并允许一个版本绑定多个临床触发场景", async () => {
     renderRuleDefinitions();
 
-    fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+    expect(
+      screen.getByText("配置临床规则草稿，完成试运行、影响分析、安全复核并纳入机构生效版本。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("维护临床规则资产，完成验证、解释和临床治理。"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
 
     const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
     expect(within(dialog).queryByLabelText("标准上下文" + "包版本")).not.toBeInTheDocument();
-    expect(within(dialog).getByText("规则版本独立维护")).toBeInTheDocument();
+    expect(within(dialog).getByText("规则草稿统一发布")).toBeInTheDocument();
+    expect(within(dialog).queryByText("规则版本独立维护")).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "创建或编辑只形成规则草稿版本；完成试运行、安全复核并纳入平台标准版本或机构生效版本后，才会参与临床运行。",
+      ),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
     expect(
@@ -475,10 +489,11 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     async () => {
       renderRuleDefinitions();
 
-      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-      expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole("tab", { name: /L1 基础信息/ })).toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /L1 模板/ })).not.toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole("switch", { name: "受控配置文本模式" }));
@@ -488,6 +503,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
       expect(within(dialog).queryByText("条件片段")).not.toBeInTheDocument();
       expect(within(dialog).queryByRole("button", { name: /片段库/ })).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "查看字段目录" })).toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole("button", { name: "管理字段目录" }),
+      ).not.toBeInTheDocument();
       expect(within(dialog).getByText("可读预览")).toBeInTheDocument();
       expect(within(dialog).getByText("当 年龄 大于等于 65。")).toBeInTheDocument();
       fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
@@ -516,7 +535,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     async () => {
       renderRuleDefinitions();
 
-      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       fireEvent.click(within(dialog).getByRole("switch", { name: "受控配置文本模式" }));
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
@@ -589,7 +608,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      await user.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
       await user.click(within(dialog).getByLabelText("危急值回报"));
@@ -656,7 +675,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      await user.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
       await user.click(within(dialog).getByLabelText("危急值回报"));
@@ -781,7 +800,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
       renderRuleDefinitions();
 
-      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       fireEvent.change(within(dialog).getByLabelText("稳定规则资产身份"), {
@@ -905,7 +924,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
 
-      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       fireEvent.click(within(dialog).getByText("适用域与生效"));
@@ -936,7 +955,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     async () => {
       renderRuleDefinitions();
 
-      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       fireEvent.click(within(dialog).getByText("适用域与生效"));
@@ -1065,7 +1084,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             objectType: "PATHWAY_TEMPLATE",
             objectId: "pt-1",
             displayName: "慢阻肺抗凝路径",
-            impactReason: "路径模板节点引用规则 RULE.ANTICOAG",
+            impactReason: "临床路径节点引用规则 RULE.ANTICOAG",
           },
         ],
         inPathPatients: [
@@ -1322,7 +1341,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             objectType: "PATHWAY_TEMPLATE",
             objectId: "pt-1",
             displayName: "慢阻肺抗凝路径",
-            impactReason: "路径模板节点引用规则 RULE.ANTICOAG",
+            impactReason: "临床路径节点引用规则 RULE.ANTICOAG",
           },
         ],
         inPathPatients: [
@@ -1787,7 +1806,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      await user.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       expect(within(dialog).getByText("条件根组 · 第 1 层")).toBeInTheDocument();
@@ -1823,7 +1842,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      await user.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       await user.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
@@ -1840,7 +1859,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      await user.click(screen.getByRole("button", { name: /新建临床规则/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
       fireEvent.change(within(dialog).getByLabelText("稳定规则资产身份"), {

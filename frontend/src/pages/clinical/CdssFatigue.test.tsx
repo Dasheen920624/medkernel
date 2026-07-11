@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -23,6 +24,19 @@ import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import CdssFatigue from "./CdssFatigue";
 
 const CDSS_INTERACTION_TIMEOUT_MS = 15_000;
+const navigateMock = vi.hoisted(() => vi.fn());
+const locationStateMock = vi.hoisted(() => ({ current: null as unknown }));
+
+vi.mock("react-router-dom", () => ({
+  useLocation: () => ({
+    pathname: "/cdss/fatigue",
+    search: "",
+    hash: "",
+    key: "test",
+    state: locationStateMock.current,
+  }),
+  useNavigate: () => navigateMock,
+}));
 
 vi.mock("@/shared/api/hooks", () => ({
   useClinicalRecommendationCards: vi.fn(),
@@ -74,8 +88,17 @@ describe("CdssFatigue", () => {
   const evaluateRecommendations = vi.fn();
   const interpretDiagnosticReport = vi.fn();
 
+  it("使用页面上下文消息 API，避免真实主题下 antd 静态 message 告警", () => {
+    const source = readFileSync("src/pages/clinical/CdssFatigue.tsx", "utf8");
+
+    expect(source).toContain("App.useApp()");
+    expect(source).not.toContain("  message,\n");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateMock.mockClear();
+    locationStateMock.current = null;
     useEvidenceDetailsStore.setState({ enabled: false });
     mockUseSecurityProfile.mockReturnValue({
       data: {
@@ -221,7 +244,23 @@ describe("CdssFatigue", () => {
       refetch: refetchFatigue,
     } as unknown as ReturnType<typeof useRecommendationFatigueSignals>);
     mockUseRecommendationTriggerDiagnose.mockReturnValue({
-      data: null,
+      data: {
+        executionId: "exec-real-1",
+        triggerId: "trigger-real-1",
+        ruleId: "rule-real-1",
+        riskLevel: "HIGH",
+        inputPayloadSummary: "已读取患者当前上下文、医嘱与检验摘要",
+        explanationSnapshot: "命中抗凝联合用药风险，需医师复核。",
+        statusHistory: [
+          {
+            status: "EVALUATED",
+            changedAt: "2026-06-04T00:00:00Z",
+            changedBy: "engine",
+            summary: "完成规则求值并生成提醒卡。",
+          },
+        ],
+        traceId: "trace-diagnose",
+      },
       refetch: refetchDiagnose,
     } as unknown as ReturnType<typeof useRecommendationTriggerDiagnose>);
     mockUseContextSnapshots.mockReturnValue({
@@ -296,7 +335,7 @@ describe("CdssFatigue", () => {
           recommendations: ["请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。"],
         },
       ],
-      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。",
       traceId: "trace-report",
     });
     mockUseInterpretDiagnosticReport.mockReturnValue({
@@ -323,7 +362,7 @@ describe("CdssFatigue", () => {
     expect(screen.getByText("必须医师确认")).toBeInTheDocument();
     expect(screen.getByText("联合用药 / DDI 用药风险")).toBeInTheDocument();
     expect(screen.getByText("医技报告解读")).toBeInTheDocument();
-    expect(screen.getByText("不会改写已签发报告")).toBeInTheDocument();
+    expect(screen.getAllByText("不会改写已签发报告").length).toBeGreaterThan(0);
     expect(screen.getByText("按患者信息 / 风险 / 证据线索查推荐")).toBeInTheDocument();
     expect(screen.getByLabelText("患者或证据线索")).toBeInTheDocument();
     expect(mockUseClinicalRecommendationCards).toHaveBeenCalledWith({
@@ -338,9 +377,12 @@ describe("CdssFatigue", () => {
     expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("trace-rec")).not.toBeInTheDocument();
     expect(screen.getAllByText("住院医嘱").length).toBeGreaterThan(0);
+    expect(screen.getByRole("columnheader", { name: "反馈操作" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "管理" })).not.toBeInTheDocument();
     expect(screen.getByText("已采纳")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("采纳率")).toBeInTheDocument();
+    expect(screen.getByText("已处理采纳率")).toBeInTheDocument();
+    expect(screen.getByText("待处理 1 项不计入")).toBeInTheDocument();
     expect(screen.getByText("66.7%")).toBeInTheDocument();
   });
 
@@ -352,6 +394,56 @@ describe("CdssFatigue", () => {
 
     expect(screen.getAllByText("card-real-1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("patient-real-1").length).toBeGreaterThan(0);
+  });
+
+  it("filters by card identifier without exposing the identifier in the default business table", async () => {
+    const user = userEvent.setup();
+    mockUseClinicalRecommendationCards.mockReturnValue({
+      data: {
+        items: [
+          {
+            cardId: "card-real-1",
+            triggerId: "trigger-real-1",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            patientPathwayId: null,
+            scenarioCode: "WARD_ORDER",
+            triggerType: "order-sign",
+            cardCode: "CARD.REAL",
+            title: "联合用药风险提醒",
+            summary: "当前用药命中需人工复核的声明式运行资产规则",
+            detail: "请结合上下文人工复核。",
+            sourceSummary: "S5 CDSS 声明式运行资产规则",
+            cardType: "MEDICATION",
+            riskLevel: "HIGH",
+            interruptLevel: "SOFT",
+            requiresPhysicianConfirmation: true,
+            reviewRequirement: "PHYSICIAN_CONFIRMATION",
+            releaseGate: "OPT04_REDLINE_RUNTIME_GUARD",
+            status: "PENDING",
+            createdAt: "2026-06-04T00:00:00Z",
+            updatedAt: "2026-06-04T00:00:00Z",
+            traceId: "trace-rec",
+          },
+        ],
+        total: 1,
+        page: 1,
+        size: 10,
+        traceId: "trace-page",
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: refetchCards,
+    } as unknown as ReturnType<typeof useClinicalRecommendationCards>);
+
+    renderCdssFatigue();
+
+    await user.type(screen.getByLabelText("患者或证据线索"), "card-real-1");
+
+    expect(screen.getByRole("row", { name: /联合用药风险提醒/ })).toBeInTheDocument();
+    expect(screen.getByText("共 1 张临床协同提醒卡")).toBeInTheDocument();
+    expect(screen.queryByText("card-real-1")).not.toBeInTheDocument();
   });
 
   it("does not reveal CDSS evidence when the role lacks evidence-detail permission", () => {
@@ -440,24 +532,53 @@ describe("CdssFatigue", () => {
     "evaluates recommendations from a selected ACTIVE snapshot without manual JSON",
     async () => {
       const user = userEvent.setup();
+      evaluateRecommendations.mockResolvedValueOnce({
+        triggerId: "trigger-evaluated-empty",
+        status: "EVALUATED",
+        totalCardCount: 0,
+        visibleCardCount: 0,
+        suppressedCardCount: 0,
+        modelStatus: "MODEL_DISABLED",
+        cards: [],
+        traceId: "trace-evaluate-empty",
+      });
       renderCdssFatigue();
 
       await user.click(screen.getByRole("button", { name: /登记触发评估/ }));
       expect(screen.queryByLabelText(/上下文 JSON/)).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "提醒与推荐将读取所选已生效临床快照，执行已激活临床规则与安全红线；模型不可用时保持确定性规则链路。",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/推荐引擎/)).not.toBeInTheDocument();
       await user.type(screen.getByLabelText("患者信息"), "patient-real-1");
       await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
+      await user.click(screen.getByLabelText("触发时点"));
+      await user.click(await screen.findByText("开立用药"));
       await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
 
-      await waitFor(() =>
-        expect(evaluateRecommendations).toHaveBeenCalledWith({
-          triggerCode: "CDSS-MANUAL-order-sign",
-          triggerType: "order-sign",
-          scenarioCode: "order-sign",
+      await waitFor(() => expect(evaluateRecommendations).toHaveBeenCalled());
+      expect(
+        await screen.findByText(/推荐评估已完成：本次未新增可见提醒；当前列表已刷新存量提醒/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/推荐评估已完成：展示 0 张/)).not.toBeInTheDocument();
+      expect(screen.getByText("抗凝用药风险提醒")).toBeInTheDocument();
+      const request = evaluateRecommendations.mock.calls[0]?.[0];
+      expect(request).toEqual(
+        expect.objectContaining({
+          triggerType: "medication-prescribe",
+          scenarioCode: "medication-prescribe",
           contextSnapshotId: "snapshot-rec-1",
           patientId: "patient-real-1",
           encounterId: "enc-real-1",
         }),
       );
+      expect(request.triggerCode).toMatch(
+        /^CDSS-MANUAL-medication-prescribe-snapshot-rec-1-[a-z0-9]+-[a-z0-9]+$/,
+      );
+      expect(request.triggerCode).not.toBe("CDSS-MANUAL-medication-prescribe");
+      expect(request.triggerCode.length).toBeLessThanOrEqual(128);
     },
     CDSS_INTERACTION_TIMEOUT_MS,
   );
@@ -489,15 +610,55 @@ describe("CdssFatigue", () => {
     CDSS_INTERACTION_TIMEOUT_MS,
   );
 
+  it(
+    "generates report interpretation from patient 360 route state without asking the operator to re-search identifiers",
+    async () => {
+      locationStateMock.current = {
+        reportInterpretation: {
+          snapshotId: "snapshot-rec-1",
+          patientLabel: "张*三",
+        },
+      };
+      const user = userEvent.setup();
+      renderCdssFatigue();
+
+      const dialog = await screen.findByRole("dialog", { name: "生成医技报告解读" });
+      expect(screen.getByLabelText("患者信息")).toHaveValue("");
+      expect(screen.getByLabelText("就诊信息")).toHaveValue("");
+      expect(screen.queryByDisplayValue("patient-real-1")).not.toBeInTheDocument();
+      expect(screen.queryByDisplayValue("enc-real-1")).not.toBeInTheDocument();
+      expect(screen.getByText("已从患者 360 带入当前上下文")).toBeInTheDocument();
+      expect(screen.getByText(/张\*三/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("触发时点")).not.toBeInTheDocument();
+      expect(navigateMock).toHaveBeenCalledWith("/cdss/fatigue", {
+        replace: true,
+        state: null,
+      });
+
+      await user.click(within(dialog).getByRole("button", { name: "生成报告解读" }));
+
+      await waitFor(() =>
+        expect(interpretDiagnosticReport).toHaveBeenCalledWith({
+          contextSnapshotId: "snapshot-rec-1",
+        }),
+      );
+      expect(evaluateRecommendations).not.toHaveBeenCalled();
+    },
+    CDSS_INTERACTION_TIMEOUT_MS,
+  );
+
   it("shows persisted physician feedback identity and never submits operatorId from the browser", async () => {
     const user = userEvent.setup();
     renderCdssFatigue();
 
     await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
 
+    expect(await screen.findByRole("dialog", { name: "推荐详情与反馈闭环" })).toBeInTheDocument();
     expect(await screen.findByText("这条推荐是怎么来的")).toBeInTheDocument();
     expect(screen.getAllByText("触发事件").length).toBeGreaterThan(0);
     expect(screen.getAllByText("命中规则").length).toBeGreaterThan(0);
+    expect(screen.getByText("临床规则与安全红线给出风险级别和推荐动作。")).toBeInTheDocument();
+    expect(screen.queryByText(/规则引擎/)).not.toBeInTheDocument();
     expect(screen.getAllByText("知识来源").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("该卡片暂未返回来源解释，暂不展示来源证据。").length,
@@ -506,6 +667,10 @@ describe("CdssFatigue", () => {
     expect(screen.getAllByText("待办 / 通知").length).toBeGreaterThan(0);
     expect(screen.getAllByText("医生反馈").length).toBeGreaterThan(0);
     expect(screen.getAllByText("药师复核").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /查看决策依据/ }));
+    expect(await screen.findByText("推荐决策依据与审计证据")).toBeInTheDocument();
+    expect(screen.getByText("2026年06月04日 08:00")).toBeInTheDocument();
+    expect(screen.queryByText(/6\/4\/2026/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: /临床指南与来源证据/ }));
     expect(
       screen.getByText("该提醒卡暂无来源解释证据；请结合患者病情与院内制度复核。"),
@@ -513,6 +678,8 @@ describe("CdssFatigue", () => {
     expect(screen.queryByText(/兜底伪造/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trace-rec/)).not.toBeInTheDocument();
     expect(screen.queryByText(/doctor-real-1/)).not.toBeInTheDocument();
+    expect(await screen.findByText("已记录反馈与复核")).toBeInTheDocument();
+    expect(screen.queryByText("已记录医师反馈")).not.toBeInTheDocument();
     expect(await screen.findByText("医生 · 采纳建议")).toBeInTheDocument();
     expect(screen.getAllByText("已确认风险，按指南处理。").length).toBeGreaterThan(0);
     expect(screen.getAllByText("不采纳建议").length).toBeGreaterThan(0);
@@ -535,6 +702,29 @@ describe("CdssFatigue", () => {
         reasonCode: "CONFIRMED",
         reasonText: "医师确认采纳提醒建议",
         operatorRole: "DOCTOR",
+      });
+    });
+    expect(submitFeedback.mock.calls[0][0]).not.toHaveProperty("operatorId");
+  });
+
+  it("allows pharmacists to record a medication risk review without pretending to be the physician", async () => {
+    const user = userEvent.setup();
+    renderCdssFatigue();
+
+    await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
+    await user.click(await screen.findByRole("tab", { name: /药师复核/ }));
+    await user.type(
+      screen.getByLabelText("药师复核说明"),
+      "已复核联合用药风险，建议医生结合出血风险确认。",
+    );
+    await user.click(screen.getByRole("button", { name: "登记药师复核" }));
+
+    await waitFor(() => {
+      expect(submitFeedback).toHaveBeenCalledWith({
+        feedbackType: "VIEW_SOURCE",
+        reasonCode: "PHARMACIST_REVIEWED",
+        reasonText: "已复核联合用药风险，建议医生结合出血风险确认。",
+        operatorRole: "PHARMACIST",
       });
     });
     expect(submitFeedback.mock.calls[0][0]).not.toHaveProperty("operatorId");

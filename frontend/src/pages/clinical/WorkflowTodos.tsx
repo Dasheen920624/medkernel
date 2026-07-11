@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Badge,
   Button,
   Card,
@@ -11,7 +12,6 @@ import {
   Space,
   Table,
   Tag,
-  message,
 } from "antd";
 import type { BadgeProps, TableProps } from "antd";
 import {
@@ -43,6 +43,7 @@ import {
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
 import { findRouteByPath } from "@/shared/config/routes";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -91,23 +92,69 @@ const priorityRank: Record<WorkflowPriority, number> = {
 
 const sourceRank: Record<WorkflowTodoSourceType, number> = {
   SAFETY_REVIEW: 0,
-  PATHWAY_NODE: 1,
+  REPORT_INTERPRETATION: 1,
   RECOMMENDATION_CARD: 2,
-  FOLLOWUP_TASK: 3,
-  NURSING_TASK: 4,
-  REPORT_INTERPRETATION: 5,
-  BEDSIDE_KNOWLEDGE: 6,
+  RULE_EVENT: 3,
+  PATHWAY_EVENT: 4,
+  PATHWAY_NODE: 5,
+  NURSING_TASK: 6,
+  FOLLOWUP_TASK: 7,
+  BEDSIDE_KNOWLEDGE: 8,
 };
 
 const sourceText: Record<WorkflowTodoSourceType, string> = {
   FOLLOWUP_TASK: "随访任务",
   SAFETY_REVIEW: "安全复核",
   RECOMMENDATION_CARD: "临床提醒",
+  RULE_EVENT: "规则事件",
+  PATHWAY_EVENT: "路径事件",
   NURSING_TASK: "护理任务",
   REPORT_INTERPRETATION: "报告解读",
   BEDSIDE_KNOWLEDGE: "床旁知识",
   PATHWAY_NODE: "路径节点",
 };
+
+const workflowTodoSourceTypes = new Set<WorkflowTodoSourceType>(
+  Object.keys(sourceText) as WorkflowTodoSourceType[],
+);
+
+const sourceActionText: Record<WorkflowTodoSourceType, string> = {
+  FOLLOWUP_TASK: "打开随访记录",
+  SAFETY_REVIEW: "打开复核来源",
+  RECOMMENDATION_CARD: "打开提醒来源",
+  RULE_EVENT: "打开规则事件",
+  PATHWAY_EVENT: "打开路径事件",
+  NURSING_TASK: "打开护理任务",
+  REPORT_INTERPRETATION: "打开报告上下文",
+  BEDSIDE_KNOWLEDGE: "打开知识卡",
+  PATHWAY_NODE: "打开路径节点",
+};
+
+const sourceBusinessSummary: Record<WorkflowTodoSourceType, string> = {
+  FOLLOWUP_TASK: "随访反馈需要按患者当前状态完成复核和闭环。",
+  SAFETY_REVIEW: "高风险事项需要完成责任复核后才能继续流转。",
+  RECOMMENDATION_CARD: "临床提醒需要结合患者上下文确认采纳、暂不采纳或转交。",
+  RULE_EVENT: "规则事件需要结合患者上下文完成责任复核，确认后才能继续流转。",
+  PATHWAY_EVENT: "路径事件需要结合患者当前路径状态完成复核，必要时记录变异原因。",
+  NURSING_TASK: "护理任务需要按当前护理计划完成处理并记录结果。",
+  REPORT_INTERPRETATION: "报告结果需要结合患者上下文完成辅助解读，处理结论需由医技或医生确认。",
+  BEDSIDE_KNOWLEDGE: "床旁知识需要结合当前场景核对后再用于临床参考。",
+  PATHWAY_NODE: "路径节点需要按患者当前路径状态完成推进或记录变异。",
+};
+
+const technicalSummaryPattern =
+  /(?:\bruntime-[A-Za-z0-9_-]+|触发点[:：]\s*[A-Za-z0-9_.:-]+|\btrigger(?:Point)?[:：=]\s*[A-Za-z0-9_.:-]+)/i;
+
+function workflowTodoSummaryText(record: WorkflowTodo, evidenceDetailsEnabled: boolean) {
+  const summary = record.summary?.trim();
+  if (evidenceDetailsEnabled) {
+    return summary || sourceBusinessSummary[record.sourceType];
+  }
+  if (!summary || technicalSummaryPattern.test(summary)) {
+    return sourceBusinessSummary[record.sourceType];
+  }
+  return summary;
+}
 
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
 const TRANSFER_USER_REFERENCE_PAGE_SIZE = 20;
@@ -132,6 +179,8 @@ const PAGE_META = {
 };
 
 const assigneeRoleText: Record<string, string> = {
+  "clinical-user": "临床使用者",
+  CLINICAL_USER: "临床使用者",
   DOCTOR: "医生",
   NURSE: "护士",
   NURSING: "护理",
@@ -141,6 +190,21 @@ const assigneeRoleText: Record<string, string> = {
   QUALITY: "质控",
 };
 
+function focusedWorkflowTodoSourceFromLocation(): {
+  sourceId?: string;
+  sourceType?: WorkflowTodoSourceType;
+} {
+  if (typeof window === "undefined") return {};
+  const searchParams = new URLSearchParams(window.location.search);
+  const sourceId = searchParams.get("cardId")?.trim() || undefined;
+  if (!sourceId) return {};
+  const requestedSourceType = searchParams.get("sourceType")?.trim();
+  const sourceType = workflowTodoSourceTypes.has(requestedSourceType as WorkflowTodoSourceType)
+    ? (requestedSourceType as WorkflowTodoSourceType)
+    : "REPORT_INTERPRETATION";
+  return { sourceId, sourceType };
+}
+
 const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]) => ({
   value,
   label,
@@ -148,12 +212,7 @@ const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return formatClinicalDateTime(value, value);
 }
 
 function compareDateTime(left?: string | null, right?: string | null) {
@@ -175,6 +234,7 @@ function buildClinicalQueueFocus(pendingTodos: WorkflowTodo[]) {
   if (pendingTodos.length === 0) return "暂无待处理任务";
 
   const sourceFocus = (Object.keys(sourceRank) as WorkflowTodoSourceType[])
+    .sort((left, right) => sourceRank[left] - sourceRank[right])
     .map((source) => ({
       source,
       count: countTodos(pendingTodos, "sourceType", source),
@@ -207,7 +267,18 @@ function patientContextDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boole
   return todo.patientId ? "已关联患者" : "-";
 }
 
+function sourceLinkUnavailableText(sourceType: WorkflowTodoSourceType) {
+  return sourceType === "REPORT_INTERPRETATION"
+    ? "报告入口暂不可跳转"
+    : SOURCE_LINK_UNAVAILABLE_TEXT;
+}
+
+function sourceLinkMissingText(sourceType: WorkflowTodoSourceType) {
+  return sourceType === "REPORT_INTERPRETATION" ? "待报告来源补充跳转" : SOURCE_LINK_MISSING_TEXT;
+}
+
 export default function WorkflowTodos() {
+  const { message } = App.useApp();
   const [status, setStatus] = useState<WorkflowTodoStatus | undefined>("PENDING");
   const [priority, setPriority] = useState<WorkflowPriority | undefined>();
   const [sourceType, setSourceType] = useState<WorkflowTodoSourceType | undefined>();
@@ -225,11 +296,13 @@ export default function WorkflowTodos() {
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
+  const focusedTodoSource = focusedWorkflowTodoSourceFromLocation();
 
   const queryParams = {
     status,
     priority,
-    sourceType,
+    sourceType: focusedTodoSource.sourceType ?? sourceType,
+    sourceId: focusedTodoSource.sourceId,
     orgUnitId,
     page: 1,
     size: 10,
@@ -282,6 +355,7 @@ export default function WorkflowTodos() {
   );
   const safetyReviewCount = countTodos(pendingTodos, "sourceType", "SAFETY_REVIEW");
   const nursingTaskCount = countTodos(pendingTodos, "sourceType", "NURSING_TASK");
+  const reportInterpretationCount = countTodos(pendingTodos, "sourceType", "REPORT_INTERPRETATION");
   const criticalCount = countTodos(pendingTodos, "priority", "CRITICAL");
   const highPriorityCount = countTodos(pendingTodos, "priority", "HIGH");
   const queueFocus = buildClinicalQueueFocus(pendingTodos);
@@ -330,35 +404,44 @@ export default function WorkflowTodos() {
       title: "待办",
       dataIndex: "title",
       key: "title",
-      render: (_value, record) => (
-        <Space direction="vertical" size={2}>
-          <span className={styles.textStrong}>{record.title}</span>
-          <span className={styles.textSmall}>{record.summary}</span>
-          <Space wrap size={8} className={styles.textSmall}>
-            {evidenceDetailsEnabled ? (
-              <>
-                <span>来源编号 {record.sourceId}</span>
-                <span>
-                  {record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}
-                </span>
-              </>
-            ) : (
-              <span>来源与追踪证据已保留</span>
-            )}
+      width: 340,
+      className: styles.workflowTodoPrimaryColumn,
+      render: (_value, record) => {
+        const summaryText = workflowTodoSummaryText(record, evidenceDetailsEnabled);
+        return (
+          <Space direction="vertical" size={2} className={styles.workflowTodoContent}>
+            <span className={styles.textStrong}>{record.title}</span>
+            <span className={`${styles.textSmall} ${styles.workflowTodoSummary}`}>
+              {summaryText}
+            </span>
+            <Space wrap size={8} className={`${styles.textSmall} ${styles.workflowTodoEvidence}`}>
+              {evidenceDetailsEnabled ? (
+                <>
+                  <span>来源编号 {record.sourceId}</span>
+                  <span>
+                    {record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                  </span>
+                </>
+              ) : (
+                <span>来源与追踪证据已保留</span>
+              )}
+            </Space>
           </Space>
-        </Space>
-      ),
+        );
+      },
     },
     {
       title: "来源",
       dataIndex: "sourceType",
       key: "sourceType",
+      width: 88,
       render: (value: WorkflowTodoSourceType) => <Tag>{sourceText[value]}</Tag>,
     },
     {
       title: "患者",
       dataIndex: "patientId",
       key: "patientId",
+      width: 96,
       render: (_value: string | null | undefined, record) =>
         patientContextDisplay(record, evidenceDetailsEnabled),
     },
@@ -366,6 +449,7 @@ export default function WorkflowTodos() {
       title: evidenceDetailsEnabled ? "责任人" : "责任岗位",
       dataIndex: "assigneeId",
       key: "assigneeId",
+      width: 104,
       render: (_value: string | null | undefined, record) =>
         assigneeDisplay(record, evidenceDetailsEnabled),
     },
@@ -373,12 +457,14 @@ export default function WorkflowTodos() {
       title: "截止",
       dataIndex: "dueAt",
       key: "dueAt",
+      width: 88,
       render: (value?: string | null) => formatDateTime(value),
     },
     {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
+      width: 88,
       render: (value: WorkflowPriority) => (
         <Tag color={priorityColor[value]}>{priorityText[value] ?? customerEnumLabel(value)}</Tag>
       ),
@@ -387,6 +473,7 @@ export default function WorkflowTodos() {
       title: "状态",
       dataIndex: "status",
       key: "status",
+      width: 88,
       render: (value: WorkflowTodoStatus) => (
         <Badge status={statusBadge[value]} text={statusText[value] ?? customerEnumLabel(value)} />
       ),
@@ -394,26 +481,29 @@ export default function WorkflowTodos() {
     {
       title: "操作",
       key: "action",
+      width: 148,
+      className: styles.workflowTodoActionColumn,
       render: (_value, record) => {
         const sourceLink = resolveSourceDeepLink(record.deepLink);
+        const sourceActionLabel = sourceActionText[record.sourceType];
         return (
           <Space size={4}>
             {sourceLink && (
               <Button
                 type="link"
-                aria-label="打开来源"
+                aria-label={sourceActionLabel}
                 icon={<LinkOutlined />}
                 href={sourceLink}
                 className={styles.buttonLink}
               >
-                打开来源
+                {sourceActionLabel}
               </Button>
             )}
             {!sourceLink && record.deepLink && (
-              <Tag color="default">{SOURCE_LINK_UNAVAILABLE_TEXT}</Tag>
+              <Tag color="default">{sourceLinkUnavailableText(record.sourceType)}</Tag>
             )}
             {!sourceLink && !record.deepLink && (
-              <Tag color="default">{SOURCE_LINK_MISSING_TEXT}</Tag>
+              <Tag color="default">{sourceLinkMissingText(record.sourceType)}</Tag>
             )}
             <Button
               type="link"
@@ -467,6 +557,7 @@ export default function WorkflowTodos() {
         <Space wrap size={[8, 8]}>
           <Tag color="blue">{pendingTodos.length} 项待处理</Tag>
           <Tag color="red">安全复核 {safetyReviewCount} 项</Tag>
+          <Tag color="cyan">报告解读 {reportInterpretationCount} 项</Tag>
           <Tag color="purple">护理任务 {nursingTaskCount} 项</Tag>
           <Tag color="red">危急 {criticalCount} 项</Tag>
           <Tag color="volcano">高优先 {highPriorityCount} 项</Tag>
@@ -486,6 +577,8 @@ export default function WorkflowTodos() {
               { value: "PENDING", label: "待处理" },
               { value: "IN_PROGRESS", label: "处理中" },
               { value: "COMPLETED", label: "已完成" },
+              { value: "TRANSFERRED", label: "已转交" },
+              { value: "CANCELLED", label: "已取消" },
             ]}
           />
           <Select
@@ -513,6 +606,8 @@ export default function WorkflowTodos() {
               { value: "FOLLOWUP_TASK", label: "随访任务" },
               { value: "SAFETY_REVIEW", label: "安全复核" },
               { value: "PATHWAY_NODE", label: "路径节点" },
+              { value: "RULE_EVENT", label: "规则事件" },
+              { value: "PATHWAY_EVENT", label: "路径事件" },
               { value: "RECOMMENDATION_CARD", label: "临床提醒" },
               { value: "NURSING_TASK", label: "护理任务" },
               { value: "REPORT_INTERPRETATION", label: "报告解读" },
@@ -556,7 +651,7 @@ export default function WorkflowTodos() {
           dataSource={visibleTodos}
           loading={isLoading}
           tableLayout="fixed"
-          scroll={{ x: 760 }}
+          scroll={{ x: 1040 }}
           pagination={{
             pageSize: 10,
             total: data?.total ?? 0,

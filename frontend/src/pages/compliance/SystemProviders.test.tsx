@@ -90,6 +90,10 @@ const snapshot = {
       completedAt: "2026-06-06T16:30:00Z",
       migrationCount: 96,
       evidenceReference: "latest-restore-drill.properties",
+      checksumEvidence: "SHA-256 摘要已校验",
+      drillDatabaseIsIsolated: true,
+      rpo: "24 小时",
+      rto: "4 小时",
       detail: "隔离恢复演练通过，迁移历史校验正常",
     },
     source: "SAFE_DEFAULT",
@@ -100,7 +104,7 @@ const snapshot = {
     targetJdk: "KAE-JDK 21 / BiSheng JDK 21",
     databaseVendors: ["达梦", "人大金仓"],
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
-    evidence: "国产化自检、五方言迁移合同、国密算法 smoke",
+    evidence: "国产化适配自检、五方言迁移合同、国密算法 smoke",
   },
   domesticCompatibility: {
     overallStatus: "WARN",
@@ -174,7 +178,7 @@ describe("SystemProviders", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "运行保障" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "服务运行保障" })).toBeInTheDocument();
     expect(screen.getByText("核心服务")).toBeInTheDocument();
     expect(screen.queryByText("整体健康")).not.toBeInTheDocument();
     expect(screen.getByText("2 项依赖需关注")).toBeInTheDocument();
@@ -187,6 +191,8 @@ describe("SystemProviders", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByText("演练通过")).toBeInTheDocument();
     expect(screen.getByText("迁移校验：96 条")).toBeInTheDocument();
+    expect(screen.getByText("国产化适配档案")).toBeInTheDocument();
+    expect(screen.queryByText("国产化 profile")).not.toBeInTheDocument();
     expect(screen.getByText(/2026/)).toBeInTheDocument();
     expect(screen.getAllByText(/麒麟 \/ 统信 \/ openEuler/).length).toBeGreaterThan(0);
     expect(
@@ -277,6 +283,8 @@ describe("SystemProviders", () => {
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("docker-core")).toBeInTheDocument();
+    expect(screen.getByText("当前部署档案：dev / container")).toBeInTheDocument();
+    expect(screen.queryByText("当前 profile：dev / container")).not.toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();
     expect(screen.getByText("classpath:db/migration/postgres")).toBeInTheDocument();
     expect(screen.getByText("./deploy/docker/scripts/backup.sh")).toBeInTheDocument();
@@ -285,6 +293,12 @@ describe("SystemProviders", () => {
     expect(screen.getAllByText("中风险").length).toBeGreaterThan(0);
     expect(screen.getByText("配置中心读取失败，已使用启动安全默认。")).toBeInTheDocument();
     expect(screen.getByText("latest-restore-drill.properties")).toBeInTheDocument();
+    expect(screen.getByText("SHA-256 摘要已校验")).toBeInTheDocument();
+    expect(screen.getByText("隔离库已验证")).toBeInTheDocument();
+    expect(screen.getByText("证据 RPO：24 小时")).toBeInTheDocument();
+    expect(screen.getByText("证据 RTO：4 小时")).toBeInTheDocument();
+    expect(screen.queryByText(/secret\.dump/)).not.toBeInTheDocument();
+    expect(screen.queryByText("medkernel_restore_drill")).not.toBeInTheDocument();
     expect(screen.getByText("能力开关关闭，未连接图谱投影")).toBeInTheDocument();
     expect(screen.getByText("能力开关关闭，模型工作流未启用")).toBeInTheDocument();
   });

@@ -6,7 +6,7 @@ import com.medkernel.engine.sandbox.compare.SandboxComparisonResponse;
 import com.medkernel.engine.sandbox.replay.SandboxReplayRuleResult;
 
 /**
- * 沙盘运行结果，汇总真实引擎路径、业务标识与嵌入启动信息。
+ * 沙盘运行结果，汇总真实医疗智能链路、业务标识与嵌入启动信息。
  */
 public record SandboxRunResponse(
     String scenarioId,

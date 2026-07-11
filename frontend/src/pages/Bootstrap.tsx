@@ -38,6 +38,7 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -148,9 +149,7 @@ function normalizePhase(value: unknown): BootstrapPhase {
 
 function formatTime(value: string | null) {
   if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 export default function Bootstrap() {
@@ -428,7 +427,7 @@ export default function Bootstrap() {
           <Result
             status="success"
             title="系统已完成首次部署"
-            subTitle="初始管理员已经建立，请返回登录。账号与服务机构统一在工作台内维护。"
+            subTitle="初始管理员已经建立，请返回登录。账号进入人员与账号处理，集团、医院和其他服务机构进入服务机构页处理。"
             extra={[
               <Button
                 aria-label="返回登录"
@@ -855,7 +854,7 @@ export default function Bootstrap() {
                 subTitle={
                   accountSecuritySetup
                     ? accountSecurityDoneDescription
-                    : "现在可以返回登录进入平台治理；集团、医院和其他服务机构统一在服务机构管理中维护。"
+                    : "现在可以返回登录进入平台治理；集团、医院和其他服务机构统一在服务机构页中处理。"
                 }
                 extra={[
                   recoveryCode ? (

@@ -11,6 +11,8 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
@@ -41,6 +43,7 @@ public class KnowledgeIdentityService {
     private final CitationRepository citationRepository;
     private final AssetIdentityAllocator identityAllocator;
     private final KnowledgeEffectiveVersionResolver effectiveVersions;
+    private final AuditRecorder auditRecorder;
 
     public KnowledgeIdentityService(KnowledgeIdentityRepository identityRepository,
                                     KnowledgeAssetVersionRepository versionRepository,
@@ -50,7 +53,8 @@ public class KnowledgeIdentityService {
                                     SourceFragmentRepository sourceFragmentRepository,
                                     CitationRepository citationRepository,
                                     AssetIdentityAllocator identityAllocator,
-                                    KnowledgeEffectiveVersionResolver effectiveVersions) {
+                                    KnowledgeEffectiveVersionResolver effectiveVersions,
+                                    AuditRecorder auditRecorder) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -60,6 +64,7 @@ public class KnowledgeIdentityService {
         this.citationRepository = citationRepository;
         this.identityAllocator = identityAllocator;
         this.effectiveVersions = effectiveVersions;
+        this.auditRecorder = auditRecorder;
     }
 
     public PageResponse<KnowledgeIdentity> page(PageRequest request, KnowledgeIdentityFilter filter) {
@@ -142,7 +147,7 @@ public class KnowledgeIdentityService {
         KnowledgeIdentity identity = effective.identity();
         PageRequest safeRequest = request == null ? PageRequest.defaults() : request;
         SourceEvidenceResolution sourceEvidence = resolveSourceEvidence(effective);
-        return new KnowledgeProvenanceResponse(
+        KnowledgeProvenanceResponse response = new KnowledgeProvenanceResponse(
             identity,
             sourceEvidence.activeVersionId(),
             versionHistoryPage(effective, safeRequest),
@@ -151,6 +156,12 @@ public class KnowledgeIdentityService {
             sourceEvidence.unresolvedCitationCount(),
             sourceEvidence.unresolvedCitationCount() > 0
         );
+        auditRecorder.record(
+            AuditAction.EXECUTE,
+            "knowledge_identity",
+            String.valueOf(identity.id()),
+            "查看知识来源血缘 " + identity.identityCode());
+        return response;
     }
 
     private PageResponse<KnowledgeAssetVersion> versionHistoryPage(
@@ -321,6 +332,15 @@ public class KnowledgeIdentityService {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
         return resolveSourceEvidence(effective).items();
+    }
+
+    public List<SourceFragment> listSourceVersionFragments(Long sourceVersionId) {
+        String tenantId = requireCurrentTenant();
+        sourceVersionRepository.findByTenantIdAndId(tenantId, sourceVersionId)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_KNOW_001, "来源文献版本不存在 id=" + sourceVersionId));
+        return sourceFragmentRepository.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc(
+            tenantId, sourceVersionId);
     }
 
     private SourceEvidenceResolution resolveSourceEvidence(EffectiveKnowledgeIdentity effective) {

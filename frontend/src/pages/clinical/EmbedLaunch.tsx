@@ -2,18 +2,19 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Alert,
+  App as AntdApp,
   Badge,
   Button,
   Card,
   Dropdown,
   Empty,
   Input,
-  message,
   Modal,
   Radio,
   Spin,
   Switch,
   Tag,
+  Tooltip,
 } from "antd";
 import {
   AuditOutlined,
@@ -65,6 +66,7 @@ function triggerPointText(triggerPoint?: string | null, evidenceDetailsEnabled =
 }
 
 export default function EmbedLaunch() {
+  const { message } = AntdApp.useApp();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
   const {
@@ -230,7 +232,9 @@ export default function EmbedLaunch() {
             <span>MedKernel 临床建议已连接</span>
           </div>
           <div className={styles.evidenceToggle}>
-            <span>证据详情</span>
+            <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+              <span>追溯证据</span>
+            </Tooltip>
             <Switch
               aria-label="证据详情"
               size="small"
@@ -304,7 +308,7 @@ export default function EmbedLaunch() {
               }
             />
             <div className={styles.helperText}>
-              请确认推荐引擎已为当前就诊生成有效建议，或返回工作站重新触发。
+              请确认提醒与推荐已为当前就诊生成有效建议，或返回工作站重新触发。
             </div>
           </div>
         )}

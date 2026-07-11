@@ -408,6 +408,70 @@ class MigrationBaselineContractTest {
         }
     }
 
+    @Test
+    void evidenceSnapshotPayloadSnapshotUsesLongTextForCompleteJsonPayloads() throws IOException {
+        JsonNode payloadSnapshot = column(table(schema(), "evidence_snapshot"), "payload_snapshot");
+        assertThat(payloadSnapshot.path("type").asText())
+            .as("存证快照必须保存完整 JSON 明文，不得被 4000 字符短字段截断")
+            .isEqualTo("text");
+        assertThat(payloadSnapshot.has("length"))
+            .as("text 类型不得继续保留短字符串长度")
+            .isFalse();
+
+        for (String dialect : List.of("h2", "postgres", "kingbase")) {
+            assertThat(createTableBlock(readBaseline(dialect), "evidence_snapshot"))
+                .as("%s 存证快照完整 JSON 使用长文本字段", dialect)
+                .contains("payload_snapshot TEXT NOT NULL")
+                .doesNotContain("payload_snapshot VARCHAR(4000)");
+        }
+        for (String dialect : List.of("oracle", "dm")) {
+            assertThat(createTableBlock(readBaseline(dialect), "evidence_snapshot"))
+                .as("%s 存证快照完整 JSON 使用 CLOB 字段", dialect)
+                .contains("payload_snapshot CLOB NOT NULL")
+                .doesNotContain("payload_snapshot VARCHAR2(4000)");
+        }
+    }
+
+    @Test
+    void integrationOnboardingPersistsCanonicalThirdPartySystemFamily() throws IOException {
+        JsonNode onboarding = table(schema(), "mk_integration_onboarding");
+        assertThat(columnNames(onboarding)).contains("system_family_code");
+        assertThat(columnComment(onboarding, "system_family_code"))
+            .contains("第三方系统族");
+
+        String check = checkExpression(onboarding, "ck_integ_onboarding_system_family");
+        for (String code : List.of(
+            "HIS_EMR_CDR",
+            "LIS_MONITORING_CRITICAL",
+            "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+            "PHARMACY_REVIEW",
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            "MEDICAL_RECORD_INSURANCE_PAYMENT",
+            "PUBLIC_HEALTH_INFECTION_REGULATORY",
+            "FOLLOWUP_PATIENT_SERVICE",
+            "CA_OIDC_SSO_HR",
+            "REGIONAL_REMOTE",
+            "SPD_UDI_DEVICE",
+            "RESEARCH_ETHICS_DATA",
+            "MODEL_DIFY_AGENT"
+        )) {
+            assertThat(check).as("规范模型必须约束第三方系统族 %s", code).contains(code);
+        }
+
+        for (String dialect : DIALECTS) {
+            String ddl = readBaseline(dialect);
+            assertThat(createTableBlock(ddl, "mk_integration_onboarding"))
+                .as("%s 接入申请表必须持久化第三方系统族", dialect)
+                .contains("system_family_code");
+            assertThat(ddl)
+                .as("%s 接入申请表必须生成系统族数据库约束和中文注释", dialect)
+                .contains(
+                    "ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_system_family",
+                    "COMMENT ON COLUMN mk_integration_onboarding.system_family_code IS '第三方系统族代码，限定为产品范围 13 类系统族'"
+                );
+        }
+    }
+
     private JsonNode schema() throws IOException {
         var resource = getClass().getClassLoader().getResource("db/schema/medkernel.schema.json");
         assertThat(resource).as("数据库规范模型资源").isNotNull();
@@ -442,9 +506,13 @@ class MigrationBaselineContractTest {
     }
 
     private String columnComment(JsonNode table, String columnName) {
+        return column(table, columnName).path("comment").asText();
+    }
+
+    private JsonNode column(JsonNode table, String columnName) {
         for (JsonNode column : table.path("columns")) {
             if (columnName.equals(column.path("name").asText())) {
-                return column.path("comment").asText();
+                return column;
             }
         }
         throw new IllegalArgumentException(

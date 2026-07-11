@@ -206,7 +206,7 @@ public class RuntimeProperties {
         private String targetJdk = "KAE-JDK 21 / BiSheng JDK 21";
         private List<String> databaseVendors = List.of("达梦", "人大金仓");
         private List<String> cryptoAlgorithms = List.of("SM2", "SM3", "SM4");
-        private String evidence = "国产化自检、五方言迁移合同、国密算法 smoke";
+        private String evidence = "国产化适配自检、五方言迁移合同、国密算法 smoke";
 
         public String getTargetOs() {
             return targetOs;

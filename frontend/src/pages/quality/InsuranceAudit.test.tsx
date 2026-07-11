@@ -61,7 +61,7 @@ const insuranceIssuesPage = {
       claimAmount: 1200,
       thresholdAmount: 1000,
       evidenceSummary: "结算事实 claim-real-1；规则 RULE-FEE-A@2026-A；金额 1200.00；阈值 1000.00",
-      departmentId: "医保办",
+      departmentId: "hospital-rehearsal",
       evaluationRunId: "run-ins-1",
       traceId: "trace-ins-1",
       createdAt: "2026-06-05T00:00:00Z",
@@ -74,6 +74,25 @@ const insuranceIssuesPage = {
   totalEstimated: false,
 };
 
+function insuranceIssuePageItem(index: number) {
+  return {
+    issueId: `ins-fee-${index}`,
+    claimId: `claim-real-${index}`,
+    issueType: "FEE",
+    severity: "P1",
+    status: "OPEN",
+    ruleCode: "RULE-FEE-A",
+    ruleVersion: "2026-A",
+    claimAmount: 1200 + index,
+    thresholdAmount: 1000,
+    evidenceSummary: `结算事实 claim-real-${index}；规则 RULE-FEE-A@2026-A；金额 ${1200 + index}.00；阈值 1000.00`,
+    departmentId: "hospital-rehearsal",
+    evaluationRunId: `run-ins-${index}`,
+    traceId: `trace-ins-${index}`,
+    createdAt: "2026-06-05T00:00:00Z",
+  };
+}
+
 describe("InsuranceAudit", () => {
   beforeEach(() => {
     useEvidenceDetailsStore.setState({ enabled: false });
@@ -83,6 +102,16 @@ describe("InsuranceAudit", () => {
         permissions: [{ code: "evaluation.read" }],
         roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
         menuKeys: ["insurance-audit"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: "hospital-rehearsal",
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          wardId: null,
+          specialtyId: null,
+        },
       },
     });
     mockUseOrgUnits.mockReturnValue({
@@ -167,20 +196,117 @@ describe("InsuranceAudit", () => {
     renderPage();
 
     expect(mockUseInsuranceIssues).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "OPEN", severity: "P1", page: 1, size: 20 }),
+      expect.objectContaining({ status: "OPEN", severity: "P1", page: 1, size: 10 }),
     );
-    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
-    expect(screen.getByText("真实医保问题总数")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医保审核" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "医保智能审核" })).not.toBeInTheDocument();
+    expect(screen.getByText("医保问题总数")).toBeInTheDocument();
+    expect(screen.queryByText("真实医保问题总数")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("医保结算已关联")).toBeInTheDocument();
     expect(screen.getByText("规则依据已关联")).toBeInTheDocument();
+    expect(screen.getByText("当前机构")).toBeInTheDocument();
     expect(screen.getByText(/费用超阈值证据已记录/)).toBeInTheDocument();
     expect(screen.getByText("证据已记录")).toBeInTheDocument();
     expect(screen.queryByText("claim-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("RULE-FEE-A@2026-A")).not.toBeInTheDocument();
+    expect(screen.queryByText("hospital-rehearsal")).not.toBeInTheDocument();
     expect(screen.queryByText("trace-ins-1")).not.toBeInTheDocument();
     expect(screen.queryByText("医保审核接口尚未接入")).not.toBeInTheDocument();
     expect(screen.queryByText(/本地违规病例样例|申诉闭环/)).not.toBeInTheDocument();
+  });
+
+  it("仅有服务机构范围时默认不显示租户口径", async () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
+        menuKeys: ["insurance-audit"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: null,
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          wardId: null,
+          specialtyId: null,
+        },
+      },
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseInsuranceIssues.mockReturnValue({
+      data: {
+        ...insuranceIssuesPage,
+        items: [{ ...insuranceIssuesPage.items[0], departmentId: "tenant-rehearsal" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    expect(screen.getByText("当前服务机构")).toBeInTheDocument();
+    expect(screen.queryByText(/当前租户/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tenant-rehearsal/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("当前服务机构 · tenant-rehearsal")).toBeInTheDocument();
+  });
+
+  it("keeps accumulated insurance issues reachable through server-side pagination", async () => {
+    mockUseInsuranceIssues.mockImplementation((params: { page?: number; size?: number }) => {
+      const page = params.page ?? 1;
+      const size = params.size ?? 10;
+      const start = (page - 1) * size + 1;
+      const end = Math.min(page * size, 15);
+      return {
+        data: {
+          items: Array.from({ length: end - start + 1 }, (_, offset) =>
+            insuranceIssuePageItem(start + offset),
+          ),
+          page,
+          size,
+          total: 15,
+          hasNext: end < 15,
+          totalEstimated: false,
+        },
+        isLoading: false,
+        isError: false,
+        error: undefined,
+        refetch: vi.fn(),
+      };
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    expect(mockUseInsuranceIssues).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, size: 10 }),
+    );
+    expect(screen.getByText("共 15 条医保问题，当前显示 1-10 条")).toBeInTheDocument();
+    expect(screen.getByText("当前页未处理")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTitle("2"));
+
+    await waitFor(() => {
+      expect(mockUseInsuranceIssues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2, size: 10 }),
+      );
+    });
+    expect(screen.getByText("共 15 条医保问题，当前显示 11-15 条")).toBeInTheDocument();
   });
 
   it("证据详情打开后展示医保结算、规则和问题追溯字段", async () => {
@@ -201,6 +327,7 @@ describe("InsuranceAudit", () => {
 
     expect(screen.getByText("claim-real-1")).toBeInTheDocument();
     expect(screen.getByText("RULE-FEE-A@2026-A")).toBeInTheDocument();
+    expect(screen.getByText("当前机构 · hospital-rehearsal")).toBeInTheDocument();
     expect(screen.getByText(/结算事实 claim-real-1/)).toBeInTheDocument();
     expect(screen.getByText("trace-ins-1")).toBeInTheDocument();
 
@@ -209,6 +336,40 @@ describe("InsuranceAudit", () => {
     expect(screen.getByText("ins-fee-1")).toBeInTheDocument();
     expect(screen.getByText("run-ins-1")).toBeInTheDocument();
     expect(screen.getAllByText("trace-ins-1").length).toBeGreaterThan(0);
+  });
+
+  it("选中病案快照后默认用业务文本展示患者与就诊线索，证据详情才展示原始标识", async () => {
+    mockUseInsuranceIssues.mockReturnValue({
+      data: { ...insuranceIssuesPage, items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
+    fireEvent.change(screen.getByLabelText("就诊信息"), { target: { value: "encounter-ins" } });
+    await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
+
+    expect(screen.getByLabelText("患者信息")).toHaveValue("已关联患者");
+    expect(screen.getByLabelText("就诊信息")).toHaveValue("已关联就诊");
+    expect(screen.queryByDisplayValue("patient-ins")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("encounter-ins")).not.toBeInTheDocument();
+    expect(screen.queryByText("患者 patient-ins · 就诊 encounter-ins")).not.toBeInTheDocument();
+    expect(mockUseContextSnapshots).toHaveBeenLastCalledWith(
+      expect.objectContaining({ patientId: "patient-ins", encounterId: "encounter-ins" }),
+      expect.objectContaining({ enabled: true }),
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("患者 patient-ins · 就诊 encounter-ins")).toBeInTheDocument();
+    expect(screen.getByText("快照 snapshot-ins")).toBeInTheDocument();
   });
 
   it("loads audit indicator selector through small server-side search pages", async () => {
@@ -233,18 +394,19 @@ describe("InsuranceAudit", () => {
       status: "ACTIVE",
     });
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
-      { status: "ACTIVE", page: 1, size: 20, sort: "name,asc" },
+      { status: "ACTIVE", subjectType: "CLAIM", page: 1, size: 20, sort: "name,asc" },
       { enabled: true },
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("combobox", { name: "质控指标" }));
-    await user.type(screen.getByRole("combobox", { name: "质控指标" }), "INS.FEE.2026");
+    await user.click(screen.getByRole("combobox", { name: "评价指标" }));
+    await user.type(screen.getByRole("combobox", { name: "评价指标" }), "INS.FEE.2026");
 
     await waitFor(() => {
       expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
         {
           status: "ACTIVE",
+          subjectType: "CLAIM",
           indicatorCode: "INS.FEE.2026",
           page: 1,
           size: 20,
@@ -254,6 +416,129 @@ describe("InsuranceAudit", () => {
       );
     });
   });
+
+  it("keeps the audit flow usable when department and indicator catalogs are not initialized", async () => {
+    const refetch = vi.fn();
+    const caseReview = vi.fn().mockResolvedValue({
+      reviewId: "case-review-scope",
+      reviewStatus: "COMPLIANT",
+      evaluationRunId: "run-case-scope",
+      resultCount: 1,
+      findingCount: 0,
+      taskCount: 0,
+      modelStatus: "MODEL_DISABLED",
+      modelDowngradeReason: "MODEL_DISABLED_DETERMINISTIC_RULES",
+      traceId: "trace-case-scope",
+    });
+    const drgGrouping = vi.fn().mockResolvedValue({
+      groupingId: "drg-scope",
+      groupingStatus: "MATCHED",
+      expectedGroupCode: "DRG-A",
+      actualGroupCode: "DRG-A",
+      grouperVersion: "GROUPER-2026",
+      explanation: "主数据未初始化时仍可按当前机构归属审核",
+      traceId: "trace-drg-scope",
+    });
+    const insuranceAudit = vi.fn().mockResolvedValue({
+      auditId: "audit-scope",
+      auditStatus: "NO_ISSUE",
+      issues: [],
+      evaluationRunId: "run-ins-scope",
+      findingCount: 0,
+      taskCount: 0,
+      traceId: "trace-audit-scope",
+    });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
+        menuKeys: ["insurance-audit"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: "hospital-rehearsal",
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          specialtyId: null,
+        },
+      },
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseInsuranceIssues.mockReturnValue({
+      data: { ...insuranceIssuesPage, items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: caseReview, isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: drgGrouping, isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: insuranceAudit, isPending: false });
+
+    renderPage();
+
+    expect(
+      screen.getByText("未读取到可选科室，已使用当前组织范围作为责任归属。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("未读取到已生效质控指标，先跳过内涵质控并按本次医保规则依据归档。"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
+    await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
+    await userEvent.click(await screen.findByText("当前机构"));
+    expect(screen.queryByText("当前机构 · hospital-rehearsal")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "评价指标" }));
+    await userEvent.click(await screen.findByText("按本次规则归档"));
+    fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
+    fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
+      target: { value: "GROUPER-2026" },
+    });
+    fireEvent.change(screen.getByLabelText("期望入组"), { target: { value: "DRG-A" } });
+    fireEvent.change(screen.getByLabelText("实际入组"), { target: { value: "DRG-A" } });
+    fireEvent.change(screen.getByLabelText("入组说明"), {
+      target: { value: "主数据未初始化时仍可审核" },
+    });
+    fireEvent.change(screen.getByLabelText("医保规则依据"), {
+      target: { value: "RULE-MANUAL-A" },
+    });
+    fireEvent.change(screen.getByLabelText("依据版本"), { target: { value: "2026-A" } });
+    fireEvent.change(screen.getByLabelText("整改截止时间"), {
+      target: { value: "2026年06月12日 08:00" },
+    });
+    fireEvent.change(screen.getByLabelText("规则说明"), {
+      target: { value: "按本次医保规则依据归档" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "执行审核并派整改" }));
+
+    await waitFor(() => {
+      expect(caseReview).not.toHaveBeenCalled();
+      expect(drgGrouping).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responsibleDepartmentId: "hospital-rehearsal",
+        }),
+      );
+      expect(insuranceAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          indicatorId: "INSURANCE_RULE_MANUAL",
+        }),
+      );
+    });
+  }, 15_000);
 
   it("runs case review, DRG grouping and insurance audit through the real B0 endpoints", async () => {
     const refetch = vi.fn();
@@ -308,12 +593,18 @@ describe("InsuranceAudit", () => {
     await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("医保管理科 · DEPT-INS"));
-    await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "评价指标" }));
     await userEvent.click(await screen.findByText("医保违规费用率 · INS.FEE · v2"));
     expect(screen.getByLabelText("审核场景")).toBeInTheDocument();
     expect(screen.queryByLabelText("场景编码")).not.toBeInTheDocument();
     expect(screen.getByLabelText("医保规则依据")).toBeInTheDocument();
     expect(screen.queryByLabelText("规则编码")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("整改截止时间")).not.toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("整改截止时间")).toHaveAttribute(
+      "placeholder",
+      "例如 2026年07月15日 08:30",
+    );
+    expect(screen.queryByPlaceholderText("例如 2026-06-12T00:00:00Z")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
       target: { value: "GROUPER-2026" },
@@ -329,7 +620,7 @@ describe("InsuranceAudit", () => {
     fireEvent.change(screen.getByLabelText("依据版本"), { target: { value: "2026-A" } });
     fireEvent.change(screen.getByLabelText("费用阈值"), { target: { value: "1000" } });
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
-      target: { value: "2026-06-12T00:00:00Z" },
+      target: { value: "2026年06月12日 08:00" },
     });
     fireEvent.change(screen.getByLabelText("规则说明"), {
       target: { value: "费用超过版本化规则阈值" },
@@ -355,6 +646,7 @@ describe("InsuranceAudit", () => {
       expect(insuranceAudit).toHaveBeenCalledWith(
         expect.objectContaining({
           indicatorId: "indicator-insurance",
+          dueAt: "2026-06-12T00:00:00.000Z",
           rules: [
             expect.objectContaining({
               ruleCode: "RULE-FEE-A",
@@ -366,6 +658,12 @@ describe("InsuranceAudit", () => {
       );
     });
     expect(refetch).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockUseInsuranceIssues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "RECTIFICATION_CREATED", severity: "P1" }),
+      );
+    });
+    expect(screen.getByTitle("已派整改")).toBeInTheDocument();
     expect(await screen.findByText("发现医保问题")).toBeInTheDocument();
     expect(screen.getByText("DRG/DIP 入组不一致")).toBeInTheDocument();
     expect(screen.getAllByText("评估运行已记录").length).toBeGreaterThan(0);
@@ -390,7 +688,9 @@ describe("InsuranceAudit", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实医保问题")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医保审核" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "医保智能审核" })).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无医保问题")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实医保问题")).not.toBeInTheDocument();
   });
 });

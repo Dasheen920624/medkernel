@@ -26,6 +26,7 @@ import {
   Tabs,
   Tag,
   Timeline,
+  Tooltip,
 } from "antd";
 import type { BadgeProps, RadioChangeEvent, TableProps, TabsProps } from "antd";
 import {
@@ -159,7 +160,7 @@ function pathwayIdentityText(
   templateCode: string | null | undefined,
   evidenceDetailsEnabled: boolean,
 ) {
-  return evidenceText(templateCode, evidenceDetailsEnabled, "路径模板已登记");
+  return evidenceText(templateCode, evidenceDetailsEnabled, "临床路径已登记");
 }
 
 function pathwayVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
@@ -355,11 +356,17 @@ type SnapshotQuery = {
 type PathwayPrototypeKey = "blank" | "basic_cycle";
 
 const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }> = [
-  { value: "STANDARD", label: "平台标准模板" },
-  { value: "HOSPITAL", label: "医院模板" },
-  { value: "DEPARTMENT", label: "科室模板" },
-  { value: "SPECIALTY", label: "专科模板" },
+  { value: "STANDARD", label: "平台标准路径" },
+  { value: "HOSPITAL", label: "医院路径" },
+  { value: "DEPARTMENT", label: "科室路径" },
+  { value: "SPECIALTY", label: "专科路径" },
 ];
+
+function pathwayTemplateLevelText(level?: PathwayTemplateLevel | string | null) {
+  return (
+    templateLevelOptions.find((option) => option.value === level)?.label ?? customerEnumLabel(level)
+  );
+}
 
 const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }> = [
   { value: "AUTO_SUGGEST", label: "自动建议入径" },
@@ -391,6 +398,11 @@ const clockBaselineEventOptions = [
   { value: "ADMISSION", label: "入院时间" },
 ];
 
+function clockBaselineEventText(value?: unknown) {
+  if (typeof value !== "string" || value.trim().length === 0) return "节点开始";
+  return clockBaselineEventOptions.find((option) => option.value === value)?.label ?? "自定义基准";
+}
+
 const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
   { value: "DEFAULT", label: "默认流转" },
   { value: "CONDITION", label: "条件流转" },
@@ -403,7 +415,7 @@ const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
 ];
 
 const outcomeScopeOptions: Array<{ value: PathwayOutcomeScope; label: string }> = [
-  { value: "TEMPLATE", label: "模板" },
+  { value: "TEMPLATE", label: "全路径" },
   { value: "PHASE", label: "阶段" },
   { value: "MILESTONE", label: "里程碑" },
 ];
@@ -760,7 +772,7 @@ function normalizeClockSlaConfig(value: unknown, timeWindowMinutes?: number) {
 function clockSlaError(node: PathwayNodeDraft) {
   if (!node.timeWindowMinutes || node.timeWindowMinutes <= 0) return undefined;
   const clockSla = configObject(node.config, "clockSla");
-  if (!clockSla) return `关键时钟节点 ${node.nodeCode} 必须配置临床时钟 SLA`;
+  if (!clockSla) return `关键时钟节点 ${node.nodeCode} 必须配置时窗校验规则`;
   const minMinutes = Number(clockSla.minMinutes);
   const targetMinutes = Number(clockSla.targetMinutes);
   const maxMinutes = Number(clockSla.maxMinutes);
@@ -769,7 +781,7 @@ function clockSlaError(node: PathwayNodeDraft) {
     !Number.isFinite(targetMinutes) ||
     !Number.isFinite(maxMinutes)
   ) {
-    return `关键时钟节点 ${node.nodeCode} 的 SLA 时限必须完整`;
+    return `关键时钟节点 ${node.nodeCode} 的时窗校验分钟必须完整`;
   }
   if (
     minMinutes < 0 ||
@@ -777,7 +789,7 @@ function clockSlaError(node: PathwayNodeDraft) {
     maxMinutes < targetMinutes ||
     minMinutes > targetMinutes
   ) {
-    return `关键时钟节点 ${node.nodeCode} 的 SLA 时限必须满足 min <= target <= max`;
+    return `关键时钟节点 ${node.nodeCode} 的时窗校验分钟必须满足最早 <= 目标 <= 最晚`;
   }
   return undefined;
 }
@@ -814,7 +826,7 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
       const hasClock = configText(node.config, "clock") !== undefined;
       const hasTimerGuard = outgoing.some((edge) => edge.edgeType === "CONDITION");
       if (!hasClock && !node.timeWindowMinutes) {
-        return `等待计时节点 ${node.nodeCode} 必须填写 clock 或时窗分钟`;
+        return `等待计时节点 ${node.nodeCode} 必须填写计时规则或时窗分钟`;
       }
       if (!hasTimerGuard) {
         return `等待计时节点 ${node.nodeCode} 必须配置计时条件边`;
@@ -842,13 +854,13 @@ function richNodeConfigSummary(node: PathwayNode, evidenceDetailsEnabled = true)
     return evidenceDetailsEnabled ? `医嘱套餐 ${orderSetRef}` : "医嘱套餐已关联";
   }
   const clock = configText(config, "clock");
-  if (clock) return evidenceDetailsEnabled ? `计时 ${clock}` : "计时规则已配置";
+  if (clock) return evidenceDetailsEnabled ? `计时规则 ${clock}` : "计时规则已配置";
   const clockSla = configObject(config, "clockSla");
   if (clockSla) {
     const targetMinutes = clockSla.targetMinutes ?? "-";
     return evidenceDetailsEnabled
-      ? `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${targetMinutes} 分钟`
-      : `SLA 已配置 / ${targetMinutes} 分钟`;
+      ? `时窗校验 ${clockBaselineEventText(clockSla.baselineEvent)} / 目标 ${targetMinutes} 分钟`
+      : `时窗校验已配置 / 目标 ${targetMinutes} 分钟`;
   }
   return "无";
 }
@@ -892,14 +904,14 @@ function normalizeOutcomeBindings(bindings?: PathwayOutcomeBindingInput[]) {
 function outcomeScopeText(scope?: PathwayOutcomeScope | string | null) {
   if (scope === "PHASE") return "阶段";
   if (scope === "MILESTONE") return "里程碑";
-  return "模板";
+  return "全路径";
 }
 
 function outcomeRefText(
   binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">,
   evidenceDetailsEnabled = true,
 ) {
-  if (binding.scope === "TEMPLATE") return "全模板";
+  if (binding.scope === "TEMPLATE") return "全路径";
   if (evidenceDetailsEnabled) return binding.refCode || "-";
   return binding.scope === "MILESTONE" ? "里程碑已关联" : "阶段已关联";
 }
@@ -1953,7 +1965,7 @@ export default function PathwayTemplates() {
         outcomeBindings,
       });
 
-      messageApi.success("专病路径模板草稿创建成功");
+      messageApi.success("专病临床路径草稿创建成功");
       setCreateTemplateVisible(false);
       templateForm.resetFields();
       setSelectedPathwayPrototype("blank");
@@ -1966,7 +1978,7 @@ export default function PathwayTemplates() {
         return;
       }
       if (applyApiFieldErrors(templateForm, error)) return;
-      messageApi.error(getApiErrorMessage(error, "创建路径模板失败"));
+      messageApi.error(getApiErrorMessage(error, "创建临床路径失败"));
     }
   };
 
@@ -2135,6 +2147,7 @@ export default function PathwayTemplates() {
       title: "层级",
       dataIndex: "templateLevel",
       key: "templateLevel",
+      render: pathwayTemplateLevelText,
     },
     {
       title: "入径",
@@ -2155,7 +2168,7 @@ export default function PathwayTemplates() {
       render: pathwayContentStatus,
     },
     {
-      title: "管理动作",
+      title: "路径操作",
       key: "action",
       render: (record: PathwayTemplate) => (
         <Button
@@ -2206,7 +2219,7 @@ export default function PathwayTemplates() {
       render: (_value, node) => richNodeConfigSummary(node, evidenceDetailsEnabled),
     },
     {
-      title: "RACI",
+      title: "责任分工",
       key: "raci",
       render: (_value, node) =>
         raciSummary({
@@ -2427,10 +2440,10 @@ export default function PathwayTemplates() {
   const createLayerItems: TabsProps["items"] = [
     {
       key: "l1",
-      label: "基础模板",
+      label: "基础信息",
       children: (
         <div className={styles.editorSection}>
-          <Form.Item label="路径原型">
+          <Form.Item label="起始结构">
             <Radio.Group
               value={selectedPathwayPrototype}
               onChange={(event: RadioChangeEvent) =>
@@ -2451,7 +2464,7 @@ export default function PathwayTemplates() {
           </Form.Item>
           <Row gutter={16}>
             <Col xs={24}>
-              <Form.Item name="name" label="路径模型名称" rules={[{ required: true }]}>
+              <Form.Item name="name" label="路径名称" rules={[{ required: true }]}>
                 <Input placeholder="如 心血管路径复核" />
               </Form.Item>
             </Col>
@@ -2460,11 +2473,11 @@ export default function PathwayTemplates() {
             <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="templateCode"
-                label="稳定路径模型身份"
-                tooltip="用于跨版本、发布治理和机构生效版本追溯；同身份修改时由系统自动创建下一版本"
+                label="稳定临床路径身份"
+                tooltip="用于跨版本、机构生效版本和审计追溯；同身份修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
-                <Input placeholder="如 PATH.CARDIO.REVIEW" />
+                <Input placeholder="如 xinxueguan-lujing-fuhe" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={8}>
@@ -2474,7 +2487,7 @@ export default function PathwayTemplates() {
                 tooltip="填写真实病种、诊断分组或院内路径病种身份，不写临时中文别名"
                 rules={[{ required: true }]}
               >
-                <Input placeholder="如 CARDIO 或 ICD10-I63" />
+                <Input placeholder="如 xinxueguanbing 或 ICD10-I63" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={8}>
@@ -2543,10 +2556,10 @@ export default function PathwayTemplates() {
                 </Button>
                 <Button
                   icon={<ApartmentOutlined />}
-                  aria-label="管理字段目录"
+                  aria-label="查看字段目录"
                   onClick={() => setFieldManagerOpen(true)}
                 >
-                  管理字段目录
+                  查看字段目录
                 </Button>
               </div>
             </div>
@@ -2643,7 +2656,7 @@ export default function PathwayTemplates() {
                             label="阶段身份"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 PREOP" />
+                            <Input placeholder="如 shuqian" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2663,7 +2676,7 @@ export default function PathwayTemplates() {
                             label="里程碑身份"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 M-PREOP-ASSESS" />
+                            <Input placeholder="如 shuqian-rujing-pinggu" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2771,18 +2784,18 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "indicatorCode"]}
-                            label="评估指标"
+                            label="评价指标"
                             rules={[{ required: true }]}
                           >
                             <Select
                               showSearch
                               allowClear
                               filterOption={false}
-                              placeholder="选择已生效评估指标"
+                              placeholder="选择已生效评价指标"
                               options={outcomeIndicatorOptions}
                               onSearch={setOutcomeIndicatorSearch}
                               onClear={() => setOutcomeIndicatorSearch("")}
-                              notFoundContent="暂无已生效评估指标"
+                              notFoundContent="暂无已生效评价指标"
                             />
                           </Form.Item>
                         </Col>
@@ -2832,7 +2845,7 @@ export default function PathwayTemplates() {
                             tooltip="新增时自动生成（N1/N2…），可改；用于流转连接与起点引用"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 N1，可改为 ASSESS" />
+                            <Input placeholder="如 N1，可改为 rujing-pinggu" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2958,7 +2971,7 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
                             label="时钟指标身份"
-                            tooltip="设置时窗分钟后必填，用于时窗校验与质控时钟"
+                            tooltip="设置时窗分钟后必填，用于时窗校验与质量评价时钟"
                             rules={[
                               ({ getFieldValue }) => ({
                                 validator(_rule, value) {
@@ -2977,7 +2990,7 @@ export default function PathwayTemplates() {
                               }),
                             ]}
                           >
-                            <Input placeholder="如 PATH.TIME.ASSESS" />
+                            <Input placeholder="如 rujing-pinggu-shichuang" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={4}>
@@ -3007,7 +3020,7 @@ export default function PathwayTemplates() {
                             <Form.Item
                               {...fieldProps}
                               name={[field.name, "config", "clockSla", "baselineEvent"]}
-                              label="SLA基准"
+                              label="时窗校验基准"
                             >
                               <Select
                                 allowClear
@@ -3085,7 +3098,7 @@ export default function PathwayTemplates() {
                                 label="医嘱套餐引用"
                                 rules={[{ required: true, message: "请填写医嘱套餐引用" }]}
                               >
-                                <Input placeholder="如 sepsis-order-set" />
+                                <Input placeholder="如 ganranxing-xiuke-yizhu-taocan" />
                               </Form.Item>
                             </Col>
                           )}
@@ -3094,9 +3107,9 @@ export default function PathwayTemplates() {
                               <Form.Item
                                 {...fieldProps}
                                 name={[field.name, "config", "clock"]}
-                                label="计时 clock"
+                                label="计时规则"
                               >
-                                <Input placeholder="如 AFTER_24H" />
+                                <Input placeholder="如 24 小时后提醒" />
                               </Form.Item>
                             </Col>
                           )}
@@ -3156,7 +3169,7 @@ export default function PathwayTemplates() {
                             tooltip="新增时自动生成（E1/E2…），可改；用于路径流转追溯"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 E1，可改为 EDGE.ASSESS.FOLLOWUP" />
+                            <Input placeholder="如 E1，可改为 rujing-daosuifang" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -3592,7 +3605,7 @@ export default function PathwayTemplates() {
     detailAlertType = "success";
   } else if (immutableVersion) {
     detailAlertMessage =
-      "当前内容版本已发布但未必正在机构生效；启停、升级和回滚统一在发布治理页面完成。";
+      "当前内容版本已发布但未必正在机构生效；启停、升级和回滚统一在机构生效版本页面完成。";
     detailAlertType = "warning";
   }
 
@@ -3600,7 +3613,7 @@ export default function PathwayTemplates() {
     ? [
         {
           key: "l1",
-          label: "基础模板",
+          label: "基础信息",
           children: (
             <Descriptions bordered column={detailDescriptionColumn} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
@@ -3614,7 +3627,7 @@ export default function PathwayTemplates() {
                 {pathwayVersionText(detailData.template.templateVersion, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="层级">
-                {customerEnumLabel(detailData.template.templateLevel)}
+                {pathwayTemplateLevelText(detailData.template.templateLevel)}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 {pathwayContentStatus(detailData.template.status)}
@@ -4070,8 +4083,8 @@ export default function PathwayTemplates() {
 
   return (
     <PageShell
-      title="路径配置"
-      description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由发布治理统一管理。"
+      title="临床路径库"
+      description="编排专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由机构生效版本统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
@@ -4109,7 +4122,7 @@ export default function PathwayTemplates() {
                 setCreateTemplateVisible(true);
               }}
             >
-              新建路径模板
+              新建临床路径
             </Button>
           </Form.Item>
         </Form>
@@ -4126,14 +4139,14 @@ export default function PathwayTemplates() {
             pageSize: size,
             total: listData?.total || 0,
             onChange: (nextPage) => setPage(nextPage),
-            showTotal: (total) => `共 ${total} 个临床受控路径模型`,
+            showTotal: (total) => `共 ${total} 条临床路径`,
           }}
           className="medkernel-table"
         />
       </div>
 
       <Modal
-        title="新建路径模板模型"
+        title="新建临床路径"
         open={createTemplateVisible}
         onOk={handleCreateTemplate}
         onCancel={() => {
@@ -4163,7 +4176,7 @@ export default function PathwayTemplates() {
       </Modal>
 
       <Drawer
-        title="路径配置与真实快照试运行"
+        title="临床路径详情与真实快照试运行"
         width="min(1080px, 100vw)"
         onClose={() => {
           setSelectedTemplateId(null);
@@ -4203,7 +4216,9 @@ export default function PathwayTemplates() {
                 路径拓扑与真实快照试运行是主视图；证据详情打开后可追溯受控配置。
               </span>
               <Space>
-                <span>证据详情</span>
+                <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+                  <span>追溯证据</span>
+                </Tooltip>
                 <Switch
                   aria-label="证据详情"
                   checked={detailAdvancedViewEnabled}

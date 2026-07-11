@@ -17,7 +17,7 @@ import type {
  *
  * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 平台 API、
  * compliance/audit/* 与 /security/me、/system/* 合法运行底座 hook，
- * 以及 GA-ENG-API-04 字典映射 hook；新增业务包装必须绑定真实平台 API。
+ * 以及 GA-ENG-API-04 术语字典 hook；新增业务包装必须绑定真实平台 API。
  */
 
 // ──────────────────────────────────────────
@@ -84,7 +84,6 @@ type StandardApiContextFields = {
   campus_id?: string | null;
   site_id?: string | null;
   department_id?: string | null;
-  ward_id?: string | null;
   specialty_id?: string | null;
   user_id: string;
   role_codes: string[];
@@ -109,7 +108,6 @@ function standardApiContext(profile: SecurityProfile | undefined): StandardApiCo
     campus_id: profile.dataScope.campusId,
     site_id: profile.dataScope.siteId,
     department_id: profile.dataScope.departmentId,
-    ward_id: profile.dataScope.wardId,
     specialty_id: profile.dataScope.specialtyId,
     user_id: profile.userId,
     role_codes: roleCodes,
@@ -125,6 +123,20 @@ function withStandardApiContext<T extends object>(
     ...payload,
     ...standardApiContext(profile),
   };
+}
+
+function currentOrgUnitId(profile: SecurityProfile | undefined): string {
+  const dataScope = profile?.dataScope;
+  return (
+    dataScope?.wardId ||
+    dataScope?.departmentId ||
+    dataScope?.siteId ||
+    dataScope?.campusId ||
+    dataScope?.hospitalId ||
+    dataScope?.groupId ||
+    dataScope?.tenantId ||
+    ""
+  );
 }
 
 // ──────────────────────────────────────────
@@ -268,6 +280,10 @@ export interface RuntimeBackupReadiness {
     completedAt?: string | null;
     migrationCount?: number | null;
     evidenceReference?: string | null;
+    checksumEvidence?: string | null;
+    drillDatabaseIsIsolated?: boolean | null;
+    rpo?: string | null;
+    rto?: string | null;
     detail: string;
   };
   source?: string | null;
@@ -763,11 +779,11 @@ export function useRebuildProjection() {
 }
 
 // ──────────────────────────────────────────
-// 字典映射 · GA-ENG-API-04 已上线（engine/terminology）
+// 术语字典 · GA-ENG-API-04 已上线（engine/terminology）
 // ──────────────────────────────────────────
 const TERMINOLOGY_API_ROOT = "/engine/terminology";
 
-type TermCategory =
+export type TermCategory =
   | "DIAGNOSIS"
   | "PROCEDURE"
   | "DRUG"
@@ -797,6 +813,17 @@ export interface StandardTerm {
   createdBy?: string;
   updatedAt?: string;
   updatedBy?: string;
+}
+
+export interface StandardTermRegistrationPayload {
+  standardSystem: string;
+  termCode: string;
+  category: TermCategory;
+  displayName: string;
+  normalizedName?: string;
+  versionNo: string;
+  sourceVersionId?: number | null;
+  evidenceText?: string;
 }
 
 export interface LocalTerm {
@@ -2485,6 +2512,23 @@ export function useStandardTerms(params: StandardTermsParams = {}) {
   });
 }
 
+export function useRegisterStandardTerm() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: StandardTermRegistrationPayload) => {
+      const { data } = await apiClient.post<{ data: StandardTerm }>(
+        `${TERMINOLOGY_API_ROOT}/terms/standard`,
+        withStandardApiContext(payload, security.data),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "standard-terms"] });
+    },
+  });
+}
+
 export interface MappingCoverageItem {
   code: string;
   status: "COVERED" | "UNMAPPED" | "NO_STANDARD_TERM";
@@ -2713,7 +2757,6 @@ export interface TerminologyAssetDraft {
 }
 
 export function useCreateTerminologyAssetDraft() {
-  const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
@@ -2724,7 +2767,7 @@ export function useCreateTerminologyAssetDraft() {
     }) => {
       const { data } = await apiClient.post<{ data: TerminologyAssetDraft }>(
         `${TERMINOLOGY_API_ROOT}/assets/drafts`,
-        withStandardApiContext(payload, security.data),
+        payload,
       );
       return data.data;
     },
@@ -5449,6 +5492,7 @@ export interface ReportInterpretationResponse {
   contextSnapshotId: string;
   runtimeReleaseId: string;
   interpretations: ReportInterpretationItem[];
+  recommendationCardIds: string[];
   advisoryNote: string;
   traceId: string;
 }
@@ -5788,7 +5832,7 @@ export interface RectificationReview {
 
 export interface QualityFindingDetailResponse {
   finding: QualityFinding;
-  task?: RectificationTask;
+  rectificationTask?: RectificationTask;
   reviews: RectificationReview[];
 }
 
@@ -5815,6 +5859,23 @@ export interface RectificationReviewResponse {
   findingStatus: QualityFindingStatus;
   taskStatus: RectificationTaskStatus;
   traceId: string;
+}
+
+export interface RectificationReportResponse {
+  status: "AVAILABLE" | "NO_TASKS" | string;
+  totalTasks: number;
+  openTasks: number;
+  closedTasks: number;
+  waivedTasks: number;
+  overdueTasks: number;
+  highPriorityOpenTasks: number;
+  closureRate: number;
+  sourceTable: string;
+  traceId: string;
+}
+
+export interface RectificationReportQueryParams {
+  responsibleDepartmentId?: string;
 }
 
 export interface QualityDashboardSummary {
@@ -5912,7 +5973,7 @@ export interface QualityEvidenceExport {
   exportId: string;
   generatedAt: string;
   scopeDigest: string;
-  itemCount: number;
+  itemCount?: number;
   items: unknown[];
 }
 
@@ -6358,7 +6419,48 @@ export function useQualityFindingDetail(findingId: string) {
   });
 }
 
-export function useSubmitRectification(findingId: string) {
+export interface DomainFacadeEngineEvidence {
+  engine: string;
+  sharedHandlerClass: string;
+  b0Route: string;
+  b0Assertion: string;
+  deterministic: boolean;
+  handlerPresent: boolean;
+  clinicalContentSeeded: boolean;
+}
+
+export interface DomainFacadeB0Evidence {
+  code: string;
+  kind: string;
+  status: string;
+  evidenceId: string;
+  b0Executable: boolean;
+  modelRequired: boolean;
+  clinicalContentSeeded: boolean;
+  newBusinessEngineRequired: boolean;
+  honestEmptyWhenAssetsMissing: boolean;
+  serviceCombinationMembersResolvable: boolean;
+  assetSeedPolicy: string;
+  b0Workflows: string[];
+  engineEvidence: DomainFacadeEngineEvidence[];
+  memberFacadeCodes: string[];
+  verifiedMemberFacadeCodes: string[];
+}
+
+export function useDomainFacadeB0Evidence(enabled = true) {
+  return useQuery({
+    queryKey: ["domain-facades", "b0-evidence"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: DomainFacadeB0Evidence[] }>(
+        "/engine/domain-facades/b0-evidence",
+      );
+      return data.data ?? [];
+    },
+    enabled,
+  });
+}
+
+export function useSubmitRectification(taskId: string) {
   return useMutation({
     mutationFn: async (payload: {
       request: { rectificationSummary: string; evidenceRef: string };
@@ -6368,9 +6470,9 @@ export function useSubmitRectification(findingId: string) {
         ? { "Idempotency-Key": payload.idempotencyKey }
         : undefined;
       const { data } = await apiClient.post<{ data: RectificationResponse }>(
-        "/engine/evaluation/rectifications",
+        `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
         payload.request,
-        { params: { findingId }, headers },
+        { headers },
       );
       return data.data;
     },
@@ -6396,7 +6498,7 @@ export function useDispatchRectification() {
   });
 }
 
-export function useReviewRectification(findingId: string) {
+export function useReviewRectification(taskId: string) {
   return useMutation({
     mutationFn: async (payload: {
       request: { decision: RectificationReviewDecision; comment: string; evidenceRef?: string };
@@ -6406,9 +6508,41 @@ export function useReviewRectification(findingId: string) {
         ? { "Idempotency-Key": payload.idempotencyKey }
         : undefined;
       const { data } = await apiClient.post<{ data: RectificationReviewResponse }>(
-        `/engine/evaluation/rectifications/${findingId}/review`,
+        `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
         payload.request,
         { headers },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useWaiveRectification(taskId: string) {
+  return useMutation({
+    mutationFn: async (payload: {
+      request: { reason: string; decisionRef: string; evidenceRef?: string };
+      idempotencyKey?: string;
+    }) => {
+      const headers = payload.idempotencyKey
+        ? { "Idempotency-Key": payload.idempotencyKey }
+        : undefined;
+      const { data } = await apiClient.post<{ data: RectificationReviewResponse }>(
+        `/engine/rectifications/${encodeURIComponent(taskId)}/waive`,
+        payload.request,
+        { headers },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRectificationReport(params: RectificationReportQueryParams = {}) {
+  return useQuery({
+    queryKey: ["evaluations", "rectification-report", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: RectificationReportResponse }>(
+        "/engine/rectifications/report",
+        { params },
       );
       return data.data;
     },
@@ -6644,6 +6778,503 @@ export function useContextSnapshotDetail(
   });
 }
 
+export type FrontdeskEncounterType = "OUTPATIENT" | "INPATIENT" | "ED" | "FOLLOWUP";
+
+export interface ContextSnapshotCreatePayload {
+  patient: Pick<MpiPatient, "mpiId" | "maskedName" | "gender" | "age">;
+  encounterType: FrontdeskEncounterType;
+  diseaseCode: string;
+  diseaseName: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  currentMedicationText?: string;
+  allergyIntoleranceText?: string;
+  observationText?: string;
+  specialPopulations?: string[];
+  heightCm?: number;
+  weightKg?: number;
+  diagnosticReportType?: string;
+  diagnosticReportConclusion?: string;
+  diagnosticReportKeyFindingsText?: string;
+  nursingAssessmentType?: string;
+  nursingRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  nursingAssessmentStatus?: string;
+  carePlanPathwayId?: string;
+  carePlanCurrentNodeId?: string;
+  carePlanVarianceCode?: string;
+  carePlanPlannedFinishAt?: string;
+  insuranceClaimDrgCode?: string;
+  insuranceClaimTotalCost?: number;
+  insuranceClaimPaidAmount?: number;
+  reason: string;
+  idempotencyKey: string;
+}
+
+function estimatedBirthDateFromAge(age: number) {
+  const currentYear = new Date().getFullYear();
+  const birthYear = Math.max(1900, currentYear - Math.max(0, Math.floor(age)));
+  return `${birthYear}-01-01`;
+}
+
+const frontdeskMedicationAliases: Record<string, { code: string; displayName: string }> = {
+  B01AA03: { code: "B01AA03", displayName: "华法林" },
+  WARFARIN: { code: "B01AA03", displayName: "华法林" },
+  华法林: { code: "B01AA03", displayName: "华法林" },
+  华法林钠: { code: "B01AA03", displayName: "华法林" },
+  B01AC06: { code: "B01AC06", displayName: "阿司匹林" },
+  ASPIRIN: { code: "B01AC06", displayName: "阿司匹林" },
+  阿司匹林: { code: "B01AC06", displayName: "阿司匹林" },
+  阿司匹林肠溶片: { code: "B01AC06", displayName: "阿司匹林" },
+  J01C: { code: "J01C", displayName: "青霉素类" },
+  PENICILLIN: { code: "J01C", displayName: "青霉素类" },
+  青霉素: { code: "J01C", displayName: "青霉素类" },
+  青霉素类: { code: "J01C", displayName: "青霉素类" },
+};
+
+function normalizeFrontdeskMedicationToken(token: string) {
+  const cleaned = token.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  const alias =
+    frontdeskMedicationAliases[cleaned] ?? frontdeskMedicationAliases[cleaned.toUpperCase()];
+  return alias ?? { code: cleaned, displayName: cleaned };
+}
+
+function buildFrontdeskMedicationResources(
+  medicationText: string | undefined,
+  patientId: string,
+  now: string,
+) {
+  const uniqueMedications = new Map<string, { code: string; displayName: string }>();
+  for (const token of medicationText?.split(/[,\n;，、；]/u) ?? []) {
+    const medication = normalizeFrontdeskMedicationToken(token);
+    if (medication && !uniqueMedications.has(medication.code)) {
+      uniqueMedications.set(medication.code, medication);
+    }
+  }
+  return Array.from(uniqueMedications.values()).map((medication) => ({
+    medicationId: `med-${crypto.randomUUID()}`,
+    code: medication.code,
+    displayName: medication.displayName,
+    dose: null,
+    doseUnit: null,
+    route: null,
+    frequency: null,
+    durationDays: null,
+    prescriptionStatus: "ACTIVE",
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    sourceRecordId: `${patientId}:${medication.code}`,
+    mappedVersion: "FRONTDESK_CONTEXT_V1",
+    eventTime: now,
+    receivedTime: now,
+    qualityStatus: "VALID",
+  }));
+}
+
+const frontdeskAllergyAliases: Record<string, { code: string; substance: string }> = {
+  J01C: { code: "J01C", substance: "青霉素类" },
+  青霉素: { code: "J01C", substance: "青霉素类" },
+  青霉素类: { code: "J01C", substance: "青霉素类" },
+  PENICILLIN: { code: "J01C", substance: "青霉素类" },
+  J01D: { code: "J01D", substance: "头孢菌素类" },
+  头孢: { code: "J01D", substance: "头孢菌素类" },
+  头孢菌素: { code: "J01D", substance: "头孢菌素类" },
+  头孢菌素类: { code: "J01D", substance: "头孢菌素类" },
+  CEPHALOSPORIN: { code: "J01D", substance: "头孢菌素类" },
+};
+
+function normalizeFrontdeskAllergyToken(token: string) {
+  const cleaned = token.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  const [rawSubstance, ...reactionParts] = cleaned.split(/[：:]/u);
+  const substanceText = rawSubstance.trim();
+  if (!substanceText) return null;
+  const alias =
+    frontdeskAllergyAliases[substanceText] ?? frontdeskAllergyAliases[substanceText.toUpperCase()];
+  const reactions = reactionParts
+    .join("：")
+    .split(/[、,，;；]/u)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return {
+    code: alias?.code ?? substanceText,
+    substance: alias?.substance ?? substanceText,
+    reactions,
+  };
+}
+
+function splitFrontdeskAllergyEntries(value: string | undefined) {
+  const entries: string[] = [];
+  for (const line of value?.split(/[\n;；]/u) ?? []) {
+    for (const segment of line.split(/[、,，]/u)) {
+      const trimmed = segment.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes("：") || trimmed.includes(":") || entries.length === 0) {
+        entries.push(trimmed);
+      } else {
+        entries[entries.length - 1] = `${entries[entries.length - 1]}、${trimmed}`;
+      }
+    }
+  }
+  return entries;
+}
+
+function buildFrontdeskAllergyIntoleranceResources(
+  allergyText: string | undefined,
+  patientId: string,
+  now: string,
+) {
+  const uniqueAllergies = new Map<
+    string,
+    { code: string; substance: string; reactions: string[] }
+  >();
+  for (const token of splitFrontdeskAllergyEntries(allergyText)) {
+    const allergy = normalizeFrontdeskAllergyToken(token);
+    if (allergy && !uniqueAllergies.has(allergy.code)) {
+      uniqueAllergies.set(allergy.code, allergy);
+    }
+  }
+  return Array.from(uniqueAllergies.values()).map((allergy) => ({
+    allergyIntoleranceId: `alg-${crypto.randomUUID()}`,
+    code: allergy.code,
+    codeSystem: allergy.code.startsWith("J") ? "ATC" : "LOCAL",
+    substance: allergy.substance,
+    category: "medication",
+    criticality: "HIGH",
+    reactions: allergy.reactions,
+    clinicalStatus: "ACTIVE",
+    verificationStatus: "CONFIRMED",
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    sourceRecordId: `${patientId}:${allergy.code}`,
+    mappedVersion: "FRONTDESK_CONTEXT_V1",
+    onsetTime: now,
+    receivedTime: now,
+    qualityStatus: "VALID",
+  }));
+}
+
+function splitFrontdeskObservationEntries(value: string | undefined) {
+  return (value?.split(/[\n;；]/u) ?? []).map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeFrontdeskObservationEntry(entry: string) {
+  const [rawName, ...rawValueParts] = entry.split(/[=:：]/u);
+  const code = rawName?.trim().replace(/\s+/g, " ");
+  const rawValue = rawValueParts.join("=").trim().replace(/\s+/g, " ");
+  if (!code || !rawValue) return null;
+  const match = rawValue.match(/^(-?\d+(?:\.\d+)?)(?:\s+(.+))?$/u);
+  const valueNumeric = match ? Number(match[1]) : null;
+  return {
+    code,
+    displayName: code,
+    valueNumeric: Number.isFinite(valueNumeric) ? valueNumeric : null,
+    valueString: match ? null : rawValue,
+    unit: match?.[2]?.trim() || null,
+  };
+}
+
+function buildFrontdeskObservationResources(
+  observationText: string | undefined,
+  patientId: string,
+  now: string,
+) {
+  const uniqueObservations = new Map<
+    string,
+    {
+      code: string;
+      displayName: string;
+      valueNumeric: number | null;
+      valueString: string | null;
+      unit: string | null;
+    }
+  >();
+  for (const token of splitFrontdeskObservationEntries(observationText)) {
+    const observation = normalizeFrontdeskObservationEntry(token);
+    if (observation && !uniqueObservations.has(observation.code)) {
+      uniqueObservations.set(observation.code, observation);
+    }
+  }
+  return Array.from(uniqueObservations.values()).map((observation) => ({
+    observationId: `obs-${crypto.randomUUID()}`,
+    code: observation.code,
+    displayName: observation.displayName,
+    valueNumeric: observation.valueNumeric,
+    valueString: observation.valueString,
+    unit: observation.unit,
+    referenceRange: null,
+    criticalFlag: null,
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    sourceRecordId: `${patientId}:${observation.code}`,
+    mappedVersion: "FRONTDESK_CONTEXT_V1",
+    eventTime: now,
+    receivedTime: now,
+    qualityStatus: "VALID",
+  }));
+}
+
+function splitFrontdeskKeyFindings(value: string | undefined) {
+  return (value?.split(/[,\n;，、；]/u) ?? []).map((item) => item.trim()).filter(Boolean);
+}
+
+function buildFrontdeskDiagnosticReportResources(
+  payload: ContextSnapshotCreatePayload,
+  profile: SecurityProfile | undefined,
+  now: string,
+) {
+  const reportType = payload.diagnosticReportType?.trim();
+  const conclusion = payload.diagnosticReportConclusion?.trim();
+  if (!reportType || !conclusion) {
+    return [];
+  }
+  const reportId = `report-${crypto.randomUUID()}`;
+  return [
+    {
+      reportId,
+      reportType,
+      conclusion,
+      keyFindings: splitFrontdeskKeyFindings(payload.diagnosticReportKeyFindingsText),
+      signedBy: profile?.userId ?? null,
+      signedAt: now,
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: reportId,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
+function buildFrontdeskNursingAssessmentResources(
+  payload: ContextSnapshotCreatePayload,
+  patientId: string,
+  now: string,
+) {
+  const assessmentType = payload.nursingAssessmentType?.trim();
+  const riskLevel = payload.nursingRiskLevel?.trim();
+  if (!assessmentType || !riskLevel) {
+    return [];
+  }
+  const assessmentId = `nurse-assessment-${crypto.randomUUID()}`;
+  return [
+    {
+      assessmentId,
+      assessmentType,
+      riskLevel,
+      status: payload.nursingAssessmentStatus?.trim() || "CONFIRMED",
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: `${patientId}:${assessmentId}`,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
+function buildFrontdeskCarePlanResources(
+  payload: ContextSnapshotCreatePayload,
+  patientId: string,
+  now: string,
+) {
+  const pathwayId = payload.carePlanPathwayId?.trim();
+  const currentNodeId = payload.carePlanCurrentNodeId?.trim();
+  if (!pathwayId || !currentNodeId) {
+    return [];
+  }
+  const planId = `care-plan-${crypto.randomUUID()}`;
+  return [
+    {
+      planId,
+      pathwayId,
+      currentNodeId,
+      varianceCode: payload.carePlanVarianceCode?.trim() || null,
+      plannedFinishAt: payload.carePlanPlannedFinishAt?.trim() || null,
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: `${patientId}:${planId}`,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
+function frontdeskClaimAmount(value: number | undefined) {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value * 100) / 100;
+}
+
+function buildFrontdeskClaimResources(payload: ContextSnapshotCreatePayload, now: string) {
+  const drgCode = payload.insuranceClaimDrgCode?.trim();
+  const totalCost = frontdeskClaimAmount(payload.insuranceClaimTotalCost);
+  if (!drgCode || totalCost === null) {
+    return [];
+  }
+  const claimId = `claim-${crypto.randomUUID()}`;
+  const insurancePaid = frontdeskClaimAmount(payload.insuranceClaimPaidAmount);
+  return [
+    {
+      claimId,
+      drgCode,
+      totalCost,
+      insurancePaid,
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: claimId,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
+function frontdeskSnapshotRequest(
+  payload: ContextSnapshotCreatePayload,
+  profile: SecurityProfile | undefined,
+) {
+  const now = new Date().toISOString();
+  const orgUnitId = currentOrgUnitId(profile);
+  if (!orgUnitId) {
+    throw new Error("缺少当前组织范围，无法建立临床上下文。");
+  }
+  const encounterId = `enc-${crypto.randomUUID()}`;
+  const medications = buildFrontdeskMedicationResources(
+    payload.currentMedicationText,
+    payload.patient.mpiId,
+    now,
+  );
+  const allergyIntolerances = buildFrontdeskAllergyIntoleranceResources(
+    payload.allergyIntoleranceText,
+    payload.patient.mpiId,
+    now,
+  );
+  const observations = buildFrontdeskObservationResources(
+    payload.observationText,
+    payload.patient.mpiId,
+    now,
+  );
+  const diagnosticReports = buildFrontdeskDiagnosticReportResources(payload, profile, now);
+  const nursingAssessments = buildFrontdeskNursingAssessmentResources(
+    payload,
+    payload.patient.mpiId,
+    now,
+  );
+  const carePlans = buildFrontdeskCarePlanResources(payload, payload.patient.mpiId, now);
+  const claims = buildFrontdeskClaimResources(payload, now);
+  const request = withStandardApiContext(
+    {
+      patientId: payload.patient.mpiId,
+      encounterId,
+      orgUnitId,
+      ward_id: profile?.dataScope?.wardId ?? null,
+      resources: {
+        patient: {
+          mpi: payload.patient.mpiId,
+          name: payload.patient.maskedName,
+          birthDate: estimatedBirthDateFromAge(payload.patient.age),
+          gender: payload.patient.gender,
+          specialPopulations: payload.specialPopulations ?? [],
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+          sourceRecordId: payload.patient.mpiId,
+          mappedVersion: "FRONTDESK_CONTEXT_V1",
+          eventTime: now,
+          receivedTime: now,
+          qualityStatus: "VALID",
+        },
+        allergyIntolerances,
+        encounters: [
+          {
+            encounterId,
+            encounterType: payload.encounterType,
+            admissionTime: now,
+            dischargeTime: null,
+            departmentId: profile?.dataScope?.departmentId ?? null,
+            attendingDoctorId: profile?.userId ?? null,
+            bedId: null,
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceRecordId: encounterId,
+            mappedVersion: "FRONTDESK_CONTEXT_V1",
+            eventTime: now,
+            receivedTime: now,
+            qualityStatus: "VALID",
+          },
+        ],
+        conditions: [
+          {
+            conditionId: `cond-${crypto.randomUUID()}`,
+            code: payload.diseaseCode,
+            codeSystem: "ICD-10",
+            displayName: payload.diseaseName,
+            stage: null,
+            severity: payload.riskLevel,
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceRecordId: payload.patient.mpiId,
+            mappedVersion: "FRONTDESK_CONTEXT_V1",
+            onsetTime: now,
+            receivedTime: now,
+            qualityStatus: "VALID",
+          },
+        ],
+        nursingAssessments,
+        observations,
+        diagnosticReports,
+        medications,
+        procedures: [],
+        documents: [],
+        carePlans,
+        followUps: [],
+        claims,
+        extensions: {
+          local: {
+            frontdeskContext: {
+              source: "MPI_PATIENT_360",
+              reason: payload.reason,
+              riskLevel: payload.riskLevel,
+              currentMedicationCount: medications.length,
+              allergyIntoleranceCount: allergyIntolerances.length,
+              observationCount: observations.length,
+              specialPopulationCount: payload.specialPopulations?.length ?? 0,
+              ...(payload.heightCm !== undefined ? { heightCm: payload.heightCm } : {}),
+              ...(payload.weightKg !== undefined ? { weightKg: payload.weightKg } : {}),
+              diagnosticReportCount: diagnosticReports.length,
+              nursingAssessmentCount: nursingAssessments.length,
+              carePlanCount: carePlans.length,
+              claimCount: claims.length,
+            },
+          },
+        },
+      },
+    },
+    profile,
+  );
+  return {
+    ...request,
+    request_id: payload.idempotencyKey,
+  };
+}
+
+export function useCreateContextSnapshot(profile: SecurityProfile | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ContextSnapshotCreatePayload) => {
+      const { data } = await apiClient.post<{ data: ContextSnapshotResponse }>(
+        "/engine/context/snapshots",
+        frontdeskSnapshotRequest(payload, profile),
+        { headers: { "Idempotency-Key": payload.idempotencyKey } },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["context", "snapshots"] }),
+        queryClient.invalidateQueries({ queryKey: ["engine", "mpi", "patients"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["engine", "mpi", "patients", payload.patient.mpiId],
+        }),
+      ]);
+    },
+  });
+}
+
 // ==================== 智能随访引擎相关的实体及 DTO 契约 ====================
 
 export type FollowupPlanStatus = "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
@@ -6665,10 +7296,18 @@ export interface FollowupPlanDetailResponse {
   patientId: string;
   encounterId: string;
   diseaseCode: string;
+  runtimeReleaseId?: string | null;
   status: FollowupPlanStatus;
   tasks: FollowupTaskDetailResponse[];
+  modelStatus?: "MODEL_DISABLED" | string;
+  sourceFactType?: string | null;
+  sourceFactId?: string | null;
+  generationRuleCode?: string | null;
+  generationExplanation?: string | null;
   templateId?: string | null;
   templateVersion?: number | null;
+  templateCode?: string | null;
+  templateName?: string | null;
 }
 
 export interface FollowupPlanGenerateRequest {
@@ -6754,6 +7393,21 @@ export interface FollowupAbnormalReportResponse {
   eventId: string;
   returnTaskId: string;
   notificationEventId: string;
+  traceId: string;
+}
+
+export interface FollowupResultBackflowRequest {
+  planId: string;
+  taskId: string;
+  questionnaireId: string;
+  resultPayload: string;
+  abnormalFlag?: string;
+  idempotencyKey: string;
+}
+
+export interface FollowupResultBackflowResponse {
+  eventId: string;
+  contextSnapshotId: string;
   traceId: string;
 }
 
@@ -6919,13 +7573,33 @@ export function useReportFollowupAbnormal() {
   });
 }
 
+// 7. 随访结果回流为标准 FollowUp 上下文资源
+export function useBackflowFollowupResult() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: FollowupResultBackflowRequest) => {
+      const { data } = await apiClient.post<{ data: FollowupResultBackflowResponse }>(
+        "/engine/followup/results",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["followup", "plans"] });
+      queryClient.invalidateQueries({ queryKey: ["context", "snapshots"] });
+    },
+  });
+}
+
 // ──────────────────────────────────────────
-// 临床协同 · 统一待办与通知中心（SVC-CLINICAL-03）
+// 临床协同 · 统一待办与消息通知（SVC-CLINICAL-03）
 // ──────────────────────────────────────────
 export type WorkflowTodoSourceType =
   | "FOLLOWUP_TASK"
   | "SAFETY_REVIEW"
   | "RECOMMENDATION_CARD"
+  | "RULE_EVENT"
+  | "PATHWAY_EVENT"
   | "NURSING_TASK"
   | "REPORT_INTERPRETATION"
   | "BEDSIDE_KNOWLEDGE"
@@ -7048,6 +7722,7 @@ export interface WorkflowTodosParams {
   status?: WorkflowTodoStatus;
   priority?: WorkflowPriority;
   sourceType?: WorkflowTodoSourceType;
+  sourceId?: string;
   assigneeId?: string;
   orgUnitId?: string;
   page?: number;
@@ -7265,6 +7940,63 @@ export interface ClinicalRuntimeReleaseDetail {
   items: ClinicalRuntimeReleaseItem[];
 }
 
+export interface RuntimeReleaseOfflineDelivery {
+  deliveryKind: "CLINICAL_RUNTIME_RELEASE" | string;
+  evidenceId: string;
+  fileUri: string;
+  fileDigest: string;
+  signatureAlgorithm: string;
+  runtimeMutation: boolean;
+  release: {
+    releaseId: string;
+    tenantId?: string;
+    hospitalId: string;
+    revisionNo?: number;
+    platformBaselineReleaseId?: string;
+    manifestSha256?: string;
+  };
+  items: ClinicalRuntimeReleaseItem[];
+}
+
+export interface RuntimeReleaseOfflineImportPreviewRequest {
+  evidenceId: string;
+  expectedReleaseId: string;
+  expectedHospitalId: string;
+}
+
+export interface RuntimeReleaseOfflineImportPreview {
+  status: "VALIDATED" | string;
+  runtimeMutation: boolean;
+  signatureValid: boolean;
+  manifestMatched: boolean;
+  releaseId: string;
+  hospitalId: string;
+  manifestSha256: string;
+  fileDigest: string;
+  itemCount: number;
+  message: string;
+}
+
+export interface RuntimeReleaseOfflineRestoreRequest {
+  evidenceId: string;
+  expectedSourceReleaseId: string;
+  expectedHospitalId: string;
+  expectedCurrentReleaseId: string;
+  confirmedFileDigest: string;
+}
+
+export interface RuntimeReleaseOfflineRestore {
+  status: "RESTORED" | string;
+  runtimeMutation: boolean;
+  evidenceId: string;
+  sourceReleaseId: string;
+  targetHospitalId: string;
+  fileDigest: string;
+  manifestSha256: string;
+  itemCount: number;
+  restoredRelease: ClinicalRuntimeRelease;
+}
+
 export interface ReleaseCandidateAsset {
   sourceLayer: ReleaseSourceLayer;
   assetType: RuntimeAssetType;
@@ -7304,7 +8036,49 @@ export interface ClinicalRuntimeAssetSelection extends ReleaseAssetRef {
 export interface ClinicalRuntimeActivateRequest {
   platformBaselineReleaseId: string;
   expectedCurrentReleaseId?: string | null;
+  confirmedPlatformUpgradeDigest?: string | null;
   activeAssets: ClinicalRuntimeAssetSelection[];
+}
+
+export interface PlatformUpgradeAnalysis {
+  analysisDigest: string;
+  generatedAt: string;
+  runtimeMutation: boolean;
+  targetBaseline: {
+    baselineReleaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+  };
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    platformBaselineReleaseId: string;
+    manifestSha256: string;
+  };
+  diffSummary: {
+    added: number;
+    modified: number;
+    disabled: number;
+    unchanged: number;
+    conflictCount: number;
+  };
+  items: Array<{
+    assetType: RuntimeAssetType;
+    assetIdentity: string;
+    changeType: "ADDED" | "MODIFIED" | "DISABLED" | "UNCHANGED" | string;
+    currentVersionId?: string | null;
+    currentVersionNo?: string | null;
+    currentContentHash?: string | null;
+    targetVersionId?: string | null;
+    targetVersionNo?: string | null;
+    targetContentHash?: string | null;
+    conflicts: Array<{
+      overrideId?: string | null;
+      orgPath?: string | null;
+      overrideMode?: string | null;
+      resultingSource?: string | null;
+    }>;
+  }>;
 }
 
 export type ReleaseRolloutStrategy =
@@ -7400,19 +8174,20 @@ export function useCurrentPlatformBaseline() {
   return useQuery({
     queryKey: ["runtime-releases", "platform-baseline", "current"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PlatformBaselineDetail }>(
+      const { data } = await apiClient.get<{ data?: PlatformBaselineDetail | null }>(
         `${RUNTIME_RELEASE_API_ROOT}/platform-baselines/current`,
       );
-      return data.data;
+      return data.data ?? null;
     },
     retry: false,
   });
 }
 
-export function usePlatformReleaseCandidates(params: ReleaseCandidateQuery = {}) {
+export function usePlatformReleaseCandidates(params: ReleaseCandidateQuery = {}, enabled = true) {
   const requestParams = releaseCandidateParams(params);
   return useQuery({
     queryKey: ["runtime-releases", "platform-baseline", "candidates", requestParams],
+    enabled,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<ReleaseCandidateAsset> }>(
         `${RUNTIME_RELEASE_API_ROOT}/platform-baselines/candidates`,
@@ -7446,12 +8221,12 @@ export function useCurrentHospitalRuntime(hospitalId: string | undefined) {
     queryKey: ["runtime-releases", "hospital", hospitalId, "current"],
     enabled: Boolean(hospitalId),
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: ClinicalRuntimeReleaseDetail }>(
+      const { data } = await apiClient.get<{ data?: ClinicalRuntimeReleaseDetail | null }>(
         `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
           hospitalId ?? "",
         )}/runtime-releases/current`,
       );
-      return data.data;
+      return data.data ?? null;
     },
     retry: false,
   });
@@ -7497,6 +8272,33 @@ export function useHospitalRuntimeHistory(
   });
 }
 
+export function useHospitalPlatformUpgradeAnalysis(
+  hospitalId: string | undefined,
+  targetBaselineReleaseId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [
+      "runtime-releases",
+      "hospital",
+      hospitalId,
+      "platform-upgrade-analysis",
+      targetBaselineReleaseId,
+    ],
+    enabled: Boolean(enabled && hospitalId && targetBaselineReleaseId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PlatformUpgradeAnalysis }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          hospitalId ?? "",
+        )}/platform-upgrade-analysis`,
+        { params: { targetBaselineReleaseId } },
+      );
+      return data.data;
+    },
+    retry: false,
+  });
+}
+
 export function useActivateHospitalRuntime() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -7529,6 +8331,59 @@ export function useRollbackHospitalRuntime() {
           payload.hospitalId,
         )}/runtime-releases:rollback`,
         { targetReleaseId: payload.targetReleaseId },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["runtime-releases", "hospital", variables.hospitalId],
+      });
+    },
+  });
+}
+
+export function useExportHospitalRuntimeOfflineDelivery() {
+  return useMutation({
+    mutationFn: async (payload: { hospitalId: string }) => {
+      const { data } = await apiClient.post<{ data: RuntimeReleaseOfflineDelivery }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases/offline-delivery`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useValidateHospitalRuntimeOfflineImport() {
+  return useMutation({
+    mutationFn: async (payload: {
+      hospitalId: string;
+      request: RuntimeReleaseOfflineImportPreviewRequest;
+    }) => {
+      const { data } = await apiClient.post<{ data: RuntimeReleaseOfflineImportPreview }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases/offline-delivery:validate-import`,
+        payload.request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRestoreHospitalRuntimeOfflineDelivery() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      hospitalId: string;
+      request: RuntimeReleaseOfflineRestoreRequest;
+    }) => {
+      const { data } = await apiClient.post<{ data: RuntimeReleaseOfflineRestore }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases/offline-delivery:restore`,
+        payload.request,
       );
       return data.data;
     },
@@ -8438,6 +9293,7 @@ export interface AdapterHubSourceStatus {
 }
 
 export interface AdapterHubRequiredSourceStatus {
+  systemFamilyCode: string;
   sourceSystem: "HIS" | "EMR" | "LIS" | string;
   label: string;
   adapterId: string | null;
@@ -8607,10 +9463,12 @@ export interface IntegrationOnboarding {
   name: string;
   status: "REQUESTED" | "AUTH_CONFIGURED" | "MAPPING_CONFIGURED" | "ONLINE" | "OFFLINE" | string;
   routeType: "ADAPTER" | "FHIR" | string;
+  adapterId: string | null;
   routeReference: string;
   healthStatus: IntegrationAdapter["healthStatus"];
   mappedFieldCount: number;
   blockers: string[];
+  systemFamilyCode: string;
   sourceSystem: string;
   businessScenario: string;
   orgPath: string;
@@ -8663,6 +9521,7 @@ export interface IntegrationOnboardingCreatePayload {
   accessMode: "ADAPTER" | "FHIR";
   adapterId?: string;
   fhirVersion?: string;
+  systemFamilyCode: string;
   sourceSystem: string;
   businessScenario: string;
   orgPath: string;

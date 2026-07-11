@@ -6,7 +6,7 @@ import java.util.List;
 import com.medkernel.engine.quality.value.ValueMetricSummaryResponse;
 
 /**
- * 质控驾驶舱聚合响应。
+ * 质量风险概览聚合响应。
  */
 public record QualityDashboardResponse(
     QualityDashboardSummary summary,

@@ -1,20 +1,32 @@
 .page {
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  box-sizing: border-box;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, calc(var(--mk-unit) * 480));
   place-items: center;
   justify-content: center;
-  gap: calc(var(--mk-unit) * 16);
-  padding: calc(var(--mk-unit) * 68)
-    clamp(calc(var(--mk-unit) * 24), 6vw, calc(var(--mk-unit) * 72));
+  gap: calc(var(--mk-unit) * 10);
+  overflow: clip;
+  padding-block: clamp(calc(var(--mk-unit) * 20), 3.5vh, calc(var(--mk-unit) * 28))
+    clamp(calc(var(--mk-unit) * 16), 3vh, calc(var(--mk-unit) * 20));
+  padding-inline: clamp(calc(var(--mk-unit) * 20), 5vw, calc(var(--mk-unit) * 64));
   color: var(--mk-login-text);
   background: var(--mk-login-page-bg);
 }
 
+.pageExpanded {
+  height: auto;
+  align-items: start;
+  overflow-y: auto;
+}
+
 .themeSwitcher {
   position: absolute;
-  top: calc(var(--mk-unit) * 24);
+  top: calc(var(--mk-unit) * 16);
   right: clamp(calc(var(--mk-unit) * 16), 6vw, calc(var(--mk-unit) * 72));
   z-index: 1;
   padding: calc(var(--mk-unit) * 4);
@@ -32,13 +44,16 @@
 }
 
 .loginCard :global(.ant-card-body) {
-  padding: calc(var(--mk-unit) * 24);
+  padding: calc(var(--mk-unit) * 16);
 }
 
 .page :global(.ant-form-item-label > label),
 .page :global(.ant-input),
 .page :global(.ant-input-affix-wrapper),
+.page :global(.ant-input-affix-wrapper .ant-input),
+.page :global(.ant-input-affix-wrapper input),
 .page :global(.ant-select),
+.page :global(.ant-select-selection-item),
 .page :global(.ant-btn) {
   font-size: var(--mk-login-control-font);
 }
@@ -63,30 +78,38 @@
   font-size: var(--mk-login-font-sm);
 }
 
+.page :global(.ant-form-item) {
+  margin-bottom: calc(var(--mk-unit) * 12);
+}
+
+.page :global(.ant-form > .ant-form-item:last-child) {
+  margin-bottom: 0;
+}
+
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 12);
+  gap: calc(var(--mk-unit) * 7);
 }
 
 .cardHeader {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 4);
+  gap: calc(var(--mk-unit) * 1);
 }
 
 .brandLockup {
   display: grid;
-  grid-template-columns: calc(var(--mk-unit) * 38) minmax(0, 1fr);
-  gap: calc(var(--mk-unit) * 10);
+  grid-template-columns: calc(var(--mk-unit) * 36) minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 8);
   align-items: center;
-  margin-bottom: calc(var(--mk-unit) * 4);
+  margin-bottom: 0;
 }
 
 .brandMark {
   display: grid;
-  width: calc(var(--mk-unit) * 38);
-  height: calc(var(--mk-unit) * 38);
+  width: calc(var(--mk-unit) * 36);
+  height: calc(var(--mk-unit) * 36);
   place-items: center;
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
   border-radius: var(--mk-login-radius);
@@ -113,8 +136,8 @@
 .loginModeSwitch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: calc(var(--mk-unit) * 4);
-  padding: calc(var(--mk-unit) * 4);
+  gap: calc(var(--mk-unit) * 3);
+  padding: calc(var(--mk-unit) * 3);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   background: var(--mk-login-fill);
@@ -122,7 +145,7 @@
 
 .loginModeButton,
 .loginModeButtonActive {
-  min-height: calc(var(--mk-unit) * 34);
+  min-height: calc(var(--mk-unit) * 32);
   border: 0;
   box-shadow: none;
 }
@@ -138,14 +161,15 @@
 }
 
 .cardTitle {
-  margin: 0;
+  margin: 0 !important;
+  line-height: 1.18;
 }
 
 .policyStrip {
   display: flex;
   gap: calc(var(--mk-unit) * 8);
   align-items: flex-start;
-  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
+  padding: calc(var(--mk-unit) * 5) calc(var(--mk-unit) * 8);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
@@ -166,8 +190,8 @@
 
 .tenantChoiceSection {
   display: grid;
-  gap: calc(var(--mk-unit) * 8);
-  margin-bottom: calc(var(--mk-unit) * 16);
+  gap: calc(var(--mk-unit) * 6);
+  margin-bottom: calc(var(--mk-unit) * 8);
 }
 
 .fieldLabel {
@@ -177,14 +201,14 @@
 .tenantChoiceGroup {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 138), 1fr));
-  gap: calc(var(--mk-unit) * 8);
+  gap: calc(var(--mk-unit) * 6);
 }
 
 .tenantChoice,
 .tenantChoiceActive {
   height: auto;
-  min-height: calc(var(--mk-unit) * 48);
-  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
+  min-height: calc(var(--mk-unit) * 42);
+  padding: calc(var(--mk-unit) * 6) calc(var(--mk-unit) * 8);
   white-space: normal;
 }
 
@@ -215,8 +239,8 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: calc(var(--mk-unit) * 10);
   align-items: start;
-  margin-bottom: calc(var(--mk-unit) * 16);
-  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  margin-bottom: calc(var(--mk-unit) * 12);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
@@ -236,8 +260,8 @@
 .utilityRow {
   display: flex;
   justify-content: center;
-  gap: calc(var(--mk-unit) * 16);
-  padding-top: calc(var(--mk-unit) * 2);
+  gap: calc(var(--mk-unit) * 10);
+  padding-top: 0;
   border-top: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
 }
 
@@ -311,20 +335,34 @@
   gap: calc(var(--mk-unit) * 1);
 }
 
+@media (max-height: 44rem) {
+  .page {
+    gap: calc(var(--mk-unit) * 6);
+    padding-block: calc(var(--mk-unit) * 12);
+  }
+
+  .pageExpanded {
+    height: auto;
+    align-items: start;
+    overflow-y: auto;
+  }
+}
+
 @media (max-width: 53.75em) {
   .page {
     grid-template-columns: 1fr;
     align-items: center;
-    padding: calc(var(--mk-unit) * 64) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
+    padding-block: calc(var(--mk-unit) * 56) calc(var(--mk-unit) * 20);
+    padding-inline: calc(var(--mk-unit) * 16);
   }
 }
 
 @media (max-width: 32.5em) {
   .page {
-    gap: calc(var(--mk-unit) * 20);
+    gap: calc(var(--mk-unit) * 8);
   }
 
   .loginCard :global(.ant-card-body) {
-    padding: calc(var(--mk-unit) * 22);
+    padding: calc(var(--mk-unit) * 16);
   }
 }

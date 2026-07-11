@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 整改任务实体。
  *
- * <p>保存质控问题的责任科室、处理人、整改期限、提交内容、证据引用和任务状态。
+ * <p>保存质量问题的责任科室、处理人、整改期限、提交内容、证据引用和任务状态。
  */
 @Table("rectification_task")
 public record RectificationTask(

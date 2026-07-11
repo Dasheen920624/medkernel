@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useConfirmExport,
+  useCompleteConfirmedExportJob,
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
@@ -20,6 +21,7 @@ import { buildAuditEventQuery } from "./auditQuery";
 
 vi.mock("@/shared/api/hooks", () => ({
   useConfirmExport: vi.fn(),
+  useCompleteConfirmedExportJob: vi.fn(),
   useExportConfirmations: vi.fn(),
   useLargeAuditEvents: vi.fn(),
   useLargeListExportJob: vi.fn(),
@@ -119,6 +121,7 @@ describe("AdminAudit", () => {
   const confirmExport = vi.fn();
   const submitExport = vi.fn();
   const pollExport = vi.fn();
+  const completeConfirmedExport = vi.fn();
   const verifyEvidence = vi.fn();
   const traceDiagnosis = {
     traceId: "trace-7",
@@ -162,6 +165,13 @@ describe("AdminAudit", () => {
       downloadUrl: "/download/job-audit-1",
     });
     pollExport.mockResolvedValue(undefined);
+    completeConfirmedExport.mockResolvedValue({
+      ...confirmations[0],
+      status: "EXPORTED",
+      exportEvidenceId: "evd-audit-confirmed-file",
+      exportDigest: "sha256:confirmed-file",
+      version: 2,
+    });
     verifyEvidence.mockResolvedValue({
       evidenceId: "evd-audit-exported-file",
       isValid: true,
@@ -211,6 +221,10 @@ describe("AdminAudit", () => {
     } as never);
     vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: pollExport } as never);
     vi.mocked(useSubmitLargeListExport).mockReturnValue({ mutateAsync: submitExport } as never);
+    vi.mocked(useCompleteConfirmedExportJob).mockReturnValue({
+      mutateAsync: completeConfirmedExport,
+      isPending: false,
+    } as never);
     vi.mocked(useVerifyEvidence).mockReturnValue({
       mutateAsync: verifyEvidence,
       isPending: false,
@@ -264,6 +278,126 @@ describe("AdminAudit", () => {
         expect.objectContaining({ cursor: undefined }),
       ),
     );
+  });
+
+  it("默认将审计摘要中的低频对象编号收进证据详情", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useLargeAuditEvents).mockReturnValue(
+      query({
+        ...firstPage,
+        items: [
+          {
+            ...firstPage.items[0],
+            id: "11",
+            eventId: "evt-11",
+            summary:
+              "确认敏感数据导出：audit_event/exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949；原因：审计员复核",
+            resourceType: "audit_event",
+            resourceId: "exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949",
+          },
+          {
+            ...firstPage.items[0],
+            id: "12",
+            eventId: "evt-12",
+            summary: "发布随访方案 FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY@1",
+            resourceType: "followup_template",
+            resourceId: "FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY",
+          },
+          {
+            ...firstPage.items[0],
+            id: "13",
+            eventId: "evt-13",
+            summary:
+              "评估推荐触发 CDSS-MANUAL-medication-prescribe-ctx-0b5df86b-6c0d-42e7-871c-e79df49c8bf2-mr3ob8q2-1",
+            resourceType: "recommendation",
+            resourceId: "ctx-0b5df86b-6c0d-42e7-871c-e79df49c8bf2",
+          },
+          {
+            ...firstPage.items[0],
+            id: "14",
+            eventId: "evt-14",
+            summary: "探测模型服务 stakeholder-ollama-mr0c0kb8，连接状态=连接正常",
+            resourceType: "model_provider",
+            resourceId: "stakeholder-ollama-mr0c0kb8",
+          },
+          {
+            ...firstPage.items[0],
+            id: "15",
+            eventId: "evt-15",
+            summary: "创建标准上下文 quality=VALID patient=mpi-01KWJWWP2FQCRJ2X5JJVBJYJV2",
+            resourceType: "context_snapshot",
+            resourceId: "ctx-01KWJWWP2FQCRJ2X5JJVBJYJV2",
+          },
+        ],
+      }) as never,
+    );
+
+    render(<AdminAudit />);
+
+    expect(
+      screen.getByText("确认敏感数据导出：审计导出任务；原因：审计员复核"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("发布随访方案 随访方案")).toBeInTheDocument();
+    expect(screen.queryByText("发布随访方案 随访模板")).not.toBeInTheDocument();
+    expect(screen.getByText("评估推荐触发 临床推荐评估")).toBeInTheDocument();
+    expect(screen.getByText("探测模型服务 院外模型服务，连接状态=连接正常")).toBeInTheDocument();
+    expect(screen.getByText("创建标准上下文 质量已通过 患者已关联")).toBeInTheDocument();
+    expect(screen.queryByText(/exp-audit-event-/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/FUP\.STAKEHOLDER/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/CDSS-MANUAL/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/stakeholder-ollama/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/quality=VALID/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/mpi-01KWJWWP2FQCRJ2X5JJVBJYJV2/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(
+      screen.getAllByText(/exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/FUP\.STAKEHOLDER\.PATIENT_PROXY-MR3OBIIY/).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.getAllByText(/CDSS-MANUAL-medication-prescribe-ctx-0b5df86b/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/stakeholder-ollama-mr0c0kb8/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/quality=VALID/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/mpi-01KWJWWP2FQCRJ2X5JJVBJYJV2/).length).toBeGreaterThan(0);
+  });
+
+  it("默认将导出记录中的审计导出编号收进证据详情", async () => {
+    const user = userEvent.setup();
+    const confirmationId = "exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949-export";
+    vi.mocked(useExportConfirmations).mockReturnValue(
+      query({
+        items: [
+          {
+            ...confirmations[1],
+            confirmationId,
+            confirmationEvidenceId:
+              "evd-exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949-confirmation",
+            exportEvidenceId: "evd-exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949-export",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        totalPages: 1,
+      }) as never,
+    );
+
+    render(<AdminAudit />);
+
+    await user.click(screen.getByRole("tab", { name: "导出记录" }));
+
+    expect(screen.getByText("审计导出任务")).toBeInTheDocument();
+    expect(screen.queryByText(/exp-audit-event-/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /exp-audit-event-/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText(confirmationId)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `查看证据 ${confirmationId}` })).toBeInTheDocument();
   });
 
   it("keeps audit readers out of export confirmation queries and controls", () => {
@@ -446,6 +580,24 @@ describe("AdminAudit", () => {
           }),
         }),
       ),
+    );
+  });
+
+  it("marks a confirmed audit export as completed after the file job succeeds", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    await user.click(screen.getByRole("tab", { name: "导出记录" }));
+    await user.click(screen.getByRole("button", { name: "生成导出文件 exp-audit-confirmed" }));
+    await user.click(screen.getByRole("button", { name: "确认生成导出文件" }));
+
+    await waitFor(() =>
+      expect(completeConfirmedExport).toHaveBeenCalledWith({
+        confirmationId: "exp-audit-confirmed",
+        jobId: "job-audit-1",
+        reason: "复核失败事件",
+        expectedVersion: 1,
+      }),
     );
   });
 

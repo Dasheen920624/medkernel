@@ -23,10 +23,8 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
                item.standard_code,
                version.version_no,
                CASE
-                   WHEN version.org_path = 'department:' || :departmentScope THEN 'DEPARTMENT'
-                   WHEN version.org_path = 'campus:' || :campusScope THEN 'CAMPUS'
-                   WHEN version.org_path = 'facility:' || :facilityScope THEN 'FACILITY'
-                   WHEN version.org_path = 'region:' || :regionScope THEN 'REGION'
+                   WHEN version.org_path = :facilityOrgPath THEN 'FACILITY'
+                   WHEN version.org_path = :regionOrgPath THEN 'REGION'
                    ELSE 'TENANT'
                END AS scope_level
           FROM mk_term_mapping_snapshot item
@@ -52,23 +50,15 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
            AND (:sourceSystem IS NULL OR item.source_system = :sourceSystem)
            AND (:targetDictionaryKey IS NULL OR item.target_dictionary_key = :targetDictionaryKey)
            AND (:category IS NULL OR item.category = :category)
-           AND (
-                version.org_path = 'tenant:' || :tenantScope
-             OR version.org_path = 'region:' || :regionScope
-             OR version.org_path = 'facility:' || :facilityScope
-             OR version.org_path = 'campus:' || :campusScope
-             OR version.org_path = 'department:' || :departmentScope
-           )
+           AND version.org_path IN (:organizationScopes)
          ORDER BY item.mapping_id
         """)
     List<EffectiveTermMappingCandidate> findEffectiveByAnchor(
         String tenantId,
         String runtimeReleaseId,
-        String tenantScope,
-        String regionScope,
-        String facilityScope,
-        String campusScope,
-        String departmentScope,
+        List<String> organizationScopes,
+        String regionOrgPath,
+        String facilityOrgPath,
         String sourceSystem,
         String localCode,
         String targetDictionaryKey,
@@ -85,10 +75,8 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
                item.standard_code,
                version.version_no,
                CASE
-                   WHEN version.org_path = 'department:' || :departmentScope THEN 'DEPARTMENT'
-                   WHEN version.org_path = 'campus:' || :campusScope THEN 'CAMPUS'
-                   WHEN version.org_path = 'facility:' || :facilityScope THEN 'FACILITY'
-                   WHEN version.org_path = 'region:' || :regionScope THEN 'REGION'
+                   WHEN version.org_path = :facilityOrgPath THEN 'FACILITY'
+                   WHEN version.org_path = :regionOrgPath THEN 'REGION'
                    ELSE 'TENANT'
                END AS scope_level
           FROM mk_term_mapping_snapshot item
@@ -112,23 +100,15 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
            AND version.status = 'PUBLISHED'
            AND item.target_dictionary_key = :targetDictionaryKey
            AND item.standard_code = :standardCode
-           AND (
-                version.org_path = 'tenant:' || :tenantScope
-             OR version.org_path = 'region:' || :regionScope
-             OR version.org_path = 'facility:' || :facilityScope
-             OR version.org_path = 'campus:' || :campusScope
-             OR version.org_path = 'department:' || :departmentScope
-           )
+           AND version.org_path IN (:organizationScopes)
          ORDER BY item.mapping_id
         """)
     List<EffectiveTermMappingCandidate> findEffectiveByStandardCode(
         String tenantId,
         String runtimeReleaseId,
-        String tenantScope,
-        String regionScope,
-        String facilityScope,
-        String campusScope,
-        String departmentScope,
+        List<String> organizationScopes,
+        String regionOrgPath,
+        String facilityOrgPath,
         String targetDictionaryKey,
         String standardCode
     );

@@ -108,7 +108,7 @@ public class DomainFacadeB0EvidenceService {
         evidence.put(DomainFacadeEngine.PATHWAY, evidence(
             "com.medkernel.engine.pathway.PathwayEngineService",
             "/api/v1/engine/pathway/pathway-templates/{templateId}/simulate",
-            "复用路径模板试运行与患者路径推进入口"));
+            "复用临床路径试运行与患者路径推进入口"));
         evidence.put(DomainFacadeEngine.KNOWLEDGE, evidence(
             "com.medkernel.engine.knowledge.KnowledgeIdentityService",
             "/api/v1/engine/knowledge/identities",

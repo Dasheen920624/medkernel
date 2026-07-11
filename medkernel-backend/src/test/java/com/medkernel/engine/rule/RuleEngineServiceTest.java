@@ -42,8 +42,10 @@ import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.AssetTriggerBindingInput;
 import com.medkernel.engine.versioning.AssetTriggerBindingService;
 import com.medkernel.engine.versioning.AssetTriggerPurpose;
+import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.PlatformAuthority;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.SourceTier;
@@ -70,6 +72,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -863,6 +866,51 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void peerReviewRunsTestCasesWithSnapshotRuntimeReleaseForDeclarativeAssets() throws Exception {
+        service = serviceWithRuntimeAssets(cdssRuntimeAssets());
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersionWithDsl(
+            RuleVersionStatus.DRAFT,
+            dslWithActionCardReference("ACTION_CARD.CDSS.RUNTIME"));
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A")).thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A")).thenReturn(Optional.of(version));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.RULE, "R-001", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-rule-1", VersionedAssetType.RULE, "R-001", "1", AssetVersionStatus.DRAFT)));
+        when(contextSnapshots.findById("ctx-runtime")).thenReturn(new ContextSnapshotResponse(
+            "ctx-runtime", ContextSnapshotStatus.ACTIVE, validResources(), "runtime-release-42",
+            QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-ctx"));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext(), "STRONG_REMINDER", "ctx-runtime"),
+                testCase(RuleTestCaseType.NEGATIVE, true, hitContext(), "STRONG_REMINDER", "ctx-runtime"),
+                testCase(RuleTestCaseType.BOUNDARY, true, hitContext(), "STRONG_REMINDER", "ctx-runtime"),
+                testCase(RuleTestCaseType.CONFLICT, true, hitContext(), "STRONG_REMINDER", "ctx-runtime")
+            ));
+        RuleImpactResponse impact = service.impact("rule-1");
+        RuleGovernance reviewed = governance(RuleGovernanceState.REVIEWED);
+        when(governanceService.transition(
+                eq("tenant-A"), eq("version-1"), eq(RuleGovernanceState.REVIEWED),
+                any(String.class), any(String.class), any(String.class)))
+            .thenReturn(reviewed);
+        when(releasePort.submitForReview(any())).thenReturn(releasePlan(
+            "av-rule-1", VersionedAssetType.RULE, "R-001",
+            VersionReleaseStatus.IN_REVIEW, "IN_REVIEW 运行资产用例"));
+
+        service.transitionGovernance("rule-1", new RuleGovernanceTransitionRequest(
+            RuleGovernanceState.REVIEWED,
+            impact.impactDigest(),
+            "声明式资产规则用例按快照 runtime 物化"));
+
+        ArgumentCaptor<RuleTestCase> saved = ArgumentCaptor.forClass(RuleTestCase.class);
+        verify(testCases, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        assertThat(saved.getAllValues())
+            .filteredOn(item -> "ctx-runtime".equals(item.contextSnapshotId()))
+            .allSatisfy(item -> assertThat(item.lastStatus()).isEqualTo(RuleTestCaseStatus.PASS));
+    }
+
+    @Test
     void peerReviewFailsWhenRequiredCaseTypeMissing() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
@@ -1267,6 +1315,11 @@ class RuleEngineServiceTest {
         assertThat(response.results()).hasSize(2);
         verify(definitions, org.mockito.Mockito.never()).save(any());
         verify(versions, org.mockito.Mockito.never()).save(any());
+        verify(auditRecorder).record(
+            AuditAction.EXECUTE,
+            "rule_definition",
+            "rule-1",
+            "执行规则验证用例 2 项 allPassed=true");
     }
 
     @Test
@@ -2300,12 +2353,94 @@ class RuleEngineServiceTest {
             boolean expectedHit,
             JsonNode input,
             String expectedActionCode) {
+        return testCase(type, expectedHit, input, expectedActionCode, null);
+    }
+
+    private RuleTestCase testCase(
+            RuleTestCaseType type,
+            boolean expectedHit,
+            JsonNode input,
+            String expectedActionCode,
+            String contextSnapshotId) {
         Instant now = Instant.now();
         return new RuleTestCase(
             null, "case-" + type, "tenant-A", "rule-1", "version-1", type,
-            "ctx-" + type, input.toString(), expectedHit, expectedHit ? RuleRiskLevel.HIGH : null,
+            contextSnapshotId, input.toString(), expectedHit, expectedHit ? RuleRiskLevel.HIGH : null,
             expectedActionCode, null, null, null, null,
             now, "tester", now, "tester", "trace-rule");
+    }
+
+    private RuleEngineService serviceWithRuntimeAssets(DeclarativeAssetRuntimePort runtimeAssets) {
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(json, runtimeAssets);
+        RuleDslEvaluator runtimeAwareEvaluator = new RuleDslEvaluator(
+            json,
+            new ConditionEvaluator(json),
+            singletonProvider(materializer)
+        );
+        return new RuleEngineService(
+            definitions, versions, parameterBindings, testCases, executions, overrides,
+            runtimeAwareEvaluator, applicabilityService,
+            auditRecorder, transitions, diagnoseAssembler, json,
+            RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
+            versionedAssets, assetVersions, triggerBindings, releasePort, governanceService, shadowFeedback,
+            backtests, driftSnapshots, inheritanceResolver, contextSnapshots, domainEvents);
+    }
+
+    private DeclarativeAssetRuntimePort cdssRuntimeAssets() {
+        return (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+            if (!"tenant-A".equals(tenantId)
+                    || !"runtime-release-42".equals(runtimeReleaseId)
+                    || assetType != VersionedAssetType.ACTION_CARD
+                    || !"ACTION_CARD.CDSS.RUNTIME".equals(assetIdentity)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ResolvedDeclarativeAsset(
+                assetType,
+                assetIdentity,
+                "V42",
+                runtimeReleaseId,
+                """
+                    {
+                      "schemaVersion": "1.0",
+                      "title": "抗凝用药签署复核",
+                      "actionCode": "STRONG_REMINDER",
+                      "atSeverity": "HIGH",
+                      "indicator": "critical",
+                      "summary": "抗凝用药需确认出血风险",
+                      "detail": "当前签署医嘱命中当前机构生效版本中的临床提示卡，需医师确认后继续。",
+                      "source": {"label": "CDSS 当前机构生效版本提示卡", "evidenceLevel": "GUIDELINE"},
+                      "suggestions": [],
+                      "overrideReasons": ["已完成出血风险评估"],
+                      "requiresPhysicianConfirmation": true
+                    }
+                    """,
+                "d".repeat(64)
+            ));
+        };
+    }
+
+    private <T> ObjectProvider<T> singletonProvider(T value) {
+        return new ObjectProvider<>() {
+            @Override
+            public T getObject(Object... args) {
+                return value;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return value;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return value;
+            }
+
+            @Override
+            public T getObject() {
+                return value;
+            }
+        };
     }
 
     private RuleBacktestRun backtestRun(String backtestId, double fireRate) {

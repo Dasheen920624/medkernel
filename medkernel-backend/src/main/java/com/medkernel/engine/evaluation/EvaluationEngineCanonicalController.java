@@ -141,7 +141,7 @@ public class EvaluationEngineCanonicalController {
     }
 
     /**
-     * 分页查询质控问题，canonical 契约中命名为 issues。
+     * 分页查询质量问题，canonical 契约中命名为 issues。
      */
     @GetMapping("/issues")
     @PreAuthorize("@perm.has('evaluation.read')")
@@ -158,7 +158,7 @@ public class EvaluationEngineCanonicalController {
     }
 
     /**
-     * 查看质控问题、整改任务和复核记录。
+     * 查看质量问题、整改任务和复核记录。
      */
     @GetMapping("/issues/{findingId}")
     @PreAuthorize("@perm.has('evaluation.read')")
@@ -167,7 +167,7 @@ public class EvaluationEngineCanonicalController {
     }
 
     /**
-     * 提交质控问题整改说明和证据引用。
+     * 提交质量问题整改说明和证据引用。
      */
     @PostMapping("/rectifications")
     @PreAuthorize("@perm.has('evaluation.remediate')")

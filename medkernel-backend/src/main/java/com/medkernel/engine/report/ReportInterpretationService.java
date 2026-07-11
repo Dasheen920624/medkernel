@@ -8,12 +8,15 @@ import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.context.ContextFieldCatalogAssets;
 import com.medkernel.engine.context.canonical.CanonicalDiagnosticReport;
+import com.medkernel.engine.recommendation.KnowledgeSourceLocator;
 import com.medkernel.engine.recommendation.RecommendationCardRequest;
 import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
@@ -22,6 +25,10 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationSourceRequest;
 import com.medkernel.engine.recommendation.RecommendationSourceType;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
+import com.medkernel.engine.recommendation.RecommendationTriggerResponse;
+import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
@@ -41,23 +48,29 @@ public class ReportInterpretationService {
     static final String ADVISORY_EMPTY =
         "当前机构生效版本没有匹配的医技项目说明书，系统未生成报告解读；这不是排除异常或风险的结论。";
     static final String ADVISORY_PRESENT =
-        "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。";
+        "报告解读仅用于辅助阅读，不改写已签发报告，不自动开嘱，不替代医师判断。";
     private static final String TRIGGER_HOOK = "result-review";
     private static final String SCENARIO_CODE = "S36";
+    private static final String CRITICAL_VALUE_ACTION_CARD = "ACTION_CARD.REPORT.CRITICAL_VALUE";
 
     private final ContextSnapshotService snapshots;
     private final RuntimeReleaseDiagnosticItemSelector diagnosticItems;
     private final RecommendationEngineService recommendationEngine;
+    private final DeclarativeAssetRuntimePort declarativeAssets;
     private final ObjectMapper objectMapper;
 
     public ReportInterpretationService(
             ContextSnapshotService snapshots,
             RuntimeReleaseDiagnosticItemSelector diagnosticItems,
             RecommendationEngineService recommendationEngine,
+            DeclarativeAssetRuntimePort declarativeAssets,
             ObjectMapper objectMapper) {
         this.snapshots = snapshots;
         this.diagnosticItems = diagnosticItems;
         this.recommendationEngine = recommendationEngine;
+        this.declarativeAssets = declarativeAssets == null
+            ? DeclarativeAssetRuntimePort.unavailable()
+            : declarativeAssets;
         this.objectMapper = objectMapper;
     }
 
@@ -81,13 +94,14 @@ public class ReportInterpretationService {
                 .map(item -> interpret(report, item, runtimeReleaseId))
                 .ifPresent(interpretations::add);
         }
-        if (!interpretations.isEmpty()) {
-            persist(snapshot, interpretations, itemRefs);
-        }
+        List<String> recommendationCardIds = interpretations.isEmpty()
+            ? List.of()
+            : persist(snapshot, interpretations, itemRefs);
         return new ReportInterpretationResponse(
             snapshot.snapshotId(),
             runtimeReleaseId,
             interpretations,
+            recommendationCardIds,
             interpretations.isEmpty() ? ADVISORY_EMPTY : ADVISORY_PRESENT,
             traceId());
     }
@@ -107,15 +121,67 @@ public class ReportInterpretationService {
         String conclusion = normalize(report.conclusion());
         String findings = normalize(String.join(" ", safeList(report.keyFindings())));
         return items.stream()
-            .filter(item -> {
-                String code = normalize(item.itemCode());
-                String name = normalize(item.itemName());
-                return reportType.equals(code)
-                    || reportType.contains(code)
-                    || code.contains(reportType)
-                    || (!name.isBlank() && (conclusion.contains(name) || findings.contains(name)));
-            })
-            .findFirst();
+            .map(item -> new DiagnosticItemMatch(item, diagnosticItemMatchScore(reportType, conclusion, findings, item)))
+            .filter(match -> match.score() > 0)
+            .max(Comparator
+                .comparingInt(DiagnosticItemMatch::score)
+                .thenComparing(match -> normalize(match.item().itemName()).length())
+                .thenComparing(match -> normalize(match.item().itemCode()).length()))
+            .map(DiagnosticItemMatch::item);
+    }
+
+    private int diagnosticItemMatchScore(
+            String reportType,
+            String conclusion,
+            String findings,
+            RuntimeDiagnosticItemReference item) {
+        String code = normalize(item.itemCode());
+        String name = normalize(item.itemName());
+        String reportText = (reportType + " " + conclusion + " " + findings).trim();
+        if (!reportType.isBlank() && reportType.equals(code)) {
+            return 100;
+        }
+        if (!reportType.isBlank() && !code.isBlank() && (reportType.contains(code) || code.contains(reportType))) {
+            return 90;
+        }
+        int tokenScore = diagnosticTokenScore(reportText, code + " " + name);
+        if (tokenScore > 0) {
+            return 70 + tokenScore;
+        }
+        if (!name.isBlank() && (conclusion.contains(name) || findings.contains(name))) {
+            return 60;
+        }
+        if (!reportType.isBlank() && !name.isBlank() && name.contains(reportType)) {
+            return 50;
+        }
+        return matchesDiagnosticFamily(reportText, code + " " + name) ? 10 : 0;
+    }
+
+    private int diagnosticTokenScore(String reportText, String itemText) {
+        int score = 0;
+        for (String token : List.of(
+                "胸部", "chest", "ct", "mri", "超声", "x线", "影像", "检查",
+                "病理", "活检", "内镜", "胃镜", "心电", "ecg",
+                "检验", "血钾", "potassium")) {
+            String normalized = normalize(token);
+            if (!normalized.isBlank()
+                    && reportText.contains(normalized)
+                    && itemText.contains(normalized)) {
+                score++;
+            }
+        }
+        return score;
+    }
+
+    private boolean matchesDiagnosticFamily(String reportText, String itemText) {
+        if (containsAny(reportText, List.of("lab", "检验", "serum", "blood"))
+                && containsAny(itemText, List.of("lab-test", "检验项目", "medical tests"))) {
+            return true;
+        }
+        return containsAny(reportText, List.of(
+            "exam", "image", "影像", "检查", "ct", "mri", "超声", "x线",
+            "病理", "活检", "内镜", "胃镜", "心电", "ecg"))
+            && containsAny(itemText, List.of("exam-boundary", "image-boundary", "diagnostic-item", "检查项目", "医技项目"));
     }
 
     private ReportInterpretationItem interpret(
@@ -170,19 +236,23 @@ public class ReportInterpretationService {
         return List.of("当前仅生成报告阅读辅助说明，系统不自动开立医嘱。");
     }
 
-    private void persist(
+    private List<String> persist(
             ContextSnapshotResponse snapshot,
             List<ReportInterpretationItem> interpretations,
             List<RuntimeDiagnosticItemReference> itemRefs) {
         Map<String, RuntimeDiagnosticItemReference> byCode = itemRefs.stream()
             .collect(LinkedHashMap::new, (map, item) -> map.putIfAbsent(item.itemCode(), item), Map::putAll);
         List<RecommendationCardRequest> cards = interpretations.stream()
-            .map(item -> toCard(item, byCode.get(item.itemCode()), snapshot.runtimeReleaseId()))
+            .map(item -> toCard(
+                item,
+                byCode.get(item.itemCode()),
+                snapshot.runtimeReleaseId(),
+                runtimeAssetEvidence(snapshot.runtimeReleaseId(), item.criticalRisk())))
             .toList();
         String encounterId = snapshot.resources().encounters().isEmpty()
             ? null
             : snapshot.resources().encounters().getFirst().encounterId();
-        recommendationEngine.trigger(new RecommendationTriggerRequest(
+        RecommendationTriggerResponse response = recommendationEngine.trigger(new RecommendationTriggerRequest(
             "REPORT-" + snapshot.snapshotId(),
             TRIGGER_HOOK,
             null,
@@ -195,12 +265,14 @@ public class ReportInterpretationService {
             null,
             cards,
             Boolean.FALSE));
+        return response.cardIds();
     }
 
     private RecommendationCardRequest toCard(
             ReportInterpretationItem item,
             RuntimeDiagnosticItemReference source,
-            String runtimeReleaseId) {
+            String runtimeReleaseId,
+            List<Map<String, Object>> runtimeAssetEvidence) {
         RecommendationRiskLevel risk = item.criticalRisk()
             ? RecommendationRiskLevel.HIGH
             : RecommendationRiskLevel.LOW;
@@ -209,6 +281,7 @@ public class ReportInterpretationService {
             : RecommendationInterruptLevel.INFO;
         String versionNo = source == null ? item.versionNo() : source.versionNo();
         String sourceHash = source == null ? null : source.contentHash();
+        String sourceTenantId = source == null ? null : source.sourceTenantId();
         return new RecommendationCardRequest(
             "report-" + item.reportId(),
             cardType(item.reportType()),
@@ -220,16 +293,16 @@ public class ReportInterpretationService {
             true,
             false,
             "医技项目说明书 " + display(item.itemName()) + " " + display(versionNo),
-            explanationJson(item, runtimeReleaseId, sourceHash),
+            explanationJson(item, runtimeReleaseId, sourceTenantId, sourceHash, runtimeAssetEvidence),
             "report:" + item.reportId(),
             null,
             null,
             List.of(new RecommendationSourceRequest(
                 RecommendationSourceType.KNOWLEDGE,
-                String.valueOf(item.sourceVersionId()),
+                item.itemCode(),
                 item.versionNo(),
                 item.itemName(),
-                item.itemCode(),
+                KnowledgeSourceLocator.citationLocator(sourceTenantId, item.sourceVersionId()),
                 sourceHash,
                 "医技项目说明书"))
         );
@@ -243,21 +316,122 @@ public class ReportInterpretationService {
         return RecommendationCardType.EXAM;
     }
 
-    private String explanationJson(ReportInterpretationItem item, String runtimeReleaseId, String sourceHash) {
+    private String explanationJson(
+            ReportInterpretationItem item,
+            String runtimeReleaseId,
+            String sourceTenantId,
+            String sourceHash,
+            List<Map<String, Object>> runtimeAssetEvidence) {
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                "reportId", item.reportId(),
-                "runtimeReleaseId", runtimeReleaseId,
-                "itemCode", item.itemCode(),
-                "itemName", item.itemName(),
-                "sourceVersionId", item.sourceVersionId(),
-                "sourceContentHash", sourceHash == null ? "" : sourceHash,
-                "criticalRisk", item.criticalRisk(),
-                "abnormalHighlights", item.abnormalHighlights(),
-                "recommendations", item.recommendations()
-            ));
+            Map<String, Object> explanation = new LinkedHashMap<>();
+            explanation.put("reportId", item.reportId());
+            explanation.put("runtimeReleaseId", runtimeReleaseId);
+            explanation.put("itemCode", item.itemCode());
+            explanation.put("itemName", item.itemName());
+            explanation.put("sourceTenantId", sourceTenantId == null ? "" : sourceTenantId);
+            explanation.put("sourceVersionId", item.sourceVersionId());
+            explanation.put("sourceContentHash", sourceHash == null ? "" : sourceHash);
+            explanation.put("criticalRisk", item.criticalRisk());
+            explanation.put("abnormalHighlights", item.abnormalHighlights());
+            explanation.put("recommendations", item.recommendations());
+            explanation.put("runtimeAssetEvidence", runtimeAssetEvidence);
+            return objectMapper.writeValueAsString(explanation);
         } catch (JsonProcessingException exception) {
             throw new ApiException(ErrorCode.INTERNAL_ERROR, "报告解读解释序列化失败", exception);
+        }
+    }
+
+    private List<Map<String, Object>> runtimeAssetEvidence(String runtimeReleaseId, boolean critical) {
+        String tenantId = tenant();
+        ResolvedDeclarativeAsset fieldCatalog = resolveRuntimeAsset(
+            tenantId,
+            runtimeReleaseId,
+            VersionedAssetType.FIELD_CATALOG,
+            ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY,
+            "字段目录");
+        ResolvedDeclarativeAsset actionCard = resolveRuntimeAsset(
+            tenantId,
+            runtimeReleaseId,
+            VersionedAssetType.ACTION_CARD,
+            CRITICAL_VALUE_ACTION_CARD,
+            "危急值提示卡");
+        return List.of(
+            Map.of(
+                "assetType", fieldCatalog.assetType().name(),
+                "assetIdentity", fieldCatalog.assetIdentity(),
+                "assetVersion", fieldCatalog.assetVersion(),
+                "runtimeReleaseId", fieldCatalog.runtimeReleaseId(),
+                "contentHash", fieldCatalog.contentHash(),
+                "fields", diagnosticReportFields(fieldCatalog)
+            ),
+            Map.of(
+                "assetType", actionCard.assetType().name(),
+                "assetIdentity", actionCard.assetIdentity(),
+                "assetVersion", actionCard.assetVersion(),
+                "runtimeReleaseId", actionCard.runtimeReleaseId(),
+                "contentHash", actionCard.contentHash(),
+                "requiresPhysicianConfirmation", actionCardRequiresPhysicianConfirmation(actionCard, critical)
+            )
+        );
+    }
+
+    private ResolvedDeclarativeAsset resolveRuntimeAsset(
+            String tenantId,
+            String runtimeReleaseId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String label) {
+        return declarativeAssets.resolve(tenantId, runtimeReleaseId, assetType, assetIdentity)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_ASSET_002,
+                "机构生效版本缺少报告解读运行资产：" + label + " " + assetIdentity + "@" + runtimeReleaseId));
+    }
+
+    private List<String> diagnosticReportFields(ResolvedDeclarativeAsset fieldCatalog) {
+        JsonNode fields = readAssetContent(fieldCatalog).path("fields");
+        if (!fields.isArray()) {
+            throw new ApiException(ErrorCode.ENG_ASSET_002, "字段目录资产缺少 fields 数组");
+        }
+        List<String> paths = new ArrayList<>();
+        fields.forEach(field -> {
+            String path = field.path("fieldPath").asText("");
+            if ("observations[].criticalFlag".equals(path)
+                    || "diagnosticReports[].conclusion".equals(path)) {
+                paths.add(path);
+            }
+        });
+        if (!paths.contains("observations[].criticalFlag")
+                || !paths.contains("diagnosticReports[].conclusion")) {
+            throw new ApiException(
+                ErrorCode.ENG_ASSET_002,
+                "字段目录资产缺少报告解读必需字段：observations[].criticalFlag/diagnosticReports[].conclusion");
+        }
+        return List.copyOf(paths);
+    }
+
+    private boolean actionCardRequiresPhysicianConfirmation(
+            ResolvedDeclarativeAsset actionCard,
+            boolean critical) {
+        JsonNode content = readAssetContent(actionCard);
+        boolean requires = content.path("requiresPhysicianConfirmation").asBoolean(false);
+        if (critical && !requires) {
+            throw new ApiException(ErrorCode.ENG_ASSET_002, "危急值提示卡必须要求人工确认");
+        }
+        return requires;
+    }
+
+    private JsonNode readAssetContent(ResolvedDeclarativeAsset asset) {
+        try {
+            JsonNode content = objectMapper.readTree(asset.contentJson());
+            if (!content.isObject()) {
+                throw new ApiException(ErrorCode.ENG_ASSET_002, asset.assetType() + " 资产正文必须是 JSON 对象");
+            }
+            return content;
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(
+                ErrorCode.ENG_ASSET_002,
+                asset.assetType() + " 资产正文不是合法 JSON：" + asset.assetIdentity(),
+                exception);
         }
     }
 
@@ -304,4 +478,6 @@ public class ReportInterpretationService {
     private String traceId() {
         return RequestContext.currentTraceId();
     }
+
+    private record DiagnosticItemMatch(RuntimeDiagnosticItemReference item, int score) {}
 }

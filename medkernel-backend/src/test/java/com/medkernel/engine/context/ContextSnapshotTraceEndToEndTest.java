@@ -17,6 +17,12 @@ import org.springframework.test.context.TestPropertySource;
 import com.medkernel.engine.release.PlatformBaselineRelease;
 import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.engine.release.ReleaseManifestHash;
+import com.medkernel.engine.org.OrgFacilityType;
+import com.medkernel.engine.org.OrgHierarchyRepository;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.org.OrgUnitStatus;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -45,6 +51,8 @@ class ContextSnapshotTraceEndToEndTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformBaselineReleaseRepository platformBaselines;
     @Autowired ClinicalRuntimeReleaseRepository runtimeReleases;
+    @Autowired OrgUnitRepository orgUnits;
+    @Autowired OrgHierarchyRepository orgHierarchy;
 
     @BeforeEach
     void cleanDb() {
@@ -53,8 +61,10 @@ class ContextSnapshotTraceEndToEndTest {
         jdbc.update("DELETE FROM context_snapshot");
         runtimeReleases.deleteAll();
         platformBaselines.deleteAll();
+        orgUnits.deleteAll();
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
         String emptyManifest = ReleaseManifestHash.sha256(List.of());
+        seedOrganizationTree(now);
         platformBaselines.save(new PlatformBaselineRelease(
             null, "baseline-e2e", 1L, emptyManifest,
             now, "e2e-user", now, "e2e-user", "trace-runtime-e2e"));
@@ -63,6 +73,44 @@ class ContextSnapshotTraceEndToEndTest {
             "baseline-e2e", emptyManifest, null,
             now, "e2e-user", now, "e2e-user", "trace-runtime-e2e"));
         RequestContext.clear();
+    }
+
+    private void seedOrganizationTree(Instant now) {
+        saveOrg(new OrgUnit(
+            "tenant-e2e", null, "tenant-e2e", "/TENANT-E2E", OrgLevel.TENANT,
+            "TENANT-E2E", "上线演练租户", null, null, null, OrgUnitStatus.ACTIVE,
+            now, "e2e-user", now, "e2e-user"));
+        orgHierarchy.insertClosureForNewNode("tenant-e2e", "tenant-e2e", null);
+        saveOrg(new OrgUnit(
+            "hospital-e2e", "tenant-e2e", "tenant-e2e", "/TENANT-E2E/HOSPITAL-E2E",
+            OrgLevel.FACILITY, "HOSPITAL-E2E", "上线演练医院", null,
+            OrgFacilityType.HOSPITAL, null, OrgUnitStatus.ACTIVE,
+            now, "e2e-user", now, "e2e-user"));
+        orgHierarchy.insertClosureForNewNode("tenant-e2e", "hospital-e2e", "tenant-e2e");
+    }
+
+    private void saveOrg(OrgUnit unit) {
+        jdbc.update("""
+            INSERT INTO org_unit
+                (id, parent_id, tenant_id, org_path, level_code, code, name, name_pinyin,
+                 facility_type, specialty_id, status, created_at, created_by, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            unit.id(),
+            unit.parentId(),
+            unit.tenantId(),
+            unit.orgPath(),
+            unit.level().name(),
+            unit.code(),
+            unit.name(),
+            unit.namePinyin(),
+            unit.facilityType() == null ? null : unit.facilityType().name(),
+            unit.specialtyId(),
+            unit.status().name(),
+            unit.createdAt(),
+            unit.createdBy(),
+            unit.updatedAt(),
+            unit.updatedBy());
     }
 
     @AfterEach

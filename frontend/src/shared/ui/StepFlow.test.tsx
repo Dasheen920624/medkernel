@@ -6,7 +6,7 @@ import { SEVEN_STEPS, STEP_CHANGE_STATUS } from "./StepFlow.contract";
 describe("StepFlow", () => {
   it("locks the exact 7-step configuration flow from the constitution", () => {
     expect(SEVEN_STEPS.map((step) => step.title)).toEqual([
-      "选模板/导入",
+      "选来源/导入",
       "自动校验",
       "看影响",
       "安全复核",
@@ -29,7 +29,9 @@ describe("StepFlow", () => {
       expect(screen.getAllByText(s.title).length).toBeGreaterThan(0);
     });
     expect(screen.getByText("待发布")).toBeInTheDocument();
+    expect(screen.getByText("从院内来源、既有资产或文件开始")).toBeInTheDocument();
     expect(screen.getByText("当前授权责任人完成安全复核")).toBeInTheDocument();
+    expect(screen.queryByText("选模板/导入")).not.toBeInTheDocument();
     expect(screen.queryByText(/医务处|信息科主任|多人审核/)).not.toBeInTheDocument();
   });
 

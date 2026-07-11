@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -38,8 +39,10 @@ class RuntimeReleaseControllerTest {
         mock(RuntimeReleaseQueryService.class);
     private final ReleaseCandidateQueryService candidates =
         mock(ReleaseCandidateQueryService.class);
+    private final RuntimeReleaseOfflineDeliveryService offlineDelivery =
+        mock(RuntimeReleaseOfflineDeliveryService.class);
     private final RuntimeReleaseController controller =
-        new RuntimeReleaseController(baselines, runtimes, queries, candidates);
+        new RuntimeReleaseController(baselines, runtimes, queries, candidates, offlineDelivery);
 
     @AfterEach
     void clearContext() {
@@ -76,6 +79,7 @@ class RuntimeReleaseControllerTest {
         controller.activateHospitalRuntime("hospital-A", new ClinicalRuntimeActivateRequest(
             "baseline-A8",
             "runtime-H8",
+            null,
             List.of(
                 ClinicalRuntimeAssetSelection.platform(
                     VersionedAssetType.KNOWLEDGE, "KNOW.CKD"),
@@ -91,6 +95,51 @@ class RuntimeReleaseControllerTest {
         assertThat(command.getValue().hospitalId()).isEqualTo("hospital-A");
         assertThat(command.getValue().actor()).isEqualTo("operator-hospital");
         assertThat(command.getValue().activeAssets()).hasSize(2);
+    }
+
+    @Test
+    void hospitalActivationRequiresConfirmedPlatformUpgradeAnalysisWhenBaselineChanges() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(queries.analyzePlatformUpgrade("tenant-A", "hospital-A", "baseline-A9"))
+            .thenReturn(upgradeAnalysis("digest-A9", "baseline-A8"));
+
+        assertThatThrownBy(() -> controller.activateHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeActivateRequest("baseline-A9", "runtime-H8", null, List.of())
+        )).isInstanceOfSatisfying(ApiException.class, exception -> {
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT);
+            assertThat(exception).hasMessageContaining("平台升级前必须先完成差异与冲突分析");
+        });
+
+        controller.activateHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeActivateRequest(
+                "baseline-A9",
+                "runtime-H8",
+                "digest-A9",
+                List.of(ClinicalRuntimeAssetSelection.platform(
+                    VersionedAssetType.KNOWLEDGE, "KNOW.CKD"))
+            )
+        );
+
+        verify(runtimes).activate(any());
+    }
+
+    @Test
+    void hospitalActivationRejectsConfirmedPlatformUpgradeWhenConflictsRemain() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(queries.analyzePlatformUpgrade("tenant-A", "hospital-A", "baseline-A9"))
+            .thenReturn(upgradeAnalysis("digest-A9", "baseline-A8", 1));
+
+        assertThatThrownBy(() -> controller.activateHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeActivateRequest("baseline-A9", "runtime-H8", "digest-A9", List.of())
+        )).isInstanceOfSatisfying(ApiException.class, exception -> {
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT);
+            assertThat(exception).hasMessageContaining("平台升级分析仍存在机构覆盖冲突");
+        });
     }
 
     @Test
@@ -113,10 +162,26 @@ class RuntimeReleaseControllerTest {
         ClinicalRuntimeReleaseDetailResponse detail =
             new ClinicalRuntimeReleaseDetailResponse(runtimeRelease(), List.of());
         when(queries.currentHospitalRuntime("tenant-A", "hospital-A"))
-            .thenReturn(detail);
+            .thenReturn(Optional.of(detail));
 
         assertThat(controller.currentHospitalRuntime("hospital-A").data())
             .isEqualTo(detail);
+    }
+
+    @Test
+    void currentPlatformBaselineReturnsSuccessfulEmptyStateBeforeFirstBaseline() {
+        when(queries.currentPlatformBaseline()).thenReturn(Optional.empty());
+
+        assertThat(controller.currentPlatformBaseline().data()).isNull();
+    }
+
+    @Test
+    void currentHospitalRuntimeReturnsSuccessfulEmptyStateBeforeFirstHospitalRevision() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(queries.currentHospitalRuntime("tenant-A", "hospital-A")).thenReturn(Optional.empty());
+
+        assertThat(controller.currentHospitalRuntime("hospital-A").data()).isNull();
     }
 
     @Test
@@ -175,6 +240,107 @@ class RuntimeReleaseControllerTest {
             Integer.class,
             String.class
         )).isEqualTo("@perm.has('asset.read')");
+        assertThat(permissionOf(
+            "validateHospitalRuntimeOfflineImport",
+            String.class,
+            RuntimeReleaseOfflineImportPreviewRequest.class
+        )).isEqualTo("@perm.has('asset.read')");
+    }
+
+    @Test
+    void offlineDeliveryEndpointsUseAuthenticatedTenantAndDoNotAcceptHospitalMismatch() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        RuntimeReleaseOfflineDeliveryResponse delivery = new RuntimeReleaseOfflineDeliveryResponse(
+            RuntimeReleaseOfflineDeliveryService.DELIVERY_KIND,
+            "ev-runtime",
+            "/api/v1/compliance/evidence/snapshots/ev-runtime/file",
+            "sm3:" + "1".repeat(64),
+            "SM3_WITH_SM2",
+            false,
+            null,
+            List.of()
+        );
+        when(offlineDelivery.exportCurrentRuntimeRelease(
+            "tenant-A", "hospital-A", "operator-hospital", "trace-hospital"))
+            .thenReturn(delivery);
+        RuntimeReleaseOfflineImportPreviewRequest request =
+            new RuntimeReleaseOfflineImportPreviewRequest("ev-runtime", "runtime-H9", "hospital-A");
+        RuntimeReleaseOfflineImportPreviewResponse preview =
+            new RuntimeReleaseOfflineImportPreviewResponse(
+                "VALIDATED",
+                false,
+                true,
+                true,
+                "runtime-H9",
+                "hospital-A",
+                "b".repeat(64),
+                "sm3:" + "1".repeat(64),
+                13,
+                RuntimeReleaseOfflineDeliveryService.WARNING
+            );
+        when(offlineDelivery.validateImportPreview("tenant-A", request)).thenReturn(preview);
+
+        assertThat(controller.exportHospitalRuntimeOfflineDelivery("hospital-A").data())
+            .isEqualTo(delivery);
+        assertThat(controller.validateHospitalRuntimeOfflineImport("hospital-A", request).data())
+            .isEqualTo(preview);
+        assertThatThrownBy(() -> controller.validateHospitalRuntimeOfflineImport(
+            "hospital-B",
+            request
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void releaseOfflineDeliveryExportRequiresTenantOverridePermission() throws Exception {
+        assertThat(permissionOf("exportHospitalRuntimeOfflineDelivery", String.class))
+            .isEqualTo("@perm.has('tenant.override')");
+    }
+
+    @Test
+    void offlineDeliveryRestoreUsesAuthenticatedTenantAndRejectsHospitalMismatch() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        RuntimeReleaseOfflineRestoreRequest request = new RuntimeReleaseOfflineRestoreRequest(
+            "ev-runtime",
+            "runtime-H9",
+            "hospital-A",
+            "runtime-current",
+            "sm3:" + "1".repeat(64)
+        );
+        RuntimeReleaseOfflineRestoreResponse restored =
+            new RuntimeReleaseOfflineRestoreResponse(
+                "RESTORED",
+                true,
+                "ev-runtime",
+                "runtime-H9",
+                "hospital-A",
+                "sm3:" + "1".repeat(64),
+                "b".repeat(64),
+                13,
+                runtimeRelease()
+            );
+        when(offlineDelivery.restoreImport(
+            "tenant-A", request, "operator-hospital", "trace-hospital"))
+            .thenReturn(restored);
+
+        assertThat(controller.restoreHospitalRuntimeOfflineDelivery("hospital-A", request).data())
+            .isEqualTo(restored);
+        assertThatThrownBy(() -> controller.restoreHospitalRuntimeOfflineDelivery(
+            "hospital-B",
+            request
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void releaseOfflineDeliveryRestoreRequiresTenantOverridePermission() throws Exception {
+        assertThat(permissionOf(
+            "restoreHospitalRuntimeOfflineDelivery",
+            String.class,
+            RuntimeReleaseOfflineRestoreRequest.class
+        )).isEqualTo("@perm.has('tenant.override')");
     }
 
     private String permissionOf(String methodName, Class<?>... parameterTypes) throws Exception {
@@ -197,6 +363,32 @@ class RuntimeReleaseControllerTest {
             Instant.EPOCH,
             "operator-hospital",
             "trace-hospital"
+        );
+    }
+
+    private PlatformUpgradeAnalysisResponse upgradeAnalysis(
+            String digest,
+            String currentBaselineReleaseId) {
+        return upgradeAnalysis(digest, currentBaselineReleaseId, 0);
+    }
+
+    private PlatformUpgradeAnalysisResponse upgradeAnalysis(
+            String digest,
+            String currentBaselineReleaseId,
+            int conflictCount) {
+        return new PlatformUpgradeAnalysisResponse(
+            digest,
+            Instant.EPOCH,
+            false,
+            new PlatformUpgradeBaselineSnapshot("baseline-A9", 9L, "a".repeat(64)),
+            new PlatformUpgradeRuntimeSnapshot(
+                "runtime-H8",
+                8L,
+                currentBaselineReleaseId,
+                "b".repeat(64)
+            ),
+            new PlatformUpgradeDiffSummary(1, 1, 0, 11, conflictCount),
+            List.of()
         );
     }
 }

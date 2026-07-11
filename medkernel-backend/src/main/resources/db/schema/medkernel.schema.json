@@ -3944,8 +3944,7 @@
         },
         {
           "name": "payload_snapshot",
-          "type": "string",
-          "length": 4000,
+          "type": "text",
           "nullable": false,
           "default": null,
           "identity": false,
@@ -4348,7 +4347,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "随访计划生成时锁定的机构生效版本 ID；使用随访模板时必填"
+          "comment": "随访计划生成时锁定的机构生效版本 ID；使用随访方案时必填"
         },
         {
           "name": "status",
@@ -4453,7 +4452,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生成计划所绑定的已发布随访模板ID"
+          "comment": "生成计划所绑定的已发布随访方案ID"
         },
         {
           "name": "template_version",
@@ -4461,7 +4460,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生成计划所绑定的随访模板版本号"
+          "comment": "生成计划所绑定的随访方案版本号"
         }
       ],
       "primaryKey": {
@@ -13814,7 +13813,7 @@
     },
     {
       "name": "mk_engine_authoring_asset_profile",
-      "comment": "统一创作资产库元数据表：保存规则、路径、随访模板及独立配置资产的分类与标签",
+      "comment": "统一创作资产库元数据表：保存规则、路径、随访方案及独立配置资产的分类与标签",
       "columns": [
         {
           "name": "id",
@@ -13840,7 +13839,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "资产类型：规则、路径、随访模板及独立配置资产统一枚举"
+          "comment": "资产类型：规则、路径、随访方案及独立配置资产统一枚举"
         },
         {
           "name": "asset_id",
@@ -14602,7 +14601,7 @@
     },
     {
       "name": "mk_engine_clinical_redline",
-      "comment": "临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制和特殊人群禁忌等红线版本",
+      "comment": "临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌和围手术期麻醉输血等红线版本",
       "columns": [
         {
           "name": "id",
@@ -14637,7 +14636,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌"
+          "comment": "红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌、围手术期麻醉输血"
         },
         {
           "name": "trigger_point",
@@ -14892,7 +14891,7 @@
       "checkConstraints": [
         {
           "name": "ck_clinical_redline_category",
-          "expression": "category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION')"
+          "expression": "category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION', 'SURGERY_ANESTHESIA_TRANSFUSION')"
         },
         {
           "name": "ck_clinical_redline_hazard",
@@ -17553,7 +17552,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "随访模板稳定业务ID"
+          "comment": "随访方案稳定业务ID"
         },
         {
           "name": "tenant_id",
@@ -17571,7 +17570,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "随访模板业务编码"
+          "comment": "随访方案业务编码"
         },
         {
           "name": "version_no",
@@ -17579,7 +17578,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "随访模板不可变版本号"
+          "comment": "随访方案不可变版本号"
         },
         {
           "name": "name",
@@ -19392,6 +19391,15 @@
           "comment": "FHIR 版本：R4/R5"
         },
         {
+          "name": "system_family_code",
+          "type": "string",
+          "length": 64,
+          "nullable": false,
+          "default": null,
+          "identity": false,
+          "comment": "第三方系统族代码，限定为产品范围 13 类系统族"
+        },
+        {
           "name": "source_system",
           "type": "string",
           "length": 128,
@@ -19514,12 +19522,42 @@
           "expression": "access_mode IN('ADAPTER', 'FHIR')"
         },
         {
+          "name": "ck_integ_onboarding_system_family",
+          "expression": "system_family_code IN('HIS_EMR_CDR', 'LIS_MONITORING_CRITICAL', 'PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG', 'PHARMACY_REVIEW', 'NURSING_ANESTHESIA_TRANSFUSION_ICU', 'MEDICAL_RECORD_INSURANCE_PAYMENT', 'PUBLIC_HEALTH_INFECTION_REGULATORY', 'FOLLOWUP_PATIENT_SERVICE', 'CA_OIDC_SSO_HR', 'REGIONAL_REMOTE', 'SPD_UDI_DEVICE', 'RESEARCH_ETHICS_DATA', 'MODEL_DIFY_AGENT')"
+        },
+        {
           "name": "ck_integ_onboarding_status",
           "expression": "status IN('REQUESTED', 'AUTH_CONFIGURED', 'MAPPING_CONFIGURED', 'ONLINE', 'OFFLINE')"
         }
       ],
       "foreignKeys": [],
       "indexes": [
+        {
+          "name": "idx_integ_onb_family_status",
+          "unique": false,
+          "columns": [
+            {
+              "name": "tenant_id",
+              "order": "ASC"
+            },
+            {
+              "name": "system_family_code",
+              "order": "ASC"
+            },
+            {
+              "name": "source_system",
+              "order": "ASC"
+            },
+            {
+              "name": "status",
+              "order": "ASC"
+            },
+            {
+              "name": "updated_at",
+              "order": "ASC"
+            }
+          ]
+        },
         {
           "name": "idx_integ_onb_adapter",
           "unique": false,
@@ -28756,7 +28794,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "HISTORICAL_EXACT 或 COMPARE 使用的演练机构历史重放清单标识"
+          "comment": "HISTORICAL_EXACT 或 COMPARE 使用的当前机构历史重放清单标识"
         }
       ],
       "primaryKey": {
@@ -35286,7 +35324,7 @@
         },
         {
           "name": "ck_rec_card_type",
-          "expression": "card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP')"
+          "expression": "card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP', 'DIAGNOSIS')"
         }
       ],
       "foreignKeys": [],

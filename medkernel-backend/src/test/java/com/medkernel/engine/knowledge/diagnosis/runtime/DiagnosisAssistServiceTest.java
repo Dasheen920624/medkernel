@@ -142,6 +142,8 @@ class DiagnosisAssistServiceTest {
             assertThat(card.requiresPhysicianConfirmation()).isTrue();
             assertThat(card.aiGenerated()).isFalse();
             assertThat(card.sources()).hasSize(1);
+            assertThat(card.sources().getFirst().sourceRefId()).isEqualTo("DX.PNEU");
+            assertThat(card.sources().getFirst().citationLocator()).isEqualTo("knowledge_version:t-1:10");
             assertThat(card.suggestedAction()).contains("2 项诊疗建议");
             assertThat(card.explanationJson()).contains("RULE.LAB.REVIEW", "PATH.RESP");
         });

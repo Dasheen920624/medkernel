@@ -244,7 +244,7 @@ const knowledgeReadiness = {
       code: "EGRESS_GOVERNANCE",
       ready: false,
       required: true,
-      message: "外部模型生产缺少外调允许范围",
+      message: "公网模型生产缺少模型使用边界",
       evidence: "能力：rule.draft",
     },
     {

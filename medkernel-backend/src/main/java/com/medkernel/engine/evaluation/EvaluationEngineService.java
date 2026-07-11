@@ -56,11 +56,11 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 评估质控应用服务（GA-ENG-API-08 指标配置 + 运行事实 + 问题整改闭环）。
  *
- * <p>聚合评估指标、运行、结果、质控问题、整改任务、复核记录与幂等键七类数据，承担：
+ * <p>聚合评估指标、运行、结果、质量问题、整改任务、复核记录与幂等键七类数据，承担：
  * <ul>
  *   <li>指标草稿创建、提交审核、发布、激活与旧版下线；</li>
  *   <li>接收人工抽检、上游结果或批量导入的评估运行事实；</li>
- *   <li>记录评估结果、质控问题和 P0/P1 等高风险问题的整改任务；</li>
+ *   <li>记录评估结果、质量问题和 P0/P1 等高风险问题的整改任务；</li>
  *   <li>处理整改提交、复核关闭、退回和豁免，并支持 {@code Idempotency-Key} 幂等重放；</li>
  *   <li>按运行 ID 装配可解释诊断响应。</li>
  * </ul>
@@ -335,7 +335,7 @@ public class EvaluationEngineService {
 
     /**
      * 针对指定上下文快照执行病例质控扫描，依据 ACTIVE 指标的分子、分母及排除定义执行评估逻辑，
-     * 自动生成运行事实、达标/缺陷结果、质控问题和必要的科室整改任务，并调用 run 方法持久化。
+     * 自动生成运行事实、达标/缺陷结果、质量问题和必要的科室整改任务，并调用 run 方法持久化。
      */
     @Transactional
     public EvaluationRunResponse evaluateSnapshot(EvaluationEvaluateSnapshotRequest request) {
@@ -504,7 +504,7 @@ public class EvaluationEngineService {
                     findingTitle,
                     findingDesc,
                     severity,
-                    evidenceSummary("系统自动评估扫描质控证据支撑。", ruleEvidence),
+                    evidenceSummary("系统自动评估扫描质量证据支撑。", ruleEvidence),
                     indicator.responsibleDepartmentId(),
                     now.plusSeconds(86400 * 7),
                     null
@@ -556,23 +556,14 @@ public class EvaluationEngineService {
     public EvaluationRunResponse run(EvaluationRunRequest request) {
         validateRun(request);
         String tenantId = tenantId();
-        Map<String, EvaluationIndicator> activeIndicators = new LinkedHashMap<>();
-        for (EvaluationResultRequest resultRequest : request.results()) {
-            EvaluationIndicator indicator = indicators
-                .findByIndicatorIdAndTenantId(resultRequest.indicatorId(), tenantId)
-                .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_004));
-            if (indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
-                throw new ApiException(ErrorCode.ENG_EVAL_004);
-            }
-            activeIndicators.put(resultRequest.indicatorId(), indicator);
-            validateResult(resultRequest);
-        }
+        String runtimeReleaseId = resolveRuntimeReleaseId(request, tenantId);
+        Map<String, EvaluationIndicator> activeIndicators =
+            resolveActiveIndicatorsForRun(request, tenantId, runtimeReleaseId);
 
         Instant now = Instant.now();
         String actor = actor();
         String traceId = traceId();
         String runId = "er-" + UUID.randomUUID();
-        String runtimeReleaseId = resolveRuntimeReleaseId(request, tenantId);
         EvaluationRun savedRun = runs.save(new EvaluationRun(
             null, runId, tenantId, request.runCode(), request.runType(), request.sourceEventId(),
             request.contextSnapshotId(), request.patientId(), request.encounterId(), request.scenarioCode(),
@@ -609,10 +600,14 @@ public class EvaluationEngineService {
                         null, null, null, null, null, now, actor, now, actor, traceId));
                     taskCount++;
                     transitions.record(TASK_ENTITY, taskId, null, RectificationTaskStatus.ASSIGNED.name(),
-                        "创建质控整改任务", null);
+                        "创建质量问题整改任务", null);
+                    auditRecorder.record(AuditAction.CREATE, TASK_ENTITY, taskId,
+                        "创建质量问题整改任务 " + finding.findingId());
                 }
                 transitions.record(FINDING_ENTITY, finding.findingId(), null, finding.status().name(),
-                    "记录质控问题", null);
+                    "记录质量问题", null);
+                auditRecorder.record(AuditAction.CREATE, FINDING_ENTITY, finding.findingId(),
+                    "记录质量问题 " + finding.findingCode());
             }
         }
         transitions.record(RUN_ENTITY, runId, null, savedRun.status().name(), "接收评估运行", null);
@@ -636,7 +631,7 @@ public class EvaluationEngineService {
     }
 
     /**
-     * 按严重度、状态和责任科室分页查询质控问题。
+     * 按严重度、状态和责任科室分页查询质量问题。
      */
     @Transactional(readOnly = true)
     public PageResponse<QualityFinding> listFindings(QualityFindingFilter filter, PageRequest pageRequest) {
@@ -651,7 +646,7 @@ public class EvaluationEngineService {
     }
 
     /**
-     * 查看质控问题、当前整改任务和全部复核历史。
+     * 查看质量问题、当前整改任务和全部复核历史。
      *
      * <p>失败：问题不存在抛出 {@code ENG-EVAL-005}。
      */
@@ -665,7 +660,7 @@ public class EvaluationEngineService {
     }
 
     /**
-     * 将未派发质控问题派发为整改任务。
+     * 将未派发质量问题派发为整改任务。
      *
      * <p>重复派发相同责任科室、责任人和截止时间时返回已有任务；重复派发但内容不同抛出 {@code ENG-EVAL-008}。
      */
@@ -710,10 +705,10 @@ public class EvaluationEngineService {
             blankToNull(request.assigneeUserId()), RectificationTaskStatus.ASSIGNED, request.dueAt(),
             null, null, null, null, null, now, actor, now, actor, traceId()));
         transitions.record(FINDING_ENTITY, request.findingId(), finding.status().name(),
-            assignedFinding.status().name(), "派发质控整改", null);
-        transitions.record(TASK_ENTITY, task.taskId(), null, task.status().name(), "派发质控整改任务", null);
+            assignedFinding.status().name(), "派发质量问题整改", null);
+        transitions.record(TASK_ENTITY, task.taskId(), null, task.status().name(), "派发质量问题整改任务", null);
         auditRecorder.record(AuditAction.CREATE, TASK_ENTITY, task.taskId(),
-            "派发质控整改 " + request.findingId());
+            "派发质量问题整改 " + request.findingId());
         return new RectificationResponse(task.taskId(), assignedFinding.status(), task.status(), traceId());
     }
 
@@ -759,10 +754,11 @@ public class EvaluationEngineService {
             task.createdAt(), task.createdBy(), now, actor, task.traceId()));
         QualityFinding remediating = saveFindingStatus(finding, QualityFindingStatus.REMEDIATING, now, actor);
         transitions.record(TASK_ENTITY, task.taskId(), task.status().name(), submitted.status().name(),
-            "提交质控整改", null);
+            "提交质量问题整改", null);
         transitions.record(FINDING_ENTITY, findingId, finding.status().name(), remediating.status().name(),
             "责任科室提交整改", null);
-        auditRecorder.record(AuditAction.UPDATE, FINDING_ENTITY, findingId, "提交质控整改 " + task.taskId());
+        auditRecorder.record(AuditAction.UPDATE, FINDING_ENTITY, findingId, "提交质量问题整改 " + task.taskId());
+        auditRecorder.record(AuditAction.UPDATE, TASK_ENTITY, task.taskId(), "提交整改说明和证据 " + findingId);
         String traceId = traceId();
         saveIdempotencyKey(
             idempotencyKey, EvaluationIdempotencyOperation.RECTIFICATION_SUBMIT, findingId,
@@ -816,7 +812,7 @@ public class EvaluationEngineService {
         }
         if (request.decision() == RectificationReviewDecision.WAIVED
                 && finding.severity() == QualityFindingSeverity.P0) {
-            throw new ApiException(ErrorCode.ENG_EVAL_007, "P0 质控问题不得通过普通复核豁免");
+            throw new ApiException(ErrorCode.ENG_EVAL_007, "P0 质量问题不得通过普通复核豁免");
         }
         if ((request.decision() == RectificationReviewDecision.APPROVED
                 && !hasText(request.comment()) && !hasText(request.evidenceRef()))
@@ -849,11 +845,11 @@ public class EvaluationEngineService {
                 ? now : task.closedAt(),
             task.createdAt(), task.createdBy(), now, actor, task.traceId()));
         transitions.record(FINDING_ENTITY, findingId, finding.status().name(), reviewedFinding.status().name(),
-            "复核质控整改 " + request.decision(), null);
+            "复核质量问题整改 " + request.decision(), null);
         transitions.record(TASK_ENTITY, task.taskId(), task.status().name(), reviewedTask.status().name(),
             "复核整改任务 " + request.decision(), null);
         auditRecorder.record(AuditAction.REVIEW, FINDING_ENTITY, findingId,
-            "复核质控整改 " + request.decision());
+            "复核质量问题整改 " + request.decision());
         String traceId = traceId();
         saveIdempotencyKey(
             idempotencyKey, EvaluationIdempotencyOperation.RECTIFICATION_REVIEW, findingId,
@@ -979,6 +975,37 @@ public class EvaluationEngineService {
         if (!hasContextReference && !hasManualSource) {
             throw new ApiException(ErrorCode.ENG_EVAL_001, "评估运行缺少可追溯的上下文或人工抽检来源");
         }
+    }
+
+    private Map<String, EvaluationIndicator> resolveActiveIndicatorsForRun(
+            EvaluationRunRequest request, String tenantId, String runtimeReleaseId) {
+        Map<String, EvaluationIndicator> activeIndicators = hasText(runtimeReleaseId)
+            ? activeRuntimeIndicatorsById(tenantId, runtimeReleaseId)
+            : new LinkedHashMap<>();
+        for (EvaluationResultRequest resultRequest : request.results()) {
+            EvaluationIndicator indicator = hasText(runtimeReleaseId)
+                ? activeIndicators.get(resultRequest.indicatorId())
+                : indicators.findByIndicatorIdAndTenantId(resultRequest.indicatorId(), tenantId)
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_004));
+            if (indicator == null || indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
+                throw new ApiException(ErrorCode.ENG_EVAL_004);
+            }
+            activeIndicators.put(resultRequest.indicatorId(), indicator);
+            validateResult(resultRequest);
+        }
+        return activeIndicators;
+    }
+
+    private Map<String, EvaluationIndicator> activeRuntimeIndicatorsById(
+            String tenantId, String runtimeReleaseId) {
+        Map<String, EvaluationIndicator> runtimeIndicators = new LinkedHashMap<>();
+        for (EvaluationIndicator indicator : runtimeEvaluations.select(tenantId, runtimeReleaseId)) {
+            if (indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
+                throw new ApiException(ErrorCode.ENG_EVAL_004);
+            }
+            runtimeIndicators.put(indicator.indicatorId(), indicator);
+        }
+        return runtimeIndicators;
     }
 
     private String resolveRuntimeReleaseId(EvaluationRunRequest request, String tenantId) {

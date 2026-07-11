@@ -43,6 +43,9 @@ import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
+import com.medkernel.engine.versioning.AssetTriggerBindingService;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.SourceTier;
@@ -90,6 +93,7 @@ class PathwayEngineServiceTest {
     private ClinicalSafetyGuard safetyGuard;
     private PathwayVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
+    private AssetTriggerBindingService triggerBindings;
     private InheritanceResolver inheritanceResolver;
     private RuntimeReleasePathwaySelector runtimePathways;
     private ObjectMapper json;
@@ -117,6 +121,7 @@ class PathwayEngineServiceTest {
         safetyGuard = mock(ClinicalSafetyGuard.class);
         versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         assetVersions = mock(AssetVersionRepository.class);
+        triggerBindings = mock(AssetTriggerBindingService.class);
         inheritanceResolver = mock(InheritanceResolver.class);
         runtimePathways = mock(RuntimeReleasePathwaySelector.class);
         json = new ObjectMapper();
@@ -126,7 +131,7 @@ class PathwayEngineServiceTest {
             clocks, metricBindings, outcomeBindings, evaluationIndicators,
             contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, worklist, domainEvents, safetyGuard,
-            versionedAssets, assetVersions, inheritanceResolver, runtimePathways);
+            versionedAssets, assetVersions, triggerBindings, inheritanceResolver, runtimePathways);
 
         when(templates.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(nodes.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -195,6 +200,30 @@ class PathwayEngineServiceTest {
                 && command.content().contains("\"metricCode\":\"COPD.TIME_TO_ASSESS\"")
                 && command.content().contains("\"metricCode\":\"COPD.TIME_TO_FOLLOWUP\"")
         ));
+    }
+
+    @Test
+    void createTemplateRegistersPathwayRuntimeTriggerBindings() {
+        service.createTemplate(templateRequest());
+
+        verify(triggerBindings).replaceBindings(
+            org.mockito.Mockito.argThat(version ->
+                version.assetType() == VersionedAssetType.PATHWAY
+                    && version.assetIdentity().equals("TPL.COPD")
+                    && version.versionId().equals("av-pathway-default")
+                    && version.status() == AssetVersionStatus.DRAFT),
+            org.mockito.Mockito.argThat((List<AssetTriggerBindingInput> bindings) ->
+                bindings.size() == 2
+                    && bindings.stream().anyMatch(binding ->
+                        binding.purpose() == AssetTriggerPurpose.PATHWAY_ENTRY_CANDIDATE
+                            && binding.triggerPoint().equals("patient-view")
+                            && binding.requiredFields().containsAll(List.of("patient.mpi", "encounters[].encounterId")))
+                    && bindings.stream().anyMatch(binding ->
+                        binding.purpose() == AssetTriggerPurpose.PATHWAY_PROGRESS
+                            && binding.triggerPoint().equals("patient-view")
+                            && binding.requiredFields().contains("patientPathwayId"))),
+            eq("tester"),
+            eq("trace-pathway"));
     }
 
     @Test
@@ -344,7 +373,7 @@ class PathwayEngineServiceTest {
 
     @Test
     void templateDetailReturnsLocalDraftWhenOrgUnitHasNoPublishedVersionYet() {
-        // 院级数据范围的治理员查看自己刚建的 DRAFT 路径模板：组织闭包内尚无任何 PUBLISHED 版本，
+        // 院级数据范围的治理员查看自己刚建的 DRAFT 临床路径：组织闭包内尚无任何 PUBLISHED 版本，
         // 继承解析器按契约抛 NOT_FOUND。详情接口必须回退本地草稿投影（供试运行/发布前预览），
         // 而不是把 NOT_FOUND 抛给前台导致详情抽屉空白、整个路径编排前台流被堵死。回归 P5-ACT5-02。
         RequestContext.restore(new RequestContext.Snapshot(
@@ -640,7 +669,8 @@ class PathwayEngineServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("缺少 clockSla")
+            .hasMessageContaining("缺少时窗校验配置")
+            .hasMessageNotContaining("clockSla")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_004);
         verify(versionedAssets, never()).registerDraft(any());
@@ -1052,7 +1082,7 @@ class PathwayEngineServiceTest {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(withdrawnTemplate));
         stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
-        doThrow(new ApiException(ErrorCode.CONFLICT, "路径模板引用已撤回知识版本"))
+        doThrow(new ApiException(ErrorCode.CONFLICT, "临床路径引用已撤回知识版本"))
             .when(safetyGuard).assertPathwayTemplateAllowed(withdrawnTemplate);
 
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
@@ -1950,7 +1980,7 @@ class PathwayEngineServiceTest {
             "P30D",
             "/TENANT-A",
             "dept-1",
-            "质控指标规范",
+            "评价指标规范",
             EvaluationIndicatorStatus.ACTIVE,
             now.minusSeconds(3600),
             "tester",

@@ -33,7 +33,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * GA-ENG-API-04 字典映射应用服务：分页查询、候选生成、候选确认、冲突处置与运行时解析。
+ * GA-ENG-API-04 术语字典应用服务：分页查询、候选生成、候选确认、冲突处置与运行时解析。
  *
  * <p>所有写操作都在 {@link Transactional} 事务内推进；
  * 租户上下文从 {@link RequestContext#currentOrgScope()} 获取，缺失时直接抛

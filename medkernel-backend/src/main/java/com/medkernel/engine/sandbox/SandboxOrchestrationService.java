@@ -474,7 +474,7 @@ public class SandboxOrchestrationService {
                 .stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
-                    "未找到已发布路径模板 " + scenario.expectedAssetCode()));
+                    "未找到已发布临床路径 " + scenario.expectedAssetCode()));
             PatientPathwayEnterRequest request = new PatientPathwayEnterRequest(
                 snapshotId, "patient-view", template.templateId(), template.startNodeCode());
             enterRequestNode = json.valueToTree(request);

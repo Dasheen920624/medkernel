@@ -55,13 +55,16 @@ class RelationalRuleImpactIndexTest {
             assertThat(pathway.objectType()).isEqualTo("PATHWAY_TEMPLATE");
             assertThat(pathway.objectId()).isEqualTo("pt-1");
             assertThat(pathway.displayName()).isEqualTo("慢阻肺抗凝路径");
-            assertThat(pathway.impactReason()).contains("路径模板节点引用规则 RULE.ANTICOAG");
+            assertThat(pathway.impactReason()).contains("临床路径节点引用规则 RULE.ANTICOAG");
+            assertThat(pathway.impactReason()).doesNotContain("路径模板");
         });
         assertThat(snapshot.inPathPatients()).singleElement().satisfies(patient -> {
             assertThat(patient.objectType()).isEqualTo("PATIENT_PATHWAY");
             assertThat(patient.objectId()).isEqualTo("ppath-active");
             assertThat(patient.displayName()).isEqualTo("患者 patient-1 / 就诊 enc-1");
+            assertThat(patient.impactReason()).contains("临床路径 TPL.COPD 受规则引用影响");
             assertThat(patient.impactReason()).contains("当前节点 ASSESS");
+            assertThat(patient.impactReason()).doesNotContain("路径模板");
         });
         assertThat(snapshot.integrationAdapters()).isEmpty();
     }

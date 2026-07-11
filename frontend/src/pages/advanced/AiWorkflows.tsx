@@ -42,8 +42,8 @@ import styles from "./AiWorkflows.module.css";
 
 const { Text } = Typography;
 
-const MODEL_CAPABILITY_TITLE = "模型能力";
-const MODEL_CAPABILITY_DESCRIPTION = "核查模型能力、路由与降级状态";
+const MODEL_CAPABILITY_TITLE = "模型能力与安全";
+const MODEL_CAPABILITY_DESCRIPTION = "核查模型能力、安全边界与降级状态";
 const route = findRouteByPath("/advanced/ai-workflows");
 const PAGE_META = {
   title: route?.title ?? MODEL_CAPABILITY_TITLE,
@@ -52,9 +52,9 @@ const PAGE_META = {
     goal: "核查当前组织 AI 能力与降级状态",
     defaultView: "能力状态",
     defaultFilters: [],
-    evidenceDetailContent: ["能力代码", "策略作用域", "输出格式", "外调字段代码"],
+    evidenceDetailContent: ["能力代码", "策略作用域", "输出格式", "模型字段代码"],
     interruptionLevel: "info" as const,
-    evidence: "模型能力、路由、降级和外调策略均保留配置来源与审计证据",
+    evidence: "模型能力、路由、降级和安全边界策略均保留配置来源与审计证据",
     dataScale: {
       expected: "large" as const,
       pagination: "page" as const,
@@ -141,12 +141,18 @@ function configurationModeLabel(item: ModelCapabilityStatusResponse) {
   return item.inherited ? "继承配置" : "当前作用域配置";
 }
 
+function isExternalModelAvailable(item: ModelCapabilityStatusResponse) {
+  return item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
+}
+
+function isLocalModelAvailable(item: ModelCapabilityStatusResponse) {
+  return item.routeStrategy === "LOCAL_MODEL" || item.fallbackOrder.includes("LOCAL_MODEL");
+}
+
 function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsEnabled: boolean) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
-  const externalEnabled =
-    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
   return (
-    <Descriptions className={styles.details} column={{ xs: 1, sm: 2, lg: 3 }} size="small">
+    <Descriptions className={styles.details} column={1} size="small">
       {evidenceDetailsEnabled ? (
         <Descriptions.Item label="能力代码">
           <Text code>{item.capabilityCode}</Text>
@@ -174,13 +180,9 @@ function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsE
       <Descriptions.Item label="状态说明">
         {customerDisplayText(item.fallbackReason)}
       </Descriptions.Item>
-      <Descriptions.Item label="外调边界" span={3}>
-        {externalEnabled
-          ? "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。"
-          : "当前能力不走公网外部模型；切换到外部模型前必须先配置外调安全策略。"}
-      </Descriptions.Item>
+      <Descriptions.Item label="模型边界">{modelDataBoundaryText(item)}</Descriptions.Item>
       {evidenceDetailsEnabled && item.expectedSchema ? (
-        <Descriptions.Item label="输出格式明细" span={3}>
+        <Descriptions.Item label="输出格式明细">
           <Text code className={styles.schemaText}>
             {item.expectedSchema}
           </Text>
@@ -188,6 +190,148 @@ function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsE
       ) : null}
     </Descriptions>
   );
+}
+
+function modelDataBoundaryText(item: ModelCapabilityStatusResponse) {
+  const externalEnabled = isExternalModelAvailable(item);
+  const localEnabled = isLocalModelAvailable(item);
+
+  if (externalEnabled && localEnabled) {
+    return "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕；院内本地模型可按授权使用必要患者信息，但日志、证据和用途确认不记录患者明文。";
+  }
+  if (externalEnabled) {
+    return "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。";
+  }
+  if (localEnabled) {
+    return "院内本地模型可在授权范围内使用必要患者信息；日志、证据和用途确认只保留处理边界与调用摘要，不记录患者明文。";
+  }
+  return "当前能力不走模型外调；切换到公网外部模型或院内本地模型前，必须先预设字段允许范围、处理策略、责任确认和审计边界。";
+}
+
+function modelDataBoundarySummary(item: ModelCapabilityStatusResponse) {
+  const externalEnabled = isExternalModelAvailable(item);
+  const localEnabled = isLocalModelAvailable(item);
+
+  if (externalEnabled && localEnabled) {
+    return {
+      color: "geekblue",
+      label: "双路径患者上下文",
+      description: "公网遮蔽核心标识，院内按授权使用必要信息",
+    };
+  }
+  if (externalEnabled) {
+    return {
+      color: "blue",
+      label: "公网患者上下文",
+      description: "允许授权用途，核心标识先遮蔽",
+    };
+  }
+  if (localEnabled) {
+    return {
+      color: "cyan",
+      label: "院内授权患者上下文",
+      description: "按授权使用必要信息，日志不留患者明文",
+    };
+  }
+  return {
+    color: "default",
+    label: "无模型外调",
+    description: "当前走规则链路，切换模型前需确认安全边界",
+  };
+}
+
+type ModelSafetyBoundaryMode = "public-egress" | "local-authorization" | "boundary-preset";
+
+type ModelSafetyBoundaryView = {
+  mode: ModelSafetyBoundaryMode;
+  configuredTag: string;
+  configuredTagColor: string;
+  actionLabel: string;
+  ariaLabel: string;
+  helperText: string;
+  tooltip: string;
+  modalTitle: string;
+  okText: string;
+  alertType: "info" | "warning";
+  alertMessage: string;
+  alertDescription: string;
+  successMessage: string;
+  errorMessage: string;
+};
+
+function modelSafetyBoundaryMode(item: ModelCapabilityStatusResponse): ModelSafetyBoundaryMode {
+  if (isExternalModelAvailable(item)) {
+    return "public-egress";
+  }
+  if (isLocalModelAvailable(item)) {
+    return "local-authorization";
+  }
+  return "boundary-preset";
+}
+
+function modelSafetyBoundaryView(
+  item: ModelCapabilityStatusResponse,
+  configured: boolean,
+): ModelSafetyBoundaryView {
+  const mode = modelSafetyBoundaryMode(item);
+  if (mode === "public-egress") {
+    const ariaAction = configured ? "调整" : "配置";
+    return {
+      mode,
+      configuredTag: "公网安全已配置",
+      configuredTagColor: "success",
+      actionLabel: configured ? "调整公网安全" : "配置公网安全",
+      ariaLabel: `${ariaAction} ${item.displayName} 公网模型安全策略`,
+      helperText: "使用前配置字段与责任确认",
+      tooltip: "配置公网模型的字段允许范围、脱敏规则和责任确认阈值",
+      modalTitle: "配置公网模型安全策略",
+      okText: "保存公网安全策略",
+      alertType: "warning",
+      alertMessage: "公网外部模型可使用患者上下文",
+      alertDescription:
+        "公网模型使用患者上下文前必须完成字段最小化、核心敏感信息遮蔽、责任确认和证据留痕；保留非核心业务值时，核心患者标识仍由平台安全策略强制遮蔽。",
+      successMessage: "公网安全策略已保存",
+      errorMessage: "公网安全策略保存失败",
+    };
+  }
+  if (mode === "local-authorization") {
+    const ariaAction = configured ? "调整" : "配置";
+    return {
+      mode,
+      configuredTag: "院内授权已配置",
+      configuredTagColor: "processing",
+      actionLabel: configured ? "调整院内授权" : "配置院内授权",
+      ariaLabel: `${ariaAction} ${item.displayName} 院内模型授权边界`,
+      helperText: "配置授权字段与用途确认",
+      tooltip: "配置院内本地模型的授权字段、处理策略和用途确认阈值",
+      modalTitle: "配置院内模型授权边界",
+      okText: "保存院内授权边界",
+      alertType: "info",
+      alertMessage: "院内本地模型按授权使用患者上下文",
+      alertDescription:
+        "院内本地模型可按授权使用必要患者信息；核心标识字段仍由安全策略处理，日志和证据不记录患者明文。",
+      successMessage: "院内授权边界已保存",
+      errorMessage: "院内授权边界保存失败",
+    };
+  }
+  const ariaAction = configured ? "调整" : "预设";
+  return {
+    mode,
+    configuredTag: "安全边界已预设",
+    configuredTagColor: "success",
+    actionLabel: configured ? "调整安全边界" : "预设安全边界",
+    ariaLabel: `${ariaAction} ${item.displayName} 模型安全边界`,
+    helperText: "切换模型前先预设字段与责任确认",
+    tooltip: "预设未来切换公网或院内模型前必须执行的字段、处理策略和责任确认边界",
+    modalTitle: "预设模型安全边界",
+    okText: "保存安全边界预设",
+    alertType: "info",
+    alertMessage: "当前能力仍走无模型规则链路",
+    alertDescription:
+      "此处只预设未来切换公网或院内模型前必须执行的字段允许范围、处理策略、责任确认和审计边界；不会改变当前规则链路运行。",
+    successMessage: "模型安全边界已保存",
+    errorMessage: "模型安全边界保存失败",
+  };
 }
 
 type EgressPolicyForm = {
@@ -268,9 +412,7 @@ function buildEgressPreviewRows(
       label: field.label,
       category: field.category,
       status: selected ? egressOperatorView[selectedOperator] : "不提供给模型",
-      reason: selected
-        ? "按当前字段处理策略进入模型请求"
-        : "未纳入允许字段，运行时不会传给外部模型",
+      reason: selected ? "按当前字段处理策略进入模型请求" : "未纳入允许字段，运行时不会传给模型",
       coreSensitive: false,
     };
   });
@@ -319,11 +461,6 @@ function egressPreviewStatusColor(item: EgressPreviewRow) {
   return "blue";
 }
 
-function renderExpectedSchema(value: string | null, evidenceDetailsEnabled: boolean) {
-  if (!value) return "未配置";
-  return evidenceDetailsEnabled ? <Text code>{value}</Text> : "已配置";
-}
-
 const egressPreviewColumns: TableProps<EgressPreviewRow>["columns"] = [
   {
     title: "字段",
@@ -342,7 +479,7 @@ const egressPreviewColumns: TableProps<EgressPreviewRow>["columns"] = [
     width: 110,
   },
   {
-    title: "外调结果",
+    title: "模型使用结果",
     key: "status",
     width: 150,
     render: (_value, item) => <Tag color={egressPreviewStatusColor(item)}>{item.status}</Tag>,
@@ -377,11 +514,24 @@ export default function AiWorkflows() {
     null,
   );
   const [confirmationPurpose, setConfirmationPurpose] = useState("");
+  const [configuredEgressCapabilityCodes, setConfiguredEgressCapabilityCodes] = useState<string[]>(
+    [],
+  );
   const capabilities = useMemo(() => statusQuery.data ?? [], [statusQuery.data]);
   const egressPreviewRows = useMemo(
     () => buildEgressPreviewRows(selectedAllowedFields ?? ["prompt"], selectedEgressOperator),
     [selectedAllowedFields, selectedEgressOperator],
   );
+  const configuredEgressCapabilityCodeSet = useMemo(
+    () => new Set(configuredEgressCapabilityCodes),
+    [configuredEgressCapabilityCodes],
+  );
+  const egressBoundaryView = egressCapability
+    ? modelSafetyBoundaryView(
+        egressCapability,
+        configuredEgressCapabilityCodeSet.has(egressCapability.capabilityCode),
+      )
+    : null;
 
   const summary = useMemo(
     () => ({
@@ -418,6 +568,10 @@ export default function AiWorkflows() {
 
   async function saveCurrentEgressPolicy() {
     if (!egressCapability) return;
+    const boundaryView = modelSafetyBoundaryView(
+      egressCapability,
+      configuredEgressCapabilityCodeSet.has(egressCapability.capabilityCode),
+    );
     try {
       const values = await egressForm.validateFields();
       const allowedFields = normalizeAllowedFields(values.allowedFields);
@@ -434,10 +588,15 @@ export default function AiWorkflows() {
           confirmationThresholdLevel: values.confirmationThresholdLevel,
         },
       });
-      message.success("外调安全策略已保存");
+      setConfiguredEgressCapabilityCodes((codes) =>
+        codes.includes(egressCapability.capabilityCode)
+          ? codes
+          : [...codes, egressCapability.capabilityCode],
+      );
+      message.success(boundaryView.successMessage);
       closeEgressPolicy();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "外调安全策略保存失败"));
+      message.error(getApiErrorMessage(error, boundaryView.errorMessage));
     }
   }
 
@@ -470,10 +629,13 @@ export default function AiWorkflows() {
     {
       title: "能力",
       key: "capability",
-      width: 320,
+      width: 340,
       render: (_value, item) => (
         <div className={styles.capabilityCell}>
-          <Text strong>{item.displayName}</Text>
+          <div className={styles.capabilityHeading}>
+            <Text strong>{item.displayName}</Text>
+            <Tag color="blue">{item.category}</Tag>
+          </div>
           <Text type="secondary">{item.description}</Text>
           {evidenceDetailsEnabled ? (
             <Text code className={styles.capabilityCode}>
@@ -484,58 +646,25 @@ export default function AiWorkflows() {
       ),
     },
     {
-      title: "业务分类",
-      dataIndex: "category",
-      key: "category",
-      width: 140,
-    },
-    {
       title: "运行方式",
       dataIndex: "routeStrategy",
       key: "routeStrategy",
-      width: 150,
+      width: 128,
       render: (value: string) => {
         const view = routeView(value);
         return <Tag color={view.color}>{view.label}</Tag>;
       },
     },
     {
-      title: "数据保护",
-      dataIndex: "desensitizeStrategy",
-      key: "desensitizeStrategy",
-      width: 130,
-      render: (value: string) => desensitizeStrategyView[value] ?? customerEnumLabel(value),
-    },
-    {
-      title: "结构约束",
-      dataIndex: "expectedSchema",
-      key: "expectedSchema",
-      width: 120,
-      render: (value: string | null) => renderExpectedSchema(value, evidenceDetailsEnabled),
-    },
-    {
-      title: "降级顺序",
-      key: "fallbackOrder",
-      width: 180,
-      render: (_value, item) => (
-        <Text type="secondary">{fallbackOrderLabel(item.fallbackOrder)}</Text>
-      ),
-    },
-    {
-      title: "策略来源",
-      key: "policyScope",
-      width: 180,
+      title: "数据边界",
+      key: "dataBoundary",
+      width: 220,
       render: (_value, item) => {
-        const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
-        const modeLabel = configurationModeLabel(item);
+        const boundary = modelDataBoundarySummary(item);
         return (
           <div className={styles.statusCell}>
-            <Tag color={item.configured ? "processing" : "default"}>{modeLabel}</Tag>
-            {evidenceDetailsEnabled ? (
-              <Text code>{scopeLabel}</Text>
-            ) : (
-              <Text type="secondary">按组织范围生效</Text>
-            )}
+            <Tag color={boundary.color}>{boundary.label}</Tag>
+            <Text type="secondary">{boundary.description}</Text>
           </div>
         );
       },
@@ -543,7 +672,7 @@ export default function AiWorkflows() {
     {
       title: "当前状态",
       key: "status",
-      width: 260,
+      width: 240,
       render: (_value, item) => {
         const view = availabilityView(item);
         return (
@@ -557,18 +686,30 @@ export default function AiWorkflows() {
   ];
   if (canManageEgress) {
     columns.push({
-      title: "外调安全",
+      title: "模型安全边界",
       key: "egressPolicy",
-      width: 120,
-      render: (_value, item) => (
-        <Tooltip title="配置字段允许范围、脱敏规则和责任确认阈值">
-          <Button
-            aria-label={`配置 ${item.displayName} 外调安全策略`}
-            icon={<SafetyCertificateOutlined />}
-            onClick={() => openEgressPolicy(item)}
-          />
-        </Tooltip>
-      ),
+      width: 150,
+      render: (_value, item) => {
+        const egressConfigured = configuredEgressCapabilityCodeSet.has(item.capabilityCode);
+        const boundaryView = modelSafetyBoundaryView(item, egressConfigured);
+        return (
+          <div className={styles.statusCell}>
+            {egressConfigured ? (
+              <Tag color={boundaryView.configuredTagColor}>{boundaryView.configuredTag}</Tag>
+            ) : null}
+            {!egressConfigured ? <Text type="secondary">{boundaryView.helperText}</Text> : null}
+            <Tooltip title={boundaryView.tooltip}>
+              <Button
+                aria-label={boundaryView.ariaLabel}
+                icon={<SafetyCertificateOutlined />}
+                onClick={() => openEgressPolicy(item)}
+              >
+                {boundaryView.actionLabel}
+              </Button>
+            </Tooltip>
+          </div>
+        );
+      },
     });
   }
 
@@ -583,7 +724,7 @@ export default function AiWorkflows() {
   if (securityQuery.isError || !canRead) {
     return (
       <PageShell title={MODEL_CAPABILITY_TITLE} description={MODEL_CAPABILITY_DESCRIPTION}>
-        <Result status="403" title="无权查看模型能力" subTitle="需要模型能力读取权限。" />
+        <Result status="403" title="无权查看模型能力与安全" subTitle="需要模型能力读取权限。" />
       </PageShell>
     );
   }
@@ -663,7 +804,7 @@ export default function AiWorkflows() {
         <Alert
           type="info"
           showIcon
-          message="患者上下文外调边界"
+          message="患者上下文模型使用边界"
           description="公网模型可在授权用途内使用患者上下文，姓名、证件号、手机号、地址、患者编号等核心标识字段先遮蔽；院内本地模型按授权使用必要信息，日志与证据不留患者明文。"
         />
 
@@ -687,7 +828,7 @@ export default function AiWorkflows() {
               dataSource={capabilities}
               loading={statusQuery.isLoading}
               pagination={false}
-              scroll={{ x: 1184 }}
+              scroll={{ x: canManageEgress ? 1120 : 960 }}
               tableLayout="fixed"
               expandable={{
                 expandedRowRender: (item) => capabilityDetails(item, evidenceDetailsEnabled),
@@ -699,11 +840,11 @@ export default function AiWorkflows() {
           </div>
         )}
         <Modal
-          title="配置外调安全策略"
+          title={egressBoundaryView?.modalTitle ?? "配置模型安全边界"}
           open={Boolean(egressCapability)}
           width={760}
-          okText="保存外调安全策略"
-          okButtonProps={{ "aria-label": "保存外调安全策略" }}
+          okText={egressBoundaryView?.okText ?? "保存模型安全边界"}
+          okButtonProps={{ "aria-label": egressBoundaryView?.okText ?? "保存模型安全边界" }}
           confirmLoading={saveEgressPolicy.isPending}
           onOk={() => void saveCurrentEgressPolicy()}
           onCancel={closeEgressPolicy}
@@ -721,10 +862,13 @@ export default function AiWorkflows() {
               }}
             >
               <Alert
-                type="warning"
+                type={egressBoundaryView?.alertType ?? "warning"}
                 showIcon
-                message="公网外部模型可使用患者上下文"
-                description="外调前必须完成字段最小化、核心敏感信息遮蔽、责任确认和证据留痕；保留非核心业务值时，核心患者标识仍由平台安全策略强制遮蔽。"
+                message={egressBoundaryView?.alertMessage ?? "模型使用患者上下文"}
+                description={
+                  egressBoundaryView?.alertDescription ??
+                  "模型使用患者上下文前必须完成字段最小化、核心敏感信息处理、责任确认和证据留痕。"
+                }
               />
               <Descriptions className={styles.egressCapability} column={1} size="small">
                 <Descriptions.Item label="模型能力">
@@ -738,7 +882,7 @@ export default function AiWorkflows() {
               </Descriptions>
               <Form.Item
                 name="allowedFields"
-                label="外调允许字段"
+                label="模型允许字段"
                 rules={[{ required: true, type: "array", min: 1, message: "请至少保留一个字段" }]}
               >
                 <Select

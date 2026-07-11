@@ -36,10 +36,12 @@ import type {
   QualityDashboardHeatmapCell,
   QualityDashboardResponse,
   QualityValueMetric,
+  SecurityProfile,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
@@ -48,6 +50,9 @@ import styles from "./Quality.module.css";
 const { Text, Title } = Typography;
 
 type TimeScope = "CURRENT_MONTH" | "LAST_30_DAYS" | "ALL";
+const PAGE_TITLE = "质量风险概览";
+const PAGE_DESCRIPTION = "质量指标、风险热力与整改闭环";
+const DASHBOARD_ALERT_PREVIEW_LIMIT = 5;
 
 export default function QcDashboard() {
   const security = useSecurityProfile();
@@ -76,6 +81,10 @@ export default function QcDashboard() {
     label: `${unit.name} · ${unit.code}`,
   }));
   const departmentNames = new Map(departments.map((unit) => [unit.id ?? unit.code, unit.name]));
+  const scopeDepartmentLabels = useMemo(
+    () => buildScopeDepartmentLabels(security.data?.dataScope),
+    [security.data?.dataScope],
+  );
 
   const dashboardParams = useMemo(() => {
     const range = resolveTimeRange(timeScope);
@@ -103,7 +112,7 @@ export default function QcDashboard() {
   const isEmpty = Boolean(dashboard && isDashboardEmpty(dashboard));
   const errorStatus = getResponseStatus(dashboardQuery.error);
   const errorDetail = dashboardQuery.error
-    ? parseApiError(dashboardQuery.error, "质控驾驶舱读取失败")
+    ? parseApiError(dashboardQuery.error, "质量风险概览读取失败")
     : undefined;
 
   const primaryAction = (
@@ -135,8 +144,8 @@ export default function QcDashboard() {
   if (dashboardQuery.isLoading) {
     return (
       <PageShell
-        title="质量管理概览"
-        description="真实指标、风险热力与闭环价值"
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
         primary={primaryAction}
         extras={extraActions}
         state="loading"
@@ -149,16 +158,16 @@ export default function QcDashboard() {
   if (dashboardQuery.isError) {
     return (
       <PageShell
-        title="质量管理概览"
-        description="真实指标、风险热力与闭环价值"
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
         primary={primaryAction}
         extras={extraActions}
         state={errorStatus === 403 ? "forbidden" : "error"}
         stateProps={{
-          title: errorStatus === 403 ? "当前权限不足" : "质控驾驶舱读取失败",
+          title: errorStatus === 403 ? "当前权限不足" : "质量风险概览读取失败",
           description: getApiErrorMessage(
             dashboardQuery.error,
-            "请检查登录权限、组织范围或质控服务状态。",
+            "请检查登录权限、组织范围或质量管理服务状态。",
           ),
           traceId: errorDetail?.traceId,
           onRetry: () => dashboardQuery.refetch(),
@@ -172,14 +181,14 @@ export default function QcDashboard() {
   if (!dashboard || isEmpty) {
     return (
       <PageShell
-        title="质量管理概览"
-        description="真实指标、风险热力与闭环价值"
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
         primary={primaryAction}
         extras={extraActions}
         state="empty"
         stateProps={{
-          title: "当前筛选下暂无真实质控数据",
-          description: "质控汇总服务暂未返回问题、预警或质量成效。",
+          title: "当前筛选下暂无质量数据",
+          description: "质量汇总服务暂未返回问题、风险提醒或质量成效。",
         }}
       >
         <></>
@@ -189,8 +198,8 @@ export default function QcDashboard() {
 
   return (
     <PageShell
-      title="质量管理概览"
-      description="真实指标、风险热力与闭环价值"
+      title={PAGE_TITLE}
+      description={PAGE_DESCRIPTION}
       primary={primaryAction}
       extras={extraActions}
     >
@@ -261,7 +270,7 @@ export default function QcDashboard() {
         <div className={styles.statsGrid}>
           <MetricCard
             icon={<AuditOutlined className={styles.iconLarge} />}
-            label="真实质控问题总数"
+            label="质量问题总数"
             value={formatCount(dashboard.summary.totalFindings)}
           />
           <MetricCard
@@ -289,6 +298,7 @@ export default function QcDashboard() {
             <HeatmapList
               cells={dashboard.heatmap}
               departmentNames={departmentNames}
+              scopeDepartmentLabels={scopeDepartmentLabels}
               evidenceDetailsEnabled={evidenceDetailsEnabled}
             />
           </Card>
@@ -300,10 +310,33 @@ export default function QcDashboard() {
           </Card>
         </div>
 
-        <Card title="待处置问题">
+        <Card
+          title="最高优先问题"
+          extra={
+            <Space wrap>
+              {dashboard.summary.activeAlerts > 0 ? (
+                <Text type="secondary">
+                  {formatDashboardAlertPreviewSummary(
+                    dashboard.summary.activeAlerts,
+                    Math.min(dashboard.activeAlerts.length, DASHBOARD_ALERT_PREVIEW_LIMIT),
+                  )}
+                </Text>
+              ) : null}
+              <Button
+                aria-label="查看全部质量问题"
+                href="/qc/alerts"
+                icon={<SearchOutlined />}
+                size="small"
+              >
+                查看全部质量问题
+              </Button>
+            </Space>
+          }
+        >
           <AlertList
-            alerts={dashboard.activeAlerts}
+            alerts={dashboard.activeAlerts.slice(0, DASHBOARD_ALERT_PREVIEW_LIMIT)}
             departmentNames={departmentNames}
+            scopeDepartmentLabels={scopeDepartmentLabels}
             evidenceDetailsEnabled={evidenceDetailsEnabled}
           />
         </Card>
@@ -314,6 +347,7 @@ export default function QcDashboard() {
           query={drilldownQuery}
           page={drilldownPage}
           departmentNames={departmentNames}
+          scopeDepartmentLabels={scopeDepartmentLabels}
           evidenceDetailsEnabled={evidenceDetailsEnabled}
           onPageChange={setDrilldownPage}
           onClose={() => setDrawerOpen(false)}
@@ -351,17 +385,60 @@ function MetricCard({
   );
 }
 
+function buildScopeDepartmentLabels(dataScope: SecurityProfile["dataScope"] | undefined) {
+  const labels = new Map<string, string>();
+  const candidates: Array<[string, string | null | undefined]> = [
+    ["当前科室", dataScope?.departmentId],
+    ["当前病区", dataScope?.wardId],
+    ["当前站点", dataScope?.siteId],
+    ["当前院区", dataScope?.campusId],
+    ["当前机构", dataScope?.hospitalId],
+    ["当前集团", dataScope?.groupId],
+    ["当前服务机构", dataScope?.tenantId],
+  ];
+  for (const [label, rawValue] of candidates) {
+    const value = rawValue?.trim();
+    if (value && !labels.has(value)) {
+      labels.set(value, label);
+    }
+  }
+  return labels;
+}
+
+function formatDepartmentName(
+  departmentId: string | null | undefined,
+  departmentNames: Map<string, string>,
+  scopeDepartmentLabels: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  const normalized = departmentId?.trim();
+  if (!normalized) {
+    return "全院";
+  }
+  const catalogName = departmentNames.get(normalized);
+  if (catalogName) {
+    return catalogName;
+  }
+  const scopeLabel = scopeDepartmentLabels.get(normalized);
+  if (scopeLabel) {
+    return evidenceDetailsEnabled ? `${scopeLabel} · ${normalized}` : scopeLabel;
+  }
+  return evidenceDetailsEnabled ? normalized : "未匹配组织";
+}
+
 function HeatmapList({
   cells,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
 }: {
   cells: QualityDashboardHeatmapCell[];
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
   if (cells.length === 0) {
-    return <Empty description="暂无真实科室风险热力" />;
+    return <Empty description="暂无科室风险热力" />;
   }
   return (
     <List
@@ -372,9 +449,12 @@ function HeatmapList({
             <Space className={styles.rowBetween} wrap>
               <Space wrap>
                 <Text strong>
-                  {cell.departmentId
-                    ? (departmentNames.get(cell.departmentId) ?? cell.departmentId)
-                    : "全院"}
+                  {formatDepartmentName(
+                    cell.departmentId,
+                    departmentNames,
+                    scopeDepartmentLabels,
+                    evidenceDetailsEnabled,
+                  )}
                 </Text>
                 <Tag color={cell.highRiskFindings > 0 ? "error" : "default"}>
                   {cell.maxSeverity || "未分级"}
@@ -407,7 +487,7 @@ function ValueMetricList({
   evidenceDetailsEnabled: boolean;
 }) {
   if (metrics.length === 0) {
-    return <Empty description="暂无真实质量成效" />;
+    return <Empty description="暂无质量成效" />;
   }
   return (
     <List
@@ -445,10 +525,12 @@ function ValueMetricList({
 function AlertList({
   alerts,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
 }: {
   alerts: QualityDashboardAlert[];
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
   if (alerts.length === 0) {
@@ -463,16 +545,20 @@ function AlertList({
             <Space className={styles.rowBetween} wrap>
               <Space wrap>
                 <Tag color="error">{customerEnumLabel(alert.severity)}</Tag>
-                <Text strong>{alert.title}</Text>
+                <Text strong>{formatAlertPreviewTitle(alert, evidenceDetailsEnabled)}</Text>
               </Space>
               <Text type="secondary">{formatDateTime(alert.createdAt)}</Text>
             </Space>
-            <Text>{alert.evidenceSummary}</Text>
+            <Text>{formatAlertEvidenceSummary(alert, evidenceDetailsEnabled)}</Text>
             <Space wrap size={4}>
               <Tag>
-                {alert.departmentId
-                  ? `科室：${departmentNames.get(alert.departmentId) ?? alert.departmentId}`
-                  : "全院"}
+                科室：
+                {formatDepartmentName(
+                  alert.departmentId,
+                  departmentNames,
+                  scopeDepartmentLabels,
+                  evidenceDetailsEnabled,
+                )}
               </Tag>
               <Tag>{qualitySourceLabel(alert.sourceType)}</Tag>
               {evidenceDetailsEnabled && alert.traceId ? (
@@ -486,12 +572,49 @@ function AlertList({
   );
 }
 
+function formatAlertPreviewTitle(
+  alert: Pick<QualityDashboardAlert, "sourceType" | "title">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled || !containsTraceEvidenceToken(alert.title)) {
+    return normalizeQualityWording(alert.title);
+  }
+  return qualitySourceLabel(alert.sourceType);
+}
+
+function formatAlertEvidenceSummary(
+  alert: Pick<QualityDashboardAlert, "alertType" | "actualValue" | "evidenceSummary">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return alert.evidenceSummary;
+  }
+  if (containsTraceEvidenceToken(alert.evidenceSummary)) {
+    if (/医保|结算|规则|阈值/.test(alert.evidenceSummary)) {
+      return "医保审核问题已形成整改证据，需责任科室按规则阈值提交整改。";
+    }
+    if (alert.alertType === "HIGH_RISK_FINDING") {
+      return `${formatCount(alert.actualValue ?? 0)}项高风险质量问题仍需闭环处理。`;
+    }
+    return "质量证据已记录，需按当前状态处理。";
+  }
+  return alert.evidenceSummary;
+}
+
+function containsTraceEvidenceToken(value: string) {
+  return (
+    /\b(?:alert|claim|enc|mpi|run|trace|finding|task|rct)-[A-Za-z0-9-]+/.test(value) ||
+    /\b[A-Z][A-Z0-9_.-]+@[0-9A-Za-z_.-]+\b/.test(value)
+  );
+}
+
 function EvidenceDrawer({
   open,
   drilldownType,
   query,
   page,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
   onPageChange,
   onClose,
@@ -501,13 +624,20 @@ function EvidenceDrawer({
   query: ReturnType<typeof useQualityDashboardDrilldown>;
   page: number;
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
   onPageChange: (page: number) => void;
   onClose: () => void;
 }) {
   const items = query.data?.items ?? [];
+  const actionSummary = buildDrilldownActionSummary(
+    items,
+    departmentNames,
+    scopeDepartmentLabels,
+    evidenceDetailsEnabled,
+  );
   return (
-    <Drawer title="真实下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
+    <Drawer title="问题下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="middle" className={styles.fullWidth}>
         <Space className={styles.rowBetween} wrap>
           <Tag color="processing">{customerEnumLabel(drilldownType)}</Tag>
@@ -521,7 +651,10 @@ function EvidenceDrawer({
             type="error"
             showIcon
             message="下钻证据读取失败"
-            description={getApiErrorMessage(query.error, "请检查权限、组织范围或质控服务状态。")}
+            description={getApiErrorMessage(
+              query.error,
+              "请检查权限、组织范围或质量管理服务状态。",
+            )}
           />
         )}
 
@@ -537,19 +670,29 @@ function EvidenceDrawer({
             description={
               evidenceDetailsEnabled
                 ? `生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}；证据范围摘要：${query.data.evidenceExport.scopeDigest}`
-                : `已按当前筛选范围记录 ${query.data.evidenceExport.itemCount} 项证据；生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}`
+                : `已按当前筛选条件生成证据包；当前页 ${items.length} 项，共 ${query.data.total} 项。生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}`
             }
+          />
+        )}
+
+        {items.length > 0 && (
+          <Alert
+            type={actionSummary.highRiskCount > 0 ? "warning" : "info"}
+            showIcon
+            message="当前页处理摘要"
+            description={actionSummary.description}
           />
         )}
 
         <List
           loading={query.isLoading}
           dataSource={items}
-          locale={{ emptyText: <Empty description="暂无真实下钻证据" /> }}
+          locale={{ emptyText: <Empty description="暂无问题下钻证据" /> }}
           renderItem={(item) => (
             <EvidenceItem
               item={item}
               departmentNames={departmentNames}
+              scopeDepartmentLabels={scopeDepartmentLabels}
               evidenceDetailsEnabled={evidenceDetailsEnabled}
             />
           )}
@@ -568,15 +711,62 @@ function EvidenceDrawer({
   );
 }
 
+function buildDrilldownActionSummary(
+  items: QualityDashboardDrilldownItem[],
+  departmentNames: Map<string, string>,
+  scopeDepartmentLabels: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  const highRiskCount = items.filter((item) => isHighRiskSeverity(item.severity)).length;
+  const openCount = items.filter((item) => isOpenQualityStatus(item.status)).length;
+  const departmentCounts = new Map<string, number>();
+  for (const item of items) {
+    const departmentName = formatDepartmentName(
+      item.departmentId,
+      departmentNames,
+      scopeDepartmentLabels,
+      evidenceDetailsEnabled,
+    );
+    departmentCounts.set(departmentName, (departmentCounts.get(departmentName) ?? 0) + 1);
+  }
+  const departmentSummary = [...departmentCounts.entries()]
+    .slice(0, 3)
+    .map(([name, count]) => `${name} ${count} 项`)
+    .join("，");
+  const priorityText =
+    highRiskCount > 0
+      ? `先处理 ${highRiskCount} 项高风险证据`
+      : `先处理 ${openCount || items.length} 项未闭环证据`;
+  const openText = openCount > 0 ? `未闭环 ${openCount} 项` : "当前页均已闭环或豁免";
+  return {
+    highRiskCount,
+    description: `${priorityText}；${departmentSummary || "全院 0 项"}，${openText}。建议进入“质量问题与整改”派发、复核或关闭整改。`,
+  };
+}
+
+function isHighRiskSeverity(value: string) {
+  const normalized = value.toUpperCase();
+  return normalized === "P0" || normalized === "P1";
+}
+
+function isOpenQualityStatus(value: string) {
+  const normalized = value.toUpperCase();
+  return !["CLOSED", "WAIVED", "RESOLVED", "DONE", "COMPLETED"].includes(normalized);
+}
+
 function EvidenceItem({
   item,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
 }: {
   item: QualityDashboardDrilldownItem;
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
+  const title = formatDrilldownItemTitle(item, evidenceDetailsEnabled);
+  const evidenceSummary = formatDrilldownItemEvidenceSummary(item, evidenceDetailsEnabled);
   return (
     <List.Item>
       <Space direction="vertical" size={4} className={styles.fullWidth}>
@@ -585,16 +775,19 @@ function EvidenceItem({
             <Tag color={item.severity === "P0" || item.severity === "P1" ? "error" : "default"}>
               {customerEnumLabel(item.severity)}
             </Tag>
-            <Text strong>{item.title}</Text>
+            <Text strong>{title}</Text>
           </Space>
           <Text type="secondary">{formatDateTime(item.occurredAt)}</Text>
         </Space>
-        <Text>{item.evidenceSummary}</Text>
+        <Text>{evidenceSummary}</Text>
         <Space wrap size={4}>
           <Tag>
-            {item.departmentId
-              ? (departmentNames.get(item.departmentId) ?? item.departmentId)
-              : "全院"}
+            {formatDepartmentName(
+              item.departmentId,
+              departmentNames,
+              scopeDepartmentLabels,
+              evidenceDetailsEnabled,
+            )}
           </Tag>
           <Tag>{customerEnumLabel(item.status)}</Tag>
           <Tag>{qualitySourceLabel(item.sourceType)}</Tag>
@@ -610,6 +803,43 @@ function EvidenceItem({
       </Space>
     </List.Item>
   );
+}
+
+function formatDrilldownItemTitle(
+  item: QualityDashboardDrilldownItem,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled || !containsTraceEvidenceToken(item.title)) {
+    return normalizeQualityWording(item.title);
+  }
+  return `${qualitySourceLabel(item.sourceType)} · ${customerEnumLabel(item.status)}`;
+}
+
+function normalizeQualityWording(value: string) {
+  return value
+    .replace(/质控问题/g, "质量问题")
+    .replace(/质控事实/g, "质量事实")
+    .replace(/质控缺陷/g, "质量缺陷");
+}
+
+function formatDrilldownItemEvidenceSummary(
+  item: QualityDashboardDrilldownItem,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled || !containsTraceEvidenceToken(item.evidenceSummary)) {
+    return item.evidenceSummary;
+  }
+  const normalized = item.sourceType.toUpperCase();
+  if (normalized === "RECTIFICATION_TASK") {
+    return "整改任务证据已关联，责任科室需按当前状态复核闭环。";
+  }
+  if (normalized === "QUALITY_FINDING") {
+    return "质量问题证据已关联，需按当前状态闭环处理。";
+  }
+  if (normalized === "QUALITY_ALERT") {
+    return "质量风险提醒证据已关联，需按当前状态处理。";
+  }
+  return "下钻证据已关联，需按当前状态处理。";
 }
 
 function isDashboardEmpty(dashboard: QualityDashboardResponse): boolean {
@@ -640,13 +870,24 @@ function formatCount(value: number): string {
   return `${value} 项`;
 }
 
+function formatDashboardAlertPreviewSummary(total: number, visibleCount: number): string {
+  return `共 ${total} 条待处置问题，当前展示 ${visibleCount} 条`;
+}
+
 function formatMetricValue(metric: QualityValueMetric): string {
   if (metric.status !== "AVAILABLE" || metric.value === null) {
     return "暂不可用";
   }
-  if (metric.unit === "%") {
+  const unit = metric.unit?.trim().toUpperCase();
+  if (unit === "%" || unit === "RATE" || unit === "PERCENT") {
     const percent = metric.value <= 1 ? metric.value * 100 : metric.value;
     return `${percent.toFixed(1)}%`;
+  }
+  if (unit === "CASE_COUNT") {
+    return `${metric.value.toLocaleString()} 例`;
+  }
+  if (unit === "COUNT") {
+    return `${metric.value.toLocaleString()} 项`;
   }
   return `${metric.value.toLocaleString()}${metric.unit ? ` ${metric.unit}` : ""}`;
 }
@@ -664,15 +905,14 @@ function heatmapBusinessLabel(cell: QualityDashboardHeatmapCell): string {
 
 function qualitySourceLabel(sourceType: string): string {
   const normalized = sourceType.toUpperCase();
-  if (normalized === "QUALITY_FINDING") return "质控问题";
-  if (normalized === "QUALITY_ALERT") return "质控预警";
+  if (normalized === "QUALITY_FINDING") return "质量问题";
+  if (normalized === "QUALITY_ALERT") return "质量风险提醒";
   if (normalized === "RECTIFICATION_TASK") return "整改任务";
   return customerEnumLabel(normalized);
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "--";
-  return value.replace("T", " ").slice(0, 16);
+  return formatClinicalDateTime(value, "--");
 }
 
 function getResponseStatus(error: unknown): number | undefined {

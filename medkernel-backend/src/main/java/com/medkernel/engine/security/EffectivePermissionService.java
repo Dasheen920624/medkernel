@@ -34,8 +34,8 @@ public class EffectivePermissionService {
         collectAssignedRoles(scope, userId, roles);
 
         EnumSet<PermissionCode> permissions = EnumSet.noneOf(PermissionCode.class);
-        for (String roleCode : roles.keySet()) {
-            RoleCode.fromCode(roleCode)
+        for (EffectivePermissionProfile.RoleView roleView : roles.values()) {
+            RoleCode.fromCode(roleView.code())
                 .ifPresent(role -> permissions.addAll(DefaultPermissionPolicy.permissionsOf(role)));
         }
         List<EffectivePermissionProfile.PermissionView> permissionViews = permissions.stream()
@@ -102,14 +102,30 @@ public class EffectivePermissionService {
             if (!assignment.active() || !assignmentAppliesToScope(assignment, scope)) {
                 continue;
             }
-            assignment.role().ifPresent(role -> roles.putIfAbsent(role.code(),
-                new EffectivePermissionProfile.RoleView(
-                    role.code(),
-                    role.displayName(),
-                    "ASSIGNMENT",
-                    assignment.scopeLevel(),
-                    assignment.scopeCode())));
+            assignment.role().ifPresent(role -> {
+                roles.remove(role.code());
+                roles.put(
+                    roleAssignmentKey(role.code(), assignment.scopeLevel(), assignment.scopeCode()),
+                    assignmentRoleView(role, assignment));
+            });
         }
+    }
+
+    private EffectivePermissionProfile.RoleView assignmentRoleView(RoleCode role, UserRoleAssignment assignment) {
+        return new EffectivePermissionProfile.RoleView(
+            role.code(),
+            role.displayName(),
+            "ASSIGNMENT",
+            assignment.scopeLevel(),
+            assignment.scopeCode());
+    }
+
+    private String roleAssignmentKey(String roleCode, String scopeLevel, String scopeCode) {
+        return String.join(
+            "|",
+            roleCode,
+            scopeLevel == null ? "" : scopeLevel.trim().toUpperCase(Locale.ROOT),
+            scopeCode == null ? "" : scopeCode.trim());
     }
 
     private boolean assignmentAppliesToScope(UserRoleAssignment assignment, OrgScope scope) {

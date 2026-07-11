@@ -83,6 +83,49 @@ class ClinicalRedlineMatcherTest {
     }
 
     @Test
+    void conditionTreeRedlineRunsWithoutRequiringRuleActionEnvelope() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-redline-condition", OrgScope.tenant("tenant-A"), "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
+        when(runtimeRedlines.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(redlineWithConditionTree("tenant-A", "redline-dose-limit")));
+
+        List<RecommendationCardRequest> cards = matcher.match(triggerRequest());
+
+        assertThat(cards).singleElement()
+            .satisfies(card -> {
+                assertThat(card.cardCode()).isEqualTo("REDLINE.RDL-DOSE-001.v2026.2");
+                assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
+                assertThat(card.requiresPhysicianConfirmation()).isTrue();
+                assertThat(card.summary()).contains("命中临床安全红线");
+                assertThat(card.explanationJson())
+                    .contains("\"matchType\":\"CLINICAL_REDLINE\"")
+                    .contains("\"conditionEvidence\"");
+            });
+    }
+
+    @Test
+    void surgeryAnesthesiaTransfusionRedlineMaterializesAsRiskCard() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-redline-surgery", OrgScope.tenant("tenant-A"), "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
+        when(runtimeRedlines.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(surgeryRedline("tenant-A", "redline-surgery-checklist")));
+
+        List<RecommendationCardRequest> cards = matcher.match(triggerRequest());
+
+        assertThat(cards).singleElement()
+            .satisfies(card -> {
+                assertThat(card.cardCode()).isEqualTo("REDLINE.RDL-SURGERY-001.v2026.2");
+                assertThat(card.cardType()).isEqualTo(RecommendationCardType.RISK);
+                assertThat(card.requiresPhysicianConfirmation()).isTrue();
+                assertThat(card.explanationJson())
+                    .contains("\"category\":\"SURGERY_ANESTHESIA_TRANSFUSION\"")
+                    .contains("围手术期麻醉输血高危核查");
+            });
+    }
+
+    @Test
     void includesPlatformRedlineWhenTenantHasNoLocalOverride() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline-match", OrgScope.tenant("tenant-A"), "doctor-1"));
@@ -177,6 +220,86 @@ class ClinicalRedlineMatcherTest {
             "药品说明书与临床指南证据",
             "source-version:42#section-1",
             42L,
+            false,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-redline");
+    }
+
+    private ClinicalRedlineRule redlineWithConditionTree(String tenantId, String redlineId) {
+        Instant now = Instant.parse("2026-06-04T02:00:00Z");
+        return new ClinicalRedlineRule(
+            null,
+            redlineId,
+            tenantId,
+            ClinicalRedlineCategory.DOSE_LIMIT,
+            "order-sign",
+            "TENANT",
+            tenantId,
+            tenantId + "|DOSE_LIMIT|order-sign|RDL-DOSE-001",
+            "RDL-DOSE-001",
+            "2026.2",
+            ClinicalRedlineStatus.ACTIVE,
+            RecommendationRiskLevel.CRITICAL,
+            "risk-matrix-critical-dose",
+            "4",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            "本地上线演练剂量安全红线",
+            "剂量超过安全阈值必须人工复核",
+            """
+            {
+              "all": [
+                {"fact": "patient.gender", "operator": "equals", "value": "FEMALE"}
+              ]
+            }
+            """,
+            "药品说明书与临床指南证据",
+            "source-version:42#section-1",
+            42L,
+            false,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-redline");
+    }
+
+    private ClinicalRedlineRule surgeryRedline(String tenantId, String redlineId) {
+        Instant now = Instant.parse("2026-06-04T02:00:00Z");
+        return new ClinicalRedlineRule(
+            null,
+            redlineId,
+            tenantId,
+            ClinicalRedlineCategory.SURGERY_ANESTHESIA_TRANSFUSION,
+            "order-sign",
+            "TENANT",
+            tenantId,
+            tenantId + "|SURGERY_ANESTHESIA_TRANSFUSION|order-sign|RDL-SURGERY-001",
+            "RDL-SURGERY-001",
+            "2026.2",
+            ClinicalRedlineStatus.ACTIVE,
+            RecommendationRiskLevel.CRITICAL,
+            "risk-matrix-critical-surgery",
+            "4",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "S26_SURGERY_ANESTHESIA_TRANSFUSION",
+            "围手术期麻醉输血高危核查",
+            "术前核查、麻醉风险和用血确认必须由临床人工确认",
+            """
+            {
+              "all": [
+                {"fact": "patient.gender", "operator": "equals", "value": "FEMALE"}
+              ]
+            }
+            """,
+            "S26 围手术期代表切片演练证据",
+            "evidence://local-e2e/surgery-anesthesia-transfusion/redline",
+            null,
             false,
             now,
             "tester",

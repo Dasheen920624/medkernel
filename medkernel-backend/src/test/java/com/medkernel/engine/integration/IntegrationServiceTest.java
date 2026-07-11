@@ -19,6 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlConfig;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.context.ClinicalEvent;
@@ -208,31 +211,63 @@ class IntegrationServiceTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Sql(
+        statements = {
+            "DELETE FROM audit_event WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM audit_chain_head WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM mk_integration_data_quality_report WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM integration_adapter WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')",
+            "DELETE FROM mpi_patient WHERE tenant_id IN "
+                + "('tenant-integration-quality', 'tenant-integration-quality-other')"
+        },
+        executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD,
+        config = @SqlConfig(transactionMode = SqlConfig.TransactionMode.ISOLATED)
+    )
     void dataQualityReportUsesTenantFactsAndPersistsHonestGapSnapshot() {
+        String qualityTenantId = "tenant-integration-quality";
+        String otherTenantId = "tenant-integration-quality-other";
         mpiPatientRepository.save(new MpiPatient(
-            null, "mpi-quality-ok", tenantId, "张*三", "M", 35, "1234", 0, "ACTIVE",
+            null, "mpi-quality-ok", qualityTenantId, "张*三", "M", 35, "1234", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
         mpiPatientRepository.save(new MpiPatient(
-            null, "mpi-quality-gap", tenantId, "", "F", 0, "", 0, "ACTIVE",
+            null, "mpi-quality-gap", qualityTenantId, "", "F", 0, "", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
         mpiPatientRepository.save(new MpiPatient(
-            null, "mpi-quality-other", "tenant-002", "", "M", 0, "", 0, "ACTIVE",
+            null, "mpi-quality-other", otherTenantId, "", "M", 0, "", 0, "ACTIVE",
             null, Instant.now(), "test", Instant.now(), "test"
         ));
-        service.createAdapter(tenantId, new AdapterCreateDto("his-quality", "HIS 质量接入", "Webhook", """
+        service.createAdapter(qualityTenantId, new AdapterCreateDto("his-quality", "HIS 质量接入", "Webhook", """
             {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
             """));
-        service.createAdapter(tenantId, new AdapterCreateDto("lis-quality", "LIS 未映射", "Webhook", "{}"));
-        service.createAdapter("tenant-002", new AdapterCreateDto("his-quality-other", "其他租户 HIS", "Webhook", "{}"));
-        service.checkAdapterHealth(tenantId, "his-quality");
+        service.createAdapter(qualityTenantId, new AdapterCreateDto("lis-quality", "LIS 未映射", "Webhook", "{}"));
+        service.createAdapter(otherTenantId,
+            new AdapterCreateDto("his-quality-other", "其他租户 HIS", "Webhook", "{}"));
+        service.checkAdapterHealth(qualityTenantId, "his-quality");
 
-        DataQualityReport report = service.generateDataQualityReport(tenantId);
-        AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
+        DataQualityReport report;
+        try {
+            report = RequestContext.callWith(
+                new RequestContext.Snapshot(
+                    "trace-data-quality-report",
+                    OrgScope.tenant(qualityTenantId),
+                    "implementation-engineer"
+                ),
+                () -> service.generateDataQualityReport(qualityTenantId)
+            );
+        } catch (Exception ex) {
+            throw new AssertionError("生成数据质量报告不应因请求上下文失败", ex);
+        }
+        AdapterHubStatus status = service.getAdapterHubStatus(qualityTenantId);
 
         assertNotNull(report.reportId());
-        assertEquals(tenantId, report.tenantId());
+        assertEquals(qualityTenantId, report.tenantId());
         assertEquals(8, report.requiredFieldTotal());
         assertEquals(5, report.requiredFieldPresent());
         assertEquals(62.5, report.requiredFieldRate(), 0.01);
@@ -244,6 +279,7 @@ class IntegrationServiceTest {
         assertTrue(report.gapSummary().contains("必填字段缺口"));
         assertTrue(report.gapSummary().contains("未配置字段映射"));
         assertTrue(dataQualityReportRepository.findById(report.reportId()).isPresent());
+        assertDataQualityReportAuditRecorded(qualityTenantId, report.reportId());
 
         assertEquals(2, status.totalAdapters());
         assertEquals(1, status.mappedAdapters());
@@ -255,7 +291,7 @@ class IntegrationServiceTest {
     }
 
     @Test
-    void adapterHubStatusIncludesRequiredHisEmrLisChecklistWithoutFakingMissingConnections() {
+    void adapterHubStatusIncludesAllRequiredSystemFamiliesWithoutFakingMissingConnections() {
         service.createAdapter(tenantId, new AdapterCreateDto("his-required", "一院 HIS 主数据", "Webhook", """
             {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
             """));
@@ -265,6 +301,7 @@ class IntegrationServiceTest {
             "ADAPTER",
             "his-required",
             null,
+            "HIS_EMR_CDR",
             "HIS",
             "S2 院内系统接入",
             "/t-1/group-a/hospital-a",
@@ -274,21 +311,40 @@ class IntegrationServiceTest {
 
         AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
 
-        assertEquals(List.of("HIS", "EMR", "LIS"),
-            status.requiredSources().stream().map(AdapterHubRequiredSourceStatus::sourceSystem).toList());
+        assertEquals(List.of(
+                "HIS_EMR_CDR",
+                "LIS_MONITORING_CRITICAL",
+                "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+                "PHARMACY_REVIEW",
+                "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+                "MEDICAL_RECORD_INSURANCE_PAYMENT",
+                "PUBLIC_HEALTH_INFECTION_REGULATORY",
+                "FOLLOWUP_PATIENT_SERVICE",
+                "CA_OIDC_SSO_HR",
+                "REGIONAL_REMOTE",
+                "SPD_UDI_DEVICE",
+                "RESEARCH_ETHICS_DATA",
+                "MODEL_DIFY_AGENT"
+            ),
+            status.requiredSources().stream().map(AdapterHubRequiredSourceStatus::systemFamilyCode).toList());
         AdapterHubRequiredSourceStatus his = status.requiredSources().stream()
-            .filter(item -> "HIS".equals(item.sourceSystem()))
-            .findFirst()
-            .orElseThrow();
-        AdapterHubRequiredSourceStatus emr = status.requiredSources().stream()
-            .filter(item -> "EMR".equals(item.sourceSystem()))
+            .filter(item -> "HIS_EMR_CDR".equals(item.systemFamilyCode()))
             .findFirst()
             .orElseThrow();
         AdapterHubRequiredSourceStatus lis = status.requiredSources().stream()
-            .filter(item -> "LIS".equals(item.sourceSystem()))
+            .filter(item -> "LIS_MONITORING_CRITICAL".equals(item.systemFamilyCode()))
+            .findFirst()
+            .orElseThrow();
+        AdapterHubRequiredSourceStatus pacs = status.requiredSources().stream()
+            .filter(item -> "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG".equals(item.systemFamilyCode()))
+            .findFirst()
+            .orElseThrow();
+        AdapterHubRequiredSourceStatus model = status.requiredSources().stream()
+            .filter(item -> "MODEL_DIFY_AGENT".equals(item.systemFamilyCode()))
             .findFirst()
             .orElseThrow();
 
+        assertEquals("HIS", his.sourceSystem());
         assertEquals("his-required", his.adapterId());
         assertEquals("BOUND", his.status());
         assertEquals("NOT_CONNECTED", his.healthStatus());
@@ -296,21 +352,21 @@ class IntegrationServiceTest {
         assertFalse(his.ready());
         assertTrue(his.gaps().contains("未连接真实外部系统"));
 
-        assertNull(emr.adapterId());
-        assertEquals("MISSING", emr.status());
-        assertEquals("NOT_CONNECTED", emr.healthStatus());
-        assertFalse(emr.ready());
-        assertTrue(emr.gaps().contains("缺少 EMR 适配器"));
-
         assertNull(lis.adapterId());
+        assertEquals("LIS_MONITORING_CRITICAL", lis.sourceSystem());
         assertEquals("MISSING", lis.status());
         assertEquals("NOT_CONNECTED", lis.healthStatus());
         assertFalse(lis.ready());
-        assertTrue(lis.gaps().contains("缺少 LIS 适配器"));
+        assertTrue(lis.gaps().stream().anyMatch(gap -> gap.contains("LIS、监护与危急值")));
+        assertEquals("PACS/RIS、超声、病理、内镜、心电", pacs.label());
+
+        assertNull(model.adapterId());
+        assertEquals("MISSING", model.status());
+        assertTrue(model.gaps().stream().anyMatch(gap -> gap.contains("模型服务、Dify 和 Agent")));
     }
 
     @Test
-    void requiredSourceFallbackDoesNotMatchUnrelatedSubstringInsideAdapterIdentifier() {
+    void requiredSystemFamilyChecklistDoesNotInferCoverageFromAdapterName() {
         service.createAdapter(tenantId, new AdapterCreateDto(
             "this-statistics",
             "院内统计系统",
@@ -321,12 +377,12 @@ class IntegrationServiceTest {
         AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
 
         AdapterHubRequiredSourceStatus his = status.requiredSources().stream()
-            .filter(item -> "HIS".equals(item.sourceSystem()))
+            .filter(item -> "HIS_EMR_CDR".equals(item.systemFamilyCode()))
             .findFirst()
             .orElseThrow();
         assertNull(his.adapterId());
         assertEquals("MISSING", his.status());
-        assertTrue(his.gaps().contains("缺少 HIS 适配器"));
+        assertTrue(his.gaps().stream().anyMatch(gap -> gap.contains("HIS、EMR、CDR")));
     }
 
     @Test
@@ -344,6 +400,7 @@ class IntegrationServiceTest {
                 "ADAPTER",
                 "his-business",
                 null,
+                "HIS_EMR_CDR",
                 "HIS",
                 "S2 院内系统接入",
                 "/t-1/group-a/hospital-a",
@@ -356,6 +413,7 @@ class IntegrationServiceTest {
                 "FHIR",
                 null,
                 "R4",
+                "REGIONAL_REMOTE",
                 "REGIONAL_FHIR",
                 "S40 区域共享",
                 "/t-1/group-a/hospital-a",
@@ -363,11 +421,15 @@ class IntegrationServiceTest {
             ));
 
         assertEquals("REQUESTED", adapterOnboarding.status());
+        assertEquals("HIS_EMR_CDR", adapterOnboarding.systemFamilyCode());
+        assertEquals("his-business", adapterOnboarding.adapterId());
         assertEquals("ADAPTER", adapterOnboarding.routeType());
         assertEquals("/api/v1/engine/integration/adapters/his-business", adapterOnboarding.routeReference());
         assertEquals("NOT_CONNECTED", adapterOnboarding.healthStatus());
         assertTrue(adapterOnboarding.blockers().contains("未完成鉴权配置"));
         assertEquals("FHIR", fhirOnboarding.routeType());
+        assertNull(fhirOnboarding.adapterId());
+        assertEquals("REGIONAL_REMOTE", fhirOnboarding.systemFamilyCode());
         assertEquals("/api/v1/engine/integration/fhir/R4", fhirOnboarding.routeReference());
 
         service.advanceIntegrationOnboarding(tenantId, "onb-adapter-1",
@@ -378,11 +440,55 @@ class IntegrationServiceTest {
             new IntegrationOnboardingAdvanceRequest("ONLINE", "联调完成后上线业务接口"));
 
         assertEquals("ONLINE", online.status());
+        assertEquals("his-business", online.adapterId());
         assertEquals("NOT_CONNECTED", online.healthStatus(), "上线状态不应伪造外部连接成功");
         assertTrue(online.blockers().stream().anyMatch(item -> item.contains("NOT_CONNECTED")));
         assertTrue(online.blockers().stream().anyMatch(item -> item.contains("外部连接器待配置或外部不可达")));
         assertTrue(online.blockers().stream().noneMatch(item -> item.contains("未接入真实外部连接器")));
-        assertEquals(2, onboardingRepository.findAllByTenantId(tenantId).size());
+        PageResponse<IntegrationOnboardingResponse> onboardings =
+            service.listIntegrationOnboardings(tenantId, PageRequest.defaults());
+        assertEquals(2, onboardings.total());
+        assertTrue(onboardings.items().stream().anyMatch(item ->
+            "onb-adapter-1".equals(item.onboardingId()) && "his-business".equals(item.adapterId())));
+    }
+
+    @Test
+    void onboardingRequiresCanonicalThirdPartySystemFamily() {
+        service.createAdapter(tenantId, new AdapterCreateDto("custom-business", "未归类院内接口", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+
+        ApiException missing = assertThrows(ApiException.class, () ->
+            service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+                "onb-missing-family",
+                "未归类业务接口接入",
+                "ADAPTER",
+                "custom-business",
+                null,
+                "",
+                "CUSTOM",
+                "S2 院内系统接入",
+                "/t-1/group-a/hospital-a",
+                null
+            )));
+        assertEquals("ENG-INTEG-001", missing.errorCode().code());
+        assertTrue(missing.getMessage().contains("第三方系统族"));
+
+        ApiException unknown = assertThrows(ApiException.class, () ->
+            service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+                "onb-unknown-family",
+                "未知业务接口接入",
+                "ADAPTER",
+                "custom-business",
+                null,
+                "CUSTOM_OTHER",
+                "CUSTOM",
+                "S2 院内系统接入",
+                "/t-1/group-a/hospital-a",
+                null
+            )));
+        assertEquals("ENG-INTEG-001", unknown.errorCode().code());
+        assertTrue(unknown.getMessage().contains("第三方系统族"));
     }
 
     @Test
@@ -394,6 +500,7 @@ class IntegrationServiceTest {
             "ADAPTER",
             "lis-without-mapping",
             null,
+            "LIS_MONITORING_CRITICAL",
             "LIS",
             "S2 院内系统接入",
             "/t-1/group-a/hospital-a",
@@ -475,6 +582,7 @@ class IntegrationServiceTest {
             "ADAPTER",
             "his-business",
             null,
+            "HIS_EMR_CDR",
             "HIS",
             "S2 院内系统接入",
             "/t-1/group-a/hospital-a",
@@ -486,6 +594,7 @@ class IntegrationServiceTest {
             "FHIR",
             null,
             "R4",
+            "REGIONAL_REMOTE",
             "REGIONAL_FHIR",
             "S40 区域共享",
             "/t-1/group-a/hospital-a",
@@ -651,7 +760,30 @@ class IntegrationServiceTest {
     }
 
     @Test
+    void inboundWebhookCanonicalPayloadMatchesExternalJsonContract() throws Exception {
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "s2s4-msg-mr9pqykf",
+            "s2s4-trace-mr9pqykf",
+            "s2s4-lis-mr9pqykf",
+            "LIS",
+            ClinicalEventType.REPORT,
+            "S2S4-P-mr9pqykf",
+            "S2S4-E-mr9pqykf",
+            ClinicalSetting.OUTPATIENT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            Instant.parse("2026-07-07T00:05:00Z"),
+            objectMapper.readTree("{\"patientId\":\"S2S4-P-mr9pqykf\",\"labCode\":\"LIS-HGB-MR9PQYKF\"}")
+        );
+
+        assertEquals(
+            "{\"messageId\":\"s2s4-msg-mr9pqykf\",\"traceId\":\"s2s4-trace-mr9pqykf\",\"adapterId\":\"s2s4-lis-mr9pqykf\",\"sourceSystem\":\"LIS\",\"eventType\":\"REPORT\",\"patientId\":\"S2S4-P-mr9pqykf\",\"encounterId\":\"S2S4-E-mr9pqykf\",\"clinicalSetting\":\"OUTPATIENT\",\"triggerPoint\":\"result-review\",\"occurredAt\":\"2026-07-07T00:05:00Z\",\"payload\":{\"patientId\":\"S2S4-P-mr9pqykf\",\"labCode\":\"LIS-HGB-MR9PQYKF\"}}",
+            objectMapper.writeValueAsString(inbound)
+        );
+    }
+
+    @Test
     void inboundWebhookVerifiesSignatureMapsFieldsAndNormalizesCodesByConfirmedTermMapping() throws Exception {
+        insertTerminologyRuntimeOrgTree();
         Long standardTermId = insertStandardTerm("ICD-10", "A00", "霍乱");
         Long localTermId = insertLocalTerm("HIS", "DIA-A00", "本院霍乱诊断");
         Long mappingId = insertConfirmedTermMapping(localTermId, standardTermId, "HIS");
@@ -762,6 +894,491 @@ class IntegrationServiceTest {
         assertEquals(result.clinicalEventId(), replay.clinicalEventId());
         assertEquals("RECEIVED", replay.clinicalEventStatus());
         assertEquals(1, logRepository.countByTenantId(tenantId));
+    }
+
+    @Test
+    void inboundWebhookMapsPharmacyReviewConditionObservationAndReviewResult() throws Exception {
+        insertTerminologyRuntimeOrgTree();
+        Long drugStandardTermId = insertStandardTerm("ATC", "J01C", "青霉素类", "DRUG");
+        Long drugLocalTermId = insertLocalTerm("PHARMACY_REVIEW", "J01C", "审方系统青霉素类", "DRUG");
+        Long drugMappingId = insertConfirmedTermMapping(
+            drugLocalTermId, drugStandardTermId, "PHARMACY_REVIEW", "DRUG");
+        TerminologyRuntimeAsset drugTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.PHARMACY_REVIEW.DRUG", "V1", drugMappingId, drugLocalTermId,
+            drugStandardTermId, "J01C", "PHARMACY_REVIEW", "J01C", "ATC", "DRUG");
+        Long diagnosisStandardTermId = insertStandardTerm("ICD-10", "J18.900", "肺炎");
+        Long diagnosisLocalTermId = insertLocalTerm("PHARMACY_REVIEW", "J18.900", "肺炎");
+        Long diagnosisMappingId = insertConfirmedTermMapping(
+            diagnosisLocalTermId, diagnosisStandardTermId, "PHARMACY_REVIEW");
+        TerminologyRuntimeAsset diagnosisTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.PHARMACY_REVIEW.DIAGNOSIS", "V1", diagnosisMappingId, diagnosisLocalTermId,
+            diagnosisStandardTermId, "J18.900", "PHARMACY_REVIEW", "J18.900", "ICD-10", "DIAGNOSIS");
+        String runtimeReleaseId = "runtime-release-pharmacy-review";
+        insertCurrentRuntimeRelease(runtimeReleaseId, drugTerminology, diagnosisTerminology);
+
+        service.createAdapter(tenantId, new AdapterCreateDto("pharmacy-review-adapter", "审方入站适配器", "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/medicationCode",
+                  "targetPath": "/medications/0",
+                  "targetDictionaryKey": "ATC",
+                  "category": "DRUG"
+                },
+                {
+                  "sourcePath": "/infectionCode",
+                  "targetPath": "/conditions/0",
+                  "targetDictionaryKey": "ICD-10",
+                  "category": "DIAGNOSIS"
+                },
+                {"sourcePath": "/observationCode", "targetPath": "/observations/0/code"},
+                {"sourcePath": "/pct", "targetPath": "/observations/0/valueNumeric"},
+                {"sourcePath": "/pharmacyReview/reviewResult", "targetPath": "/pharmacyReview/reviewResult"},
+                {"sourcePath": "/pharmacyReview/pharmacistOpinion", "targetPath": "/pharmacyReview/pharmacistOpinion"}
+              ]
+            }
+            """));
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-pharmacy-review", "审方回传", "http://localhost/inbound", "PHARMACY_REVIEW_RESULT"));
+        IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId("whk-pharmacy-review", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "msg-pharmacy-review-1",
+            "trace-pharmacy-review-1",
+            "pharmacy-review-adapter",
+            "PHARMACY_REVIEW",
+            ClinicalEventType.ORDER,
+            "P-100",
+            "encounter-100",
+            ClinicalSetting.OUTPATIENT,
+            ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE,
+            Instant.parse("2026-07-07T00:05:00Z"),
+            objectMapper.readTree("""
+            {
+              "patientId": "P-100",
+              "medicationCode": "J01C",
+              "infectionCode": "J18.900",
+              "observationCode": "PCT",
+              "pct": 2.4,
+              "pharmacyReview": {
+                "reviewResult": "REQUIRES_PHYSICIAN_CONFIRMATION",
+                "pharmacistOpinion": "抗菌药物使用需结合感染指标与病原学复核。"
+              }
+            }
+            """));
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        WebhookInboundResultDto result = RequestContext.callWith(
+            new RequestContext.Snapshot(
+                "trace-pharmacy-review-1",
+                new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                "integration-test"),
+            () -> service.ingestWebhook(tenantId, "whk-pharmacy-review", timestamp, signature, inbound));
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(7, result.mappedFieldCount());
+        assertEquals(2, result.normalizedCodeCount());
+        assertEquals("P-100", result.mappedPayload().at("/patient/mpi").asText());
+	        assertEquals("J01C", result.mappedPayload().at("/medications/0/standardCode").asText());
+	        assertEquals("ATC", result.mappedPayload().at("/medications/0/codeSystem").asText());
+	        assertEquals("J01C", result.mappedPayload().at("/medications/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/medications/0/localCodeSystem").asText());
+	        assertEquals(drugMappingId.longValue(), result.mappedPayload().at("/medications/0/mappingId").asLong());
+	        assertEquals(drugStandardTermId.longValue(), result.mappedPayload().at("/medications/0/standardTermId").asLong());
+	        assertEquals("V1", result.mappedPayload().at("/medications/0/mappedVersion").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/medications/0/sourceSystem").asText());
+	        assertEquals(runtimeReleaseId, result.mappedPayload().at("/medications/0/runtimeReleaseId").asText());
+	        assertEquals("J18.900", result.mappedPayload().at("/conditions/0/standardCode").asText());
+	        assertEquals("ICD-10", result.mappedPayload().at("/conditions/0/codeSystem").asText());
+	        assertEquals("J18.900", result.mappedPayload().at("/conditions/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/conditions/0/localCodeSystem").asText());
+	        assertEquals(diagnosisMappingId.longValue(), result.mappedPayload().at("/conditions/0/mappingId").asLong());
+	        assertEquals(diagnosisStandardTermId.longValue(), result.mappedPayload().at("/conditions/0/standardTermId").asLong());
+	        assertEquals("V1", result.mappedPayload().at("/conditions/0/mappedVersion").asText());
+	        assertEquals("PHARMACY_REVIEW", result.mappedPayload().at("/conditions/0/sourceSystem").asText());
+	        assertEquals(runtimeReleaseId, result.mappedPayload().at("/conditions/0/runtimeReleaseId").asText());
+        assertEquals("PCT", result.mappedPayload().at("/observations/0/code").asText());
+        assertEquals(2.4D, result.mappedPayload().at("/observations/0/valueNumeric").asDouble(), 0.001D);
+        assertEquals(
+            "REQUIRES_PHYSICIAN_CONFIRMATION",
+            result.mappedPayload().at("/pharmacyReview/reviewResult").asText());
+        assertEquals(
+            "抗菌药物使用需结合感染指标与病原学复核。",
+            result.mappedPayload().at("/pharmacyReview/pharmacistOpinion").asText());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+	        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+	        assertEquals("J01C", persistedPayload.at("/medications/0/standardCode").asText());
+	        assertEquals("ATC", persistedPayload.at("/medications/0/codeSystem").asText());
+	        assertEquals("J01C", persistedPayload.at("/medications/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", persistedPayload.at("/medications/0/localCodeSystem").asText());
+	        assertEquals(drugMappingId.longValue(), persistedPayload.at("/medications/0/mappingId").asLong());
+	        assertEquals(drugStandardTermId.longValue(), persistedPayload.at("/medications/0/standardTermId").asLong());
+	        assertEquals("V1", persistedPayload.at("/medications/0/mappedVersion").asText());
+	        assertEquals(runtimeReleaseId, persistedPayload.at("/medications/0/runtimeReleaseId").asText());
+	        assertEquals("J18.900", persistedPayload.at("/conditions/0/standardCode").asText());
+	        assertEquals("ICD-10", persistedPayload.at("/conditions/0/codeSystem").asText());
+	        assertEquals("J18.900", persistedPayload.at("/conditions/0/localCode").asText());
+	        assertEquals("PHARMACY_REVIEW", persistedPayload.at("/conditions/0/localCodeSystem").asText());
+	        assertEquals(diagnosisMappingId.longValue(), persistedPayload.at("/conditions/0/mappingId").asLong());
+	        assertEquals(diagnosisStandardTermId.longValue(), persistedPayload.at("/conditions/0/standardTermId").asLong());
+	        assertEquals("V1", persistedPayload.at("/conditions/0/mappedVersion").asText());
+	        assertEquals(runtimeReleaseId, persistedPayload.at("/conditions/0/runtimeReleaseId").asText());
+	        assertEquals("PCT", persistedPayload.at("/observations/0/code").asText());
+	        assertEquals(2.4D, persistedPayload.at("/observations/0/valueNumeric").asDouble(), 0.001D);
+	        assertEquals(
+	            "REQUIRES_PHYSICIAN_CONFIRMATION",
+	            persistedPayload.at("/pharmacyReview/reviewResult").asText());
+	        assertEquals(
+            "抗菌药物使用需结合感染指标与病原学复核。",
+            persistedPayload.at("/pharmacyReview/pharmacistOpinion").asText());
+    }
+
+    @Test
+    void inboundWebhookMapsPublicHealthInfectionReportAndSafetyEvent() throws Exception {
+        insertTerminologyRuntimeOrgTree();
+        Long diagnosisStandardTermId = insertStandardTerm("ICD-10", "U07.100", "新型冠状病毒感染");
+        Long diagnosisLocalTermId = insertLocalTerm(
+            "PUBLIC_HEALTH_INFECTION_REGULATORY", "PH-COVID-19", "院感公卫新冠疑似病例");
+        Long diagnosisMappingId = insertConfirmedTermMapping(
+            diagnosisLocalTermId, diagnosisStandardTermId, "PUBLIC_HEALTH_INFECTION_REGULATORY");
+        TerminologyRuntimeAsset diagnosisTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.PUBLIC_HEALTH_INFECTION.DIAGNOSIS", "V1", diagnosisMappingId, diagnosisLocalTermId,
+            diagnosisStandardTermId, "U07.100", "PUBLIC_HEALTH_INFECTION_REGULATORY", "PH-COVID-19",
+            "ICD-10", "DIAGNOSIS");
+        String runtimeReleaseId = "runtime-release-public-health-infection";
+        insertCurrentRuntimeRelease(runtimeReleaseId, diagnosisTerminology);
+
+        service.createAdapter(tenantId, new AdapterCreateDto(
+            "public-health-infection-adapter",
+            "院感公卫监管入站适配器",
+            "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/infectionCode",
+                  "targetPath": "/conditions/0",
+                  "targetDictionaryKey": "ICD-10",
+                  "category": "DIAGNOSIS"
+                },
+                {"sourcePath": "/labCode", "targetPath": "/observations/0/code"},
+                {"sourcePath": "/labResult", "targetPath": "/observations/0/valueString"},
+                {"sourcePath": "/reportCardDigest", "targetPath": "/documents/0/contentDigest"},
+                {"sourcePath": "/reportCardType", "targetPath": "/documents/0/documentType"},
+                {
+                  "sourcePath": "/publicHealthReport/reportType",
+                  "targetPath": "/publicHealthReport/reportType"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/reportableCondition",
+                  "targetPath": "/publicHealthReport/reportableCondition"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/manualSubmitRequired",
+                  "targetPath": "/publicHealthReport/manualSubmitRequired"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/legalSubmissionDelegated",
+                  "targetPath": "/publicHealthReport/legalSubmissionDelegated"
+                },
+                {
+                  "sourcePath": "/publicHealthReport/prefillStatus",
+                  "targetPath": "/publicHealthReport/prefillStatus"
+                },
+                {"sourcePath": "/safetyEvent/eventType", "targetPath": "/safetyEvent/eventType"},
+                {"sourcePath": "/safetyEvent/riskLevel", "targetPath": "/safetyEvent/riskLevel"},
+                {"sourcePath": "/safetyEvent/rootCause", "targetPath": "/safetyEvent/rootCause"},
+                {
+                  "sourcePath": "/safetyEvent/rectificationRequired",
+                  "targetPath": "/safetyEvent/rectificationRequired"
+                },
+                {"sourcePath": "/safetyEvent/reviewRequired", "targetPath": "/safetyEvent/reviewRequired"}
+              ]
+            }
+            """));
+        service.createWebhook(tenantId, new WebhookCreateDto(
+            "whk-public-health-infection",
+            "院感公卫监管回传",
+            "http://localhost/inbound",
+            "PUBLIC_HEALTH_INFECTION_REPORT SAFETY_EVENT"));
+        IntegrationWebhookConfig webhook = webhookRepository
+            .findByWebhookIdAndTenantId("whk-public-health-infection", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "msg-public-health-infection-1",
+            "trace-public-health-infection-1",
+            "public-health-infection-adapter",
+            "PUBLIC_HEALTH_INFECTION_REGULATORY",
+            ClinicalEventType.REPORT,
+            "P-200",
+            "encounter-200",
+            ClinicalSetting.INPATIENT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            Instant.parse("2026-07-07T01:15:00Z"),
+            objectMapper.readTree("""
+            {
+              "patientId": "P-200",
+              "infectionCode": "PH-COVID-19",
+              "labCode": "NAT_RESULT",
+              "labResult": "POSITIVE",
+              "reportCardDigest": "sha256:public-health-report-prefill",
+              "reportCardType": "PUBLIC_HEALTH_REPORT_PREFILL",
+              "publicHealthReport": {
+                "reportType": "INFECTIOUS_DISEASE_PREFILL",
+                "reportableCondition": "SUSPECTED_COVID_19",
+                "manualSubmitRequired": true,
+                "legalSubmissionDelegated": false,
+                "prefillStatus": "READY_FOR_HUMAN_REVIEW"
+              },
+              "safetyEvent": {
+                "eventType": "OCCUPATIONAL_EXPOSURE",
+                "riskLevel": "HIGH",
+                "rootCause": "ISOLATION_PROTOCOL_GAP",
+                "rectificationRequired": true,
+                "reviewRequired": true
+              }
+            }
+            """));
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        WebhookInboundResultDto result = RequestContext.callWith(
+            new RequestContext.Snapshot(
+                "trace-public-health-infection-1",
+                new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                "integration-test"),
+            () -> service.ingestWebhook(tenantId, "whk-public-health-infection", timestamp, signature, inbound));
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(16, result.mappedFieldCount());
+        assertEquals(1, result.normalizedCodeCount());
+        assertEquals("P-200", result.mappedPayload().at("/patient/mpi").asText());
+        assertEquals("U07.100", result.mappedPayload().at("/conditions/0/standardCode").asText());
+        assertEquals("ICD-10", result.mappedPayload().at("/conditions/0/codeSystem").asText());
+        assertEquals("PH-COVID-19", result.mappedPayload().at("/conditions/0/localCode").asText());
+        assertEquals("PUBLIC_HEALTH_INFECTION_REGULATORY",
+            result.mappedPayload().at("/conditions/0/localCodeSystem").asText());
+        assertEquals(diagnosisMappingId.longValue(), result.mappedPayload().at("/conditions/0/mappingId").asLong());
+        assertEquals(diagnosisStandardTermId.longValue(),
+            result.mappedPayload().at("/conditions/0/standardTermId").asLong());
+        assertEquals(runtimeReleaseId, result.mappedPayload().at("/conditions/0/runtimeReleaseId").asText());
+        assertEquals("NAT_RESULT", result.mappedPayload().at("/observations/0/code").asText());
+        assertEquals("POSITIVE", result.mappedPayload().at("/observations/0/valueString").asText());
+        assertEquals("PUBLIC_HEALTH_REPORT_PREFILL", result.mappedPayload().at("/documents/0/documentType").asText());
+        assertEquals("sha256:public-health-report-prefill",
+            result.mappedPayload().at("/documents/0/contentDigest").asText());
+        assertTrue(result.mappedPayload().at("/publicHealthReport/manualSubmitRequired").asBoolean());
+        assertFalse(result.mappedPayload().at("/publicHealthReport/legalSubmissionDelegated").asBoolean());
+        assertEquals("READY_FOR_HUMAN_REVIEW",
+            result.mappedPayload().at("/publicHealthReport/prefillStatus").asText());
+        assertEquals("OCCUPATIONAL_EXPOSURE", result.mappedPayload().at("/safetyEvent/eventType").asText());
+        assertTrue(result.mappedPayload().at("/safetyEvent/rectificationRequired").asBoolean());
+        assertNotNull(result.clinicalEventId());
+        assertEquals("RECEIVED", result.clinicalEventStatus());
+
+        ClinicalEvent clinicalEvent = clinicalEventRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        assertEquals(ClinicalEventType.REPORT, clinicalEvent.eventType());
+        assertEquals(ClinicalEventTriggerPoint.RESULT_REVIEW, clinicalEvent.triggerPoint());
+        assertEquals("PUBLIC_HEALTH_INFECTION_REGULATORY", clinicalEvent.sourceSystem());
+        assertEquals(runtimeReleaseId, clinicalEvent.runtimeReleaseId());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+        assertEquals("U07.100", persistedPayload.at("/conditions/0/standardCode").asText());
+        assertEquals("PUBLIC_HEALTH_INFECTION_REGULATORY",
+            persistedPayload.at("/conditions/0/sourceSystem").asText());
+        assertEquals("NAT_RESULT", persistedPayload.at("/observations/0/code").asText());
+        assertEquals("PUBLIC_HEALTH_REPORT_PREFILL", persistedPayload.at("/documents/0/documentType").asText());
+        assertTrue(persistedPayload.at("/publicHealthReport/manualSubmitRequired").asBoolean());
+        assertFalse(persistedPayload.at("/publicHealthReport/legalSubmissionDelegated").asBoolean());
+        assertEquals("OCCUPATIONAL_EXPOSURE", persistedPayload.at("/safetyEvent/eventType").asText());
+        assertTrue(persistedPayload.at("/safetyEvent/reviewRequired").asBoolean());
+    }
+
+    @Test
+    void inboundWebhookMapsSurgeryAnesthesiaTransfusionEvent() throws Exception {
+        insertTerminologyRuntimeOrgTree();
+        Long procedureStandardTermId = insertStandardTerm("ICD-9-CM-3", "47.0901", "腹腔镜阑尾切除术", "PROCEDURE");
+        Long procedureLocalTermId = insertLocalTerm(
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU", "OR-LAP-APP", "手术室腹腔镜阑尾切除");
+        Long procedureMappingId = insertConfirmedTermMapping(
+            procedureLocalTermId, procedureStandardTermId, "NURSING_ANESTHESIA_TRANSFUSION_ICU", "PROCEDURE");
+        TerminologyRuntimeAsset procedureTerminology = insertPublishedTerminologyAssetVersion(
+            "TERM.SURGERY_ANESTHESIA_TRANSFUSION.PROCEDURE",
+            "V1",
+            procedureMappingId,
+            procedureLocalTermId,
+            procedureStandardTermId,
+            "47.0901",
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            "OR-LAP-APP",
+            "ICD-9-CM-3",
+            "PROCEDURE");
+        String runtimeReleaseId = "runtime-release-surgery-anesthesia-transfusion";
+        insertCurrentRuntimeRelease(runtimeReleaseId, procedureTerminology);
+
+        service.createAdapter(tenantId, new AdapterCreateDto(
+            "surgery-anesthesia-transfusion-adapter",
+            "手麻手术室输血入站适配器",
+            "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/procedureCode",
+                  "targetPath": "/procedures/0",
+                  "targetDictionaryKey": "ICD-9-CM-3",
+                  "category": "PROCEDURE"
+                },
+                {"sourcePath": "/procedureName", "targetPath": "/procedures/0/displayName"},
+                {"sourcePath": "/anesthesiaType", "targetPath": "/procedures/0/anesthesiaType"},
+                {"sourcePath": "/surgeonId", "targetPath": "/procedures/0/surgeonId"},
+                {"sourcePath": "/performedAt", "targetPath": "/procedures/0/performedAt"},
+                {"sourcePath": "/asaClass", "targetPath": "/observations/0/valueString"},
+                {"sourcePath": "/asaCode", "targetPath": "/observations/0/code"},
+                {"sourcePath": "/anesthesiaDrugCode", "targetPath": "/medications/0/standardCode"},
+                {"sourcePath": "/anesthesiaDrugName", "targetPath": "/medications/0/displayName"},
+                {"sourcePath": "/checklistDigest", "targetPath": "/documents/0/contentDigest"},
+                {"sourcePath": "/checklistType", "targetPath": "/documents/0/documentType"},
+                {"sourcePath": "/surgeryPlan/surgeryLevel", "targetPath": "/surgeryPlan/surgeryLevel"},
+                {
+                  "sourcePath": "/surgeryPlan/preOpAssessmentStatus",
+                  "targetPath": "/surgeryPlan/preOpAssessmentStatus"
+                },
+                {"sourcePath": "/surgeryPlan/timeOutRequired", "targetPath": "/surgeryPlan/timeOutRequired"},
+                {"sourcePath": "/anesthesiaAssessment/airwayRisk", "targetPath": "/anesthesiaAssessment/airwayRisk"},
+                {
+                  "sourcePath": "/anesthesiaAssessment/anesthesiologistReviewRequired",
+                  "targetPath": "/anesthesiaAssessment/anesthesiologistReviewRequired"
+                },
+                {"sourcePath": "/transfusionRequest/crossmatchStatus", "targetPath": "/transfusionRequest/crossmatchStatus"},
+                {
+                  "sourcePath": "/transfusionRequest/transfusionConsentConfirmed",
+                  "targetPath": "/transfusionRequest/transfusionConsentConfirmed"
+                },
+                {"sourcePath": "/transfusionRequest/noAutoTransfusion", "targetPath": "/transfusionRequest/noAutoTransfusion"}
+              ]
+            }
+            """));
+        service.createWebhook(tenantId, new WebhookCreateDto(
+            "whk-surgery-anesthesia-transfusion",
+            "手麻手术室输血回传",
+            "http://localhost/inbound",
+            "SURGERY_ANESTHESIA_TRANSFUSION_EVENT"));
+        IntegrationWebhookConfig webhook = webhookRepository
+            .findByWebhookIdAndTenantId("whk-surgery-anesthesia-transfusion", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = new WebhookInboundRequestDto(
+            "msg-surgery-anesthesia-transfusion-1",
+            "trace-surgery-anesthesia-transfusion-1",
+            "surgery-anesthesia-transfusion-adapter",
+            "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            ClinicalEventType.ORDER,
+            "P-260",
+            "encounter-260",
+            ClinicalSetting.INPATIENT,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            Instant.parse("2026-07-07T02:15:00Z"),
+            objectMapper.readTree("""
+            {
+              "patientId": "P-260",
+              "procedureCode": "OR-LAP-APP",
+              "procedureName": "腹腔镜阑尾切除术",
+              "anesthesiaType": "GENERAL",
+              "surgeonId": "doctor-surgery-1",
+              "performedAt": "2026-07-07T02:30:00Z",
+              "asaCode": "ASA_CLASS",
+              "asaClass": "III",
+              "anesthesiaDrugCode": "N01AB06",
+              "anesthesiaDrugName": "七氟烷",
+              "checklistDigest": "sha256:surgery-safety-checklist",
+              "checklistType": "SURGERY_SAFETY_CHECKLIST",
+              "surgeryPlan": {
+                "surgeryLevel": "LEVEL_3",
+                "preOpAssessmentStatus": "PASSED_WITH_RISK",
+                "timeOutRequired": true
+              },
+              "anesthesiaAssessment": {
+                "airwayRisk": "DIFFICULT_AIRWAY",
+                "anesthesiologistReviewRequired": true
+              },
+              "transfusionRequest": {
+                "crossmatchStatus": "MATCHED",
+                "transfusionConsentConfirmed": true,
+                "noAutoTransfusion": true
+              }
+            }
+            """));
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        WebhookInboundResultDto result = RequestContext.callWith(
+            new RequestContext.Snapshot(
+                "trace-surgery-anesthesia-transfusion-1",
+                new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                "integration-test"),
+            () -> service.ingestWebhook(
+                tenantId, "whk-surgery-anesthesia-transfusion", timestamp, signature, inbound));
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(20, result.mappedFieldCount());
+        assertEquals(1, result.normalizedCodeCount());
+        assertEquals("P-260", result.mappedPayload().at("/patient/mpi").asText());
+        assertEquals("47.0901", result.mappedPayload().at("/procedures/0/standardCode").asText());
+        assertEquals("ICD-9-CM-3", result.mappedPayload().at("/procedures/0/codeSystem").asText());
+        assertEquals("OR-LAP-APP", result.mappedPayload().at("/procedures/0/localCode").asText());
+        assertEquals("NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            result.mappedPayload().at("/procedures/0/localCodeSystem").asText());
+        assertEquals(procedureMappingId.longValue(), result.mappedPayload().at("/procedures/0/mappingId").asLong());
+        assertEquals(procedureStandardTermId.longValue(),
+            result.mappedPayload().at("/procedures/0/standardTermId").asLong());
+        assertEquals(runtimeReleaseId, result.mappedPayload().at("/procedures/0/runtimeReleaseId").asText());
+        assertEquals("腹腔镜阑尾切除术", result.mappedPayload().at("/procedures/0/displayName").asText());
+        assertEquals("GENERAL", result.mappedPayload().at("/procedures/0/anesthesiaType").asText());
+        assertEquals("ASA_CLASS", result.mappedPayload().at("/observations/0/code").asText());
+        assertEquals("III", result.mappedPayload().at("/observations/0/valueString").asText());
+        assertEquals("N01AB06", result.mappedPayload().at("/medications/0/standardCode").asText());
+        assertEquals("SURGERY_SAFETY_CHECKLIST", result.mappedPayload().at("/documents/0/documentType").asText());
+        assertEquals("LEVEL_3", result.mappedPayload().at("/surgeryPlan/surgeryLevel").asText());
+        assertEquals("DIFFICULT_AIRWAY", result.mappedPayload().at("/anesthesiaAssessment/airwayRisk").asText());
+        assertTrue(result.mappedPayload().at("/transfusionRequest/noAutoTransfusion").asBoolean());
+        assertNotNull(result.clinicalEventId());
+        assertEquals("RECEIVED", result.clinicalEventStatus());
+
+        ClinicalEvent clinicalEvent = clinicalEventRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        assertEquals(ClinicalEventType.ORDER, clinicalEvent.eventType());
+        assertEquals(ClinicalEventTriggerPoint.ORDER_SIGN, clinicalEvent.triggerPoint());
+        assertEquals("NURSING_ANESTHESIA_TRANSFUSION_ICU", clinicalEvent.sourceSystem());
+        assertEquals(runtimeReleaseId, clinicalEvent.runtimeReleaseId());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+        assertEquals("47.0901", persistedPayload.at("/procedures/0/standardCode").asText());
+        assertEquals("NURSING_ANESTHESIA_TRANSFUSION_ICU",
+            persistedPayload.at("/procedures/0/sourceSystem").asText());
+        assertEquals("III", persistedPayload.at("/observations/0/valueString").asText());
+        assertEquals("N01AB06", persistedPayload.at("/medications/0/standardCode").asText());
+        assertEquals("SURGERY_SAFETY_CHECKLIST", persistedPayload.at("/documents/0/documentType").asText());
+        assertEquals("PASSED_WITH_RISK", persistedPayload.at("/surgeryPlan/preOpAssessmentStatus").asText());
+        assertTrue(persistedPayload.at("/anesthesiaAssessment/anesthesiologistReviewRequired").asBoolean());
+        assertEquals("MATCHED", persistedPayload.at("/transfusionRequest/crossmatchStatus").asText());
+        assertTrue(persistedPayload.at("/transfusionRequest/noAutoTransfusion").asBoolean());
     }
 
     @Test
@@ -1008,6 +1625,22 @@ class IntegrationServiceTest {
             Long localTermId,
             Long standardTermId,
             String standardCode) {
+        return insertPublishedTerminologyAssetVersion(
+            assetIdentity, versionNo, mappingId, localTermId, standardTermId,
+            standardCode, "LIS", "DIA-A00", "ICD-10", "DIAGNOSIS");
+    }
+
+    private TerminologyRuntimeAsset insertPublishedTerminologyAssetVersion(
+            String assetIdentity,
+            String versionNo,
+            Long mappingId,
+            Long localTermId,
+            Long standardTermId,
+            String standardCode,
+            String sourceSystem,
+            String localCode,
+            String targetDictionary,
+            String category) {
         Instant now = Instant.parse("2026-06-22T08:00:00Z");
         String versionId = "term-version-" + UUID.randomUUID();
         String contentHash = "a".repeat(64);
@@ -1015,11 +1648,11 @@ class IntegrationServiceTest {
             mappingId,
             localTermId,
             standardTermId,
-            "LIS",
-            "DIA-A00",
-            "ICD-10",
+            sourceSystem,
+            localCode,
+            targetDictionary,
             standardCode,
-            "DIAGNOSIS",
+            category,
             1.0D,
             "LOW",
             "CONFIRMED",
@@ -1051,13 +1684,13 @@ class IntegrationServiceTest {
             VersionedAssetType.TERMINOLOGY,
             assetIdentity,
             versionNo,
-            "tenant:" + tenantId,
+            "/tenant-001/hospital-001",
             "ALL",
             contentHash,
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             AssetVersionStatus.PUBLISHED,
-            assetIdentity + "|tenant:" + tenantId + "|ALL",
+            assetIdentity + "|/tenant-001/hospital-001|ALL",
             "terminology-version:" + versionId,
             now,
             null,
@@ -1079,7 +1712,36 @@ class IntegrationServiceTest {
         return new TerminologyRuntimeAsset(assetIdentity, versionId, versionNo, contentHash);
     }
 
-    private void insertCurrentRuntimeRelease(String releaseId, TerminologyRuntimeAsset asset) {
+    private void insertTerminologyRuntimeOrgTree() {
+        Instant now = Instant.parse("2026-06-22T08:00:00Z");
+        jdbcTemplate.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status,
+                created_at, created_by, updated_at, updated_by
+            ) VALUES ('tenant-001-root', NULL, ?, '/tenant-001', 'TENANT', 'tenant-001',
+                '集成测试租户', NULL, 'ACTIVE', ?, 'integration-test', ?, 'integration-test')
+            """, tenantId, now, now);
+        jdbcTemplate.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status,
+                created_at, created_by, updated_at, updated_by
+            ) VALUES ('hospital-001', 'tenant-001-root', ?, '/tenant-001/hospital-001', 'FACILITY',
+                'hospital-001', '集成测试医院', 'HOSPITAL', 'ACTIVE', ?, 'integration-test', ?,
+                'integration-test')
+            """, tenantId, now, now);
+        insertOrgClosure("tenant-001-root", "tenant-001-root", 0);
+        insertOrgClosure("tenant-001-root", "hospital-001", 1);
+        insertOrgClosure("hospital-001", "hospital-001", 0);
+    }
+
+    private void insertOrgClosure(String ancestorId, String descendantId, int depth) {
+        jdbcTemplate.update(
+            "INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth) VALUES (?, ?, ?, ?)",
+            tenantId, ancestorId, descendantId, depth
+        );
+    }
+
+    private void insertCurrentRuntimeRelease(String releaseId, TerminologyRuntimeAsset... assets) {
         jdbcTemplate.update("""
             INSERT INTO platform_baseline_release
                 (baseline_release_id, revision_no, manifest_sha256, published_at,
@@ -1094,21 +1756,23 @@ class IntegrationServiceTest {
             VALUES (?, ?, 'hospital-001', 1, 'baseline-integration-1',
                     ?, CURRENT_TIMESTAMP, 'integration-test', 'integration-test', 'trace-map-1')
             """, releaseId, tenantId, "c".repeat(64));
-        jdbcTemplate.update("""
-            INSERT INTO clinical_runtime_release_item
-                (release_id, source_tenant_id, source_layer, asset_type, asset_identity,
-                 entry_state, version_id, version_no, content_hash, created_at, created_by, trace_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'integration-test', 'trace-map-1')
-            """,
-            releaseId,
-            tenantId,
-            ReleaseSourceLayer.HOSPITAL.name(),
-            VersionedAssetType.TERMINOLOGY.name(),
-            asset.assetIdentity(),
-            ReleaseEntryState.ACTIVE.name(),
-            asset.versionId(),
-            asset.versionNo(),
-            asset.contentHash());
+        for (TerminologyRuntimeAsset asset : assets) {
+            jdbcTemplate.update("""
+                INSERT INTO clinical_runtime_release_item
+                    (release_id, source_tenant_id, source_layer, asset_type, asset_identity,
+                     entry_state, version_id, version_no, content_hash, created_at, created_by, trace_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'integration-test', 'trace-map-1')
+                """,
+                releaseId,
+                tenantId,
+                ReleaseSourceLayer.HOSPITAL.name(),
+                VersionedAssetType.TERMINOLOGY.name(),
+                asset.assetIdentity(),
+                ReleaseEntryState.ACTIVE.name(),
+                asset.versionId(),
+                asset.versionNo(),
+                asset.contentHash());
+        }
     }
 
     private record TerminologyRuntimeAsset(
@@ -1119,43 +1783,55 @@ class IntegrationServiceTest {
     ) {}
 
     private Long insertStandardTerm(String standardSystem, String termCode, String displayName) {
+        return insertStandardTerm(standardSystem, termCode, displayName, "DIAGNOSIS");
+    }
+
+    private Long insertStandardTerm(String standardSystem, String termCode, String displayName, String category) {
         jdbcTemplate.update("""
             INSERT INTO standard_term
                 (tenant_id, standard_system, term_code, category, display_name, normalized_name,
                  version_no, status, evidence_text, created_by, updated_by)
-            VALUES (?, ?, ?, 'DIAGNOSIS', ?, ?, '2026', 'ACTIVE', 'TERM-01 已确认标准术语', 'test', 'test')
-            """, tenantId, standardSystem, termCode, displayName, displayName.toLowerCase());
+            VALUES (?, ?, ?, ?, ?, ?, '2026', 'ACTIVE', 'TERM-01 已确认标准术语', 'test', 'test')
+            """, tenantId, standardSystem, termCode, category, displayName, displayName.toLowerCase());
         return jdbcTemplate.queryForObject("""
             SELECT id FROM standard_term
-            WHERE tenant_id = ? AND standard_system = ? AND term_code = ? AND version_no = '2026'
-            """, Long.class, tenantId, standardSystem, termCode);
+            WHERE tenant_id = ? AND standard_system = ? AND term_code = ? AND category = ? AND version_no = '2026'
+            """, Long.class, tenantId, standardSystem, termCode, category);
     }
 
     private Long insertLocalTerm(String sourceSystem, String localCode, String localName) {
+        return insertLocalTerm(sourceSystem, localCode, localName, "DIAGNOSIS");
+    }
+
+    private Long insertLocalTerm(String sourceSystem, String localCode, String localName, String category) {
         jdbcTemplate.update("""
             INSERT INTO local_term
                 (tenant_id, source_system, local_code, category, local_name, normalized_name,
                  status, created_by, updated_by)
-            VALUES (?, ?, ?, 'DIAGNOSIS', ?, ?, 'MAPPED', 'test', 'test')
-            """, tenantId, sourceSystem, localCode, localName, localName.toLowerCase());
+            VALUES (?, ?, ?, ?, ?, ?, 'MAPPED', 'test', 'test')
+            """, tenantId, sourceSystem, localCode, category, localName, localName.toLowerCase());
         return jdbcTemplate.queryForObject("""
             SELECT id FROM local_term
-            WHERE tenant_id = ? AND source_system = ? AND local_code = ? AND category = 'DIAGNOSIS'
-            """, Long.class, tenantId, sourceSystem, localCode);
+            WHERE tenant_id = ? AND source_system = ? AND local_code = ? AND category = ?
+            """, Long.class, tenantId, sourceSystem, localCode, category);
     }
 
     private Long insertConfirmedTermMapping(Long localTermId, Long standardTermId, String sourceSystem) {
+        return insertConfirmedTermMapping(localTermId, standardTermId, sourceSystem, "DIAGNOSIS");
+    }
+
+    private Long insertConfirmedTermMapping(Long localTermId, Long standardTermId, String sourceSystem, String category) {
         jdbcTemplate.update("""
             INSERT INTO term_mapping
                 (tenant_id, local_term_id, standard_term_id, source_system, category, confidence,
                  risk_level, status, evidence_text, confirmed_by, confirmed_at, created_by, updated_by)
-            VALUES (?, ?, ?, ?, 'DIAGNOSIS', 1.0, 'LOW', 'CONFIRMED',
+            VALUES (?, ?, ?, ?, ?, 1.0, 'LOW', 'CONFIRMED',
                     'TERM-01 已确认映射', 'test', CURRENT_TIMESTAMP, 'test', 'test')
-            """, tenantId, localTermId, standardTermId, sourceSystem);
+            """, tenantId, localTermId, standardTermId, sourceSystem, category);
         return jdbcTemplate.queryForObject("""
             SELECT id FROM term_mapping
-            WHERE tenant_id = ? AND local_term_id = ? AND standard_term_id = ? AND status = 'CONFIRMED'
-            """, Long.class, tenantId, localTermId, standardTermId);
+            WHERE tenant_id = ? AND local_term_id = ? AND standard_term_id = ? AND category = ? AND status = 'CONFIRMED'
+            """, Long.class, tenantId, localTermId, standardTermId, category);
     }
 
     @Test
@@ -1231,5 +1907,24 @@ class IntegrationServiceTest {
         assertEquals("NOT_CONNECTED", replayLog.status());
         assertEquals(0, replayLog.retryCount());
         assertTrue(replayLog.payloadSummary().contains("死信人工重放"));
+    }
+
+    private void assertDataQualityReportAuditRecorded(String tenantId, String reportId) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        Integer auditCount;
+        do {
+            auditCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_event WHERE tenant_id = ? AND resource_type = ? AND resource_id = ?",
+                Integer.class,
+                tenantId,
+                "data_quality_report",
+                reportId
+            );
+            if (auditCount != null && auditCount == 1) {
+                return;
+            }
+            Thread.onSpinWait();
+        } while (System.nanoTime() < deadline);
+        assertEquals(1, auditCount, "生成数据质量报告必须写入可回读审计事件");
     }
 }

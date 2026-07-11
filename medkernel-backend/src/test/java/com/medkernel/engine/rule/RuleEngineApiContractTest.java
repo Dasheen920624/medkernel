@@ -75,7 +75,8 @@ class RuleEngineApiContractTest {
                     }
                     """))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+            .andExpect(jsonPath("$.code").value("ENG-API-002"))
+            .andExpect(jsonPath("$.detail").value("临床规则 API 缺少统一入参字段"));
     }
 
     @Test

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ClinicalRuntimeAssetSelection;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseCommand;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContentResolver;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseService;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -31,11 +42,12 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
 
 /**
- * 随访模板资产服务。
+ * 随访方案资产服务。
  */
 @Service
 public class FollowupTemplateService {
@@ -47,28 +59,38 @@ public class FollowupTemplateService {
     private final AssetVersionRepository assetVersions;
     private final ReleasePort releasePort;
     private final AuditRecorder auditRecorder;
+    private final CurrentClinicalRuntimeReleaseResolver currentRuntimeReleaseResolver;
+    private final ClinicalRuntimeReleaseContentResolver runtimeContentResolver;
+    private final ClinicalRuntimeReleaseService runtimeReleaseService;
     private final ObjectMapper json = new ObjectMapper();
 
+    @Autowired
     public FollowupTemplateService(
             FollowupTemplateRepository templates,
             AssetVersionService versionedAssets,
             AssetVersionRepository assetVersions,
             ReleasePort releasePort,
-            AuditRecorder auditRecorder) {
+            AuditRecorder auditRecorder,
+            CurrentClinicalRuntimeReleaseResolver currentRuntimeReleaseResolver,
+            ClinicalRuntimeReleaseContentResolver runtimeContentResolver,
+            ClinicalRuntimeReleaseService runtimeReleaseService) {
         this.templates = templates;
         this.versionedAssets = versionedAssets;
         this.assetVersions = assetVersions;
         this.releasePort = releasePort;
         this.auditRecorder = auditRecorder;
+        this.currentRuntimeReleaseResolver = currentRuntimeReleaseResolver;
+        this.runtimeContentResolver = runtimeContentResolver;
+        this.runtimeReleaseService = runtimeReleaseService;
     }
 
     /**
-     * 创建不可变模板草稿并登记统一配置资产版本。
+     * 创建不可变方案草稿并登记统一配置资产版本。
      */
     @Transactional
     public FollowupTemplateResponse create(FollowupTemplateCreateRequest request) {
         String tenantId = tenantId();
-        String templateCode = required(request.templateCode(), "模板编码");
+        String templateCode = required(request.templateCode(), "院内随访方案身份");
         int versionNo = allocateNextVersion(tenantId, templateCode);
         validateTasks(request.tasks());
         JsonNode questionnaire = requireObject(request.questionnaireDefinition(), "问卷定义");
@@ -110,7 +132,7 @@ public class FollowupTemplateService {
                 tenantId,
                 templateCode,
                 versionNo,
-                required(request.name(), "模板名称"),
+                required(request.name(), "方案名称"),
                 normalize(request.description()),
                 request.organizationScope().trim(),
                 request.applicableScope().trim(),
@@ -128,7 +150,7 @@ public class FollowupTemplateService {
         } catch (DuplicateKeyException exception) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
-                "随访模板版本并发创建冲突，请刷新后重试: " + templateCode + "@" + versionNo,
+                "随访方案版本并发创建冲突，请刷新后重试: " + templateCode + "@" + versionNo,
                 exception
             );
         }
@@ -136,13 +158,13 @@ public class FollowupTemplateService {
             AuditAction.CREATE,
             "mk_followup_template",
             templateId,
-            "创建随访模板 " + templateCode + "@" + versionNo
+            "创建随访方案 " + templateCode + "@" + versionNo
         );
         return response(saved, assetVersion);
     }
 
     /**
-     * 按发布状态与关键词分页读取当前租户的随访模板。
+     * 按发布状态与关键词分页读取当前租户的随访方案。
      */
     @Transactional(readOnly = true)
     public PageResponse<FollowupTemplateResponse> list(
@@ -166,7 +188,7 @@ public class FollowupTemplateService {
     }
 
     /**
-     * 依次完成审核流并全量发布模板版本。
+     * 依次完成审核流并全量发布方案版本。
      */
     @Transactional
     public FollowupTemplateResponse publish(
@@ -182,21 +204,27 @@ public class FollowupTemplateService {
         } else if (version.status() != AssetVersionStatus.PUBLISHED) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
-                "当前随访模板版本不可发布: " + version.status()
+                "当前随访方案版本不可发布: " + version.status()
             );
         }
+        Instant now = Instant.now();
+        String actor = actor();
+        AssetVersion publishedVersion = version.status() == AssetVersionStatus.PUBLISHED
+            ? version
+            : version.withStatus(
+                AssetVersionStatus.PUBLISHED,
+                version.activeScopeKey(),
+                now,
+                actor
+            );
+        activateCurrentHospitalRuntimeRelease(template, publishedVersion, actor, RequestContext.currentTraceId());
         auditRecorder.record(
             AuditAction.PUBLISH,
             "mk_followup_template",
             template.templateId(),
-            "发布随访模板 " + template.templateCode() + "@" + template.versionNo()
+            "发布随访方案 " + template.templateCode() + "@" + template.versionNo()
         );
-        return response(template, version.withStatus(
-            AssetVersionStatus.PUBLISHED,
-            version.activeScopeKey(),
-            Instant.now(),
-            actor()
-        ));
+        return response(template, publishedVersion);
     }
 
     @Transactional(readOnly = true)
@@ -204,16 +232,36 @@ public class FollowupTemplateService {
         FollowupTemplate template = requireTemplate(templateId);
         AssetVersion version = requireAssetVersion(template);
         if (version.status() != AssetVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访模板尚未发布: " + templateId);
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访方案尚未发布: " + templateId);
         }
         return template;
+    }
+
+    Optional<FollowupTemplate> findById(String tenantId, String templateId) {
+        if (normalize(tenantId) == null || normalize(templateId) == null) {
+            return Optional.empty();
+        }
+        return templates.findByTemplateIdAndTenantId(templateId.trim(), tenantId.trim());
+    }
+
+    Optional<FollowupTemplate> findByCodeAndVersion(
+            String tenantId,
+            String templateCode,
+            Integer versionNo) {
+        if (normalize(tenantId) == null || normalize(templateCode) == null || versionNo == null) {
+            return Optional.empty();
+        }
+        return templates.findByTenantIdAndTemplateCodeAndVersionNo(
+            tenantId.trim(),
+            templateCode.trim(),
+            versionNo);
     }
 
     List<FollowupTemplateTaskInput> tasks(FollowupTemplate template) {
         try {
             return json.readValue(template.taskDefinitionJson(), TASK_LIST);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访模板任务定义损坏", exception);
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访方案任务定义损坏", exception);
         }
     }
 
@@ -226,8 +274,8 @@ public class FollowupTemplateService {
             VersionedAssetType.FOLLOWUP,
             template.templateCode(),
             version.versionId(),
-            template.organizationScope(),
-            template.applicableScope(),
+            version.organizationScope(),
+            version.applicableScope(),
             VersionReleaseScopeType.ALL,
             null,
             RolloutPolicy.all(),
@@ -236,6 +284,69 @@ public class FollowupTemplateService {
             actor(),
             RequestContext.currentTraceId(),
             null
+        );
+    }
+
+    private void activateCurrentHospitalRuntimeRelease(
+            FollowupTemplate template,
+            AssetVersion version,
+            String actor,
+            String traceId) {
+        OrgScope scope = RequestContext.currentOrgScope();
+        if (scope == null || normalize(scope.hospitalId()) == null) {
+            return;
+        }
+        ClinicalRuntimeRelease current = currentRuntimeReleaseResolver.resolve(scope);
+        ClinicalRuntimeReleaseContent content =
+            runtimeContentResolver.resolve(template.tenantId(), current.releaseId());
+        boolean alreadyActive = content.items().stream()
+            .anyMatch(item -> item.entryState() == ReleaseEntryState.ACTIVE
+                && item.assetType() == VersionedAssetType.FOLLOWUP
+                && template.templateCode().equals(item.assetIdentity())
+                && version.versionId().equals(item.versionId()));
+        if (alreadyActive) {
+            return;
+        }
+
+        List<ClinicalRuntimeAssetSelection> activeAssets = new ArrayList<>();
+        for (ClinicalRuntimeReleaseItem item : content.items()) {
+            if (item.entryState() != ReleaseEntryState.ACTIVE) {
+                continue;
+            }
+            if (item.assetType() == VersionedAssetType.FOLLOWUP
+                    && template.templateCode().equals(item.assetIdentity())) {
+                continue;
+            }
+            activeAssets.add(selectionFromRuntimeItem(item));
+        }
+        activeAssets.add(ClinicalRuntimeAssetSelection.local(
+            VersionedAssetType.FOLLOWUP,
+            template.templateCode(),
+            version.versionId()
+        ));
+
+        runtimeReleaseService.activate(new ClinicalRuntimeReleaseCommand(
+            template.tenantId(),
+            current.hospitalId(),
+            current.platformBaselineReleaseId(),
+            current.releaseId(),
+            activeAssets,
+            actor,
+            traceId
+        ));
+    }
+
+    private ClinicalRuntimeAssetSelection selectionFromRuntimeItem(ClinicalRuntimeReleaseItem item) {
+        if (item.sourceLayer() == ReleaseSourceLayer.PLATFORM) {
+            return ClinicalRuntimeAssetSelection.platform(
+                item.assetType(),
+                item.assetIdentity()
+            );
+        }
+        return ClinicalRuntimeAssetSelection.local(
+            item.assetType(),
+            item.assetIdentity(),
+            required(item.versionId(), "机构生效版本本地资产版本 ID")
         );
     }
 
@@ -261,8 +372,8 @@ public class FollowupTemplateService {
     }
 
     private FollowupTemplate requireTemplate(String templateId) {
-        return templates.findByTemplateIdAndTenantId(required(templateId, "模板 ID"), tenantId())
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板不存在: " + templateId));
+        return templates.findByTemplateIdAndTenantId(required(templateId, "方案 ID"), tenantId())
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访方案不存在: " + templateId));
     }
 
     private static String normalizeKeyword(String value) {
@@ -276,26 +387,26 @@ public class FollowupTemplateService {
         return assetVersions.findByVersionIdAndTenantId(template.assetVersionId(), template.tenantId())
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_FOLLOW_004,
-                "随访模板缺少统一资产版本: " + template.templateId()
+                "随访方案缺少统一资产版本: " + template.templateId()
             ));
     }
 
     private void validateTasks(List<FollowupTemplateTaskInput> tasks) {
         if (tasks == null || tasks.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访模板至少包含一个任务");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访方案至少包含一个任务");
         }
         List<FollowupTaskType> seen = new ArrayList<>();
         for (FollowupTemplateTaskInput task : tasks) {
             if (task == null || task.taskType() == null || task.delayDays() == null
                     || task.delayDays() < 0 || task.delayDays() > 3650) {
-                throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访模板任务定义不完整");
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访方案任务定义不完整");
             }
             if (!seen.add(task.taskType())) {
-                throw new ApiException(ErrorCode.CONFLICT, "随访模板任务类型重复: " + task.taskType());
+                throw new ApiException(ErrorCode.CONFLICT, "随访方案任务类型重复: " + task.taskType());
             }
             if (task.taskType() == FollowupTaskType.QUESTIONNAIRE
                     && normalize(task.questionnaireTemplateId()) == null) {
-                throw new ApiException(ErrorCode.VALIDATION_FAILED, "问卷任务必须绑定问卷模板 ID");
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "问卷任务必须绑定问卷内容");
             }
         }
     }
@@ -342,7 +453,7 @@ public class FollowupTemplateService {
         try {
             return json.readTree(value);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访模板 JSON 定义不合法", exception);
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访方案 JSON 定义不合法", exception);
         }
     }
 
@@ -350,7 +461,7 @@ public class FollowupTemplateService {
         try {
             return json.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("随访模板内容序列化失败", exception);
+            throw new IllegalStateException("随访方案内容序列化失败", exception);
         }
     }
 

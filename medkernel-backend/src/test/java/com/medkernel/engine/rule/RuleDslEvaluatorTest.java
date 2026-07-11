@@ -177,6 +177,38 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void conditionTreeMatchesMedicationAllergyCodesFromCanonicalContext() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluateConditionTree(
+            read("""
+                {"all": [{"fact": "allergyIntolerances[].code", "operator": "contains", "value": "J01C"}]}
+                """),
+            read("""
+                {
+                  "allergyIntolerances": [
+                    {
+                      "code": "J01C",
+                      "substance": "青霉素类",
+                      "category": "medication",
+                      "clinicalStatus": "ACTIVE",
+                      "verificationStatus": "CONFIRMED"
+                    }
+                  ]
+                }
+                """),
+            read("""
+                {"summary": "用药过敏禁忌红线命中"}
+                """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence");
+        assertThat(evidence).hasSize(1);
+        assertThat(evidence.get(0).path("fact").asText()).isEqualTo("allergyIntolerances[].code");
+        assertThat(evidence.get(0).path("sourcePath").asText()).isEqualTo("$.allergyIntolerances[].code");
+        assertThat(evidence.get(0).path("operator").asText()).isEqualTo("contains");
+        assertThat(evidence.get(0).path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
     void missingActionSectionIsRejectedEvenWhenConditionDoesNotMatch() throws Exception {
         JsonNode dsl = read("""
             {
@@ -240,6 +272,73 @@ class RuleDslEvaluatorTest {
         assertThat(evidence.get(2).path("actual")).hasSize(2);
         assertThat(evidence.get(2).path("actual").get(0).asText()).isEqualTo("AF");
         assertThat(evidence.get(2).path("actual").get(1).asText()).isEqualTo("HTN");
+    }
+
+    @Test
+    void ignoresAuthoredRuntimeAssetEvidenceWithoutMaterializationMarker() throws Exception {
+        RuleDslEvaluation hit = evaluator.evaluate(read("""
+            {
+              "trigger": "patient-view",
+              "runtimeAssetEvidence": [
+                {
+                  "assetType": "VALUE_SET",
+                  "assetIdentity": "VALUE_SET.CDSS.RUNTIME",
+                  "assetVersion": "V1",
+                  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [
+                {
+                  "actionCode": "REMIND",
+                  "atSeverity": "LOW",
+                  "indicator": "info",
+                  "summary": "已记录规则命中",
+                  "detail": "本动作仅留痕，不自动修改医嘱。",
+                  "source": {"label": "规则测试来源"},
+                  "suggestions": [],
+                  "overrideReasons": []
+                }
+              ]
+            }
+            """), read("""
+            {"patient": {"present": true}}
+            """));
+
+        assertThat(hit.hit()).isTrue();
+        assertThat(hit.explanation().has("runtimeAssetEvidence")).isFalse();
+
+        RuleDslEvaluation miss = evaluator.evaluate(read("""
+            {
+              "trigger": "patient-view",
+              "runtimeAssetEvidence": [
+                {
+                  "assetType": "VALUE_SET",
+                  "assetIdentity": "VALUE_SET.CDSS.RUNTIME",
+                  "assetVersion": "V1",
+                  "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [
+                {
+                  "actionCode": "REMIND",
+                  "atSeverity": "LOW",
+                  "indicator": "info",
+                  "summary": "未命中规则",
+                  "detail": "未命中时不得声明运行资产已消费。",
+                  "source": {"label": "规则测试来源"},
+                  "suggestions": [],
+                  "overrideReasons": []
+                }
+              ]
+            }
+            """), read("""
+            {"patient": {"present": false}}
+            """));
+
+        assertThat(miss.hit()).isFalse();
+        assertThat(miss.explanation().has("runtimeAssetEvidence")).isFalse();
     }
 
     @Test

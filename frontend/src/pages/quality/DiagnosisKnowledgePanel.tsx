@@ -41,6 +41,7 @@ import {
   usePublishDiagnosis,
   useRuleDefinitions,
   useSecurityProfile,
+  useStandardTerms,
   type DiagnosisAssetCreatePayload,
   type DiagnosisCarePointer,
   type DiagnosisCriterion,
@@ -77,11 +78,25 @@ const VERSION_STATUS_LABEL: Record<string, string> = {
   REJECTED: "已驳回",
 };
 
+const TECHNICAL_VERSION_LABEL_PATTERNS = [
+  /^ai[-_]?draft[-_]?task[-_]/i,
+  /^model[-_]?draft[-_]/i,
+  /^model[-_]?task[-_]/i,
+  /^task[-_][0-9a-f]{12,}$/i,
+  /^[0-9a-f]{24,}$/i,
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+];
+
 const DIRECTION_LABEL: Record<string, string> = {
   SUPPORTING: "支持",
   REFUTING: "反对",
   REQUIRED: "必需",
   EXCLUSION: "排除",
+};
+
+const WEIGHT_LABEL: Record<string, string> = {
+  MAJOR: "主要",
+  MINOR: "次要",
 };
 
 const POINTER_TYPE_LABEL: Record<string, string> = {
@@ -133,10 +148,90 @@ function can(profile: ReturnType<typeof useSecurityProfile>["data"], code: strin
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
-function versionLabel(version: KnowledgeAssetVersion) {
-  return `${version.versionLabel || version.versionNo} · ${
-    VERSION_STATUS_LABEL[version.status] ?? customerEnumLabel(version.status)
-  }`;
+function normalizedText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isTechnicalVersionLabel(value: unknown) {
+  const label = normalizedText(value);
+  return TECHNICAL_VERSION_LABEL_PATTERNS.some((pattern) => pattern.test(label));
+}
+
+function businessVersionNoLabel(value: unknown) {
+  const versionNo = normalizedText(value);
+  if (!versionNo) {
+    return "版本待确认";
+  }
+  const semanticVersion = versionNo.match(/^v(\d+(?:\.\d+)*)$/i);
+  if (semanticVersion) {
+    return `第 ${semanticVersion[1]} 版`;
+  }
+  const numericYear = Number(versionNo);
+  if (/^\d{4}$/.test(versionNo) && numericYear >= 1900 && numericYear <= 2100) {
+    return `${versionNo} 版`;
+  }
+  if (/^\d+$/.test(versionNo)) {
+    return `第 ${versionNo} 版`;
+  }
+  return versionNo;
+}
+
+function statusVersionLabel(status: string) {
+  if (status === "ACTIVE") {
+    return "当前生效版本";
+  }
+  if (status === "DRAFT") {
+    return "草稿版本";
+  }
+  if (status === "CANDIDATE" || status === "PENDING_REPLACEMENT_REVIEW") {
+    return "候选版本";
+  }
+  if (status === "UNDER_REVIEW") {
+    return "审核中版本";
+  }
+  if (status === "SUPERSEDED") {
+    return "历史版本";
+  }
+  if (status === "WITHDRAWN") {
+    return "已撤回版本";
+  }
+  if (status === "REJECTED") {
+    return "已驳回版本";
+  }
+  return "知识版本";
+}
+
+function technicalVersionEvidence(...values: unknown[]) {
+  const unique = new Set<string>();
+  for (const value of values) {
+    const label = normalizedText(value);
+    if (label && isTechnicalVersionLabel(label)) {
+      unique.add(label);
+    }
+  }
+  return Array.from(unique);
+}
+
+function businessSafeVersionLabel(status: string, rawVersionLabel: string, rawVersionNo: string) {
+  if (rawVersionLabel && !isTechnicalVersionLabel(rawVersionLabel)) {
+    return rawVersionLabel;
+  }
+  if (rawVersionNo && !isTechnicalVersionLabel(rawVersionNo)) {
+    return businessVersionNoLabel(rawVersionNo);
+  }
+  return statusVersionLabel(status);
+}
+
+function versionLabel(version: KnowledgeAssetVersion, evidenceDetailsEnabled: boolean) {
+  const rawVersionLabel = normalizedText(version.versionLabel);
+  const rawVersionNo = normalizedText(version.versionNo);
+  const safeLabel = businessSafeVersionLabel(version.status, rawVersionLabel, rawVersionNo);
+  const statusLabel = VERSION_STATUS_LABEL[version.status] ?? customerEnumLabel(version.status);
+  const technicalEvidence = technicalVersionEvidence(rawVersionLabel, rawVersionNo);
+  if (evidenceDetailsEnabled && technicalEvidence.length > 0) {
+    return `${safeLabel} · ${technicalEvidence.join(" · ")} · ${statusLabel}`;
+  }
+  return `${safeLabel} · ${statusLabel}`;
 }
 
 function identityLabel(identity: KnowledgeIdentity, evidenceDetailsEnabled: boolean) {
@@ -173,6 +268,7 @@ export default function DiagnosisKnowledgePanel({
     evidenceDetailsEnabled ?? (mayUseEvidenceDetails && globalEvidenceDetails);
   const [identitySearch, setIdentitySearch] = useState("");
   const [diagnosisReferenceSearch, setDiagnosisReferenceSearch] = useState("");
+  const [criterionTermSearch, setCriterionTermSearch] = useState("");
   const [referenceKnowledgeSearch, setReferenceKnowledgeSearch] = useState("");
   const [ruleSearch, setRuleSearch] = useState("");
   const [pathwaySearch, setPathwaySearch] = useState("");
@@ -231,6 +327,13 @@ export default function DiagnosisKnowledgePanel({
     },
     { enabled: can(security.data, "pathway.read") },
   );
+  const criterionTermsQuery = useStandardTerms({
+    status: "ACTIVE",
+    keyword: searchKeyword(criterionTermSearch),
+    page: 1,
+    size: 50,
+    sort: "updatedAt,desc",
+  });
   const [identityId, setIdentityId] = useState<number>();
   const [versionPage, setVersionPage] = useState(1);
   const versionsQuery = useKnowledgeVersions(identityId, {
@@ -242,6 +345,16 @@ export default function DiagnosisKnowledgePanel({
   const selectedIdentity = identities.find((item) => item.id === identityId);
   const selectedVersion = versions.find((item) => item.id === versionId);
   const editable = Boolean(selectedVersion && EDITABLE_STATUSES.has(selectedVersion.status));
+  const criterionTermOptions = useMemo(
+    () =>
+      (criterionTermsQuery.data?.items ?? []).map((term) => ({
+        value: term.termCode,
+        label: effectiveEvidenceDetails
+          ? `${term.displayName} · ${term.standardSystem} · ${term.termCode}`
+          : term.displayName,
+      })),
+    [criterionTermsQuery.data?.items, effectiveEvidenceDetails],
+  );
   const diagnosisReferenceOptions = useMemo(() => {
     if (!selectedIdentity || diagnosisReferences.some((item) => item.id === selectedIdentity.id)) {
       return diagnosisReferences;
@@ -377,6 +490,12 @@ export default function DiagnosisKnowledgePanel({
     setDraftMode(mode);
   }
 
+  function openCriterionModal() {
+    setCriterionTermSearch("");
+    criterionForm.resetFields();
+    setCriterionOpen(true);
+  }
+
   async function submitDraft() {
     if (!draftMode) return;
     const selectedIdentityId = identityId;
@@ -501,7 +620,13 @@ export default function DiagnosisKnowledgePanel({
       key: "direction",
       render: (value: string) => <Tag>{DIRECTION_LABEL[value] ?? customerEnumLabel(value)}</Tag>,
     },
-    { title: "权重", dataIndex: "weight", key: "weight" },
+    {
+      title: "权重",
+      dataIndex: "weight",
+      key: "weight",
+      render: (value: string) =>
+        effectiveEvidenceDetails ? value : (WEIGHT_LABEL[value] ?? customerEnumLabel(value)),
+    },
     {
       title: "值约束",
       dataIndex: "valueConstraint",
@@ -637,7 +762,7 @@ export default function DiagnosisKnowledgePanel({
             <Button
               icon={<PlusOutlined />}
               disabled={!editable || !can(security.data, "knowledge.write")}
-              onClick={() => setCriterionOpen(true)}
+              onClick={openCriterionModal}
             >
               新增标准
             </Button>
@@ -884,7 +1009,10 @@ export default function DiagnosisKnowledgePanel({
               aria-label="诊断知识版本"
               placeholder="选择版本"
               value={versionId}
-              options={versions.map((item) => ({ value: item.id, label: versionLabel(item) }))}
+              options={versions.map((item) => ({
+                value: item.id,
+                label: versionLabel(item, effectiveEvidenceDetails),
+              }))}
               onChange={setVersionId}
             />
             {(versionsQuery.data?.total ?? 0) > 0 && (
@@ -975,7 +1103,7 @@ export default function DiagnosisKnowledgePanel({
                     },
                   ]}
                 >
-                  <Input maxLength={43} placeholder="例如 chronic-kidney-disease" />
+                  <Input maxLength={43} placeholder="例如 manxing-shenbing" />
                 </Form.Item>
                 <Form.Item name={["identity", "assetSpecialtyId"]} label="专科身份">
                   <Input />
@@ -1052,7 +1180,7 @@ export default function DiagnosisKnowledgePanel({
               label="受控文件地址"
               rules={[{ required: true }]}
             >
-              <Input placeholder="repository://..." />
+              <Input placeholder="粘贴受控资料库地址或院内文档链接" />
             </Form.Item>
             <Form.Item
               className={styles.fullRow}
@@ -1173,7 +1301,15 @@ export default function DiagnosisKnowledgePanel({
           initialValues={{ direction: "SUPPORTING", weight: "MAJOR" }}
         >
           <Form.Item name="findingTermCode" label="标准发现项身份" rules={[{ required: true }]}>
-            <Input placeholder="如 EGFR_LOW，用于稳定追溯该发现项" />
+            <Select
+              showSearch
+              filterOption={false}
+              options={criterionTermOptions}
+              loading={criterionTermsQuery.isLoading}
+              onSearch={setCriterionTermSearch}
+              placeholder="搜索标准术语名称或编码"
+              notFoundContent="暂无可用标准术语"
+            />
           </Form.Item>
           <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
             <Select
@@ -1327,7 +1463,7 @@ export default function DiagnosisKnowledgePanel({
           initialValues={{ expectedConfidence: "STRONG", expectedIdentityId: identityId }}
         >
           <Form.Item name="caseCode" label="稳定验证病例身份" rules={[{ required: true }]}>
-            <Input placeholder="如 CKD-CASE-001，用于复算与验收追溯" />
+            <Input placeholder="如 manxing-shenbing-case-001，用于复算与验收追溯" />
           </Form.Item>
           <Form.Item
             name="findings"

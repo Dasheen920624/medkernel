@@ -1,7 +1,6 @@
 package com.medkernel.engine.recommendation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,16 +24,17 @@ import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleDslEvaluator;
-import com.medkernel.engine.rule.RuleEffectiveVersionResolver;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
+import com.medkernel.engine.rule.RuleVersionRepository;
+import com.medkernel.engine.rule.RuntimeReleaseRuleSelector;
+import com.medkernel.engine.rule.RuntimeRuleReference;
+import com.medkernel.engine.rule.RuntimeRuleSelection;
 import com.medkernel.engine.safety.ClinicalRedlineMatcher;
-import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
-import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Component;
 
@@ -51,7 +51,8 @@ public class RecommendationDeterministicMatcher {
 
     private final ContextSnapshotService snapshots;
     private final RuleDefinitionRepository ruleDefinitions;
-    private final RuleEffectiveVersionResolver effectiveRuleVersions;
+    private final RuleVersionRepository ruleVersions;
+    private final RuntimeReleaseRuleSelector runtimeRuleSelector;
     private final RuleDslEvaluator ruleEvaluator;
     private final RuleApplicabilityService applicabilityService;
     private final PatientPathwayRepository patientPathways;
@@ -63,7 +64,8 @@ public class RecommendationDeterministicMatcher {
     public RecommendationDeterministicMatcher(
             ContextSnapshotService snapshots,
             RuleDefinitionRepository ruleDefinitions,
-            RuleEffectiveVersionResolver effectiveRuleVersions,
+            RuleVersionRepository ruleVersions,
+            RuntimeReleaseRuleSelector runtimeRuleSelector,
             RuleDslEvaluator ruleEvaluator,
             RuleApplicabilityService applicabilityService,
             PatientPathwayRepository patientPathways,
@@ -73,7 +75,8 @@ public class RecommendationDeterministicMatcher {
             ObjectMapper json) {
         this.snapshots = snapshots;
         this.ruleDefinitions = ruleDefinitions;
-        this.effectiveRuleVersions = effectiveRuleVersions;
+        this.ruleVersions = ruleVersions;
+        this.runtimeRuleSelector = runtimeRuleSelector;
         this.ruleEvaluator = ruleEvaluator;
         this.applicabilityService = applicabilityService;
         this.patientPathways = patientPathways;
@@ -91,13 +94,10 @@ public class RecommendationDeterministicMatcher {
         ContextSnapshotResponse snapshot = snapshots.findById(request.contextSnapshotId());
         JsonNode context = json.valueToTree(snapshot.resources());
         List<RecommendationCardRequest> matched = new ArrayList<>();
-        for (EffectiveRuleVersion candidate : effectiveActiveRules(tenantId)) {
+        for (EffectiveRuleVersion candidate : runtimeRules(tenantId, snapshot, request.triggerType())) {
             RuleDefinition rule = candidate.rule();
             RuleVersion version = candidate.version();
             JsonNode dsl = parseDsl(version);
-            if (!request.triggerType().equals(dsl.path("trigger").asText())) {
-                continue;
-            }
             if (!applicabilityService.evaluate(
                     dsl, context, RequestContext.currentOrgScope(), version.versionId()).applicable()) {
                 continue;
@@ -106,28 +106,46 @@ public class RecommendationDeterministicMatcher {
                 dsl, context, tenantId, snapshot.runtimeReleaseId());
             if (evaluation.hit()) {
                 matched.add(toCard(
-                    request, snapshot, rule, version, evaluation, tenantId, candidate.resolution()));
+                    request, snapshot, candidate, evaluation, tenantId));
             }
         }
         matched.addAll(redlineMatcher.match(request, snapshot, context));
         return List.copyOf(matched);
     }
 
-    private List<EffectiveRuleVersion> effectiveActiveRules(String tenantId) {
-        LinkedHashMap<String, RuleDefinition> candidates = new LinkedHashMap<>();
-        ruleDefinitions.findPublishedByTenantId(tenantId)
-            .forEach(rule -> candidates.put(rule.ruleCode(), rule));
-        if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            ruleDefinitions.findPublishedByTenantId(PlatformTenant.ID)
-                .forEach(rule -> candidates.putIfAbsent(rule.ruleCode(), rule));
-        }
-        return candidates.values().stream()
-            .map(rule -> effectiveRuleVersions.resolve(
-                    tenantId, rule.ruleCode(), releaseApplicableScope(rule))
-                .map(resolved -> new EffectiveRuleVersion(
-                    resolved.rule(), resolved.version(), resolved.resolution())))
-            .flatMap(Optional::stream)
+    private List<EffectiveRuleVersion> runtimeRules(
+            String tenantId,
+            ContextSnapshotResponse snapshot,
+            String triggerType) {
+        RuntimeRuleSelection selection =
+            runtimeRuleSelector.select(tenantId, snapshot.runtimeReleaseId(), triggerType);
+        return selection.rules().stream()
+            .map(reference -> loadRuntimeRuleVersion(selection.runtimeReleaseId(), reference))
             .toList();
+    }
+
+    private EffectiveRuleVersion loadRuntimeRuleVersion(
+            String runtimeReleaseId,
+            RuntimeRuleReference reference) {
+        RuleDefinition rule = ruleDefinitions
+            .findByRuleIdAndTenantId(reference.ruleId(), reference.tenantId())
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "机构生效版本中的推荐规则不存在：" + reference.ruleId()));
+        RuleVersion version = ruleVersions
+            .findByVersionIdAndTenantId(reference.versionId(), reference.tenantId())
+            .filter(candidate -> rule.ruleId().equals(candidate.ruleId()))
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "机构生效版本中的推荐规则版本不存在：" + reference.versionId()));
+        return new EffectiveRuleVersion(
+            rule,
+            version,
+            runtimeReleaseId,
+            reference.assetVersionId(),
+            reference.assetVersionNo(),
+            reference.contentHash(),
+            reference.sourceLayer());
     }
 
     private JsonNode parseDsl(RuleVersion version) {
@@ -141,11 +159,11 @@ public class RecommendationDeterministicMatcher {
     private RecommendationCardRequest toCard(
             RecommendationTriggerRequest request,
             ContextSnapshotResponse snapshot,
-            RuleDefinition rule,
-            RuleVersion version,
+            EffectiveRuleVersion candidate,
             RuleDslEvaluation evaluation,
-            String requestTenantId,
-            ResolvedAssetVersion resolution) {
+            String requestTenantId) {
+        RuleDefinition rule = candidate.rule();
+        RuleVersion version = candidate.version();
         RecommendationRiskLevel risk = toRecommendationRisk(
             evaluation.severity() == null ? rule.riskLevel() : evaluation.severity());
         String actionMessage = firstActionMessage(evaluation);
@@ -160,22 +178,22 @@ public class RecommendationDeterministicMatcher {
             toInterruptLevel(risk),
             requiresConfirmation(risk, evaluation),
             false,
-            sourceSummary(rule, version, knowledge, resolution),
-            explanationJson(request, snapshot, rule, version, evaluation, knowledge, resolution),
+            sourceSummary(candidate, knowledge),
+            explanationJson(request, snapshot, candidate, evaluation, knowledge),
             fatigueKey(request, rule),
             null,
             CdssAutomationLevel.fromInterruptLevel(toInterruptLevel(risk)),
-            sources(request, snapshot, rule, version, knowledge, resolution)
+            sources(request, snapshot, candidate, knowledge)
         );
     }
 
     private List<RecommendationSourceRequest> sources(
             RecommendationTriggerRequest request,
             ContextSnapshotResponse snapshot,
-            RuleDefinition rule,
-            RuleVersion version,
-            Optional<EffectiveKnowledgeVersion> knowledge,
-            ResolvedAssetVersion resolution) {
+            EffectiveRuleVersion candidate,
+            Optional<EffectiveKnowledgeVersion> knowledge) {
+        RuleDefinition rule = candidate.rule();
+        RuleVersion version = candidate.version();
         List<RecommendationSourceRequest> values = new ArrayList<>();
         values.add(new RecommendationSourceRequest(
             RecommendationSourceType.RULE,
@@ -183,8 +201,8 @@ public class RecommendationDeterministicMatcher {
             String.valueOf(version.versionNo()),
             rule.name(),
             "rule_version:" + version.versionId(),
-            resolutionContentHash(resolution),
-            ruleSourceSummary(version, resolution)
+            candidateContentHash(candidate),
+            ruleSourceSummary(version, candidate)
         ));
         knowledge.map(this::toKnowledgeSource).ifPresent(values::add);
         values.add(new RecommendationSourceRequest(
@@ -256,22 +274,30 @@ public class RecommendationDeterministicMatcher {
             identity.identityCode(),
             version.versionNo(),
             identity.subject(),
-            "knowledge_version:" + version.id(),
+            KnowledgeSourceLocator.citationLocator(knowledge.sourceTenantId(), version.id()),
             version.contentHash(),
             "已审核知识版本 " + version.versionNo()
         );
     }
 
-    private String sourceSummary(RuleDefinition rule, RuleVersion version,
-                                 Optional<EffectiveKnowledgeVersion> knowledge,
-                                 ResolvedAssetVersion resolution) {
+    private String sourceSummary(
+            EffectiveRuleVersion candidate,
+            Optional<EffectiveKnowledgeVersion> knowledge) {
+        RuleDefinition rule = candidate.rule();
+        RuleVersion version = candidate.version();
         String summary = "规则 " + rule.ruleCode() + " v" + version.versionNo() + " 命中";
-        if (resolution != null) {
-            summary += "，来源=" + resolution.sourceTier();
-            String contentHash = resolutionContentHash(resolution);
-            if (hasText(contentHash)) {
-                summary += "，content_hash=" + contentHash;
-            }
+        if (hasText(candidate.runtimeReleaseId())) {
+            summary += "，运行版本=" + candidate.runtimeReleaseId();
+        }
+        if (hasText(candidate.assetVersionId())) {
+            summary += "，asset_version=" + candidate.assetVersionId();
+        }
+        if (hasText(candidate.sourceLayer())) {
+            summary += "，来源层=" + candidate.sourceLayer();
+        }
+        String contentHash = candidateContentHash(candidate);
+        if (hasText(contentHash)) {
+            summary += "，content_hash=" + contentHash;
         }
         String baseSummary = summary;
         return knowledge
@@ -283,11 +309,11 @@ public class RecommendationDeterministicMatcher {
     private String explanationJson(
             RecommendationTriggerRequest request,
             ContextSnapshotResponse snapshot,
-            RuleDefinition rule,
-            RuleVersion version,
+            EffectiveRuleVersion candidate,
             RuleDslEvaluation evaluation,
-            Optional<EffectiveKnowledgeVersion> knowledge,
-            ResolvedAssetVersion resolution) {
+            Optional<EffectiveKnowledgeVersion> knowledge) {
+        RuleDefinition rule = candidate.rule();
+        RuleVersion version = candidate.version();
         ObjectNode root = json.createObjectNode();
         root.put("matchType", "RULE");
         root.put("triggerCode", request.triggerCode());
@@ -300,18 +326,23 @@ public class RecommendationDeterministicMatcher {
         if (hasText(version.sourceRef())) {
             root.put("ruleSourceRef", version.sourceRef());
         }
-        if (resolution != null) {
-            ObjectNode resolutionNode = json.createObjectNode();
-            resolutionNode.put("sourceTier", String.valueOf(resolution.sourceTier()));
-            resolutionNode.put("sourceOrgPath", resolution.sourceOrgPath());
-            resolutionNode.put("inherited", resolution.inherited());
-            resolutionNode.put("overridden", resolution.overridden());
-            resolutionNode.put("disabled", resolution.disabled());
-            String contentHash = resolutionContentHash(resolution);
-            if (hasText(contentHash)) {
-                resolutionNode.put("contentHash", contentHash);
+        if (hasText(candidate.runtimeReleaseId())) {
+            ObjectNode runtimeNode = json.createObjectNode();
+            runtimeNode.put("runtimeReleaseId", candidate.runtimeReleaseId());
+            if (hasText(candidate.assetVersionId())) {
+                runtimeNode.put("assetVersionId", candidate.assetVersionId());
             }
-            root.set("resolution", resolutionNode);
+            if (hasText(candidate.assetVersionNo())) {
+                runtimeNode.put("assetVersionNo", candidate.assetVersionNo());
+            }
+            if (hasText(candidate.sourceLayer())) {
+                runtimeNode.put("sourceLayer", candidate.sourceLayer());
+            }
+            String contentHash = candidateContentHash(candidate);
+            if (hasText(contentHash)) {
+                runtimeNode.put("contentHash", contentHash);
+            }
+            root.set("runtimeRelease", runtimeNode);
         }
         knowledge.ifPresent(value -> {
             ObjectNode knowledgeNode = json.createObjectNode();
@@ -400,43 +431,37 @@ public class RecommendationDeterministicMatcher {
         return value != null && !value.isBlank();
     }
 
-    private static String targetOrgUnitId() {
-        OrgScope scope = RequestContext.currentOrgScope();
-        if (scope == null) {
-            return null;
-        }
-        return scope.nearestOrgUnitId();
+    private static String candidateContentHash(EffectiveRuleVersion candidate) {
+        return candidate == null || !hasText(candidate.contentHash()) ? null : candidate.contentHash();
     }
 
-    private static String releaseApplicableScope(RuleDefinition rule) {
-        return "ALL";
-    }
-
-    private static String resolutionContentHash(ResolvedAssetVersion resolution) {
-        if (resolution == null || resolution.version() == null) {
-            return null;
-        }
-        return resolution.version().contentHash();
-    }
-
-    private static String ruleSourceSummary(RuleVersion version, ResolvedAssetVersion resolution) {
+    private static String ruleSourceSummary(RuleVersion version, EffectiveRuleVersion candidate) {
         String summary = hasText(version.changeSummary()) ? version.changeSummary() : "规则版本命中";
-        if (resolution == null) {
-            return summary;
+        List<String> runtimeFacts = new ArrayList<>();
+        if (hasText(candidate.runtimeReleaseId())) {
+            runtimeFacts.add("运行版本=" + candidate.runtimeReleaseId());
         }
-        String withSource = summary + "；来源=" + resolution.sourceTier()
-            + "；sourceOrgPath=" + resolution.sourceOrgPath();
-        String contentHash = resolutionContentHash(resolution);
+        if (hasText(candidate.assetVersionId())) {
+            runtimeFacts.add("asset_version=" + candidate.assetVersionId());
+        }
+        if (hasText(candidate.sourceLayer())) {
+            runtimeFacts.add("来源层=" + candidate.sourceLayer());
+        }
+        String contentHash = candidateContentHash(candidate);
         if (hasText(contentHash)) {
-            withSource += "；content_hash=" + contentHash;
+            runtimeFacts.add("content_hash=" + contentHash);
         }
-        return withSource;
+        return runtimeFacts.isEmpty() ? summary : summary + "；" + String.join("；", runtimeFacts);
     }
 
     private record EffectiveRuleVersion(
         RuleDefinition rule,
         RuleVersion version,
-        ResolvedAssetVersion resolution
+        String runtimeReleaseId,
+        String assetVersionId,
+        String assetVersionNo,
+        String contentHash,
+        String sourceLayer
     ) {
     }
 

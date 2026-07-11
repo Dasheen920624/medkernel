@@ -289,7 +289,7 @@ class EvaluationEngineIntegrationTest {
             "IND.AUTO.REPLAY", "出院质量自动评估复现率", EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷",
+            null, "P1级严重质量缺陷",
             "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1"));
         service.submitIndicator(indicator.indicatorId());
         service.publishIndicator(

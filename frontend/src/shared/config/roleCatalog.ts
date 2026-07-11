@@ -24,5 +24,5 @@ export function roleLabel(value?: string | null) {
     .replace(/^ROLE_/i, "")
     .toLowerCase()
     .replace(/_/g, "-");
-  return ROLE_OPTIONS.find((role) => role.code === normalized)?.name ?? "未识别角色";
+  return ROLE_OPTIONS.find((role) => role.code === normalized)?.name ?? "角色待确认";
 }

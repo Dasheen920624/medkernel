@@ -1,4 +1,5 @@
 import {
+  DownloadOutlined,
   ReloadOutlined,
   RocketOutlined,
   RollbackOutlined,
@@ -27,13 +28,17 @@ import {
   useActivateHospitalRuntime,
   useCurrentHospitalRuntime,
   useCurrentPlatformBaseline,
+  useExportHospitalRuntimeOfflineDelivery,
+  useHospitalPlatformUpgradeAnalysis,
   useHospitalRuntimeCandidates,
   useHospitalRuntimeHistory,
   useOrgUnits,
   usePlatformReleaseCandidates,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
+  useRestoreHospitalRuntimeOfflineDelivery,
   useSimulateReleaseImpact,
+  useValidateHospitalRuntimeOfflineImport,
   useSecurityProfile,
   type ClinicalRuntimeAssetSelection,
   type ClinicalRuntimeRelease,
@@ -41,9 +46,15 @@ import {
   type PlatformBaselineItem,
   type ReleaseCandidateAsset,
   type ReleaseAssetRef,
+  type RuntimeReleaseOfflineDelivery,
+  type RuntimeReleaseOfflineImportPreview,
+  type RuntimeReleaseOfflineRestore,
+  type PlatformUpgradeAnalysis,
   type RuntimeAssetType,
 } from "@/shared/api/hooks";
 import { ENGINE_ASSET_LABELS, RUNTIME_ASSET_OPTIONS } from "@/shared/config/assetCatalog";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -52,8 +63,22 @@ import styles from "./ReleaseGovernance.module.css";
 
 const { Text, Title } = Typography;
 
+type LocalRuntimeChoice = {
+  sourceLayer: ReleaseCandidateAsset["sourceLayer"];
+  assetType: RuntimeAssetType;
+  assetIdentity: string;
+  versionId: string;
+  versionNo?: string | null;
+  status: ReleaseCandidateAsset["status"] | "UNAVAILABLE";
+  eligibleForNewRelease: boolean;
+};
+
 function assetKey(assetType: RuntimeAssetType, assetIdentity: string) {
   return `${assetType}|${assetIdentity}`;
+}
+
+function assetVersionKey(assetType: RuntimeAssetType, assetIdentity: string, versionId: string) {
+  return `${assetKey(assetType, assetIdentity)}|${versionId}`;
 }
 
 function evidenceText(
@@ -126,9 +151,11 @@ function stateTag(state: string) {
   if (state === "ACTIVE") label = "启用";
   if (state === "DISABLED") label = "停用";
   if (state === "DRAFT") label = "草稿";
-  return (
-    <Tag color={state === "ACTIVE" || state === "PUBLISHED" ? "success" : "default"}>{label}</Tag>
-  );
+  if (state === "UNAVAILABLE") label = "不可进入新版本";
+  let color = "default";
+  if (state === "ACTIVE" || state === "PUBLISHED") color = "success";
+  if (state === "UNAVAILABLE") color = "error";
+  return <Tag color={color}>{label}</Tag>;
 }
 
 function replaySummary(result: ReleaseImpactSimulationResult) {
@@ -157,6 +184,19 @@ function impactIssueSummary(result: ReleaseImpactSimulationResult) {
   return result.releasable ? "未发现阻断项" : "需复核评估结果";
 }
 
+function platformUpgradeSummary(analysis: PlatformUpgradeAnalysis) {
+  const { added, modified, disabled, unchanged, conflictCount } = analysis.diffSummary;
+  return `新增 ${added} 项，修改 ${modified} 项，停用 ${disabled} 项，未变化 ${unchanged} 项，覆盖冲突 ${conflictCount} 项`;
+}
+
+function platformUpgradeChangeLabel(changeType: string) {
+  if (changeType === "ADDED") return "新增";
+  if (changeType === "MODIFIED") return "修改";
+  if (changeType === "DISABLED") return "停用";
+  if (changeType === "UNCHANGED") return "未变化";
+  return "变化";
+}
+
 export default function ReleaseGovernance() {
   const { message } = AntdApp.useApp();
   const security = useSecurityProfile();
@@ -171,9 +211,17 @@ export default function ReleaseGovernance() {
   const [hospitalSelections, setHospitalSelections] = useState<
     Map<string, ClinicalRuntimeAssetSelection>
   >(new Map());
+  const [verifiedLocalCandidates, setVerifiedLocalCandidates] = useState<
+    Map<string, ReleaseCandidateAsset>
+  >(new Map());
   const [impactResults, setImpactResults] = useState<ReleaseImpactSimulationResult[]>([]);
   const [impactError, setImpactError] = useState<string>();
+  const [offlineDelivery, setOfflineDelivery] = useState<RuntimeReleaseOfflineDelivery>();
+  const [offlineImportPreview, setOfflineImportPreview] =
+    useState<RuntimeReleaseOfflineImportPreview>();
+  const [offlineRestoreResult, setOfflineRestoreResult] = useState<RuntimeReleaseOfflineRestore>();
   const initializedHospitalRevision = useRef<string>();
+  const isPlatformTenant = security.data?.dataScope.tenantId === platformTenantId;
 
   const hospitalsQuery = useOrgUnits({
     page: 1,
@@ -184,13 +232,28 @@ export default function ReleaseGovernance() {
     status: "ACTIVE",
   });
   const baselineQuery = useCurrentPlatformBaseline();
-  const platformCandidatesQuery = usePlatformReleaseCandidates({
-    assetType,
-    keyword: keyword || undefined,
-    page: 1,
-    size: 50,
-  });
+  const platformCandidatesQuery = usePlatformReleaseCandidates(
+    {
+      assetType,
+      keyword: keyword || undefined,
+      page: 1,
+      size: 50,
+    },
+    isPlatformTenant,
+  );
   const runtimeQuery = useCurrentHospitalRuntime(hospitalId);
+  const baseline = baselineQuery.data;
+  const currentRuntime = runtimeQuery.data;
+  const platformUpgradeQuery = useHospitalPlatformUpgradeAnalysis(
+    hospitalId,
+    baseline?.release.baselineReleaseId,
+    Boolean(
+      hospitalId &&
+        baseline?.release.baselineReleaseId &&
+        currentRuntime?.release.platformBaselineReleaseId &&
+        currentRuntime.release.platformBaselineReleaseId !== baseline.release.baselineReleaseId,
+    ),
+  );
   const localCandidatesQuery = useHospitalRuntimeCandidates(hospitalId, {
     assetType,
     keyword: keyword || undefined,
@@ -206,15 +269,76 @@ export default function ReleaseGovernance() {
   const activateHospital = useActivateHospitalRuntime();
   const rollbackHospital = useRollbackHospitalRuntime();
   const simulateReleaseImpact = useSimulateReleaseImpact();
+  const exportOfflineDelivery = useExportHospitalRuntimeOfflineDelivery();
+  const validateOfflineImport = useValidateHospitalRuntimeOfflineImport();
+  const restoreOfflineDelivery = useRestoreHospitalRuntimeOfflineDelivery();
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
-  const baseline = baselineQuery.data;
   const platformCandidates = platformCandidatesQuery.data?.items ?? [];
   const localCandidates = useMemo(
     () => localCandidatesQuery.data?.items ?? [],
     [localCandidatesQuery.data?.items],
   );
-  const currentRuntime = runtimeQuery.data;
+  const eligibleLocalCandidates = useMemo(
+    () =>
+      localCandidates.filter(
+        (candidate) => candidate.status === "DRAFT" || candidate.status === "PUBLISHED",
+      ),
+    [localCandidates],
+  );
+  const verifiedLocalVersionKeys = useMemo(
+    () => new Set(verifiedLocalCandidates.keys()),
+    [verifiedLocalCandidates],
+  );
+  const displayedLocalChoices = useMemo<LocalRuntimeChoice[]>(() => {
+    const choicesByVersionKey = new Map<string, LocalRuntimeChoice>();
+    for (const candidate of localCandidates) {
+      choicesByVersionKey.set(
+        assetVersionKey(candidate.assetType, candidate.assetIdentity, candidate.versionId),
+        {
+          ...candidate,
+          eligibleForNewRelease: candidate.status === "DRAFT" || candidate.status === "PUBLISHED",
+        },
+      );
+    }
+
+    const normalizedKeyword = keyword.trim().toLocaleLowerCase();
+    for (const item of currentRuntime?.items ?? []) {
+      if (item.entryState !== "ACTIVE" || item.sourceLayer === "PLATFORM" || !item.versionId) {
+        continue;
+      }
+      if (assetType && item.assetType !== assetType) continue;
+      if (
+        normalizedKeyword &&
+        !item.assetIdentity.toLocaleLowerCase().includes(normalizedKeyword) &&
+        !item.versionNo?.toLocaleLowerCase().includes(normalizedKeyword)
+      ) {
+        continue;
+      }
+      const versionKey = assetVersionKey(item.assetType, item.assetIdentity, item.versionId);
+      if (choicesByVersionKey.has(versionKey)) continue;
+      const verifiedCandidate = verifiedLocalCandidates.get(versionKey);
+      if (verifiedCandidate) {
+        choicesByVersionKey.set(versionKey, {
+          ...verifiedCandidate,
+          eligibleForNewRelease: true,
+        });
+        continue;
+      }
+      choicesByVersionKey.set(versionKey, {
+        sourceLayer: item.sourceLayer,
+        assetType: item.assetType,
+        assetIdentity: item.assetIdentity,
+        versionId: item.versionId,
+        versionNo: item.versionNo,
+        status: "UNAVAILABLE",
+        eligibleForNewRelease: false,
+      });
+    }
+
+    return Array.from(choicesByVersionKey.values());
+  }, [assetType, currentRuntime?.items, keyword, localCandidates, verifiedLocalCandidates]);
+  const platformUpgradeAnalysis = platformUpgradeQuery.data;
   const history = historyQuery.data?.items ?? [];
 
   const hospitals = useMemo(
@@ -238,20 +362,61 @@ export default function ReleaseGovernance() {
     [baseline?.items],
   );
   const selectedLocalCandidates = useMemo(() => {
-    const selectedVersionIds = new Set(
-      Array.from(hospitalSelections.values())
-        .map((selection) => selection.versionId)
-        .filter((value): value is string => Boolean(value)),
+    return Array.from(verifiedLocalCandidates.values()).filter(
+      (candidate) =>
+        hospitalSelections.get(assetKey(candidate.assetType, candidate.assetIdentity))
+          ?.versionId === candidate.versionId,
     );
-    return localCandidates.filter((candidate) => selectedVersionIds.has(candidate.versionId));
-  }, [hospitalSelections, localCandidates]);
+  }, [hospitalSelections, verifiedLocalCandidates]);
+  const selectedUnavailableLocalSelections = useMemo(
+    () =>
+      Array.from(hospitalSelections.values()).filter(
+        (selection) =>
+          Boolean(selection.versionId) &&
+          !verifiedLocalVersionKeys.has(
+            assetVersionKey(
+              selection.assetType,
+              selection.assetIdentity,
+              selection.versionId as string,
+            ),
+          ),
+      ),
+    [hospitalSelections, verifiedLocalVersionKeys],
+  );
+  const verifiedHospitalSelections = useMemo(
+    () =>
+      Array.from(hospitalSelections.values()).filter(
+        (selection) =>
+          !selection.versionId ||
+          verifiedLocalVersionKeys.has(
+            assetVersionKey(selection.assetType, selection.assetIdentity, selection.versionId),
+          ),
+      ),
+    [hospitalSelections, verifiedLocalVersionKeys],
+  );
   const selectedLocalCandidateKey = selectedLocalCandidates
     .map((candidate) => candidate.versionId)
     .join("|");
+  const needsPlatformUpgradeAnalysis = Boolean(
+    hospitalId &&
+      baseline?.release.baselineReleaseId &&
+      currentRuntime?.release.platformBaselineReleaseId &&
+      currentRuntime.release.platformBaselineReleaseId !== baseline.release.baselineReleaseId,
+  );
+  const platformUpgradeReady = Boolean(
+    !needsPlatformUpgradeAnalysis ||
+      (platformUpgradeAnalysis?.analysisDigest &&
+        platformUpgradeAnalysis.currentRuntime.releaseId === currentRuntime?.release.releaseId &&
+        platformUpgradeAnalysis.targetBaseline.baselineReleaseId ===
+          baseline?.release.baselineReleaseId &&
+        platformUpgradeAnalysis.runtimeMutation === false &&
+        platformUpgradeAnalysis.diffSummary.conflictCount === 0),
+  );
 
   useEffect(() => {
     if (!hospitalId) {
       initializedHospitalRevision.current = undefined;
+      setVerifiedLocalCandidates((current) => (current.size === 0 ? current : new Map()));
       return;
     }
     const initializationKey = `${hospitalId}|${currentRuntime?.release.releaseId ?? "new"}`;
@@ -276,13 +441,48 @@ export default function ReleaseGovernance() {
       }
     }
     initializedHospitalRevision.current = initializationKey;
+    setVerifiedLocalCandidates(new Map());
     setHospitalSelections(next);
   }, [activeBaselineItems, currentRuntime, hospitalId]);
+
+  useEffect(() => {
+    const selectedCandidates = eligibleLocalCandidates.filter(
+      (candidate) =>
+        hospitalSelections.get(assetKey(candidate.assetType, candidate.assetIdentity))
+          ?.versionId === candidate.versionId,
+    );
+    if (selectedCandidates.length === 0) return;
+    setVerifiedLocalCandidates((current) => {
+      const next = new Map(current);
+      let changed = false;
+      for (const candidate of selectedCandidates) {
+        const versionKey = assetVersionKey(
+          candidate.assetType,
+          candidate.assetIdentity,
+          candidate.versionId,
+        );
+        if (next.has(versionKey)) continue;
+        next.set(versionKey, candidate);
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [eligibleLocalCandidates, hospitalSelections]);
 
   useEffect(() => {
     setImpactResults([]);
     setImpactError(undefined);
   }, [hospitalId, selectedLocalCandidateKey]);
+
+  useEffect(() => {
+    setOfflineDelivery(undefined);
+    setOfflineImportPreview(undefined);
+    setOfflineRestoreResult(undefined);
+  }, [hospitalId]);
+
+  useEffect(() => {
+    setOfflineRestoreResult(undefined);
+  }, [currentRuntime?.release.releaseId]);
 
   function togglePlatformCandidate(candidate: ReleaseCandidateAsset, checked: boolean) {
     setPlatformPublishIds((current) =>
@@ -334,6 +534,32 @@ export default function ReleaseGovernance() {
 
   function toggleHospitalSelection(selection: ClinicalRuntimeAssetSelection, checked: boolean) {
     const key = assetKey(selection.assetType, selection.assetIdentity);
+    setVerifiedLocalCandidates((current) => {
+      const next = new Map(current);
+      for (const [versionKey, candidate] of next.entries()) {
+        if (
+          candidate.assetType === selection.assetType &&
+          candidate.assetIdentity === selection.assetIdentity
+        ) {
+          next.delete(versionKey);
+        }
+      }
+      if (checked && selection.versionId) {
+        const candidate = eligibleLocalCandidates.find(
+          (item) =>
+            item.assetType === selection.assetType &&
+            item.assetIdentity === selection.assetIdentity &&
+            item.versionId === selection.versionId,
+        );
+        if (candidate) {
+          next.set(
+            assetVersionKey(candidate.assetType, candidate.assetIdentity, candidate.versionId),
+            candidate,
+          );
+        }
+      }
+      return next;
+    });
     setHospitalSelections((current) => {
       const next = new Map(current);
       if (checked) next.set(key, selection);
@@ -343,6 +569,10 @@ export default function ReleaseGovernance() {
   }
 
   async function publishPlatformBaseline() {
+    if (!isPlatformTenant) {
+      message.warning("平台标准版本由平台治理入口发布");
+      return;
+    }
     if (platformPublishIds.length === 0 && platformDisabled.length === 0) {
       message.warning("请至少选择一个发布或停用变更");
       return;
@@ -365,6 +595,14 @@ export default function ReleaseGovernance() {
       message.warning("请先选择机构并确认平台标准版本");
       return;
     }
+    if (!platformUpgradeReady) {
+      message.warning("请先完成平台升级差异与冲突分析，并处理所有阻断项");
+      return;
+    }
+    if (selectedUnavailableLocalSelections.length > 0) {
+      message.warning("当前选择包含不可再进入新版本的本地内容，请取消或替换后再生成");
+      return;
+    }
     if (selectedLocalCandidates.length > 0) {
       const passedImpactResults = new Map(
         impactResults
@@ -385,7 +623,10 @@ export default function ReleaseGovernance() {
         request: {
           platformBaselineReleaseId: baseline.release.baselineReleaseId,
           expectedCurrentReleaseId: currentRuntime?.release.releaseId ?? null,
-          activeAssets: Array.from(hospitalSelections.values()),
+          confirmedPlatformUpgradeDigest: needsPlatformUpgradeAnalysis
+            ? (platformUpgradeAnalysis?.analysisDigest ?? null)
+            : null,
+          activeAssets: verifiedHospitalSelections,
         },
       });
       message.success(`机构生效版本 ${revision("H", result.revisionNo)} 已生成`);
@@ -397,6 +638,10 @@ export default function ReleaseGovernance() {
   async function simulateSelectedReleaseImpact() {
     if (!hospitalId || !selectedHospital?.orgPath) {
       message.warning("请先选择组织路径完整的目标医院");
+      return;
+    }
+    if (selectedUnavailableLocalSelections.length > 0) {
+      message.warning("当前选择包含不可再进入新版本的本地内容，请取消或替换后再评估");
       return;
     }
     if (selectedLocalCandidates.length === 0) {
@@ -439,6 +684,23 @@ export default function ReleaseGovernance() {
     }
   }
 
+  async function refreshPlatformUpgradeAnalysis() {
+    if (!needsPlatformUpgradeAnalysis) {
+      message.info("当前机构生效版本已使用最新平台标准版本");
+      return;
+    }
+    const result = await platformUpgradeQuery.refetch();
+    if (result.error) {
+      message.error(getApiErrorMessage(result.error, "平台升级分析失败"));
+      return;
+    }
+    if (result.data?.diffSummary.conflictCount) {
+      message.warning("平台升级分析发现机构覆盖冲突，请先处理后再生成机构生效版本");
+    } else {
+      message.success("平台升级差异与冲突分析完成");
+    }
+  }
+
   async function rollback(target: ClinicalRuntimeRelease) {
     if (!hospitalId) return;
     try {
@@ -449,6 +711,73 @@ export default function ReleaseGovernance() {
       message.success(`已生成回滚版本 ${revision("H", result.revisionNo)}`);
     } catch (error) {
       message.error(getApiErrorMessage(error, "机构生效版本回滚失败"));
+    }
+  }
+
+  async function exportCurrentOfflineDelivery() {
+    if (!hospitalId || !currentRuntime?.release.releaseId) {
+      message.warning("请先选择已有机构生效版本的医院");
+      return;
+    }
+    try {
+      const result = await exportOfflineDelivery.mutateAsync({ hospitalId });
+      setOfflineDelivery(result);
+      setOfflineImportPreview(undefined);
+      setOfflineRestoreResult(undefined);
+      message.success("已生成离线交付文件");
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "离线交付文件生成失败"));
+    }
+  }
+
+  async function validateCurrentOfflineDelivery() {
+    if (!hospitalId || !currentRuntime?.release.releaseId || !offlineDelivery?.evidenceId) {
+      message.warning("请先导出当前机构生效版本离线交付文件");
+      return;
+    }
+    try {
+      const result = await validateOfflineImport.mutateAsync({
+        hospitalId,
+        request: {
+          evidenceId: offlineDelivery.evidenceId,
+          expectedReleaseId: currentRuntime.release.releaseId,
+          expectedHospitalId: hospitalId,
+        },
+      });
+      setOfflineImportPreview(result);
+      setOfflineRestoreResult(undefined);
+      message.success("离线交付导入预检已通过");
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "离线交付文件校验失败"));
+    }
+  }
+
+  async function restoreCurrentOfflineDelivery() {
+    if (
+      !hospitalId ||
+      !currentRuntime?.release.releaseId ||
+      !offlineDelivery?.evidenceId ||
+      !offlineImportPreview?.signatureValid ||
+      !offlineImportPreview.manifestMatched
+    ) {
+      message.warning("请先完成离线交付文件导入预检");
+      return;
+    }
+    try {
+      const result = await restoreOfflineDelivery.mutateAsync({
+        hospitalId,
+        request: {
+          evidenceId: offlineDelivery.evidenceId,
+          expectedSourceReleaseId: offlineImportPreview.releaseId,
+          expectedHospitalId: hospitalId,
+          expectedCurrentReleaseId: currentRuntime.release.releaseId,
+          confirmedFileDigest: offlineDelivery.fileDigest,
+        },
+      });
+      setOfflineRestoreResult(result);
+      message.success(`已恢复为新机构生效版本 ${revision("H", result.restoredRelease.revisionNo)}`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "离线交付文件恢复失败"));
     }
   }
 
@@ -479,6 +808,89 @@ export default function ReleaseGovernance() {
             )}
           </Descriptions.Item>
         </Descriptions>
+        <div className={styles.runtimeTools}>
+          <Space wrap>
+            <Button
+              aria-label="导出离线交付文件"
+              icon={<DownloadOutlined />}
+              loading={exportOfflineDelivery.isPending}
+              onClick={() => void exportCurrentOfflineDelivery()}
+            >
+              导出离线交付文件
+            </Button>
+            <Button
+              aria-label="校验离线交付文件"
+              icon={<SafetyCertificateOutlined />}
+              disabled={!offlineDelivery}
+              loading={validateOfflineImport.isPending}
+              onClick={() => void validateCurrentOfflineDelivery()}
+            >
+              校验离线交付文件
+            </Button>
+            <Button
+              aria-label="恢复为新机构生效版本"
+              icon={<ReloadOutlined />}
+              disabled={
+                !offlineImportPreview?.signatureValid || !offlineImportPreview.manifestMatched
+              }
+              loading={restoreOfflineDelivery.isPending}
+              onClick={() => void restoreCurrentOfflineDelivery()}
+            >
+              恢复为新机构生效版本
+            </Button>
+          </Space>
+          {(offlineDelivery || offlineImportPreview || offlineRestoreResult) && (
+            <Descriptions size="small" column={2} className={styles.runtimeToolStatus}>
+              {offlineDelivery && (
+                <>
+                  <Descriptions.Item label="交付文件">离线交付文件已生成</Descriptions.Item>
+                  <Descriptions.Item label="签名状态">SM3/SM2 签名已生成</Descriptions.Item>
+                </>
+              )}
+              {offlineImportPreview && (
+                <>
+                  <Descriptions.Item label="导入预检">导入预检通过</Descriptions.Item>
+                  <Descriptions.Item label="生效版本影响">
+                    不会改写当前机构生效版本
+                  </Descriptions.Item>
+                </>
+              )}
+              {offlineRestoreResult && (
+                <>
+                  <Descriptions.Item label="恢复执行">已恢复为新机构生效版本</Descriptions.Item>
+                  <Descriptions.Item label="新机构生效版本">
+                    {revision("H", offlineRestoreResult.restoredRelease.revisionNo)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="恢复来源">
+                    {evidenceText(
+                      offlineRestoreResult.sourceReleaseId,
+                      evidenceDetailsEnabled,
+                      "来自已验签离线交付文件",
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="写入结果">
+                    {offlineRestoreResult.runtimeMutation
+                      ? "已追加新的不可变机构生效版本"
+                      : "未写入机构生效版本"}
+                  </Descriptions.Item>
+                </>
+              )}
+              {evidenceDetailsEnabled && offlineDelivery && (
+                <>
+                  <Descriptions.Item label="证据编号">
+                    {offlineDelivery.evidenceId}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="文件摘要">
+                    <Text className={styles.digest}>{offlineDelivery.fileDigest}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="下载地址" span={2}>
+                    <Text className={styles.digest}>{offlineDelivery.fileUri}</Text>
+                  </Descriptions.Item>
+                </>
+              )}
+            </Descriptions>
+          )}
+        </div>
       </Card>
     );
   } else if (hospitalId) {
@@ -492,6 +904,127 @@ export default function ReleaseGovernance() {
     );
   }
 
+  let platformUpgradeContent = null;
+  if (hospitalId && currentRuntime && baseline) {
+    platformUpgradeContent = needsPlatformUpgradeAnalysis ? (
+      <Card
+        title="平台升级差异与冲突分析"
+        extra={
+          <Button
+            aria-label="分析平台升级影响"
+            icon={<SafetyCertificateOutlined />}
+            loading={platformUpgradeQuery.isFetching}
+            onClick={() => void refreshPlatformUpgradeAnalysis()}
+          >
+            分析平台升级影响
+          </Button>
+        }
+      >
+        <Space direction="vertical" className={styles.fullWidth}>
+          {platformUpgradeQuery.error && (
+            <Alert
+              type="warning"
+              showIcon
+              message="平台升级分析未完成"
+              description={getApiErrorMessage(platformUpgradeQuery.error, "平台升级分析失败")}
+            />
+          )}
+          {platformUpgradeAnalysis ? (
+            <>
+              <Descriptions size="small" column={3}>
+                <Descriptions.Item label="目标平台标准版本">
+                  {revision("A", platformUpgradeAnalysis.targetBaseline.revisionNo)}
+                </Descriptions.Item>
+                <Descriptions.Item label="当前机构基线">
+                  {evidenceText(
+                    platformUpgradeAnalysis.currentRuntime.platformBaselineReleaseId,
+                    evidenceDetailsEnabled,
+                    "机构当前已锁定历史平台标准版本",
+                  )}
+                </Descriptions.Item>
+                <Descriptions.Item label="分析结论">
+                  {platformUpgradeAnalysis.diffSummary.conflictCount > 0
+                    ? "发现覆盖冲突，需处理"
+                    : "差异与冲突分析已完成"}
+                </Descriptions.Item>
+                <Descriptions.Item label="差异摘要" span={2}>
+                  {platformUpgradeSummary(platformUpgradeAnalysis)}
+                </Descriptions.Item>
+                <Descriptions.Item label="生效版本影响">
+                  {platformUpgradeAnalysis.runtimeMutation
+                    ? "异常改写"
+                    : "分析不改写当前机构生效版本"}
+                </Descriptions.Item>
+                {evidenceDetailsEnabled && (
+                  <Descriptions.Item label="分析摘要" span={3}>
+                    <Text className={styles.digest}>{platformUpgradeAnalysis.analysisDigest}</Text>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+              <Table
+                rowKey={(item) => `${item.assetType}|${item.assetIdentity}`}
+                size="small"
+                pagination={false}
+                dataSource={platformUpgradeAnalysis.items}
+                columns={[
+                  {
+                    title: "内容",
+                    render: (_value, item) => (
+                      <Space direction="vertical" size={0}>
+                        <Text strong>
+                          {assetSummaryText(
+                            item.assetType,
+                            evidenceDetailsEnabled,
+                            item.assetIdentity,
+                            "升级差异项",
+                          )}
+                        </Text>
+                        <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
+                      </Space>
+                    ),
+                  },
+                  {
+                    title: "差异",
+                    width: 100,
+                    render: (_value, item) => platformUpgradeChangeLabel(item.changeType),
+                  },
+                  {
+                    title: "版本变化",
+                    render: (_value, item) =>
+                      evidenceDetailsEnabled
+                        ? `${item.currentVersionNo ?? "无"} -> ${item.targetVersionNo ?? "停用"}`
+                        : "已完成版本差异比对",
+                  },
+                  {
+                    title: "冲突",
+                    render: (_value, item) =>
+                      item.conflicts.length > 0
+                        ? `${item.conflicts.length} 个机构覆盖冲突`
+                        : "未发现覆盖冲突",
+                  },
+                ]}
+              />
+            </>
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message="平台标准版本已更新"
+              description="生成新的机构生效版本前，需要先完成差异、冲突和影响分析。"
+            />
+          )}
+        </Space>
+      </Card>
+    ) : (
+      <Alert
+        type="success"
+        showIcon
+        message="当前机构生效版本已对齐平台标准版本"
+        description="如需加入集团或本院内容，仍需完成对应发布影响评估。"
+      />
+    );
+  }
+
   const platformContent = (
     <Space direction="vertical" size="large" className={styles.fullWidth}>
       {baseline ? (
@@ -500,7 +1033,7 @@ export default function ReleaseGovernance() {
           <Descriptions size="small" column={3}>
             <Descriptions.Item label="启用内容">{baseline.items.length} 项</Descriptions.Item>
             <Descriptions.Item label="发布时间">
-              {new Date(baseline.release.publishedAt).toLocaleString()}
+              {formatClinicalDateTime(baseline.release.publishedAt, baseline.release.publishedAt)}
             </Descriptions.Item>
             <Descriptions.Item label="完整性状态">
               {hashEvidenceText(
@@ -523,141 +1056,155 @@ export default function ReleaseGovernance() {
           type="info"
           showIcon
           message="平台尚未建立标准版本"
-          description="选择已完成校验的草稿内容后发布首个平台标准版本。"
+          description={
+            isPlatformTenant
+              ? "选择已完成校验的草稿内容后发布首个平台标准版本。"
+              : "平台标准版本由平台治理入口发布；本机构在机构生效版本中选择并启用内容。"
+          }
         />
       )}
 
-      <Card
-        title="本次发布变更"
-        extra={
-          <Space>
-            <Select
-              allowClear
-              placeholder="全部内容类型"
-              value={assetType}
-              options={RUNTIME_ASSET_OPTIONS}
-              onChange={setAssetType}
-              className={styles.assetTypeSelect}
-            />
-            <Input.Search
-              allowClear
-              placeholder="搜索内容名称、身份或来源"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              className={styles.keywordInput}
-            />
-          </Space>
-        }
-      >
-        <Table
-          rowKey="versionId"
-          size="small"
-          loading={platformCandidatesQuery.isLoading}
-          pagination={false}
-          dataSource={platformCandidates}
-          locale={{ emptyText: "没有待发布草稿" }}
-          columns={[
-            {
-              title: "选择",
-              width: 72,
-              render: (_value, candidate) => (
-                <Checkbox
-                  aria-label={assetActionLabel(
-                    "发布",
-                    candidate.assetType,
-                    candidate.versionNo,
-                    candidate.sourceLayer,
-                  )}
-                  checked={platformPublishIds.includes(candidate.versionId)}
-                  onChange={(event) => togglePlatformCandidate(candidate, event.target.checked)}
+      {isPlatformTenant ? (
+        <>
+          <Card
+            title="本次发布变更"
+            extra={
+              <Space>
+                <Select
+                  allowClear
+                  placeholder="全部内容类型"
+                  value={assetType}
+                  options={RUNTIME_ASSET_OPTIONS}
+                  onChange={setAssetType}
+                  className={styles.assetTypeSelect}
                 />
-              ),
-            },
-            {
-              title: "内容",
-              render: (_value, candidate) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>
-                    {assetSummaryText(
-                      candidate.assetType,
-                      evidenceDetailsEnabled,
-                      candidate.assetIdentity,
-                      "已准备发布",
-                    )}
-                  </Text>
-                  <Text type="secondary">
-                    {assetContentLabel(candidate.assetType)} · {candidate.versionNo}
-                  </Text>
-                </Space>
-              ),
-            },
-            { title: "内容版本", dataIndex: "versionNo", width: 110 },
-            {
-              title: "状态",
-              dataIndex: "status",
-              width: 100,
-              render: stateTag,
-            },
-            { title: "来源依据", dataIndex: "sourceRef" },
-          ]}
-        />
-      </Card>
-
-      <Card title="当前清单停用">
-        <Table
-          rowKey={(item) => assetKey(item.assetType, item.assetIdentity)}
-          size="small"
-          pagination={false}
-          dataSource={activeBaselineItems}
-          locale={{ emptyText: "当前标准版本没有启用内容" }}
-          columns={[
-            {
-              title: "停用",
-              width: 72,
-              render: (_value, item) => (
-                <Checkbox
-                  aria-label={assetActionLabel("停用", item.assetType, item.versionNo)}
-                  checked={platformDisabled.some(
-                    (candidate) =>
-                      assetKey(candidate.assetType, candidate.assetIdentity) ===
-                      assetKey(item.assetType, item.assetIdentity),
-                  )}
-                  onChange={(event) => togglePlatformDisabled(item, event.target.checked)}
+                <Input.Search
+                  allowClear
+                  placeholder="搜索内容名称、身份或来源"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  className={styles.keywordInput}
                 />
-              ),
-            },
-            {
-              title: "内容",
-              render: (_value, item) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>
-                    {assetSummaryText(
-                      item.assetType,
-                      evidenceDetailsEnabled,
-                      item.assetIdentity,
-                      "已在平台标准版本中",
-                    )}
-                  </Text>
-                  <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
-                </Space>
-              ),
-            },
-            { title: "当前版本", dataIndex: "versionNo", width: 110 },
-          ]}
-        />
-      </Card>
+              </Space>
+            }
+          >
+            <Table
+              rowKey="versionId"
+              size="small"
+              loading={platformCandidatesQuery.isLoading}
+              pagination={false}
+              dataSource={platformCandidates}
+              locale={{ emptyText: "没有待发布草稿" }}
+              columns={[
+                {
+                  title: "选择",
+                  width: 72,
+                  render: (_value, candidate) => (
+                    <Checkbox
+                      aria-label={assetActionLabel(
+                        "发布",
+                        candidate.assetType,
+                        candidate.versionNo,
+                        candidate.sourceLayer,
+                      )}
+                      checked={platformPublishIds.includes(candidate.versionId)}
+                      onChange={(event) => togglePlatformCandidate(candidate, event.target.checked)}
+                    />
+                  ),
+                },
+                {
+                  title: "内容",
+                  render: (_value, candidate) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {assetSummaryText(
+                          candidate.assetType,
+                          evidenceDetailsEnabled,
+                          candidate.assetIdentity,
+                          "已准备发布",
+                        )}
+                      </Text>
+                      <Text type="secondary">
+                        {assetContentLabel(candidate.assetType)} · {candidate.versionNo}
+                      </Text>
+                    </Space>
+                  ),
+                },
+                { title: "内容版本", dataIndex: "versionNo", width: 110 },
+                {
+                  title: "状态",
+                  dataIndex: "status",
+                  width: 100,
+                  render: stateTag,
+                },
+                { title: "来源依据", dataIndex: "sourceRef" },
+              ]}
+            />
+          </Card>
 
-      <div className={styles.primaryAction}>
-        <Button
-          type="primary"
-          aria-label="发布新平台标准版本"
-          icon={<RocketOutlined />}
-          loading={publishPlatform.isPending}
-          onClick={() => void publishPlatformBaseline()}
-        >
-          发布新平台标准版本
-        </Button>
-      </div>
+          <Card title="当前清单停用">
+            <Table
+              rowKey={(item) => assetKey(item.assetType, item.assetIdentity)}
+              size="small"
+              pagination={false}
+              dataSource={activeBaselineItems}
+              locale={{ emptyText: "当前标准版本没有启用内容" }}
+              columns={[
+                {
+                  title: "停用",
+                  width: 72,
+                  render: (_value, item) => (
+                    <Checkbox
+                      aria-label={assetActionLabel("停用", item.assetType, item.versionNo)}
+                      checked={platformDisabled.some(
+                        (candidate) =>
+                          assetKey(candidate.assetType, candidate.assetIdentity) ===
+                          assetKey(item.assetType, item.assetIdentity),
+                      )}
+                      onChange={(event) => togglePlatformDisabled(item, event.target.checked)}
+                    />
+                  ),
+                },
+                {
+                  title: "内容",
+                  render: (_value, item) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {assetSummaryText(
+                          item.assetType,
+                          evidenceDetailsEnabled,
+                          item.assetIdentity,
+                          "已在平台标准版本中",
+                        )}
+                      </Text>
+                      <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
+                    </Space>
+                  ),
+                },
+                { title: "当前版本", dataIndex: "versionNo", width: 110 },
+              ]}
+            />
+          </Card>
+
+          <div className={styles.primaryAction}>
+            <Button
+              type="primary"
+              aria-label="发布新平台标准版本"
+              icon={<RocketOutlined />}
+              loading={publishPlatform.isPending}
+              onClick={() => void publishPlatformBaseline()}
+            >
+              发布新平台标准版本
+            </Button>
+          </div>
+        </>
+      ) : (
+        <Alert
+          type="info"
+          showIcon
+          message="平台标准版本由平台治理入口发布；本机构在机构生效版本中选择并启用内容。"
+        />
+      )}
     </Space>
   );
 
@@ -677,6 +1224,7 @@ export default function ReleaseGovernance() {
             onSearch={setHospitalKeyword}
             onChange={(value) => {
               initializedHospitalRevision.current = undefined;
+              setVerifiedLocalCandidates(new Map());
               setHospitalSelections(new Map());
               setHospitalId(value);
             }}
@@ -687,6 +1235,16 @@ export default function ReleaseGovernance() {
       </Card>
 
       {hospitalRuntimeSummary}
+      {platformUpgradeContent}
+
+      {selectedUnavailableLocalSelections.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          message="当前选择包含不可进入新版本的本地内容"
+          description="该内容可能已撤回或不再可发布，必须取消选择或改选已发布版本后才能评估和生成新的机构生效版本。"
+        />
+      )}
 
       {hospitalId && (
         <>
@@ -749,7 +1307,7 @@ export default function ReleaseGovernance() {
               size="small"
               loading={localCandidatesQuery.isLoading}
               pagination={false}
-              dataSource={localCandidates}
+              dataSource={displayedLocalChoices}
               locale={{ emptyText: "没有适用于该机构的本地内容" }}
               columns={[
                 {
@@ -768,6 +1326,10 @@ export default function ReleaseGovernance() {
                           candidate.sourceLayer,
                         )}
                         checked={selected?.versionId === candidate.versionId}
+                        disabled={
+                          !candidate.eligibleForNewRelease &&
+                          selected?.versionId !== candidate.versionId
+                        }
                         onChange={(event) =>
                           toggleHospitalSelection(
                             {
@@ -791,7 +1353,9 @@ export default function ReleaseGovernance() {
                           candidate.assetType,
                           evidenceDetailsEnabled,
                           candidate.assetIdentity,
-                          "可加入机构生效版本",
+                          candidate.eligibleForNewRelease
+                            ? "可加入机构生效版本"
+                            : "当前生效但不可进入新版本",
                         )}
                       </Text>
                       <Text type="secondary">
@@ -967,7 +1531,7 @@ export default function ReleaseGovernance() {
                 {
                   title: "启用时间",
                   dataIndex: "activatedAt",
-                  render: (value: string) => (value ? new Date(value).toLocaleString() : "—"),
+                  render: (value: string) => formatClinicalDateTime(value, "—"),
                 },
                 {
                   title: "操作",
@@ -1004,8 +1568,8 @@ export default function ReleaseGovernance() {
 
   return (
     <PageShell
-      title="发布治理"
-      description="发布平台标准版本，并为机构确认当前生效版本。"
+      title="机构生效版本"
+      description="发布平台标准版本，为机构生成可回滚的当前生效版本。"
       extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
       {baselineQuery.isError && (

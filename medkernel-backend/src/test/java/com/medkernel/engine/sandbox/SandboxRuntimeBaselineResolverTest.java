@@ -1,6 +1,7 @@
 package com.medkernel.engine.sandbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -94,6 +95,16 @@ class SandboxRuntimeBaselineResolverTest {
     }
 
     @Test
+    void historicalReplayMustBelongToCurrentInstitution() {
+        SandboxReplayResolvedCase replay = historicalReplay("replay-tenant-b", "tenant-B");
+        when(replayCases.resolve("replay-tenant-b")).thenReturn(replay);
+
+        assertThatThrownBy(() -> resolver.resolveHistorical("replay-tenant-b"))
+            .hasMessageContaining("当前机构")
+            .hasMessageNotContaining("演练机构");
+    }
+
+    @Test
     void compareModeKeepsCurrentAndHistoricalManifestsSeparate() {
         ClinicalRuntimeRelease release = runtimeRelease();
         ClinicalRuntimeReleaseContent content = runtimeContent(release);
@@ -129,9 +140,13 @@ class SandboxRuntimeBaselineResolverTest {
     }
 
     private static SandboxReplayResolvedCase historicalReplay() {
+        return historicalReplay("replay-1", "tenant-A");
+    }
+
+    private static SandboxReplayResolvedCase historicalReplay(String replayCaseId, String tenantId) {
         Instant now = Instant.parse("2025-01-01T00:00:00Z");
         SandboxReplayCase replayCase = new SandboxReplayCase(
-            1L, "replay-1", "tenant-A", "sha256:" + "1".repeat(64),
+            1L, replayCaseId, tenantId, "sha256:" + "1".repeat(64),
             "sha256:" + "2".repeat(64), "sha256:" + "3".repeat(64),
             "sha256:" + "4".repeat(64), "{}", "c".repeat(64),
             "sha256:" + "6".repeat(64), 4L,
@@ -139,7 +154,7 @@ class SandboxRuntimeBaselineResolverTest {
             SandboxReplayStatus.IMPORTED, now, "governor-1", null, null, null,
             now, now, "trace-1");
         SandboxReplayAssetBinding rule = new SandboxReplayAssetBinding(
-            1L, "binding-old-1", "tenant-A", "replay-1", VersionedAssetType.RULE,
+            1L, "binding-old-1", tenantId, replayCaseId, VersionedAssetType.RULE,
             "RULE.OLD", "rv-old-1", "1", SourceTier.ORG,
             "sha256:" + "5".repeat(64), "{}", "e".repeat(64),
             AssetVersionStatus.WITHDRAWN, now, "governor-1", "trace-1");

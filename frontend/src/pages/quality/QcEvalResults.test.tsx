@@ -147,7 +147,7 @@ beforeEach(() => {
     error: undefined,
   });
   mockUseQualityFindingDetail.mockReturnValue({
-    data: { finding: realFinding, task: undefined, reviews: [] },
+    data: { finding: realFinding, rectificationTask: undefined, reviews: [] },
     isLoading: false,
     isError: false,
     error: undefined,
@@ -180,8 +180,15 @@ describe("QcEvalResults", () => {
     );
 
     expect(screen.getByRole("heading", { name: "质量问题来源" })).toBeInTheDocument();
-    expect(screen.getByText("真实评价结果总数")).toBeInTheDocument();
+    expect(screen.getByText("按评价结果追溯问题证据")).toBeInTheDocument();
+    expect(screen.getByText("评价结果总数")).toBeInTheDocument();
+    expect(screen.queryByText("按真实评价结果追溯问题证据")).not.toBeInTheDocument();
+    expect(screen.queryByText("真实评价结果总数")).not.toBeInTheDocument();
     expect(screen.getByText("待整改问题总数")).toBeInTheDocument();
+    expect(screen.getByText("质量问题与整改入口")).toBeInTheDocument();
+    expect(screen.queryByText("质控问题与整改入口")).not.toBeInTheDocument();
+    expect(screen.getAllByText("质量缺陷").length).toBeGreaterThan(0);
+    expect(screen.queryByText("质控缺陷")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
     expect(screen.getByText("第 2 版评价口径")).toBeInTheDocument();
@@ -202,6 +209,31 @@ describe("QcEvalResults", () => {
     expect(
       screen.queryByText(/485|152|92\.8|TRACE_NOT_FOUND|本地违规病例样例/),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses quality source wording when there are no evaluation results", () => {
+    mockUseEvaluationResults.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      refetch: refetchResults,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseQualityFindings.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      refetch: refetchFindings,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前筛选下暂无评价结果")).toBeInTheDocument();
+    expect(screen.getByText("当前没有符合筛选条件的评价结果或质量问题。")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实评价结果")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无真实评价结果")).not.toBeInTheDocument();
+    expect(screen.queryByText("当前没有符合筛选条件的评价结果或问题。")).not.toBeInTheDocument();
   });
 
   it("opens a real quality finding detail drawer with evidence and lifecycle facts", async () => {
@@ -258,11 +290,13 @@ describe("QcEvalResults", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看问题详情" }));
+    expect(screen.getByLabelText("整改截止时间")).not.toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("整改截止时间")).toHaveValue("2026年06月09日 08:00");
     await user.click(screen.getByLabelText("责任人"));
     expect(screen.queryByText("质控专员 · u-quality-1")).not.toBeInTheDocument();
     await user.click(screen.getByText("质控专员"));
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
-      target: { value: "2026-06-09T00:00:00Z" },
+      target: { value: "2026年06月09日 08:00" },
     });
 
     await user.click(screen.getByRole("button", { name: "派发整改任务" }));
@@ -274,7 +308,7 @@ describe("QcEvalResults", () => {
             findingId: "finding-real-1",
             responsibleDepartmentId: "dept-cardio",
             assigneeUserId: "u-quality-1",
-            dueAt: "2026-06-09T00:00:00Z",
+            dueAt: "2026-06-09T00:00:00.000Z",
           },
           idempotencyKey: expect.stringContaining("finding-real-1"),
         }),

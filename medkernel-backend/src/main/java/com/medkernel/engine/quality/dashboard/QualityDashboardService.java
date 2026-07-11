@@ -17,9 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SVC-QUALITY-01 质控驾驶舱聚合服务。
+ * SVC-QUALITY-01 质量风险概览聚合服务。
  *
- * <p>本服务只读 EVAL/OPT-08/整改事实形成聚合与下钻，并幂等刷新质控预警 read-model。
+ * <p>本服务只读 EVAL/OPT-08/整改事实形成聚合与下钻，并幂等刷新质量风险提醒 read-model。
  */
 @Service
 public class QualityDashboardService {
@@ -63,12 +63,12 @@ public class QualityDashboardService {
     @Transactional
     public QualityDashboardAlertResponse acknowledgeAlert(String alertId) {
         if (alertId == null || alertId.isBlank()) {
-            throw ApiException.notFound("质控预警");
+            throw ApiException.notFound("质量风险提醒");
         }
         String tenantId = tenantId();
         QualityDashboardAlertResponse current = alertById(tenantId, alertId);
         if (current.status() == QualityDashboardAlertStatus.RESOLVED) {
-            throw ApiException.conflict("质控预警已闭环，不能确认");
+            throw ApiException.conflict("质量风险提醒已闭环，不能确认");
         }
         if (current.status() == QualityDashboardAlertStatus.ACKNOWLEDGED) {
             return current;
@@ -184,7 +184,7 @@ public class QualityDashboardService {
             upsertAlert(tenantId, QualityDashboardAlertType.HIGH_RISK_FINDING,
                 "quality_finding", rs.getString("source_id"), rs.getString("department_id"), severity,
                 "OPEN_P0_P1_FINDING", BigDecimal.ZERO, BigDecimal.ONE,
-                "高风险质控问题待闭环：" + rs.getString("title"),
+                "高风险质量问题待闭环：" + qualityProblemTitle(rs.getString("title")),
                 rs.getString("evidence_summary"), toInstant(rs.getTimestamp("created_at")),
                 now, rs.getString("trace_id"));
         }, query.params().toArray());
@@ -361,7 +361,7 @@ public class QualityDashboardService {
                AND alert_id = ?
             """, (rs, rowNum) -> alertResponse(rs), tenantId, alertId);
         if (rows.isEmpty()) {
-            throw ApiException.notFound("质控预警");
+            throw ApiException.notFound("质量风险提醒");
         }
         return rows.getFirst();
     }
@@ -576,11 +576,21 @@ public class QualityDashboardService {
                 nullToBlank(item.departmentId()),
                 nullToBlank(item.traceId())));
         }
-        return Sha256ContentHash.sha256(String.join("\n", parts), "质控证据导出范围不能为空");
+        return Sha256ContentHash.sha256(String.join("\n", parts), "质量证据导出范围不能为空");
     }
 
     private String nullToBlank(String value) {
         return value == null ? "" : value;
+    }
+
+    private String qualityProblemTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return "未命名质量问题";
+        }
+        return title
+            .replace("质控问题", "质量问题")
+            .replace("质控事实", "质量事实")
+            .replace("质控缺陷", "质量缺陷");
     }
 
     private String tenantId() {

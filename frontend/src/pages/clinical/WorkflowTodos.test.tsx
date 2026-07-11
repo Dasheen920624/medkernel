@@ -41,8 +41,13 @@ function renderWorkflowTodos() {
   );
 }
 
+function setWorkflowLocation(path: string) {
+  window.history.pushState({}, "", path);
+}
+
 describe("WorkflowTodos", () => {
   beforeEach(() => {
+    setWorkflowLocation("/workflow/todos");
     vi.clearAllMocks();
     useEvidenceDetailsStore.setState({ enabled: false });
     workflowHookMocks.useSecurityProfile.mockReturnValue({
@@ -81,7 +86,7 @@ describe("WorkflowTodos", () => {
             priority: "HIGH",
             status: "PENDING",
             assigneeId: "doctor-real-1",
-            assigneeRole: "DOCTOR",
+            assigneeRole: "clinical-user",
             patientId: "patient-real-1",
             encounterId: "enc-real-1",
             dueAt: "2026-06-04T08:00:00Z",
@@ -163,8 +168,24 @@ describe("WorkflowTodos", () => {
 
     expect(source).toContain("className={styles.tablePanel}");
     expect(source).toContain('tableLayout="fixed"');
-    expect(source).toContain("scroll={{ x: 760 }}");
+    expect(source).toContain("scroll={{ x: 1040 }}");
     expect(styles).toMatch(/\.tablePanel\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
+  });
+
+  it("keeps report interpretation rows scannable by reserving the todo column as the primary reading lane", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/clinical/WorkflowTodos.tsx"), {
+      encoding: "utf8",
+    });
+    const styles = readFileSync(resolve(process.cwd(), "src/pages/clinical/Clinical.module.css"), {
+      encoding: "utf8",
+    });
+
+    expect(source).toContain("className: styles.workflowTodoPrimaryColumn");
+    expect(source).toContain("width: 340");
+    expect(source).toContain("scroll={{ x: 1040 }}");
+    expect(styles).toMatch(/\.workflowTodoPrimaryColumn\s*\{[^}]*vertical-align:\s*top;/s);
+    expect(styles).toMatch(/\.workflowTodoContent\s*\{[^}]*min-width:\s*0;/s);
+    expect(styles).toMatch(/\.workflowTodoSummary\s*\{[^}]*line-height:\s*1\.6;/s);
   });
 
   it("renders real workflow todos from the unified API instead of the old placeholder", () => {
@@ -181,7 +202,7 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("处理当前岗位待办事项")).toBeInTheDocument();
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
     expect(screen.getByText("已关联患者")).toBeInTheDocument();
-    expect(screen.getByText("医生")).toBeInTheDocument();
+    expect(screen.getByText("随访异常复核").closest("tr")).toHaveTextContent("临床使用者");
     expect(screen.getByText("来源与追踪证据已保留")).toBeInTheDocument();
     expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("return-task-1")).not.toBeInTheDocument();
@@ -191,6 +212,76 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("HIGH")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("opens the exact report interpretation todo when the page is entered with a recommendation card id", () => {
+    setWorkflowLocation("/workflow/todos?cardId=card-regional-1");
+
+    renderWorkflowTodos();
+
+    expect(workflowHookMocks.useWorkflowTodos).toHaveBeenCalledWith({
+      status: "PENDING",
+      priority: undefined,
+      sourceType: "REPORT_INTERPRETATION",
+      sourceId: "card-regional-1",
+      orgUnitId: undefined,
+      page: 1,
+      size: 10,
+    });
+  });
+
+  it("uses the requested recommendation-card source when a focused todo link provides it", () => {
+    setWorkflowLocation("/workflow/todos?cardId=card-critical-1&sourceType=RECOMMENDATION_CARD");
+
+    renderWorkflowTodos();
+
+    expect(workflowHookMocks.useWorkflowTodos).toHaveBeenCalledWith({
+      status: "PENDING",
+      priority: undefined,
+      sourceType: "RECOMMENDATION_CARD",
+      sourceId: "card-critical-1",
+      orgUnitId: undefined,
+      page: 1,
+      size: 10,
+    });
+  });
+
+  it("falls back to report interpretation when a focused todo link has an unknown source", () => {
+    setWorkflowLocation("/workflow/todos?cardId=card-safe-1&sourceType=UNTRUSTED_SOURCE");
+
+    renderWorkflowTodos();
+
+    expect(workflowHookMocks.useWorkflowTodos).toHaveBeenCalledWith({
+      status: "PENDING",
+      priority: undefined,
+      sourceType: "REPORT_INTERPRETATION",
+      sourceId: "card-safe-1",
+      orgUnitId: undefined,
+      page: 1,
+      size: 10,
+    });
+  });
+
+  it("keeps the focused report card source when switching completed status", async () => {
+    const user = userEvent.setup();
+    setWorkflowLocation("/workflow/todos?cardId=card-current-report");
+
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("combobox", { name: "待办状态" }));
+    await user.click(await screen.findByText("已完成"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "COMPLETED",
+        priority: undefined,
+        sourceType: "REPORT_INTERPRETATION",
+        sourceId: "card-current-report",
+        orgUnitId: undefined,
+        page: 1,
+        size: 10,
+      });
+    });
   });
 
   it("reveals workflow todo source evidence only after evidence details are enabled", async () => {
@@ -306,6 +397,68 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("先处理安全复核，再处理护理任务")).toBeInTheDocument();
   });
 
+  it("surfaces report interpretation work as a clinical queue focus instead of burying it behind routine tasks", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-safety-1",
+            sourceType: "SAFETY_REVIEW",
+            sourceId: "withdrawal:patient-real-1",
+            title: "安全撤回复核任务",
+            summary: "旧版禁忌知识撤回后需要复核患者病例",
+            priority: "CRITICAL",
+            status: "PENDING",
+            assigneeId: "doctor-real-1",
+            assigneeRole: "DOCTOR",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-report-1",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "检验报告解读待办",
+            summary: "最新检验结果需要医技完成辅助解读",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "technician-real-1",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-nursing-1",
+            sourceType: "NURSING_TASK",
+            sourceId: "nursing:patient-real-2",
+            title: "压疮风险评估",
+            summary: "护理评估提示风险升高",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "nurse-real-1",
+            assigneeRole: "NURSE",
+            patientId: "patient-real-2",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 3,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("报告解读 1 项")).toBeInTheDocument();
+    expect(screen.getByText("先处理安全复核，再处理报告解读")).toBeInTheDocument();
+    const reportTitle = screen.getByText("检验报告解读待办");
+    const nursingTitle = screen.getByText("压疮风险评估");
+    expect(reportTitle.compareDocumentPosition(nursingTitle)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it("passes selected organization scope to the server-side todo query", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
@@ -324,7 +477,43 @@ describe("WorkflowTodos", () => {
         status: "PENDING",
         priority: undefined,
         sourceType: undefined,
+        sourceId: undefined,
         orgUnitId: "dept-a",
+        page: 1,
+        size: 10,
+      });
+    });
+  });
+
+  it("lets clinical users review transferred and cancelled todos through server-side status filters", async () => {
+    const user = userEvent.setup();
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("combobox", { name: "待办状态" }));
+    await user.click(await screen.findByText("已转交"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "TRANSFERRED",
+        priority: undefined,
+        sourceType: undefined,
+        sourceId: undefined,
+        orgUnitId: undefined,
+        page: 1,
+        size: 10,
+      });
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "待办状态" }));
+    await user.click(await screen.findByText("已取消"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "CANCELLED",
+        priority: undefined,
+        sourceType: undefined,
+        sourceId: undefined,
+        orgUnitId: undefined,
         page: 1,
         size: 10,
       });
@@ -385,10 +574,30 @@ describe("WorkflowTodos", () => {
             status: "PENDING",
             patientId: "patient-real-1",
           },
+          {
+            todoId: "todo-rule-event-1",
+            sourceType: "RULE_EVENT",
+            sourceId: "rule:override-1",
+            title: "规则事件复核",
+            summary: "规则触发后需要责任医生确认",
+            priority: "HIGH",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-pathway-event-1",
+            sourceType: "PATHWAY_EVENT",
+            sourceId: "pathway:variance-1",
+            title: "路径事件复核",
+            summary: "临床路径变异需要责任人确认",
+            priority: "MEDIUM",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
         ],
         page: 0,
         size: 10,
-        total: 5,
+        total: 7,
         hasNext: false,
       },
       isError: false,
@@ -403,11 +612,15 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("床旁知识")).toBeInTheDocument();
     expect(screen.getByText("临床提醒")).toBeInTheDocument();
     expect(screen.getByText("路径节点")).toBeInTheDocument();
+    expect(screen.getByText("规则事件")).toBeInTheDocument();
+    expect(screen.getByText("路径事件")).toBeInTheDocument();
     expect(screen.queryByText("NURSING_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("REPORT_INTERPRETATION")).not.toBeInTheDocument();
     expect(screen.queryByText("BEDSIDE_KNOWLEDGE")).not.toBeInTheDocument();
     expect(screen.queryByText("RECOMMENDATION_CARD")).not.toBeInTheDocument();
     expect(screen.queryByText("PATHWAY_NODE")).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE_EVENT")).not.toBeInTheDocument();
+    expect(screen.queryByText("PATHWAY_EVENT")).not.toBeInTheDocument();
   });
 
   it("keeps safety review todos ahead of lower-risk follow-up rows", () => {
@@ -493,10 +706,91 @@ describe("WorkflowTodos", () => {
 
     renderWorkflowTodos();
 
-    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "打开随访记录" })).toHaveAttribute(
       "href",
       "/clinical/followup?taskId=return-task-1",
     );
+  });
+
+  it("uses a report-context action label for report interpretation todos", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-report-1",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "检验报告解读待办",
+            summary: "最新检验结果需要医技完成辅助解读",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "technician-real-1",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+            deepLink: "/cdss/fatigue",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByRole("link", { name: "打开报告上下文" })).toHaveAttribute(
+      "href",
+      "/cdss/fatigue",
+    );
+    expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
+  });
+
+  it("keeps runtime release and trigger identifiers inside evidence details for report todos", async () => {
+    const user = userEvent.setup();
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-report-runtime",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "医技报告解读：血钾检验",
+            summary:
+              "已登记报告「血钾检验」结合当前机构生效版本 runtime-01KWC6Q7ZXG7B4MJQQ3PTYJJYY 中的「检验项目说明书来源与使用边界」生成辅助解读，触发点：result-review",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "technician-real-1",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+            deepLink: "/cdss/fatigue",
+            traceId: "trace-report-runtime",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("医技报告解读：血钾检验")).toBeInTheDocument();
+    expect(screen.getByText(/报告结果需要结合患者上下文完成辅助解读/)).toBeInTheDocument();
+    expect(screen.queryByText(/runtime-01KWC6Q7ZXG7B4MJQQ3PTYJJYY/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/result-review/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText(/runtime-01KWC6Q7ZXG7B4MJQQ3PTYJJYY/)).toBeInTheDocument();
+    expect(screen.getByText(/触发点：result-review/)).toBeInTheDocument();
   });
 
   it("does not expose unsafe source jumps from workflow todos", () => {
@@ -541,6 +835,38 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
     expect(screen.queryByText("来源暂不可跳转")).not.toBeInTheDocument();
     expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
+  });
+
+  it("tells medical technicians when a report interpretation todo still lacks a report entrance", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-report-missing-link",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "检验报告解读待办",
+            summary: "最新检验结果需要医技完成辅助解读",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("待报告来源补充跳转")).toBeInTheDocument();
+    expect(screen.queryByText("来源未提供跳转")).not.toBeInTheDocument();
   });
 
   it("shows an honest trace status when workflow todos have no trace id", async () => {
@@ -597,6 +923,23 @@ describe("WorkflowTodos", () => {
       });
     });
     expect(workflowHookMocks.refetchTodos).toHaveBeenCalled();
+  });
+
+  it("uses App scoped messages after completing workflow todos", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("button", { name: "完成" }));
+    await user.type(screen.getByLabelText("完成说明"), "已完成真实随访处理");
+    await user.click(screen.getByRole("button", { name: "确认完成" }));
+
+    await waitFor(() => expect(workflowHookMocks.completeTodo).toHaveBeenCalled());
+    const warningText = [...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join("\n");
+    expect(warningText).not.toContain("Static function can not consume context");
+    consoleError.mockRestore();
+    consoleWarn.mockRestore();
   });
 
   it("lets clinical users transfer todos by selecting a person and role in hospital language", async () => {

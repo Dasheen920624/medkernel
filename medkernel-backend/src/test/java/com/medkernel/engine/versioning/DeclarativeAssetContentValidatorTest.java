@@ -10,7 +10,7 @@ import com.medkernel.shared.api.error.ApiException;
 
 /**
  * 独立配置资产正文契约测试：值集、计算公式、医嘱套餐和临床提示卡必须保存可运行结构，
- * 子路径由真实路径模板维护，不允许再登记第二份通用 JSON 正文。
+ * 子路径由真实临床路径维护，不允许再登记第二份通用 JSON 正文。
  */
 class DeclarativeAssetContentValidatorTest {
 

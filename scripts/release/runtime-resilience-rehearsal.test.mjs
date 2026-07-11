@@ -11,7 +11,8 @@ test("运行韧性配置复用统一医疗引擎运营员凭据且证据位于�
   const config = readRuntimeResilienceConfig(
     {
       LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
-      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_CREDENTIALS_FILE:
+        "/var/lib/medkernel/credentials/current-launch.json",
       RUNTIME_RESILIENCE_PROVIDER_CODE: "ollama-launch",
       MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
     },
@@ -52,6 +53,10 @@ test("模型关闭时只阻断模型调用且 B0 核心继续可用，真实探�
   assert.equal(evidence.restored.providerStatus, "HEALTHY");
   assert.equal(evidence.restored.modelInvocationAllowed, true);
   assert.deepEqual(
+    evidence.launchCoverage.deliveryShapes.map((item) => item.code),
+    ["ENGINE_CORE"],
+  );
+  assert.deepEqual(
     requests.map((item) => `${item.method} ${item.path}`),
     [
       "POST /auth/login",
@@ -88,7 +93,10 @@ test("模型关闭后存在额外必需阻断项时拒绝伪报为 Provider 单�
       }),
     /除 MODEL_PROVIDER 外仍有必需阻断项/u,
   );
-  assert.equal(requests.some((item) => item.path.endsWith("/enable")), true);
+  assert.equal(
+    requests.some((item) => item.path.endsWith("/enable")),
+    true,
+  );
 });
 
 test("任一 B0 门面失败时拒绝恢复并放行整套演练", async () => {
@@ -103,7 +111,10 @@ test("任一 B0 门面失败时拒绝恢复并放行整套演练", async () => {
       }),
     /B0 核心门面/u,
   );
-  assert.equal(requests.some((item) => item.path.endsWith("/enable")), true);
+  assert.equal(
+    requests.some((item) => item.path.endsWith("/enable")),
+    true,
+  );
 });
 
 function readyCredentials() {
@@ -113,7 +124,8 @@ function readyCredentials() {
   });
   delete credentials.platform.takeover.initialPassword;
   for (const scope of [credentials.platform, credentials.rehearsal]) {
-    for (const account of Object.values(scope.accounts)) delete account.initialPassword;
+    for (const account of Object.values(scope.accounts))
+      delete account.initialPassword;
   }
   return credentials;
 }
@@ -150,7 +162,9 @@ function createResilienceFetch(requests, options = {}) {
       return response({ data: provider });
     }
     if (path === "/engine/knowledge-production/readiness") {
-      return response({ data: provider.enabled ? readyReadiness() : blockedReadiness(options) });
+      return response({
+        data: provider.enabled ? readyReadiness() : blockedReadiness(options),
+      });
     }
     if (path === "/engine/domain-facades/b0-evidence") {
       const evidence = Array.from({ length: 17 }, (_, index) => ({
@@ -221,7 +235,9 @@ function response(payload, setCookie = "") {
   return {
     ok: true,
     status: 200,
-    headers: { get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null) },
+    headers: {
+      get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null),
+    },
     text: async () => JSON.stringify(payload),
   };
 }

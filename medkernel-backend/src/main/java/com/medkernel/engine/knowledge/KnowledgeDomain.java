@@ -13,7 +13,7 @@ public enum KnowledgeDomain {
     GUIDELINE,
     /** 药品说明书、药品 GCP、合理用药 */
     DRUG,
-    /** 路径性知识：进入/分型/分支/退出条款（与路径模板配对） */
+    /** 路径性知识：进入/分型/分支/退出条款（与临床路径配对） */
     PATHWAY_KNOWLEDGE,
     /** 护理评估、护理计划、护理风险 */
     NURSING,

@@ -35,10 +35,10 @@ function journey(
 
 export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
   journey("platform-admin", {
-    summary: "管理机构、账号、系统接入、运行配置和上线验收。",
+    summary: "开通服务机构、人员账号、系统接入、运行配置和上线验收。",
     kind: "operations",
     showLifecycle: true,
-    primaryAction: { label: "管理账号", path: "/admin/users" },
+    primaryAction: { label: "维护人员与账号", path: "/admin/users" },
     highFrequencyActions: [
       { label: "安全与配置", path: "/security/baseline" },
       { label: "实施与验收", path: "/onboarding/guide" },
@@ -46,12 +46,12 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     ],
   }),
   journey("engine-operator", {
-    summary: "运营医疗知识、规则、路径、模型生成和质量闭环。",
+    summary: "运营医疗知识、规则、路径、知识生产和质量闭环。",
     kind: "knowledge",
     showLifecycle: false,
-    primaryAction: { label: "生成与发布知识", path: "/knowledge/production" },
+    primaryAction: { label: "进入知识生产", path: "/knowledge/production" },
     highFrequencyActions: [
-      { label: "知识审核与发布", path: "/knowledge/governance" },
+      { label: "知识审核发布中心", path: "/knowledge/governance" },
       { label: "质量问题与整改", path: "/qc/alerts" },
       { label: "来源与血缘", path: "/advanced/provenance" },
     ],

@@ -47,6 +47,24 @@ class RuntimeDiagnosticsControllerTest {
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("runtime-operations")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("observability-diagnose")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("third-party-knowledge-runtime")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'diagnosis-knowledge')].title",
+                hasItem("诊断知识库服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'quality-dashboard')].title",
+                hasItem("质量风险概览服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'terminology')].title",
+                hasItem("术语字典服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'workflow-notification')].title",
+                hasItem("消息通知服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'pathway')].title",
+                hasItem("临床路径服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'rule')].title",
+                hasItem("临床规则服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'pathway')].auditPoints[*].purpose",
+                hasItem("创建临床路径草稿和患者路径")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'pathway')].auditPoints[*].purpose",
+                hasItem("发布临床路径版本")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'sandbox')].auditPoints[*].purpose",
+                hasItem("按当前机构生效版本编排真实医疗智能链路并记录复演轨迹")))
             .andExpect(jsonPath(
                 "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].contractVersion",
                 hasItem("v1")))
@@ -63,6 +81,15 @@ class RuntimeDiagnosticsControllerTest {
             .andExpect(content().string(not(containsString("com.medkernel"))))
             .andExpect(content().string(not(containsString("passwordHash"))))
             .andExpect(content().string(not(containsString("accessToken"))))
-            .andExpect(content().string(not(containsString("refreshToken"))));
+            .andExpect(content().string(not(containsString("refreshToken"))))
+            .andExpect(content().string(not(containsString("诊断知识维护服务"))))
+            .andExpect(content().string(not(containsString("质控驾驶舱"))))
+            .andExpect(content().string(not(containsString("字典映射"))))
+            .andExpect(content().string(not(containsString("临床通知中心服务"))))
+            .andExpect(content().string(not(containsString("路径引擎服务"))))
+            .andExpect(content().string(not(containsString("规则引擎服务"))))
+            .andExpect(content().string(not(containsString("路径模板"))))
+            .andExpect(content().string(not(containsString("路径包、模板"))))
+            .andExpect(content().string(not(containsString("真实引擎链路"))));
     }
 }

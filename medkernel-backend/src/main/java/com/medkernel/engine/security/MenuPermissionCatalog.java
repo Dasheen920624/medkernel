@@ -12,6 +12,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
 import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_RELEASES;
 import static com.medkernel.engine.security.PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE;
+import static com.medkernel.engine.security.PermissionCode.MENU_DOMAIN_FACADE_B0_EVIDENCE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
 import static com.medkernel.engine.security.PermissionCode.MENU_GRAPH_EXPLORE;
 import static com.medkernel.engine.security.PermissionCode.MENU_IDENTITY_BINDINGS;
@@ -41,7 +42,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>入口权限只承认 32 个按业务域分类的主导航、1 个页头和 1 个个人入口。
+ * <p>入口权限只承认 33 个按业务域分类的主导航、1 个页头和 1 个个人入口。
  */
 public final class MenuPermissionCatalog {
 
@@ -53,27 +54,29 @@ public final class MenuPermissionCatalog {
             MENU_ADMIN_USERS, MenuPlacement.PRIMARY),
         menu("organization-people", "identity-bindings", "身份来源",
             MENU_IDENTITY_BINDINGS, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "knowledge-governance", "知识审核与发布",
+        menu("knowledge-governance", "knowledge-governance", "知识审核发布中心",
             MENU_KNOWLEDGE_GOVERNANCE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "institution-knowledge", "机构知识",
-            MENU_INSTITUTION_KNOWLEDGE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "diagnosis-knowledge", "诊断知识维护",
-            MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "runtime-releases", "发布治理",
+        menu("knowledge-governance", "runtime-releases", "机构生效版本",
             MENU_RUNTIME_RELEASES, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "terminology-mapping", "术语与字典",
+        menu("knowledge-governance", "institution-knowledge", "机构知识库",
+            MENU_INSTITUTION_KNOWLEDGE, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "diagnosis-knowledge", "诊断知识库",
+            MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "terminology-mapping", "术语字典",
             MENU_TERMINOLOGY_MAPPING, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "rule-definitions", "规则配置",
+        menu("knowledge-governance", "domain-facade-b0-evidence", "领域门面无模型证据",
+            MENU_DOMAIN_FACADE_B0_EVIDENCE, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "rule-definitions", "临床规则",
             MENU_RULE_DEFINITIONS, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "pathway-templates", "路径配置",
+        menu("knowledge-governance", "pathway-templates", "临床路径库",
             MENU_PATHWAY_TEMPLATES, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "provenance", "来源与血缘",
             MENU_PROVENANCE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "graph-explore", "知识关系",
             MENU_GRAPH_EXPLORE, MenuPlacement.PRIMARY),
-        menu("knowledge-production", "knowledge-production", "知识生产",
+        menu("knowledge-production", "knowledge-production", "知识生产工作台",
             MENU_KNOWLEDGE_PRODUCTION, MenuPlacement.PRIMARY),
-        menu("knowledge-production", "ai-workflows", "模型能力",
+        menu("knowledge-production", "ai-workflows", "模型能力与安全",
             MENU_AI_WORKFLOWS, MenuPlacement.PRIMARY),
         menu("clinical-collaboration", "mpi", "患者索引", MENU_MPI, MenuPlacement.PRIMARY),
         menu("clinical-collaboration", "patient-pathways", "患者路径",
@@ -86,7 +89,7 @@ public final class MenuPermissionCatalog {
             MENU_CLINICAL_FOLLOWUP, MenuPlacement.PRIMARY),
         menu("clinical-collaboration", "sandbox", "全真体验沙盘",
             MENU_SANDBOX, MenuPlacement.PRIMARY),
-        menu("quality-management", "qc-dashboard", "质量管理概览",
+        menu("quality-management", "qc-dashboard", "质量风险概览",
             MENU_QC_DASHBOARD, MenuPlacement.PRIMARY),
         menu("quality-management", "qc-alerts", "质量问题与整改",
             MENU_QC_ALERTS, MenuPlacement.PRIMARY),
@@ -102,12 +105,12 @@ public final class MenuPermissionCatalog {
             MENU_IMPLEMENTATION_GUIDE, MenuPlacement.PRIMARY),
         menu("system-operations", "adapter-hub", "系统接入",
             MENU_ADAPTER_HUB, MenuPlacement.PRIMARY),
-        menu("system-operations", "system-providers", "运行保障",
+        menu("system-operations", "system-providers", "服务运行保障",
             MENU_SYSTEM_PROVIDERS, MenuPlacement.PRIMARY),
-        menu("system-operations", "domestic-check", "国产化自检",
-            MENU_DOMESTIC_CHECK, MenuPlacement.PRIMARY),
         menu("system-operations", "runtime-diagnostics", "运行诊断",
             MENU_RUNTIME_DIAGNOSTICS, MenuPlacement.PRIMARY),
+        menu("system-operations", "domestic-check", "国产化适配自检",
+            MENU_DOMESTIC_CHECK, MenuPlacement.PRIMARY),
         menu("workbench", "notifications", "消息通知", MENU_NOTIFICATIONS, MenuPlacement.HEADER),
         menu("workbench", "notification-settings", "通知偏好",
             MENU_NOTIFICATION_SETTINGS, MenuPlacement.PROFILE));

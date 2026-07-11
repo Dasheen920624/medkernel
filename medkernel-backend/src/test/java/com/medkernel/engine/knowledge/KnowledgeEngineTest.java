@@ -12,6 +12,7 @@ import org.mockito.Mockito;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -53,6 +54,7 @@ class KnowledgeEngineTest {
     private SourceVersionRepository sourceVerRepo;
     private SourceFragmentRepository sourceFragRepo;
     private CitationRepository citationRepo;
+    private AuditRecorder auditRecorder;
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
     private CandidateClassificationRepository candidateClassificationRepo;
     private ReviewAssignmentRepository reviewAssignmentRepo;
@@ -78,6 +80,7 @@ class KnowledgeEngineTest {
         sourceVerRepo = Mockito.mock(SourceVersionRepository.class);
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
+        auditRecorder = Mockito.mock(AuditRecorder.class);
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
         candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
         reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
@@ -93,14 +96,14 @@ class KnowledgeEngineTest {
 
         identityService = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
-            new com.medkernel.engine.versioning.AssetIdentityAllocator(), effectiveVersions
+            new com.medkernel.engine.versioning.AssetIdentityAllocator(), effectiveVersions, auditRecorder
         );
 
         versionService = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVerRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
             versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes,
-            new EffectivePermissionService(userRoleAssignments)
+            new EffectivePermissionService(userRoleAssignments), auditRecorder
         );
         when(userRoleAssignments.findActiveByTenantIdAndUserId(any(), any())).thenReturn(List.of());
         when(assetScopes.resolve(any(), any(OrgScope.class)))
@@ -222,6 +225,33 @@ class KnowledgeEngineTest {
         assertThat(saved.textExcerpt()).isEqualTo("关节置换核心条文");
         assertThat(saved.contentHash()).isEqualTo(sha256("关节置换核心条文"));
         verify(sourceFragRepo, times(1)).save(any(SourceFragment.class));
+    }
+
+    @Test
+    void listSourceVersionFragmentsRequiresTenantOwnedSourceVersionAndReturnsAnchoredFragments() {
+        SourceVersion version = new SourceVersion(
+            10L, "t-1", 1L, "v1.0", Instant.now(), sha256("来源版本原文"), "http", "zh-CN", Instant.now(), "system"
+        );
+        SourceFragment fragment = new SourceFragment(
+            100L, "t-1", 10L, "sec-1", "第一章", "关节置换核心条文", sha256("关节置换核心条文"), Instant.now()
+        );
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(version));
+        when(sourceFragRepo.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 10L))
+            .thenReturn(List.of(fragment));
+
+        List<SourceFragment> result = identityService.listSourceVersionFragments(10L);
+
+        assertThat(result).containsExactly(fragment);
+    }
+
+    @Test
+    void listSourceVersionFragmentsRejectsSourceVersionOutsideTenant() {
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> identityService.listSourceVersionFragments(10L))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_KNOW_001);
     }
 
     @Test

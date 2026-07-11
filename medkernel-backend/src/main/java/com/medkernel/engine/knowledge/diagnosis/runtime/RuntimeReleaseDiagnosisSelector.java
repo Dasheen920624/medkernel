@@ -54,14 +54,7 @@ public class RuntimeReleaseDiagnosisSelector {
             if (identity.domain() != KnowledgeDomain.DIAGNOSIS) {
                 continue;
             }
-            KnowledgeAssetVersion version = versions
-                .findByTenantIdAndIdentityIdAndVersionNo(
-                    item.sourceTenantId(),
-                    identity.id(),
-                    requireText(item.versionNo(), "诊断知识版本"))
-                .orElseThrow(() -> invalid(
-                    "机构生效版本锁定诊断知识版本不存在："
-                        + item.assetIdentity() + "@" + item.versionNo()));
+            KnowledgeAssetVersion version = resolveVersion(item, identity);
             if (version.status() != KnowledgeVersionStatus.ACTIVE) {
                 throw invalid(
                     "机构生效版本锁定诊断知识版本未激活："
@@ -78,6 +71,23 @@ public class RuntimeReleaseDiagnosisSelector {
             ));
         }
         return List.copyOf(selected);
+    }
+
+    private KnowledgeAssetVersion resolveVersion(ClinicalRuntimeReleaseItem item, KnowledgeIdentity identity) {
+        String versionNo = requireText(item.versionNo(), "诊断知识版本");
+        return versions
+            .findByTenantIdAndIdentityIdAndVersionNo(
+                item.sourceTenantId(),
+                identity.id(),
+                versionNo)
+            .or(() -> versions.findByTenantIdAndIdentityIdAndContentHash(
+                item.sourceTenantId(),
+                identity.id(),
+                requireText(item.contentHash(), "诊断知识内容指纹")))
+            .orElseThrow(() -> invalid(
+                "机构生效版本锁定诊断知识版本不存在："
+                    + item.assetIdentity() + "@" + versionNo
+                    + "#" + item.contentHash()));
     }
 
     private ClinicalRuntimeReleaseContent resolve(String tenantId, String runtimeReleaseId) {

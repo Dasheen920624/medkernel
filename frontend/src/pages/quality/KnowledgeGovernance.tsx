@@ -87,6 +87,7 @@ import {
   type VersionPublishEvidence,
 } from "@/shared/api/hooks";
 import {
+  customerDisplayText,
   knowledgeCustomizationStatusLabel,
   knowledgeDomainLabel,
   knowledgeSourceLabel,
@@ -206,6 +207,48 @@ const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
   COMPLETED: "已完成",
   FAILED: "失败",
   CANCELLED: "已中止",
+  PASSED: "通过",
+};
+
+const TRIAGE_STATE_LABELS = Object.fromEntries(
+  KNOWLEDGE_TRIAGE_STATE_META.map((item) => [item.state, item.label]),
+) as Record<string, string>;
+
+const TRIAGE_ACTION_LABELS: Record<string, string> = {
+  SUBMIT_REVIEW: "进入审核",
+  SKIP_DUPLICATE: "跳过重复",
+  MERGE_REVIEW: "合并对照审核",
+  UPGRADE_REVIEW: "升级审核",
+  CONFLICT_REVIEW: "冲突仲裁审核",
+  DOWNGRADE_REVIEW: "降级风险审核",
+  RETIREMENT_REVIEW: "废止退役审核",
+  MANUAL_REVIEW: "人工分流",
+};
+
+const PRODUCTION_READINESS_LABELS: Record<string, string> = {
+  LITERATURE_ROOT: "文献资料库",
+  DEPLOYMENT_FORM: "部署形态",
+  MODEL_PROVIDER: "模型服务",
+  REGRESSION_BASELINE: "医学验证用例",
+  MODEL_EVALUATION: "医学验证评测",
+  EGRESS_GOVERNANCE: "模型使用边界",
+  MODEL_POLICY: "能力策略",
+  VERSION_TRIPLE: "提示词、工具与模型版本",
+};
+
+const PRODUCTION_GATE_LABELS: Record<string, string> = {
+  SOURCE_ANCHOR: "来源锚点",
+  SHADOW_READY: "影子评测",
+  SOURCE_PRESENT: "来源证据",
+  SOURCE_LICENSE: "来源授权",
+  ANCHOR_COMPLETE: "来源锚点",
+  AUTHORITY_CONFLICT: "权威冲突",
+  CONTENT_FORMAT: "内容结构",
+  AUTHORITY_LEVEL: "权威等级",
+  APPLICABLE_SCOPE: "适用范围",
+  CLINICAL_REDLINE: "临床红线",
+  REVIEW_ELEMENTS: "审核要素",
+  PUBLICATION_QUALITY_RECORD: "发布质量记录",
 };
 
 function producerLabel(producer?: string) {
@@ -216,6 +259,17 @@ function producerLabel(producer?: string) {
 function tableText(value?: string | number | null, fallback = "无") {
   const text = value === undefined || value === null || value === "" ? fallback : String(value);
   return <span className={styles.wrapCell}>{text}</span>;
+}
+
+function productionReadinessLabel(code: string, evidenceDetailsEnabled: boolean) {
+  const label = PRODUCTION_READINESS_LABELS[code] ?? "生产前置条件";
+  return evidenceDetailsEnabled ? `${label} · ${code}` : label;
+}
+
+function productionGateLabel(code: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!code) return "未返回校验项";
+  const label = PRODUCTION_GATE_LABELS[code] ?? "生产安全校验项";
+  return evidenceDetailsEnabled ? `${label} · ${code}` : label;
 }
 
 function pipelineMeta(pipeline?: string | null) {
@@ -321,6 +375,45 @@ function triageLabel(state?: string | null) {
   return (
     KNOWLEDGE_TRIAGE_STATE_META.find((item) => item.state === state)?.label ?? state ?? "未分流"
   );
+}
+
+function codeTokenPattern(code: string) {
+  return new RegExp(
+    `(^|[^A-Za-z0-9_])${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^A-Za-z0-9_])`,
+    "g",
+  );
+}
+
+function replaceKnownProductionTokens(value: string) {
+  return Object.entries({ ...TRIAGE_STATE_LABELS, ...TRIAGE_ACTION_LABELS }).reduce(
+    (text, [code, label]) => text.replace(codeTokenPattern(code), `$1${label}`),
+    value,
+  );
+}
+
+function triageStateText(state: string, evidenceDetailsEnabled: boolean) {
+  const label = triageLabel(state);
+  return evidenceDetailsEnabled ? `${label} · ${state}` : label;
+}
+
+function triageActionText(action?: string | null, evidenceDetailsEnabled = false) {
+  if (!action) return "未返回动作";
+  const label = TRIAGE_ACTION_LABELS[action] ?? "分流动作已记录";
+  return evidenceDetailsEnabled ? `${label} · ${action}` : label;
+}
+
+function triageBasisText(value?: string | null) {
+  if (!value) return "未返回依据";
+  return replaceKnownProductionTokens(customerDisplayText(value)).replace(
+    /(^|[^A-Za-z0-9_])content_hash(?=$|[^A-Za-z0-9_])/g,
+    "$1内容摘要",
+  );
+}
+
+function productionStatusText(status?: string | null, evidenceDetailsEnabled = false) {
+  if (!status) return "未返回状态";
+  const label = PRODUCTION_JOB_STATUS_LABELS[status] ?? customerDisplayText(status);
+  return evidenceDetailsEnabled ? `${label} · ${status}` : label;
 }
 
 function reviewTaskReminder(coexistence?: CandidateCoexistenceView) {
@@ -814,7 +907,8 @@ export default function KnowledgeGovernance({
     setSelectedCandidateId(undefined);
   }, [selectedIdentityId]);
 
-  const candidatesQuery = useKnowledgeCandidates(selectedIdentityId, {
+  const reviewSelectedIdentityId = mode === "review" ? selectedIdentityId : undefined;
+  const candidatesQuery = useKnowledgeCandidates(reviewSelectedIdentityId, {
     page: candidatePage,
     size: KNOWLEDGE_CANDIDATE_PAGE_SIZE,
   });
@@ -863,13 +957,16 @@ export default function KnowledgeGovernance({
     );
   };
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId);
-  const diffQuery = useKnowledgeCandidateDiff(selectedCandidateId);
+  const selectedListClassification = classificationFor(classifications, selectedCandidateId);
+  const selectedClassificationId = selectedListClassification?.id;
+  const diffQuery = useKnowledgeCandidateDiff(selectedClassificationId);
   const reviewMutation = useReviewKnowledgeCandidate();
   const retirementMutation = useDeprecateKnowledgeIdentity();
 
   const diffCandidates = diffQuery.data?.candidates.items ?? [];
   const diffClassifications = diffQuery.data?.classifications ?? classifications;
-  const selectedClassification = classificationFor(diffClassifications, selectedCandidateId);
+  const selectedClassification =
+    classificationFor(diffClassifications, selectedCandidateId) ?? selectedListClassification;
   const activeVersion =
     diffCandidates.find((version) => version.id === selectedClassification?.activeVersionId) ??
     diffCandidates.find((version) => version.status === "ACTIVE");
@@ -943,6 +1040,8 @@ export default function KnowledgeGovernance({
         idempotencyKey: `knowledge-review-${classificationReviewId}-${decision.toLowerCase()}`,
       });
       message.success(REVIEW_DECISION_SUCCESS_MESSAGES[decision]);
+      reviewForm.resetFields();
+      setSelectedCandidateId(undefined);
       await Promise.all([identitiesQuery.refetch(), candidatesQuery.refetch()]);
     } catch (error) {
       message.error(getApiErrorMessage(error, "知识候选审核失败"));
@@ -1228,11 +1327,11 @@ export default function KnowledgeGovernance({
         applicableScope: values.applicableScope,
         reason: values.reason.trim(),
       });
-      message.success("已从平台标准创建机构定制草稿");
+      message.success("已从平台标准创建机构差异草稿");
       customizeForm.resetFields();
       setCustomizeIdentity(undefined);
     } catch (error) {
-      message.error(getApiErrorMessage(error, "创建机构知识定制失败"));
+      message.error(getApiErrorMessage(error, "创建机构差异版本失败"));
     }
   }
 
@@ -1244,13 +1343,13 @@ export default function KnowledgeGovernance({
           customizationId: customizationAction.item.customizationId,
           reason: values.reason.trim(),
         });
-        message.success("机构定制已发布并在目标组织生效");
+        message.success("机构差异版本已发布并在目标组织生效");
       } else {
         await restorePlatformKnowledge.mutateAsync({
           customizationId: customizationAction.item.customizationId,
           reason: values.reason.trim(),
         });
-        message.success("已恢复使用平台标准，历史定制继续保留");
+        message.success("已恢复使用平台标准，历史机构差异继续保留");
       }
       customizationActionForm.resetFields();
       setCustomizationAction(undefined);
@@ -1258,7 +1357,7 @@ export default function KnowledgeGovernance({
       message.error(
         getApiErrorMessage(
           error,
-          customizationAction.type === "publish" ? "发布机构定制失败" : "恢复平台标准失败",
+          customizationAction.type === "publish" ? "发布机构差异版本失败" : "恢复平台标准失败",
         ),
       );
     }
@@ -1347,7 +1446,7 @@ export default function KnowledgeGovernance({
                 setCustomizeIdentity(record);
               }}
             >
-              定制为本机构版本
+              创建机构差异版本
             </Button>
           )}
         </Space>
@@ -1391,7 +1490,7 @@ export default function KnowledgeGovernance({
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text>{record.specialtyId || "未限定专科"}</Text>
-          <Text type="secondary">机构版本继承平台证据链后单独审核发布</Text>
+          <Text type="secondary">机构差异版本继承平台证据链后单独审核发布</Text>
         </Space>
       ),
     },
@@ -1406,10 +1505,10 @@ export default function KnowledgeGovernance({
               setCustomizeIdentity(record);
             }}
           >
-            定制为本机构版本
+            创建机构差异版本
           </Button>
         ) : (
-          <Text type="secondary">无机构定制权限</Text>
+          <Text type="secondary">无机构差异治理权限</Text>
         ),
     },
   ];
@@ -1503,7 +1602,12 @@ export default function KnowledgeGovernance({
   ];
 
   const productionReadinessColumns: ColumnsType<KnowledgeProductionReadinessItem> = [
-    { title: "前置项", dataIndex: "code", width: 180, render: (value) => tableText(value) },
+    {
+      title: "前置项",
+      dataIndex: "code",
+      width: 220,
+      render: (value: string) => tableText(productionReadinessLabel(value, evidenceDetailsEnabled)),
+    },
     {
       title: "状态",
       dataIndex: "ready",
@@ -1517,7 +1621,8 @@ export default function KnowledgeGovernance({
       title: "证据",
       dataIndex: "evidence",
       width: 360,
-      render: (value?: string | null) => tableText(value, "无"),
+      render: (value?: string | null) =>
+        tableText(evidenceText(value, evidenceDetailsEnabled, value ? "证据已记录" : "证据待补齐")),
     },
   ];
 
@@ -1633,7 +1738,8 @@ export default function KnowledgeGovernance({
       title: "生产安全校验",
       dataIndex: "gateCode",
       width: 220,
-      render: (value?: string | null) => tableText(value, "未返回门禁"),
+      render: (value?: string | null) =>
+        tableText(productionGateLabel(value, evidenceDetailsEnabled)),
     },
     {
       title: "结果",
@@ -1653,7 +1759,7 @@ export default function KnowledgeGovernance({
 
   const productionTriageColumns: ColumnsType<GenerationTriage> = [
     {
-      title: "8 态",
+      title: "分流结果",
       dataIndex: "triageState",
       width: 220,
       render: (value: string) => (
@@ -1664,9 +1770,8 @@ export default function KnowledgeGovernance({
               (value === "CONFLICT" ? "error" : "processing")
             }
           >
-            {triageLabel(value)}
+            {triageStateText(value, evidenceDetailsEnabled)}
           </Tag>
-          <Text type="secondary">{value}</Text>
         </Space>
       ),
     },
@@ -1674,13 +1779,13 @@ export default function KnowledgeGovernance({
       title: "动作",
       dataIndex: "action",
       width: 180,
-      render: (value?: string | null) => tableText(value, "未返回动作"),
+      render: (value?: string | null) => tableText(triageActionText(value, evidenceDetailsEnabled)),
     },
     {
       title: "依据",
       dataIndex: "basis",
       width: 420,
-      render: (value?: string | null) => tableText(value, "未返回依据"),
+      render: (value?: string | null) => tableText(triageBasisText(value)),
     },
   ];
 
@@ -1689,7 +1794,11 @@ export default function KnowledgeGovernance({
       title: "状态",
       dataIndex: "status",
       width: 140,
-      render: (value: string) => <Tag color={productionStatusColor(value)}>{value}</Tag>,
+      render: (value: string) => (
+        <Tag color={productionStatusColor(value)}>
+          {productionStatusText(value, evidenceDetailsEnabled)}
+        </Tag>
+      ),
     },
     {
       title: "样本",
@@ -2040,21 +2149,12 @@ export default function KnowledgeGovernance({
         <Card title="模型生产上线准备">
           <Table
             rowKey="code"
-            columns={[
-              { title: "前置项", dataIndex: "code" },
-              {
-                title: "状态",
-                dataIndex: "ready",
-                render: (ready: boolean) => (
-                  <Tag color={ready ? "success" : "error"}>{ready ? "满足" : "阻断"}</Tag>
-                ),
-              },
-              { title: "说明", dataIndex: "message" },
-              { title: "证据", dataIndex: "evidence" },
-            ]}
+            columns={productionReadinessColumns}
             dataSource={productionReadinessQuery.data?.items ?? []}
             pagination={false}
+            scroll={{ x: 1036 }}
             size="small"
+            tableLayout="fixed"
           />
         </Card>
         <PageState
@@ -2083,7 +2183,7 @@ export default function KnowledgeGovernance({
         ? `生产安全校验结果：${getApiErrorMessage(productionGateResultsQuery.error, "生产安全校验结果读取失败")}`
         : null,
       productionTriageResultsQuery.isError
-        ? `8 态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "8 态分流读取失败")}`
+        ? `候选分流：${getApiErrorMessage(productionTriageResultsQuery.error, "候选分流读取失败")}`
         : null,
       productionShadowRunsQuery.isError
         ? `影子评测：${getApiErrorMessage(productionShadowRunsQuery.error, "影子评测读取失败")}`
@@ -2187,7 +2287,7 @@ export default function KnowledgeGovernance({
                     <Space size="middle" wrap>
                       <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
                       <Text>生产安全校验 {productionGateResults.length} 项</Text>
-                      <Text>8 态 {productionTriageResults.length} 条</Text>
+                      <Text>候选分流 {productionTriageResults.length} 条</Text>
                       <Text>影子评测 {productionShadowRuns.length} 次</Text>
                     </Space>
                     <Progress
@@ -2275,9 +2375,9 @@ export default function KnowledgeGovernance({
             </Card>
           </Col>
           <Col xs={24} xl={12}>
-            <Card title="8 态分流">
+            <Card title="候选分流">
               <Space direction="vertical" size="middle" className="mk-full-width">
-                <Text strong>8 态队列</Text>
+                <Text strong>候选分流队列</Text>
                 <Space size={[8, 8]} wrap>
                   {KNOWLEDGE_TRIAGE_STATE_META.map((item) => (
                     <Space key={item.state} size={4}>
@@ -2509,7 +2609,7 @@ export default function KnowledgeGovernance({
       ),
     },
     {
-      title: "定制原因",
+      title: "差异原因",
       dataIndex: "reason",
       render: (value: string | null) => value || "未填写",
     },
@@ -2523,7 +2623,7 @@ export default function KnowledgeGovernance({
               type="primary"
               onClick={() => setCustomizationAction({ type: "publish", item: record })}
             >
-              发布机构版本
+              发布机构差异版本
             </Button>
           )}
           {record.status === "ACTIVE" && canRestoreCustomization && (
@@ -2555,6 +2655,8 @@ export default function KnowledgeGovernance({
           rowKey="customizationId"
           columns={customizationColumns}
           dataSource={customizationItems}
+          tableLayout="fixed"
+          scroll={{ x: 920 }}
           locale={{ emptyText: "当前机构全部使用平台标准" }}
           pagination={{
             current: customizationsQuery.data?.page ?? customizationPage,
@@ -2576,7 +2678,7 @@ export default function KnowledgeGovernance({
         type="info"
         showIcon
         message="当前位于平台治理入口"
-        description="平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"
+        description="平台负责管理权威标准；机构差异、发布和恢复操作在对应医疗机构内完成。"
       />
     );
   } else {
@@ -2585,8 +2687,8 @@ export default function KnowledgeGovernance({
         <Alert
           type="info"
           showIcon
-          message="默认复用平台标准，只有确需调整时才创建机构版本"
-          description="机构定制会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
+          message="默认复用平台标准，只有确需调整时才创建机构差异版本"
+          description="机构差异版本会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
         />
         <PipelineBoundaryCard />
         <Card title="平台标准知识">
@@ -2594,6 +2696,8 @@ export default function KnowledgeGovernance({
             rowKey="id"
             columns={institutionIdentityColumns}
             dataSource={platformStandardIdentities}
+            tableLayout="fixed"
+            scroll={{ x: 760 }}
             locale={{ emptyText: "当前筛选下暂无可派生的平台标准" }}
             pagination={{
               current: identityPage,
@@ -2700,16 +2804,16 @@ export default function KnowledgeGovernance({
 
   const pageMeta = {
     review: {
-      title: "知识审核与发布",
+      title: "知识审核发布中心",
       description: "统一审核知识候选、发布结论和替换恢复",
     },
     institution: {
-      title: "机构知识",
-      description: "维护院内覆盖、机构定制、换基线和恢复平台标准",
+      title: "机构知识库",
+      description: "治理院内覆盖、机构差异、换基线和恢复平台标准",
     },
     production: {
-      title: "知识生产",
-      description: "核查生产流水线的上线准备、生产任务、生产安全校验、8 态分流和影子证据",
+      title: "知识生产工作台",
+      description: "核查生产流水线的上线准备、生产任务、生产安全校验、候选分流和影子证据",
     },
   }[mode];
 
@@ -2722,7 +2826,7 @@ export default function KnowledgeGovernance({
 
   let pageExtras: ReactNode = (
     <Button
-      aria-label="刷新知识审核与发布"
+      aria-label="刷新知识审核发布中心"
       icon={<ReloadOutlined />}
       onClick={() => {
         void identitiesQuery.refetch();
@@ -2735,7 +2839,7 @@ export default function KnowledgeGovernance({
   if (mode === "institution") {
     pageExtras = (
       <Button
-        aria-label="刷新机构知识"
+        aria-label="刷新机构知识库"
         icon={<ReloadOutlined />}
         onClick={() => void customizationsQuery.refetch()}
       >
@@ -2745,7 +2849,7 @@ export default function KnowledgeGovernance({
   } else if (mode === "production") {
     pageExtras = (
       <Button
-        aria-label="刷新知识生产"
+        aria-label="刷新知识生产工作台"
         icon={<ReloadOutlined />}
         onClick={() => {
           void productionReadinessQuery.refetch();
@@ -3039,9 +3143,9 @@ export default function KnowledgeGovernance({
       </Modal>
 
       <Modal
-        title={`定制机构知识${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
+        title={`创建机构差异版本${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
         open={Boolean(customizeIdentity)}
-        okText="创建定制草稿"
+        okText="创建差异草稿"
         cancelText="取消"
         confirmLoading={createCustomization.isPending}
         onOk={() => customizeForm.submit()}
@@ -3075,10 +3179,10 @@ export default function KnowledgeGovernance({
           </Form.Item>
           <Form.Item
             name="reason"
-            label="定制原因"
+            label="差异原因"
             rules={[
-              { required: true, whitespace: true, message: "请说明为什么需要机构定制" },
-              { min: 4, message: "定制原因至少 4 个字符" },
+              { required: true, whitespace: true, message: "请说明为什么需要机构差异版本" },
+              { min: 4, message: "差异原因至少 4 个字符" },
             ]}
           >
             <Input.TextArea rows={4} maxLength={1000} showCount />
@@ -3087,7 +3191,7 @@ export default function KnowledgeGovernance({
       </Modal>
 
       <Modal
-        title={customizationAction?.type === "publish" ? "发布机构知识" : "恢复平台标准"}
+        title={customizationAction?.type === "publish" ? "发布机构差异版本" : "恢复平台标准"}
         open={Boolean(customizationAction)}
         okText={customizationAction?.type === "publish" ? "确认发布" : "确认恢复"}
         cancelText="取消"

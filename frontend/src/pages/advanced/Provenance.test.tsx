@@ -231,7 +231,8 @@ describe("Provenance", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "来源与血缘" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "知识来源追溯" })).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("输入知识主题或知识身份")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("输入知识主题或身份编码")).not.toBeInTheDocument();
     expect(screen.getAllByText("瑞舒伐他汀说明书").length).toBeGreaterThan(0);
@@ -262,5 +263,117 @@ describe("Provenance", () => {
     expect(screen.getByText(/fragment-hash/)).toBeInTheDocument();
     expect(screen.getByText(/后继身份 ID：2/)).toBeInTheDocument();
     expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 });
+  });
+
+  it("默认隐藏版本沿革中的技术版次和前台演练后缀，证据详情才展示原始版次", async () => {
+    const user = userEvent.setup();
+    const technicalVersionNo = "ai-draft-task-1fa4b8cd6f454241a2b0e8225918c455";
+    const rehearsalVersionNo = "frontdesk-mr4azc3b";
+    mockUseKnowledgeReviewQueue.mockReturnValue({
+      data: {
+        items: [],
+        page: 1,
+        size: 20,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 1,
+            tenantId: "t-1",
+            identityCode: "plat:guideline:ckd",
+            domain: "GUIDELINE",
+            subject: "慢性肾病指南来源",
+            status: "ACTIVE",
+            currentVersionId: 22,
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeProvenance.mockReturnValue({
+      data: {
+        identity: {
+          id: 1,
+          tenantId: "t-1",
+          identityCode: "plat:guideline:ckd",
+          domain: "GUIDELINE",
+          subject: "慢性肾病指南来源",
+          status: "ACTIVE",
+          currentVersionId: 22,
+        },
+        currentVersionId: 22,
+        versions: {
+          items: [
+            {
+              id: 22,
+              tenantId: "t-1",
+              identityId: 1,
+              versionNo: technicalVersionNo,
+              versionLabel: technicalVersionNo,
+              status: "ACTIVE",
+              authorityLevel: "A_GUIDELINE",
+              gradeQuality: "HIGH",
+              effectiveFrom: "2026-06-29T07:55:00Z",
+            },
+            {
+              id: 21,
+              tenantId: "t-1",
+              identityId: 1,
+              versionNo: rehearsalVersionNo,
+              versionLabel: rehearsalVersionNo,
+              status: "CANDIDATE",
+              authorityLevel: "B_EXPERT_CONSENSUS",
+              gradeQuality: "MEDIUM",
+              effectiveFrom: "2026-06-20T07:55:00Z",
+            },
+          ],
+          page: 1,
+          size: 20,
+          total: 1,
+          hasNext: false,
+          totalEstimated: false,
+        },
+        supersessions: {
+          items: [],
+          page: 1,
+          size: 20,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        },
+        sourceEvidence: [],
+        unresolvedCitationCount: 0,
+        partial: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getAllByText("当前权威版本").length).toBeGreaterThan(0);
+    expect(screen.getByText("候选版本")).toBeInTheDocument();
+    expect(screen.getAllByText("版本来源已记录").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/ai-draft-task/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/frontdesk-mr4azc3b/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getAllByText(new RegExp(technicalVersionNo)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(rehearsalVersionNo)).length).toBeGreaterThan(0);
   });
 });

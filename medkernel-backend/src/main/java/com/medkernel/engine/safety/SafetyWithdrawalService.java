@@ -51,7 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
  * MED-C3 安全撤回编排服务。
  *
  * <p>复用 SYS-08 知识版本撤回框架，在其通用影响任务之外补充 D3 临床运行真实索引：
- * 推荐来源命中的患者病例、路径模板下仍在运行的患者路径，以及既有同步目标任务。
+ * 推荐来源命中的患者病例、临床路径下仍在运行的患者路径，以及既有同步目标任务。
  */
 @Service
 public class SafetyWithdrawalService {

@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import {
+  App as AntdApp,
   Table,
   Alert,
   Button,
@@ -14,7 +15,6 @@ import {
   Tag,
   Tooltip,
   Space,
-  message,
   Typography,
   Badge,
 } from "antd";
@@ -28,8 +28,12 @@ import {
   CalendarOutlined,
   UserAddOutlined,
   BranchesOutlined,
+  FileDoneOutlined,
+  ReadOutlined,
 } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import {
+  useCreateContextSnapshot,
   useCreateMpiPatient,
   useMpiPatientDetail,
   useMpiPatients,
@@ -41,10 +45,17 @@ import {
   type MpiPatient,
   type MpiPatientDetailResponse,
   type SecurityProfile,
+  type ContextSnapshotCreatePayload,
+  type FrontdeskEncounterType,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import { findRouteByPath } from "@/shared/config/routes";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import {
+  contextRiskLevelOptions,
+  defaultContextSnapshotFormValues,
+  frontdeskEncounterTypeOptions,
+} from "@/shared/config/clinicalContext";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -72,8 +83,51 @@ const PAGE_META = {
   },
 };
 
+const specialPopulationOptions = [
+  { value: "PREGNANCY", label: "妊娠" },
+  { value: "LACTATION", label: "哺乳" },
+  { value: "PEDIATRIC", label: "儿童" },
+  { value: "GERIATRIC", label: "老年" },
+  { value: "RENAL_IMPAIRMENT", label: "肾功能不全" },
+  { value: "HEPATIC_IMPAIRMENT", label: "肝功能不全" },
+];
+
+type ContextSnapshotFormValues = {
+  encounterType: FrontdeskEncounterType;
+  diseaseCode: string;
+  riskLevel: ContextSnapshotCreatePayload["riskLevel"];
+  currentMedicationText?: string;
+  allergyIntoleranceText?: string;
+  observationText?: string;
+  specialPopulations?: string[];
+  heightCm?: number | null;
+  weightKg?: number | null;
+  diagnosticReportType?: string;
+  diagnosticReportConclusion?: string;
+  diagnosticReportKeyFindingsText?: string;
+  nursingAssessmentType?: string;
+  nursingRiskLevel?: ContextSnapshotCreatePayload["riskLevel"];
+  nursingAssessmentStatus?: string;
+  carePlanPathwayId?: string;
+  carePlanCurrentNodeId?: string;
+  carePlanVarianceCode?: string;
+  carePlanPlannedFinishAt?: string;
+  insuranceClaimDrgCode?: string;
+  insuranceClaimTotalCost?: number | null;
+  insuranceClaimPaidAmount?: number | null;
+  reason: string;
+};
+
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
+function canOpenMenu(profile: SecurityProfile | undefined, menuKey: string) {
+  return (
+    profile?.menuKeys?.includes(menuKey) ||
+    profile?.permissions.some((permission) => permission.code === `menu.${menuKey}`) ||
+    false
+  );
 }
 
 function snapshotEncounterId(
@@ -84,6 +138,10 @@ function snapshotEncounterId(
 ) {
   if (snapshot && "encounterId" in snapshot) return snapshot.encounterId;
   return "暂无";
+}
+
+function getPatientDetailSnapshot(detail: MpiPatientDetailResponse) {
+  return detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
 }
 
 function genderLabel(gender?: string) {
@@ -100,8 +158,12 @@ function mergedIntoText(
   return patient.mergedIntoMpiId ? "已合并至目标主索引" : "未合并";
 }
 
-function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetailsEnabled: boolean) {
-  const snapshot = detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
+function renderPatient360Detail(
+  detail: MpiPatientDetailResponse,
+  evidenceDetailsEnabled: boolean,
+  contextAction?: ReactNode,
+) {
+  const snapshot = getPatientDetailSnapshot(detail);
   const patient = detail.patient;
 
   return (
@@ -144,6 +206,8 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetail
         </Descriptions.Item>
       </Descriptions>
 
+      {contextAction}
+
       <List
         header={`在径路径 ${detail.activePathwayCount} 个`}
         bordered
@@ -167,7 +231,7 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetail
                   </Text>
                   {evidenceDetailsEnabled && (
                     <>
-                      <Text type="secondary">模板：{pathway.templateId}</Text>
+                      <Text type="secondary">临床路径版本编号：{pathway.templateId}</Text>
                       <Text type="secondary">当前节点：{pathway.currentNodeCode ?? "暂无"}</Text>
                       {pathway.traceId && <Text type="secondary">追踪号：{pathway.traceId}</Text>}
                     </>
@@ -185,6 +249,8 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetail
 }
 
 export default function Mpi() {
+  const { message: messageApi } = AntdApp.useApp();
+  const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -194,6 +260,9 @@ export default function Mpi() {
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const canCreatePatient = hasPermission(security.data, "mpi.create");
   const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
+  const canCreateContextSnapshot = hasPermission(security.data, "context.write");
+  const canOpenCdssFatigue =
+    hasPermission(security.data, "cdss.read") || canOpenMenu(security.data, "cdss-fatigue");
 
   // 查询参数缓存，以便在点击查询时才触发真正的 API 过滤
   const [filterKeyword, setFilterKeyword] = useState("");
@@ -222,19 +291,24 @@ export default function Mpi() {
 
   // 合并数据突变
   const createMutation = useCreateMpiPatient();
+  const createContextSnapshotMutation = useCreateContextSnapshot(security.data);
   const mergeMutation = useMergeMpiPatients();
   const splitMutation = useSplitMpiPatient();
 
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [isContextModalVisible, setIsContextModalVisible] = useState(false);
   // 合并弹窗状态
   const [isMergeModalVisible, setIsMergeModalVisible] = useState(false);
   const [isSplitModalVisible, setIsSplitModalVisible] = useState(false);
   const [splitPatientRecord, setSplitPatientRecord] = useState<MpiPatient | null>(null);
   const [detailMpiId, setDetailMpiId] = useState<string | undefined>(undefined);
   const [createIdempotencyKey, setCreateIdempotencyKey] = useState("");
+  const [contextSnapshotIdempotencyKey, setContextSnapshotIdempotencyKey] = useState("");
+  const [contextSnapshotPatient, setContextSnapshotPatient] = useState<MpiPatient | null>(null);
   const [mergeIdempotencyKey, setMergeIdempotencyKey] = useState("");
   const [splitIdempotencyKey, setSplitIdempotencyKey] = useState("");
   const [createForm] = Form.useForm<MpiPatientCreatePayload>();
+  const [contextSnapshotForm] = Form.useForm<ContextSnapshotFormValues>();
   const [mergeForm] = Form.useForm<{ sourceMpiId: string; targetMpiId: string }>();
   const [splitForm] = Form.useForm<{ reviewReason: string }>();
   const selectedSourceMpiId = Form.useWatch("sourceMpiId", mergeForm);
@@ -298,6 +372,37 @@ export default function Mpi() {
     setDetailMpiId(record.mpiId);
   }, []);
 
+  const showContextSnapshotModal = useCallback(
+    (patient: MpiPatient) => {
+      contextSnapshotForm.resetFields();
+      contextSnapshotForm.setFieldsValue(defaultContextSnapshotFormValues);
+      setContextSnapshotPatient(patient);
+      setContextSnapshotIdempotencyKey(`context-snapshot-${crypto.randomUUID()}`);
+      setIsContextModalVisible(true);
+    },
+    [contextSnapshotForm],
+  );
+
+  const openReportInterpretation = useCallback(
+    (detail: MpiPatientDetailResponse) => {
+      const snapshot = getPatientDetailSnapshot(detail);
+      if (!snapshot) {
+        messageApi.warning("请先建立当前就诊上下文，再生成报告解读");
+        return;
+      }
+
+      navigate("/cdss/fatigue", {
+        state: {
+          reportInterpretation: {
+            snapshotId: snapshot.snapshotId,
+            patientLabel: detail.patient.maskedName,
+          },
+        },
+      });
+    },
+    [messageApi, navigate],
+  );
+
   const handleCreateSubmit = async () => {
     try {
       const values = await createForm.validateFields();
@@ -309,7 +414,7 @@ export default function Mpi() {
         idempotencyKey: createIdempotencyKey,
       });
 
-      message.success(
+      messageApi.success(
         evidenceDetailsEnabled
           ? `患者主索引 ${result.mpiId} 已创建，列表和统计已刷新`
           : "患者主索引已创建，列表和统计已刷新",
@@ -320,7 +425,132 @@ export default function Mpi() {
       refetchStats();
     } catch (error: unknown) {
       if (applyApiFieldErrors(createForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建失败，请检查患者主索引信息"));
+      messageApi.error(getApiErrorMessage(error, "创建失败，请检查患者主索引信息"));
+    }
+  };
+
+  const handleCreateContextSnapshotSubmit = async () => {
+    if (!contextSnapshotPatient) return;
+    try {
+      const values = await contextSnapshotForm.validateFields();
+      const diseaseText = values.diseaseCode.trim();
+      const currentMedicationText = values.currentMedicationText?.trim();
+      const allergyIntoleranceText = values.allergyIntoleranceText?.trim();
+      const observationText = values.observationText?.trim();
+      const diagnosticReportType = values.diagnosticReportType?.trim();
+      const diagnosticReportConclusion = values.diagnosticReportConclusion?.trim();
+      const diagnosticReportKeyFindingsText = values.diagnosticReportKeyFindingsText?.trim();
+      const nursingAssessmentType = values.nursingAssessmentType?.trim();
+      const nursingAssessmentStatus = values.nursingAssessmentStatus?.trim();
+      const carePlanPathwayId = values.carePlanPathwayId?.trim();
+      const carePlanCurrentNodeId = values.carePlanCurrentNodeId?.trim();
+      const carePlanVarianceCode = values.carePlanVarianceCode?.trim();
+      const hasDiagnosticReportInput = !!(
+        diagnosticReportType ||
+        diagnosticReportConclusion ||
+        diagnosticReportKeyFindingsText
+      );
+      if (hasDiagnosticReportInput && (!diagnosticReportType || !diagnosticReportConclusion)) {
+        messageApi.error("请同时填写医技报告项目和报告结论，或清空报告字段");
+        return;
+      }
+      const hasNursingAssessmentInput = !!(nursingAssessmentType || values.nursingRiskLevel);
+      if (hasNursingAssessmentInput && (!nursingAssessmentType || !values.nursingRiskLevel)) {
+        messageApi.error("请同时填写护理评估类型和护理风险等级，或清空护理评估字段");
+        return;
+      }
+      const hasCarePlanInput = !!(
+        carePlanPathwayId ||
+        carePlanCurrentNodeId ||
+        carePlanVarianceCode ||
+        values.carePlanPlannedFinishAt
+      );
+      if (hasCarePlanInput && (!carePlanPathwayId || !carePlanCurrentNodeId)) {
+        messageApi.error("请同时填写护理计划路径和当前护理节点，或清空护理计划字段");
+        return;
+      }
+      const insuranceClaimDrgCode = values.insuranceClaimDrgCode?.trim();
+      const insuranceClaimTotalCost = values.insuranceClaimTotalCost ?? undefined;
+      const insuranceClaimPaidAmount = values.insuranceClaimPaidAmount ?? undefined;
+      const hasInsuranceClaimInput =
+        !!insuranceClaimDrgCode ||
+        insuranceClaimTotalCost !== undefined ||
+        insuranceClaimPaidAmount !== undefined;
+      if (
+        hasInsuranceClaimInput &&
+        (!insuranceClaimDrgCode ||
+          insuranceClaimTotalCost === undefined ||
+          insuranceClaimTotalCost <= 0)
+      ) {
+        messageApi.error("请同时填写 DRG/DIP 分组和本次结算金额，或清空医保结算字段");
+        return;
+      }
+      if (
+        insuranceClaimPaidAmount !== undefined &&
+        insuranceClaimTotalCost !== undefined &&
+        insuranceClaimPaidAmount > insuranceClaimTotalCost
+      ) {
+        messageApi.error("医保支付金额不能大于本次结算金额");
+        return;
+      }
+      await createContextSnapshotMutation.mutateAsync({
+        patient: contextSnapshotPatient,
+        encounterType: values.encounterType,
+        diseaseCode: diseaseText,
+        diseaseName: diseaseText,
+        riskLevel: values.riskLevel,
+        ...(currentMedicationText ? { currentMedicationText } : {}),
+        ...(allergyIntoleranceText ? { allergyIntoleranceText } : {}),
+        ...(observationText ? { observationText } : {}),
+        ...(values.specialPopulations?.length
+          ? { specialPopulations: values.specialPopulations }
+          : {}),
+        ...(values.heightCm !== undefined && values.heightCm !== null
+          ? { heightCm: values.heightCm }
+          : {}),
+        ...(values.weightKg !== undefined && values.weightKg !== null
+          ? { weightKg: values.weightKg }
+          : {}),
+        ...(diagnosticReportType ? { diagnosticReportType } : {}),
+        ...(diagnosticReportConclusion ? { diagnosticReportConclusion } : {}),
+        ...(diagnosticReportKeyFindingsText ? { diagnosticReportKeyFindingsText } : {}),
+        ...(nursingAssessmentType && values.nursingRiskLevel
+          ? {
+              nursingAssessmentType,
+              nursingRiskLevel: values.nursingRiskLevel,
+              ...(nursingAssessmentStatus ? { nursingAssessmentStatus } : {}),
+            }
+          : {}),
+        ...(carePlanPathwayId && carePlanCurrentNodeId
+          ? {
+              carePlanPathwayId,
+              carePlanCurrentNodeId,
+              ...(carePlanVarianceCode ? { carePlanVarianceCode } : {}),
+              ...(values.carePlanPlannedFinishAt
+                ? { carePlanPlannedFinishAt: values.carePlanPlannedFinishAt }
+                : {}),
+            }
+          : {}),
+        ...(insuranceClaimDrgCode && insuranceClaimTotalCost !== undefined
+          ? {
+              insuranceClaimDrgCode,
+              insuranceClaimTotalCost,
+              ...(insuranceClaimPaidAmount !== undefined ? { insuranceClaimPaidAmount } : {}),
+            }
+          : {}),
+        reason: values.reason.trim(),
+        idempotencyKey: contextSnapshotIdempotencyKey,
+      });
+
+      messageApi.success("当前就诊上下文已建立，可用于随访、路径和 CDSS");
+      setIsContextModalVisible(false);
+      setContextSnapshotPatient(null);
+      contextSnapshotForm.resetFields();
+      refetchDetail();
+      refetchList();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(contextSnapshotForm, error)) return;
+      messageApi.error(getApiErrorMessage(error, "建立上下文失败，请核查患者 360 与机构生效版本"));
     }
   };
 
@@ -334,7 +564,7 @@ export default function Mpi() {
         idempotencyKey: splitIdempotencyKey,
       });
 
-      message.success(result?.message || "患者主索引合并关系已拆分");
+      messageApi.success(result?.message || "患者主索引合并关系已拆分");
       setIsSplitModalVisible(false);
       setSplitPatientRecord(null);
       splitForm.resetFields();
@@ -342,7 +572,7 @@ export default function Mpi() {
       refetchStats();
     } catch (error: unknown) {
       if (applyApiFieldErrors(splitForm, error)) return;
-      message.error(getApiErrorMessage(error, "拆分失败，请检查主索引状态"));
+      messageApi.error(getApiErrorMessage(error, "拆分失败，请检查主索引状态"));
     }
   };
 
@@ -351,7 +581,7 @@ export default function Mpi() {
     try {
       const values = await mergeForm.validateFields();
       if (values.sourceMpiId === values.targetMpiId) {
-        message.error("源患者与目标患者不能是同一个患者，无法合并！");
+        messageApi.error("源患者与目标患者不能是同一个患者，无法合并！");
         return;
       }
 
@@ -361,7 +591,7 @@ export default function Mpi() {
         idempotencyKey: mergeIdempotencyKey,
       });
 
-      message.success(result?.message || "患者主索引合并成功，已记录审计证据");
+      messageApi.success(result?.message || "患者主索引合并成功，已记录审计证据");
       setIsMergeModalVisible(false);
       mergeForm.resetFields();
 
@@ -372,10 +602,10 @@ export default function Mpi() {
       if (applyApiFieldErrors(mergeForm, error)) return;
       const parsed = parseApiError(error, "合并失败，请核查患者身份信息");
       if (parsed.code === "MPI_MERGE_REQUIRES_REVIEW") {
-        message.warning(parsed.message);
+        messageApi.warning(parsed.message);
         return;
       }
-      message.error(getApiErrorMessage(error, "合并失败，请核查患者身份信息"));
+      messageApi.error(getApiErrorMessage(error, "合并失败，请核查患者身份信息"));
     }
   };
 
@@ -552,7 +782,68 @@ export default function Mpi() {
       />
     );
   } else if (patientDetail) {
-    detailDrawerContent = renderPatient360Detail(patientDetail, evidenceDetailsEnabled);
+    const patient = patientDetail.patient;
+    const hasSnapshot = !!getPatientDetailSnapshot(patientDetail);
+    let contextAction: ReactNode = null;
+    if (canCreateContextSnapshot && patient.status === "ACTIVE" && !hasSnapshot) {
+      contextAction = (
+        <Alert
+          message="暂无已生效上下文"
+          description="建立当前就诊上下文后，随访、路径和 CDSS 将统一使用该患者的标准临床快照。"
+          type="info"
+          showIcon
+          action={
+            <Button
+              aria-label="建立当前就诊上下文"
+              icon={<FileDoneOutlined />}
+              onClick={() => showContextSnapshotModal(patient)}
+            >
+              建立当前就诊上下文
+            </Button>
+          }
+        />
+      );
+    } else if (
+      patient.status === "ACTIVE" &&
+      hasSnapshot &&
+      (canCreateContextSnapshot || canOpenCdssFatigue)
+    ) {
+      contextAction = (
+        <Alert
+          message="已关联当前就诊上下文"
+          description="可直接带入该患者当前临床快照生成医技报告解读；报告解读仅辅助阅读，不改写已签发报告。"
+          type="success"
+          showIcon
+          action={
+            <Space wrap>
+              {canCreateContextSnapshot && (
+                <Button
+                  aria-label="更新当前就诊上下文"
+                  icon={<FileDoneOutlined />}
+                  onClick={() => showContextSnapshotModal(patient)}
+                >
+                  更新当前就诊上下文
+                </Button>
+              )}
+              {canOpenCdssFatigue && (
+                <Button
+                  aria-label="生成报告解读"
+                  icon={<ReadOutlined />}
+                  onClick={() => openReportInterpretation(patientDetail)}
+                >
+                  生成报告解读
+                </Button>
+              )}
+            </Space>
+          }
+        />
+      );
+    }
+    detailDrawerContent = renderPatient360Detail(
+      patientDetail,
+      evidenceDetailsEnabled,
+      contextAction,
+    );
   }
 
   return (
@@ -609,16 +900,16 @@ export default function Mpi() {
 
           <div className={styles.statCard}>
             <div className={styles.statHeader}>
-              <span className={styles.statTitle}>群体性别比分布 (M/F)</span>
+              <span className={styles.statTitle}>群体性别分布</span>
               <UserOutlined className={`${styles.statIcon} ${styles.statIconInfo}`} />
             </div>
             <div className={`${styles.statValue} ${styles.genderValue}`}>
               {statsLoading
                 ? "..."
-                : `男: ${stats?.genderCounts?.M ?? 0} | 女: ${stats?.genderCounts?.F ?? 0}`}
+                : `男性 ${stats?.genderCounts?.M ?? 0} 人 / 女性 ${stats?.genderCounts?.F ?? 0} 人`}
             </div>
             <div className={styles.statSubtext}>
-              未知性别/其他: {statsLoading ? "..." : (stats?.genderCounts?.UNKNOWN ?? 0)} 人
+              性别待确认/其他 {statsLoading ? "..." : (stats?.genderCounts?.UNKNOWN ?? 0)} 人
             </div>
           </div>
         </div>
@@ -680,6 +971,8 @@ export default function Mpi() {
             columns={columns}
             rowKey="id"
             loading={listLoading}
+            tableLayout="fixed"
+            scroll={{ x: 920 }}
             pagination={{
               current: page,
               pageSize: size,
@@ -718,6 +1011,7 @@ export default function Mpi() {
           okText="保存患者"
           cancelText="取消返回"
           width={560}
+          forceRender
           destroyOnClose
         >
           <Form form={createForm} layout="vertical">
@@ -777,6 +1071,7 @@ export default function Mpi() {
           okText="确认拆分"
           cancelText="取消返回"
           width={560}
+          forceRender
           destroyOnClose
         >
           <div className={styles.warningBox}>
@@ -807,6 +1102,203 @@ export default function Mpi() {
           </Form>
         </Modal>
 
+        <Modal
+          title={
+            <Space>
+              <FileDoneOutlined />
+              <span>建立当前就诊上下文</span>
+            </Space>
+          }
+          open={isContextModalVisible}
+          onOk={handleCreateContextSnapshotSubmit}
+          onCancel={() => {
+            setIsContextModalVisible(false);
+            setContextSnapshotPatient(null);
+          }}
+          confirmLoading={createContextSnapshotMutation.isPending}
+          okText="生成上下文快照"
+          cancelText="取消返回"
+          width={560}
+          zIndex={1300}
+          forceRender
+          destroyOnClose
+        >
+          <Alert
+            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层、必要用药、护理、已签发报告与医保结算事实"
+            description="本操作用于生成随访、路径、CDSS、药师复核、护理连续照护和报告解读共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
+            type="info"
+            showIcon
+            className={styles.modalFormItem}
+          />
+          <Form form={contextSnapshotForm} layout="vertical">
+            <Form.Item
+              name="encounterType"
+              label="就诊类型"
+              rules={[{ required: true, message: "请选择就诊类型" }]}
+            >
+              <Select aria-label="就诊类型" options={frontdeskEncounterTypeOptions} />
+            </Form.Item>
+            <Form.Item
+              name="diseaseCode"
+              label="诊断/随访病种"
+              rules={[{ required: true, whitespace: true, message: "请输入诊断或随访病种" }]}
+            >
+              <Input aria-label="诊断/随访病种" placeholder="输入当前诊断、病种或随访主题" />
+            </Form.Item>
+            <Form.Item
+              name="riskLevel"
+              label="风险分层"
+              rules={[{ required: true, message: "请选择风险分层" }]}
+            >
+              <Select aria-label="风险分层" options={contextRiskLevelOptions} />
+            </Form.Item>
+            <Form.Item name="currentMedicationText" label="当前用药">
+              <Input.TextArea
+                aria-label="当前用药"
+                placeholder="可选，填写当前用药名称，多个项目用顿号或逗号分隔"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="allergyIntoleranceText" label="过敏/不良反应">
+              <Input.TextArea
+                aria-label="过敏/不良反应"
+                placeholder="可选，填写药物或物质及反应，例如：青霉素：皮疹；头孢菌素：呼吸困难"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="observationText" label="监测指标">
+              <Input.TextArea
+                aria-label="监测指标"
+                placeholder="可选，填写检验或监测指标，例如：CRP=128 mg/L；PCT=2.4 ng/mL"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="specialPopulations" label="特殊人群标记">
+              <Select
+                aria-label="特殊人群标记"
+                mode="multiple"
+                allowClear
+                options={specialPopulationOptions}
+                placeholder="可选，选择妊娠、儿童、老年等需专项复核的人群标记"
+              />
+            </Form.Item>
+            <Text strong>护理高风险评估（可选）</Text>
+            <Form.Item name="nursingAssessmentType" label="护理评估类型">
+              <Input
+                aria-label="护理评估类型"
+                placeholder="可选，例如 跌倒风险评估、压疮风险评估"
+              />
+            </Form.Item>
+            <Form.Item name="nursingRiskLevel" label="护理风险等级">
+              <Select
+                aria-label="护理风险等级"
+                allowClear
+                placeholder="可选，选择护理评估风险等级"
+                options={contextRiskLevelOptions}
+              />
+            </Form.Item>
+            <Form.Item name="nursingAssessmentStatus" label="护理评估状态">
+              <Input
+                aria-label="护理评估状态"
+                placeholder="可选，默认 CONFIRMED，表示已由有资质人员确认"
+              />
+            </Form.Item>
+            <Text strong>护理计划事实（可选）</Text>
+            <Form.Item name="carePlanPathwayId" label="护理计划路径">
+              <Input
+                aria-label="护理计划路径"
+                placeholder="可选，填写护理/康复/宣教路径或计划身份"
+              />
+            </Form.Item>
+            <Form.Item name="carePlanCurrentNodeId" label="当前护理节点">
+              <Input
+                aria-label="当前护理节点"
+                placeholder="可选，填写当前护理计划节点，例如 REHAB_EDUCATION"
+              />
+            </Form.Item>
+            <Form.Item name="carePlanVarianceCode" label="护理计划变异">
+              <Input aria-label="护理计划变异" placeholder="可选，填写变异编码或人工复评说明" />
+            </Form.Item>
+            <Form.Item name="carePlanPlannedFinishAt" label="计划完成时间">
+              <Input
+                aria-label="计划完成时间"
+                placeholder="可选，ISO 时间，例如 2026-07-20T08:00:00.000Z"
+              />
+            </Form.Item>
+            <Space wrap className="mk-full-width">
+              <Form.Item name="heightCm" label="身高 cm">
+                <InputNumber
+                  aria-label="身高 cm"
+                  min={30}
+                  max={260}
+                  precision={1}
+                  placeholder="可选"
+                />
+              </Form.Item>
+              <Form.Item name="weightKg" label="体重 kg">
+                <InputNumber
+                  aria-label="体重 kg"
+                  min={1}
+                  max={400}
+                  precision={1}
+                  placeholder="可选"
+                />
+              </Form.Item>
+            </Space>
+            <Text strong>已签发医技报告（可选）</Text>
+            <Form.Item name="diagnosticReportType" label="医技报告项目">
+              <Input aria-label="医技报告项目" placeholder="可选，填写已签发医技报告项目名称" />
+            </Form.Item>
+            <Form.Item name="diagnosticReportConclusion" label="报告结论">
+              <Input.TextArea
+                aria-label="报告结论"
+                placeholder="可选，概括已签发报告结论、复核状态与需关注事项"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="diagnosticReportKeyFindingsText" label="异常重点">
+              <Input.TextArea
+                aria-label="异常重点"
+                placeholder="可选，多个重点用顿号或逗号分隔，避免录入患者核心标识明文"
+                rows={2}
+              />
+            </Form.Item>
+            <Text strong>医保结算事实（可选）</Text>
+            <Form.Item name="insuranceClaimDrgCode" label="DRG/DIP 分组">
+              <Input aria-label="DRG/DIP 分组" placeholder="可选，填写本次结算分组编码" />
+            </Form.Item>
+            <Form.Item name="insuranceClaimTotalCost" label="本次结算金额">
+              <InputNumber
+                aria-label="本次结算金额"
+                min={0}
+                precision={2}
+                className={styles.fullWidth}
+                placeholder="可选，填写本次医保审核需要核验的结算金额"
+              />
+            </Form.Item>
+            <Form.Item name="insuranceClaimPaidAmount" label="医保支付金额">
+              <InputNumber
+                aria-label="医保支付金额"
+                min={0}
+                precision={2}
+                className={styles.fullWidth}
+                placeholder="可选，填写医保支付金额"
+              />
+            </Form.Item>
+            <Form.Item
+              name="reason"
+              label="建立原因"
+              rules={[{ required: true, whitespace: true, message: "请输入建立原因" }]}
+            >
+              <Input.TextArea
+                aria-label="建立原因"
+                placeholder="说明本次建立上下文的业务原因"
+                rows={4}
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
+
         {/* 合并弹窗 */}
         <Modal
           title={
@@ -822,6 +1314,7 @@ export default function Mpi() {
           okText="确认合并"
           cancelText="取消返回"
           width={560}
+          forceRender
           destroyOnClose
         >
           {/* 安全警告说明 */}

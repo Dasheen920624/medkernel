@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Table,
   Button,
@@ -12,7 +12,7 @@ import {
   Descriptions,
   Badge,
   Alert,
-  message,
+  App,
   Tabs,
   Row,
   Col,
@@ -64,13 +64,17 @@ import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/conf
 import { findRouteByPath } from "@/shared/config/routes";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { roleLabel } from "@/shared/config/roleCatalog";
+import { CLINICAL_TRIGGER_POINT_OPTIONS } from "@/shared/config/clinicalTriggerPoints";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
+import { useLocation, useNavigate } from "react-router-dom";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
 const FATIGUE_POLICY_CONFIG_KEY = "medkernel.cdss.fatigue.policy";
+let manualRecommendationTriggerSequence = 0;
 const route = findRouteByPath("/cdss/fatigue");
 const PAGE_META = {
   title: route?.title ?? "提醒与推荐",
@@ -111,9 +115,33 @@ const recommendationStatusLabels: Record<RecommendationCardStatus, string> = {
 };
 
 const feedbackTypeLabels: Record<RecommendationFeedbackType, string> = {
+  VIEW_SOURCE: "查看依据",
   ACCEPT: "采纳建议",
   REJECT: "不采纳建议",
+  DEFER: "稍后处理",
+  DISMISS: "关闭忽略",
 };
+
+function buildManualRecommendationTriggerCode(triggerType: string, snapshotId: string) {
+  manualRecommendationTriggerSequence = (manualRecommendationTriggerSequence + 1) % 46_656;
+  const suffix = `${Date.now().toString(36)}-${manualRecommendationTriggerSequence.toString(36)}`;
+  const prefix = [
+    "CDSS-MANUAL",
+    sanitizeTriggerCodePart(triggerType),
+    sanitizeTriggerCodePart(snapshotId),
+  ].join("-");
+  const maxPrefixLength = 128 - suffix.length - 1;
+  return `${prefix.slice(0, Math.max(1, maxPrefixLength))}-${suffix}`;
+}
+
+function sanitizeTriggerCodePart(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || "NA";
+}
 
 const signalTypeLabels: Record<string, string> = {
   MUTE: "减少展示",
@@ -214,8 +242,34 @@ function getRecommendationStatusLabel(status: string): string {
   );
 }
 
+function getInterruptLevelLabel(level?: string | null): string {
+  if (!level) return "未分级";
+  return interruptLevelLabels[level] ?? "级别待确认";
+}
+
 function getFeedbackTypeLabel(feedbackType: RecommendationFeedbackType): string {
   return feedbackTypeLabels[feedbackType] ?? customerEnumLabel(feedbackType);
+}
+
+function getFeedbackTimelineLabel(item: {
+  feedbackType: RecommendationFeedbackType;
+  operatorRole?: string | null;
+}) {
+  if (item.operatorRole === "PHARMACIST" && item.feedbackType === "VIEW_SOURCE") {
+    return "完成复核";
+  }
+  return getFeedbackTypeLabel(item.feedbackType);
+}
+
+function getFeedbackTimelineColor(item: {
+  feedbackType: RecommendationFeedbackType;
+  operatorRole?: string | null;
+}) {
+  if (item.operatorRole === "PHARMACIST") return "blue";
+  if (item.feedbackType === "ACCEPT") return "green";
+  if (item.feedbackType === "REJECT") return "red";
+  if (item.feedbackType === "DEFER") return "orange";
+  return "gray";
 }
 
 function getSignalTypeLabel(signalType: string): string {
@@ -242,6 +296,24 @@ type RecommendationJourneyStep = {
   evidence?: string;
 };
 type TriggerModalMode = "RECOMMENDATION" | "REPORT_INTERPRETATION";
+
+type ReportInterpretationRouteState = {
+  reportInterpretation?: {
+    snapshotId?: string;
+    patientLabel?: string;
+  };
+};
+
+function getReportInterpretationRouteState(state: unknown) {
+  if (!state || typeof state !== "object") return null;
+  const routeState = state as ReportInterpretationRouteState;
+  const request = routeState.reportInterpretation;
+  if (!request?.snapshotId) return null;
+  return {
+    snapshotId: request.snapshotId,
+    patientLabel: request.patientLabel ?? "",
+  };
+}
 
 function textOrDash(value?: string | null) {
   return value && value.trim() ? value : "暂无";
@@ -290,7 +362,7 @@ function getRecommendationJourneySteps(
       status: evidenceDetailsEnabled
         ? textOrDash(diagnose?.ruleId || detail.card.cardCode || detail.card.fatigueKey)
         : riskLabel(detail.card.riskLevel),
-      description: "规则引擎与红线检查给出风险级别和推荐动作。",
+      description: "临床规则与安全红线给出风险级别和推荐动作。",
       evidence: evidenceDetailsEnabled
         ? diagnose?.explanationSnapshot || detail.card.summary
         : undefined,
@@ -350,8 +422,29 @@ function renderPatientContextCell(
   return patientId ? "已关联患者" : "未关联患者";
 }
 
+function recommendationEvaluationMessage(res: {
+  visibleCardCount: number;
+  suppressedCardCount: number;
+}) {
+  const visibleCount = res.visibleCardCount;
+  const suppressedCount = res.suppressedCardCount;
+  if (visibleCount === 0 && suppressedCount === 0) {
+    return "推荐评估已完成：本次未新增可见提醒；当前列表已刷新存量提醒。";
+  }
+  if (visibleCount === 0) {
+    return `推荐评估已完成：本次未新增可见提醒，频次策略暂缓 ${suppressedCount} 张；当前列表已刷新存量提醒。`;
+  }
+  if (suppressedCount === 0) {
+    return `推荐评估已完成：本次新增可见提醒 ${visibleCount} 张。`;
+  }
+  return `推荐评估已完成：本次新增可见提醒 ${visibleCount} 张，频次策略暂缓 ${suppressedCount} 张。`;
+}
+
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 export default function CdssFatigue() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { message } = App.useApp();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [triggerModalVisible, setTriggerModalVisible] = useState<boolean>(false);
   const [triggerModalMode, setTriggerModalMode] = useState<TriggerModalMode>("RECOMMENDATION");
@@ -359,6 +452,7 @@ export default function CdssFatigue() {
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
+  const [prefilledSnapshotLabel, setPrefilledSnapshotLabel] = useState("");
 
   // 分页与过滤状态
   const [page, setPage] = useState<number>(1);
@@ -367,8 +461,9 @@ export default function CdssFatigue() {
   const [riskFilter, setRiskFilter] = useState<RecommendationRiskLevel | undefined>(undefined);
   const [quickSearch, setQuickSearch] = useState<string>("");
 
-  // 医师反馈表单绑定
+  // 医师反馈与药师复核表单绑定
   const [feedbackForm] = Form.useForm();
+  const [pharmacistReviewForm] = Form.useForm();
   const [triggerForm] = Form.useForm();
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
@@ -413,6 +508,7 @@ export default function CdssFatigue() {
     status: statusFilter,
     riskLevel: riskFilter,
   });
+  const pendingRecommendationCount = statsData?.pendingCount ?? 0;
 
   const { data: detailData, refetch: refetchDetail } = useRecommendationCardDetail(
     selectedCardId || "",
@@ -455,6 +551,19 @@ export default function CdssFatigue() {
     (snapshot) => snapshot.snapshotId === selectedSnapshotId,
   );
 
+  useEffect(() => {
+    const reportInterpretation = getReportInterpretationRouteState(location.state);
+    if (!reportInterpretation) return;
+
+    setTriggerModalMode("REPORT_INTERPRETATION");
+    setSnapshotPatientId("");
+    setSnapshotEncounterId("");
+    setSelectedSnapshotId(reportInterpretation.snapshotId);
+    setPrefilledSnapshotLabel(reportInterpretation.patientLabel || "患者 360 当前患者");
+    setTriggerModalVisible(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   // 突变动作
   const triggerCdssMutation = useEvaluateRecommendations();
   const reportInterpretationMutation = useInterpretDiagnosticReport();
@@ -477,14 +586,14 @@ export default function CdssFatigue() {
   // 已生效临床快照是评估上下文的唯一来源；生效内容由服务端按机构当前版本解析。
   const handleTriggerCdss = async () => {
     try {
-      if (!selectedSnapshot) {
+      if (!selectedSnapshotId) {
         message.error("请先选择已生效临床快照");
         return;
       }
 
       if (triggerModalMode === "REPORT_INTERPRETATION") {
         const res = await reportInterpretationMutation.mutateAsync({
-          contextSnapshotId: selectedSnapshot.snapshotId,
+          contextSnapshotId: selectedSnapshotId,
         });
         message.success(
           `报告解读已生成：${res.interpretations.length} 项；相关提示已进入临床提示卡。`,
@@ -494,10 +603,18 @@ export default function CdssFatigue() {
         return;
       }
 
+      if (!selectedSnapshot) {
+        message.error("请先选择已生效临床快照");
+        return;
+      }
+
       const values = await triggerForm.validateFields();
 
       const res = await triggerCdssMutation.mutateAsync({
-        triggerCode: `CDSS-MANUAL-${values.triggerType}`,
+        triggerCode: buildManualRecommendationTriggerCode(
+          values.triggerType,
+          selectedSnapshot.snapshotId,
+        ),
         triggerType: values.triggerType,
         scenarioCode: values.triggerType,
         contextSnapshotId: selectedSnapshot.snapshotId,
@@ -505,9 +622,7 @@ export default function CdssFatigue() {
         encounterId: selectedSnapshot.encounterId || undefined,
       });
 
-      message.success(
-        `推荐评估已完成：展示 ${res.visibleCardCount} 张，频次策略减少展示 ${res.suppressedCardCount} 张。`,
-      );
+      message.success(recommendationEvaluationMessage(res));
       closeTriggerModal();
       refetchCards();
     } catch (error: unknown) {
@@ -529,6 +644,7 @@ export default function CdssFatigue() {
     setSnapshotPatientId("");
     setSnapshotEncounterId("");
     setSelectedSnapshotId("");
+    setPrefilledSnapshotLabel("");
     triggerForm.resetFields();
   };
 
@@ -561,6 +677,30 @@ export default function CdssFatigue() {
     } catch (error: unknown) {
       if (applyApiFieldErrors(feedbackForm, error)) return;
       message.error(getApiErrorMessage(error, "反馈提交失败，卡片可能已过期或已处于终止态"));
+    }
+  };
+
+  const handlePharmacistReview = async () => {
+    if (!selectedCardId) return;
+    try {
+      const values = await pharmacistReviewForm.validateFields();
+      await feedbackMutation.mutateAsync({
+        feedbackType: "VIEW_SOURCE",
+        reasonCode: "PHARMACIST_REVIEWED",
+        reasonText: values.reviewNote,
+        operatorRole: "PHARMACIST",
+      });
+
+      message.success("已登记药师复核；医生确认与医嘱执行仍在院内业务系统完成。");
+      pharmacistReviewForm.resetFields();
+      refetchCards();
+      refetchDetail();
+      refetchSources();
+      refetchFatigue();
+      refetchDiagnose();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(pharmacistReviewForm, error)) return;
+      message.error(getApiErrorMessage(error, "药师复核登记失败，请确认提醒卡仍可处理"));
     }
   };
 
@@ -614,7 +754,7 @@ export default function CdssFatigue() {
         const colors = { HARD: "purple", SOFT: "volcano", NONE: "default" };
         return (
           <Tag color={colors[level as keyof typeof colors] || "blue"}>
-            {interruptLevelLabels[level] ?? "未识别级别"}
+            {getInterruptLevelLabel(level)}
           </Tag>
         );
       },
@@ -640,12 +780,15 @@ export default function CdssFatigue() {
           SUPPRESSED: { status: "default", text: getRecommendationStatusLabel("SUPPRESSED") },
           EXPIRED: { status: "default", text: getRecommendationStatusLabel("EXPIRED") },
         };
-        const current = config[status] ?? { status: "default", text: "未识别状态" };
+        const current = config[status] ?? {
+          status: "default",
+          text: getRecommendationStatusLabel(status),
+        };
         return <Badge status={current.status} text={current.text} />;
       },
     },
     {
-      title: "管理",
+      title: "反馈操作",
       key: "action",
       render: (record: ClinicalRecommendationCard) => (
         <Button
@@ -855,10 +998,11 @@ export default function CdssFatigue() {
           </div>
         </div>
         <div className={styles.metricCard}>
-          <div className={styles.metricLabel}>采纳率</div>
+          <div className={styles.metricLabel}>已处理采纳率</div>
           <div className={`${styles.metricNumber} ${styles.metricRate}`}>
             {statsData?.acceptanceRatePercent ?? 0}%
           </div>
+          <div className={styles.textSmall}>待处理 {pendingRecommendationCount} 项不计入</div>
         </div>
       </div>
 
@@ -884,7 +1028,7 @@ export default function CdssFatigue() {
           message={
             triggerModalMode === "REPORT_INTERPRETATION"
               ? "系统将读取所选已生效临床快照中的医技报告，并按机构生效版本生成辅助解读；不会改写已签发报告，也不会自动开立医嘱。"
-              : "推荐引擎将读取所选已生效临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
+              : "提醒与推荐将读取所选已生效临床快照，执行已激活临床规则与安全红线；模型不可用时保持确定性规则链路。"
           }
           type="info"
           showIcon
@@ -906,6 +1050,7 @@ export default function CdssFatigue() {
                   onChange={(event) => {
                     setSnapshotPatientId(event.target.value);
                     setSelectedSnapshotId("");
+                    setPrefilledSnapshotLabel("");
                   }}
                 />
               </Form.Item>
@@ -919,6 +1064,7 @@ export default function CdssFatigue() {
                   onChange={(event) => {
                     setSnapshotEncounterId(event.target.value);
                     setSelectedSnapshotId("");
+                    setPrefilledSnapshotLabel("");
                   }}
                 />
               </Form.Item>
@@ -927,23 +1073,32 @@ export default function CdssFatigue() {
           {triggerModalMode === "RECOMMENDATION" && (
             <Form.Item name="triggerType" label="触发时点" rules={[{ required: true }]}>
               <Select
-                options={[
-                  { value: "patient-view", label: "查看患者" },
-                  { value: "order-select", label: "选择医嘱" },
-                  { value: "order-sign", label: "签署医嘱" },
-                ]}
+                options={CLINICAL_TRIGGER_POINT_OPTIONS.map(({ value, label }) => ({
+                  value,
+                  label,
+                }))}
               />
             </Form.Item>
           )}
-          <ContextSnapshotSelector
-            enabled={hasSnapshotFilter}
-            loading={snapshotsQuery.isLoading}
-            error={snapshotsQuery.isError}
-            snapshots={snapshotsQuery.data?.items ?? []}
-            selectedSnapshotId={selectedSnapshotId}
-            onSelect={setSelectedSnapshotId}
-            evidenceDetailsEnabled={evidenceDetailsEnabled}
-          />
+          {prefilledSnapshotLabel && selectedSnapshotId ? (
+            <Alert
+              message="已从患者 360 带入当前上下文"
+              description={`${prefilledSnapshotLabel} 的已生效临床快照已选定；如需更换患者或就诊，请在上方重新检索。`}
+              type="success"
+              showIcon
+              className={styles.sectionGap}
+            />
+          ) : (
+            <ContextSnapshotSelector
+              enabled={hasSnapshotFilter}
+              loading={snapshotsQuery.isLoading}
+              error={snapshotsQuery.isError}
+              snapshots={snapshotsQuery.data?.items ?? []}
+              selectedSnapshotId={selectedSnapshotId}
+              onSelect={setSelectedSnapshotId}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
+            />
+          )}
           {snapshotDetailQuery.data && (
             <Descriptions bordered size="small" column={3} className={styles.sectionGap}>
               <Descriptions.Item label="机构生效版本">
@@ -963,6 +1118,7 @@ export default function CdssFatigue() {
       </Modal>
 
       <Drawer
+        aria-label="推荐详情与反馈闭环"
         title={
           <div className={styles.drawerTitle}>
             <BookOutlined className={styles.iconInfo} />
@@ -1049,7 +1205,7 @@ export default function CdssFatigue() {
               </Descriptions.Item>
               <Descriptions.Item label="拦截定位">
                 <Tag color={detailData.card.interruptLevel === "HARD" ? "purple" : "volcano"}>
-                  {interruptLevelLabels[detailData.card.interruptLevel] ?? "未识别级别"}
+                  {getInterruptLevelLabel(detailData.card.interruptLevel)}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="提醒频次策略" span={3}>
@@ -1062,17 +1218,17 @@ export default function CdssFatigue() {
 
             {detailData.feedback.length > 0 && (
               <Card size="small" className={`${styles.detailCard} ${styles.sectionGapLg}`}>
-                <div className={`${styles.textStrong} ${styles.sectionGap}`}>已记录医师反馈</div>
+                <div className={`${styles.textStrong} ${styles.sectionGap}`}>已记录反馈与复核</div>
                 <Timeline
                   items={detailData.feedback.map((item) => ({
                     key: item.feedbackId,
-                    color: item.feedbackType === "ACCEPT" ? "green" : "red",
+                    color: getFeedbackTimelineColor(item),
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
                           {evidenceDetailsEnabled
-                            ? `${item.operatorId} · ${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTypeLabel(item.feedbackType)}`
-                            : `${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTypeLabel(item.feedbackType)}`}
+                            ? `${item.operatorId} · ${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTimelineLabel(item)}`
+                            : `${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTimelineLabel(item)}`}
                         </div>
                         <div className={styles.timelineMeta}>
                           {item.reasonText || item.reasonCode || "未记录说明"}
@@ -1138,6 +1294,46 @@ export default function CdssFatigue() {
                         <Empty description="该提醒卡暂无来源解释证据；请结合患者病情与院内制度复核。" />
                       )}
                     </div>
+                  ),
+                },
+
+                {
+                  key: "pharmacist-review",
+                  disabled: detailData.card.status !== "PENDING",
+                  label: (
+                    <span>
+                      <AuditOutlined /> 药师复核
+                    </span>
+                  ),
+                  children: (
+                    <Card className={`${styles.detailCard} ${styles.marginTopSm}`}>
+                      <Form form={pharmacistReviewForm} layout="vertical">
+                        <Alert
+                          message="药师复核只登记联合用药和 DDI 风险复核证据；医生确认、医嘱调整和线下处置仍由院内业务系统完成。"
+                          type="info"
+                          showIcon
+                          className={styles.sectionGap}
+                        />
+                        <Form.Item
+                          name="reviewNote"
+                          label="药师复核说明"
+                          rules={[{ required: true, message: "请输入药师复核说明" }]}
+                        >
+                          <TextArea
+                            rows={3}
+                            placeholder="记录联合用药、禁忌、剂量或监测建议，不填写患者姓名、电话、证件号等核心敏感信息"
+                          />
+                        </Form.Item>
+                        <Button
+                          type="primary"
+                          onClick={handlePharmacistReview}
+                          loading={feedbackMutation.isPending}
+                          className={styles.fullWidth}
+                        >
+                          登记药师复核
+                        </Button>
+                      </Form>
+                    </Card>
                   ),
                 },
 
@@ -1425,7 +1621,7 @@ export default function CdssFatigue() {
                     <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
                       <span>状态：{customerEnumLabel(h.status)}</span>
                       <span className={styles.timelineMuted}>
-                        {new Date(h.changedAt).toLocaleString()}
+                        {formatClinicalDateTime(h.changedAt)}
                       </span>
                     </div>
                     <div className={styles.timelineMeta}>

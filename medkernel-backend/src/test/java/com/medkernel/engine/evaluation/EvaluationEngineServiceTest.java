@@ -21,6 +21,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -296,6 +297,10 @@ class EvaluationEngineServiceTest {
         assertThat(task.getValue().status()).isEqualTo(RectificationTaskStatus.ASSIGNED);
         verify(auditRecorder).record(AuditAction.EXECUTE, "evaluation_run",
             response.runId(), "接收评估运行 RUN.VTE");
+        verify(auditRecorder).record(AuditAction.CREATE, "quality_finding",
+            finding.getValue().findingId(), "记录质量问题 FIND.VTE.001");
+        verify(auditRecorder).record(AuditAction.CREATE, "rectification_task",
+            task.getValue().taskId(), "创建质量问题整改任务 " + finding.getValue().findingId());
     }
 
     @Test
@@ -356,6 +361,10 @@ class EvaluationEngineServiceTest {
             "qf-1", new RectificationSubmitRequest("补录风险评估记录", "proof-1"));
         assertThat(submitted.findingStatus()).isEqualTo(QualityFindingStatus.REMEDIATING);
         assertThat(submitted.taskStatus()).isEqualTo(RectificationTaskStatus.SUBMITTED);
+        verify(auditRecorder).record(AuditAction.UPDATE, "quality_finding", "qf-1",
+            "提交质量问题整改 task-1");
+        verify(auditRecorder).record(AuditAction.UPDATE, "rectification_task", "task-1",
+            "提交整改说明和证据 qf-1");
 
         QualityFinding remediating = finding("qf-1", QualityFindingSeverity.P1, QualityFindingStatus.REMEDIATING);
         RectificationTask submittedTask = task("task-1", RectificationTaskStatus.SUBMITTED);
@@ -368,7 +377,8 @@ class EvaluationEngineServiceTest {
         assertThat(approved.findingStatus()).isEqualTo(QualityFindingStatus.CLOSED);
         assertThat(approved.taskStatus()).isEqualTo(RectificationTaskStatus.CLOSED);
         verify(reviews).save(any(RectificationReview.class));
-        verify(auditRecorder).record(eq(AuditAction.REVIEW), eq("quality_finding"), eq("qf-1"), any());
+        verify(auditRecorder).record(AuditAction.REVIEW, "quality_finding", "qf-1",
+            "复核质量问题整改 APPROVED");
     }
 
     @Test
@@ -381,6 +391,8 @@ class EvaluationEngineServiceTest {
         assertThatThrownBy(() -> service.reviewRectification("qf-p0", new RectificationReviewRequest(
                 RectificationReviewDecision.WAIVED, "申请豁免", null)))
             .isInstanceOf(ApiException.class)
+            .hasMessageContaining("P0 质量问题不得通过普通复核豁免")
+            .hasMessageNotContaining("质控问题")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVAL_007);
     }
@@ -406,7 +418,7 @@ class EvaluationEngineServiceTest {
         verify(assignments).requireActiveDepartment("dept-quality");
         verify(assignments).requireActiveUserIfPresent("head-quality");
         verify(auditRecorder).record(AuditAction.CREATE, "rectification_task",
-            task.getValue().taskId(), "派发质控整改 qf-new");
+            task.getValue().taskId(), "派发质量问题整改 qf-new");
 
         RectificationTask existing = new RectificationTask(
             task.getValue().id(), task.getValue().taskId(), task.getValue().tenantId(),
@@ -622,7 +634,7 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator indicator = new EvaluationIndicator(
             null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "{\"all\":[]}", "{\"all\":[]}", "{\"all\":[]}",
-            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -665,7 +677,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -689,8 +701,10 @@ class EvaluationEngineServiceTest {
             .contains("分子达标规则校验")
             .contains("patient.completed");
         assertThat(finding.getValue().evidenceSummary())
+            .contains("系统自动评估扫描质量证据支撑")
             .contains("分子达标规则校验")
-            .contains("patient.completed");
+            .contains("patient.completed")
+            .doesNotContain("质控证据");
     }
 
     @Test
@@ -706,7 +720,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -748,7 +762,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -831,7 +845,7 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator indicator = new EvaluationIndicator(
             null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "{bad-json", "{\"all\":[]}", null,
-            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -861,7 +875,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         EvaluationIndicator outside = new EvaluationIndicator(
@@ -869,7 +883,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -890,6 +904,69 @@ class EvaluationEngineServiceTest {
         verify(results).save(result.capture());
         assertThat(result.getValue().indicatorId()).isEqualTo("ei-runtime");
         verify(indicators, never()).findByIndicatorIdAndTenantId("ei-outside", "tenant-A");
+    }
+
+    @Test
+    void evaluateSnapshotAllowsPlatformIndicatorPinnedByCurrentRuntimeRelease() {
+        ContextSnapshot snapshot = snapshot("snap-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientResource(
+                "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":true}")));
+
+        EvaluationIndicator platformIndicator = new EvaluationIndicator(
+            null, "ei-platform", PlatformTenant.ID, "EVAL.PLATFORM.BASELINE", 1,
+            "平台基线评价指标",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "platform-guideline",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "platform-admin", Instant.now(), Instant.now(),
+            "platform-admin", Instant.now(), "platform-admin", "trace-platform");
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(platformIndicator));
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true));
+
+        EvaluationRunResponse response = service.evaluateSnapshot(
+            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
+
+        assertThat(response.status()).isEqualTo(EvaluationRunStatus.RECORDED);
+        assertThat(response.resultCount()).isEqualTo(1);
+        ArgumentCaptor<EvaluationRun> run = ArgumentCaptor.forClass(EvaluationRun.class);
+        ArgumentCaptor<EvaluationResult> result = ArgumentCaptor.forClass(EvaluationResult.class);
+        verify(runs).save(run.capture());
+        verify(results).save(result.capture());
+        assertThat(run.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(run.getValue().runtimeReleaseId()).isEqualTo("runtime-release-test");
+        assertThat(result.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(result.getValue().indicatorId()).isEqualTo("ei-platform");
+        assertThat(result.getValue().indicatorCode()).isEqualTo("EVAL.PLATFORM.BASELINE");
+        verify(indicators, never()).findByIndicatorIdAndTenantId("ei-platform", "tenant-A");
+    }
+
+    @Test
+    void runRejectsCrossTenantIndicatorWhenRuntimeReleaseDoesNotPinIt() {
+        EvaluationIndicator runtimeIndicator = indicator("ei-runtime", 1, EvaluationIndicatorStatus.ACTIVE);
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(runtimeIndicator));
+        EvaluationResultRequest result = new EvaluationResultRequest(
+            "ei-platform", EvaluationSubjectType.MEDICAL_RECORD, "record-1", BigDecimal.ONE,
+            EvaluationResultLevel.PASS, true, "跨租户指标不能绕过机构生效版本", "proof-1", null,
+            List.of());
+        EvaluationRunRequest request = new EvaluationRunRequest(
+            "RUN.CROSS.TENANT", EvaluationRunType.UPSTREAM_RESULT, "event-1", null,
+            "patient-1", "enc-1", "DISCHARGE", "runtime-release-test",
+            "sha256:cross-tenant", Instant.now(), List.of(result));
+
+        assertThatThrownBy(() -> service.run(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_004);
+
+        verify(runs, never()).save(any());
+        verify(results, never()).save(any());
     }
 
     private AssetVersion assetVersion(String versionId, String versionNo, AssetVersionStatus status) {
