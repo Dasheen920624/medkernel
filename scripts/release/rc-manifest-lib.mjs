@@ -2393,7 +2393,7 @@ function validateBrowserEvidence(
   if (!Array.isArray(report.suites) || report.suites.length === 0) {
     throw new Error("Playwright 原始报告 suites 不能为空");
   }
-  const rawTests = collectPlaywrightTests(report.suites);
+  const rawTests = collectPlaywrightTests(report.suites, "Playwright 原始报告");
   if (rawTests.length !== report.stats.expected) {
     throw new Error("Playwright 原始报告真实测试结果数与 expected 不一致");
   }
@@ -2553,56 +2553,71 @@ function validateBrowserEvidence(
   }
 }
 
-function collectPlaywrightTests(suites) {
+export function collectPlaywrightTests(suites, label = "Playwright") {
+  if (!Array.isArray(suites) || suites.length === 0) {
+    throw new Error(`${label} suites 不能为空`);
+  }
   const tests = [];
   const visit = (suite) => {
-    if (!suite || typeof suite !== "object" || Array.isArray(suite)) {
-      throw new Error("Playwright 原始报告 suite 结构非法");
-    }
-    if (!Array.isArray(suite.specs) || !Array.isArray(suite.suites)) {
-      throw new Error("Playwright 原始报告 suite 缺少 specs 或 suites");
+    if (
+      !suite ||
+      typeof suite !== "object" ||
+      Array.isArray(suite) ||
+      !Array.isArray(suite.specs) ||
+      (suite.suites !== undefined && !Array.isArray(suite.suites))
+    ) {
+      throw new Error(`${label} suite 结构非法`);
     }
     for (const spec of suite.specs) {
       if (!spec || typeof spec !== "object" || !Array.isArray(spec.tests)) {
-        throw new Error("Playwright 原始报告 spec 结构非法");
+        throw new Error(`${label} spec 结构非法`);
       }
       tests.push(...spec.tests);
     }
-    suite.suites.forEach(visit);
+    (suite.suites ?? []).forEach(visit);
   };
   suites.forEach(visit);
   return tests;
 }
 
 function validateToolNativeLog(gateId, logText) {
+  const normalizedLogText = logText.replace(/\u001B\[[0-9;]*m/gu, "");
+  if (normalizedLogText.includes("\u001B")) {
+    throw new Error(`门禁 ${gateId} 原始日志包含非标准 ANSI 控制序列`);
+  }
   const integerAfter = (pattern, label) => {
-    const match = pattern.exec(logText);
+    const match = pattern.exec(normalizedLogText);
     if (!match) throw new Error(`门禁 ${gateId} 原始日志缺少 ${label}`);
     return Number.parseInt(match[1], 10);
   };
   if (["CLI_TESTS", "MCP_TESTS"].includes(gateId)) {
-    const tests = integerAfter(/^# tests (\d+)$/mu, "Node tests 计数");
-    const passed = integerAfter(/^# pass (\d+)$/mu, "Node pass 计数");
-    const failed = integerAfter(/^# fail (\d+)$/mu, "Node fail 计数");
-    const skipped = integerAfter(/^# skipped (\d+)$/mu, "Node skipped 计数");
+    const tests = integerAfter(/^(?:#|ℹ) tests (\d+)$/mu, "Node tests 计数");
+    const passed = integerAfter(/^(?:#|ℹ) pass (\d+)$/mu, "Node pass 计数");
+    const failed = integerAfter(/^(?:#|ℹ) fail (\d+)$/mu, "Node fail 计数");
+    const skipped = integerAfter(
+      /^(?:#|ℹ) skipped (\d+)$/mu,
+      "Node skipped 计数",
+    );
     if (tests <= 0 || passed !== tests || failed !== 0 || skipped !== 0) {
       throw new Error(`门禁 ${gateId} 的 Node 测试日志未全量通过`);
     }
   } else if (gateId === "DATABASE_GENERATOR") {
     if (
-      !/^# fail 0$/mu.test(logText) ||
-      !/migration-check=PASSED/u.test(logText)
+      !/^(?:#|ℹ) fail 0$/mu.test(normalizedLogText) ||
+      !/migration-check=PASSED/u.test(normalizedLogText)
     ) {
       throw new Error("门禁 DATABASE_GENERATOR 原始日志缺少生成器全绿结构");
     }
     for (const dialect of ["h2", "postgres", "oracle", "dm", "kingbase"]) {
-      if (!logText.includes(dialect)) {
+      if (!normalizedLogText.includes(dialect)) {
         throw new Error(`门禁 DATABASE_GENERATOR 原始日志缺少 ${dialect}`);
       }
     }
   } else if (gateId === "DEPLOYMENT_CONTRACTS") {
     const successSignals =
-      logText.match(/(?:=PASSED|contract passed|校验通过|\[OK\])/gu) ?? [];
+      normalizedLogText.match(
+        /(?:=PASSED|contract passed|校验通过|\[OK\])/gu,
+      ) ?? [];
     if (successSignals.length < 7) {
       throw new Error("门禁 DEPLOYMENT_CONTRACTS 原始日志不足 7 个通过合同");
     }
@@ -2614,16 +2629,16 @@ function validateToolNativeLog(gateId, logText) {
       "openspec-strict=PASSED",
       "git-diff-check=PASSED",
     ]) {
-      if (!logText.includes(marker)) {
+      if (!normalizedLogText.includes(marker)) {
         throw new Error(`门禁 FORMAT_CHECK 原始日志缺少 ${marker}`);
       }
     }
   } else if (gateId === "FRONTEND_VERIFY_BUILD") {
     if (
-      !/Test Files\s+\d+ passed/u.test(logText) ||
-      !/Tests\s+\d+ passed/u.test(logText) ||
-      !/\d+ modules transformed/u.test(logText) ||
-      !/built in/u.test(logText)
+      !/Test Files\s+\d+ passed/u.test(normalizedLogText) ||
+      !/Tests\s+\d+ passed/u.test(normalizedLogText) ||
+      !/\d+ modules transformed/u.test(normalizedLogText) ||
+      !/built in/u.test(normalizedLogText)
     ) {
       throw new Error(
         "门禁 FRONTEND_VERIFY_BUILD 原始日志缺少测试或生产构建结构",
@@ -2643,9 +2658,11 @@ function validateToolNativeLog(gateId, logText) {
       "OK   kingbase/V1__baseline.sql",
     ];
     if (
-      requiredNativeProofs.some((proof) => !logText.includes(proof)) ||
-      !/^# fail 0$/mu.test(logText) ||
-      !/^\s*100%\s*\(/mu.test(logText)
+      requiredNativeProofs.some(
+        (proof) => !normalizedLogText.includes(proof),
+      ) ||
+      !/^(?:#|ℹ) fail 0$/mu.test(normalizedLogText) ||
+      !/^\s*100%\s*\(/mu.test(normalizedLogText)
     ) {
       throw new Error("门禁 T_GATE 原始日志缺少全量扫描通过输出");
     }

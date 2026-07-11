@@ -859,6 +859,102 @@ test("拒绝任意命令、非零退出和运行窗外时间伪装门禁通过",
   }
 });
 
+test("CLI 与 MCP 门禁接受 Node 24 spec reporter 的原生计数并拒绝不一致", () => {
+  for (const gateId of ["CLI_TESTS", "MCP_TESTS"]) {
+    const fixture = createGitFixture();
+    const logPath = fixture.gateFiles[gateId].COMMAND_LOG;
+    const node24Log = readFileSync(logPath, "utf8").replace(
+      /^# (tests|pass|fail|skipped) /gmu,
+      "ℹ $1 ",
+    );
+    writeFileSync(logPath, node24Log, "utf8");
+    assert.doesNotThrow(() => createFixtureManifest(fixture));
+  }
+
+  const inconsistent = createGitFixture();
+  const inconsistentLogPath = inconsistent.gateFiles.CLI_TESTS.COMMAND_LOG;
+  const inconsistentLog = readFileSync(inconsistentLogPath, "utf8")
+    .replace(/^# (tests|pass|fail|skipped) /gmu, "ℹ $1 ")
+    .replace(/^ℹ pass 1$/mu, "ℹ pass 0");
+  writeFileSync(inconsistentLogPath, inconsistentLog, "utf8");
+  assert.throws(
+    () => createFixtureManifest(inconsistent),
+    /门禁 CLI_TESTS 的 Node 测试日志未全量通过/u,
+  );
+});
+
+test("数据库生成门禁接受 Node 24 spec reporter 并拒绝真实失败", () => {
+  const fixture = createGitFixture();
+  const logPath = fixture.gateFiles.DATABASE_GENERATOR.COMMAND_LOG;
+  const node24Log = readFileSync(logPath, "utf8").replace(
+    /^# (tests|pass|fail|skipped) /gmu,
+    "ℹ $1 ",
+  );
+  writeFileSync(logPath, node24Log, "utf8");
+  assert.doesNotThrow(() => createFixtureManifest(fixture));
+
+  const failed = createGitFixture();
+  const failedLogPath = failed.gateFiles.DATABASE_GENERATOR.COMMAND_LOG;
+  const failedLog = readFileSync(failedLogPath, "utf8")
+    .replace(/^# (tests|pass|fail|skipped) /gmu, "ℹ $1 ")
+    .replace(/^ℹ fail 0$/mu, "ℹ fail 1");
+  writeFileSync(failedLogPath, failedLog, "utf8");
+  assert.throws(
+    () => createFixtureManifest(failed),
+    /门禁 DATABASE_GENERATOR 原始日志缺少生成器全绿结构/u,
+  );
+});
+
+test("前端门禁忽略原生 ANSI 显示码但仍要求测试与构建证据", () => {
+  const fixture = createGitFixture();
+  const logPath = fixture.gateFiles.FRONTEND_VERIFY_BUILD.COMMAND_LOG;
+  const coloredLog = readFileSync(logPath, "utf8")
+    .replace(
+      "Test Files  1 passed (1)",
+      "\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m",
+    )
+    .replace(
+      "Tests  2 passed (2)",
+      "\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m2 passed\u001b[39m\u001b[22m\u001b[90m (2)\u001b[39m",
+    )
+    .replace(
+      "✓ 3 modules transformed.",
+      "\u001b[32m✓\u001b[39m 3 modules transformed.",
+    )
+    .replace("✓ built in 100ms", "\u001b[32m✓ built in 100ms\u001b[39m");
+  writeFileSync(logPath, coloredLog, "utf8");
+  assert.doesNotThrow(() => createFixtureManifest(fixture));
+
+  const incomplete = createGitFixture();
+  const incompleteLogPath =
+    incomplete.gateFiles.FRONTEND_VERIFY_BUILD.COMMAND_LOG;
+  writeFileSync(
+    incompleteLogPath,
+    readFileSync(incompleteLogPath, "utf8").replace(
+      "✓ built in 100ms",
+      "build evidence missing",
+    ),
+    "utf8",
+  );
+  assert.throws(
+    () => createFixtureManifest(incomplete),
+    /门禁 FRONTEND_VERIFY_BUILD 原始日志缺少测试或生产构建结构/u,
+  );
+
+  const unknownControl = createGitFixture();
+  const unknownControlLogPath =
+    unknownControl.gateFiles.FRONTEND_VERIFY_BUILD.COMMAND_LOG;
+  writeFileSync(
+    unknownControlLogPath,
+    `${readFileSync(unknownControlLogPath, "utf8")}\u001b[2K`,
+    "utf8",
+  );
+  assert.throws(
+    () => createFixtureManifest(unknownControl),
+    /门禁 FRONTEND_VERIFY_BUILD 原始日志包含非标准 ANSI 控制序列/u,
+  );
+});
+
 test("Surefire 原始 XML 与汇总必须逐文件存在、结构真实且计数一致", () => {
   const deleted = createGitFixture();
   const manifest = createFixtureManifest(deleted);
@@ -958,6 +1054,36 @@ test("浏览器门禁拒绝非单 worker 与没有真实测试结果的空报告
   );
 });
 
+test("清单验证器遵守 Playwright 叶子 suite 的可选 suites 契约", () => {
+  const officialLeaf = createGitFixture();
+  const officialLeafReportPath =
+    officialLeaf.gateFiles.BROWSER_E2E.PLAYWRIGHT_JSON;
+  const officialLeafReport = JSON.parse(
+    readFileSync(officialLeafReportPath, "utf8"),
+  );
+  delete officialLeafReport.suites[0].suites;
+  writeFileSync(
+    officialLeafReportPath,
+    `${JSON.stringify(officialLeafReport)}\n`,
+    "utf8",
+  );
+  assert.doesNotThrow(() => createFixtureManifest(officialLeaf));
+
+  const malformed = createGitFixture();
+  const malformedReportPath = malformed.gateFiles.BROWSER_E2E.PLAYWRIGHT_JSON;
+  const malformedReport = JSON.parse(readFileSync(malformedReportPath, "utf8"));
+  malformedReport.suites[0].suites = {};
+  writeFileSync(
+    malformedReportPath,
+    `${JSON.stringify(malformedReport)}\n`,
+    "utf8",
+  );
+  assert.throws(
+    () => createFixtureManifest(malformed),
+    /Playwright 原始报告 suite 结构非法/u,
+  );
+});
+
 test("浏览器就绪证据必须绑定本次运行、候选、前后检查与响应摘要", () => {
   const fixture = createGitFixture();
   const readinessPath = fixture.gateFiles.BROWSER_E2E.READINESS_SUMMARY;
@@ -1038,6 +1164,28 @@ test("T-GATE 必须来自全量扫描原始通过输出，运行器自写零阻�
   );
   assert.throws(
     () => createFixtureManifest(fixture),
+    /门禁 T_GATE 原始日志缺少全量扫描通过输出/u,
+  );
+});
+
+test("T-GATE 接受 Node 24 spec reporter 计数并拒绝真实失败", () => {
+  const fixture = createGitFixture();
+  const logPath = fixture.gateFiles.T_GATE.COMMAND_LOG;
+  const node24Log = readFileSync(logPath, "utf8").replace(
+    /^# (tests|pass|fail|skipped) /gmu,
+    "ℹ $1 ",
+  );
+  writeFileSync(logPath, node24Log, "utf8");
+  assert.doesNotThrow(() => createFixtureManifest(fixture));
+
+  const failed = createGitFixture();
+  const failedLogPath = failed.gateFiles.T_GATE.COMMAND_LOG;
+  const failedLog = readFileSync(failedLogPath, "utf8")
+    .replace(/^# (tests|pass|fail|skipped) /gmu, "ℹ $1 ")
+    .replace(/^ℹ fail 0$/mu, "ℹ fail 1");
+  writeFileSync(failedLogPath, failedLog, "utf8");
+  assert.throws(
+    () => createFixtureManifest(failed),
     /门禁 T_GATE 原始日志缺少全量扫描通过输出/u,
   );
 });

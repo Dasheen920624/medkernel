@@ -6,6 +6,8 @@
 
 浏览器 E2E 验证器 MUST 按仓内锁定 Playwright 版本的官方 JSON reporter 契约解析原始报告，包括允许叶子 suite 省略可选的嵌套 `suites` 字段；验证器 MUST 从逐测试结果独立重算项目计数，并拒绝非数组畸形结构、空壳报告、重试、跳过、波动、失败、未知项目或逐测试结果与汇总统计不一致。
 
+运行器与终态清单验证器 MUST 调用同一共享 Playwright 结构解析器，不得复制一套会独立漂移的 suite/spec 契约。终态验证器 SHALL 按锁定 Node 24 工具链接受原生 TAP 或 spec reporter 的 `#`/`ℹ` 计数前缀，并可在语义解析前仅剥离标准 ANSI SGR 显示码；失败计数非零、计数不一致、必需标记缺失、未知控制序列或移除显示码后语义不完整时仍 MUST 阻断 RC0。
+
 候选制品验证器 MUST 按同一 `candidateCommit` 的 `git archive` 导出字节逐文件核验来源，确定性保留候选 `.gitattributes` 定义的 EOL 和导出语义；验证器 MUST NOT 用规范化 raw blob 误拒合法平台交付字节，也 MUST NOT 通过文本归一化或跳过比较放行制品篡改。
 
 普通 RC0 后端门禁 SHALL 只排除机器计划中显式声明的 `docker` 与 `performance` 专项套件。机器计划 MUST 枚举全部同时包含 10 万级数据与墙钟预算的测试类或方法，RC 起跑前 MUST 扫描源码核对登记完整性及 `performance` 标签；未被排除的实际 Surefire 报告仍 MUST 为零跳过。被排除套件 MUST 在 PostgreSQL 16/openEuler 等目标容量环境独立执行，普通 RC0 不得把排除等同于容量验证通过。

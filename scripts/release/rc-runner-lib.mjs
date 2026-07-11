@@ -24,6 +24,7 @@ import {
   DEFAULT_SOURCE_BASE_COMMIT,
   REQUIRED_RC_ARTIFACT_IDS,
   REQUIRED_RC_GATES,
+  collectPlaywrightTests,
   createRcManifest,
   getRcEvidenceContract,
   serializeRcManifest,
@@ -1292,32 +1293,6 @@ function appendGateMarkers(gateId, commands, nativeLog) {
       "git-diff-check=PASSED",
     );
   }
-}
-
-function collectPlaywrightTests(suites) {
-  if (!Array.isArray(suites) || suites.length === 0) {
-    throw new Error("Playwright suites 不能为空");
-  }
-  const tests = [];
-  const visit = (suite) => {
-    if (
-      !suite ||
-      typeof suite !== "object" ||
-      !Array.isArray(suite.specs) ||
-      (suite.suites !== undefined && !Array.isArray(suite.suites))
-    ) {
-      throw new Error("Playwright suite 结构非法");
-    }
-    for (const spec of suite.specs) {
-      if (!spec || typeof spec !== "object" || !Array.isArray(spec.tests)) {
-        throw new Error("Playwright spec 结构非法");
-      }
-      tests.push(...spec.tests);
-    }
-    (suite.suites ?? []).forEach(visit);
-  };
-  suites.forEach(visit);
-  return tests;
 }
 
 function listSurefireReports(repoRoot) {
