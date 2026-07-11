@@ -40,14 +40,15 @@
 - r9 的本地真实结果仍是后端 519 份 Surefire 报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`，九类门禁与六类制品完整；这些事实只用于诊断验证器和运行链，不能抵消远端 required CI 失败，也不能提升 r9。运行结束后 LaunchAgent 已卸载，4174/5173/28090 无监听。
 - r10 后端生成 519 份 Surefire 报告、3175 项测试，失败/错误/跳过均为 0；Browser E2E 的 Chromium 与国产 Chromium 模拟各 57/57，合计 `expected=114, unexpected=0, flaky=0, skipped=0`，且 E2E 前后 readiness 与 JAR 内嵌完整提交均匹配。CLI、五方言数据库、部署合同、格式/OpenSpec、前端 verify/build、MCP、T-GATE 其余门禁均退出 0；六类制品为后端 JAR、CLI 包、五方言迁移包、前端静态包、MCP 包和院内离线交付包。运行结束后 LaunchAgent `com.medkernel.rc0.7674532fd.r10` 已卸载，4174/5173/28091 均无监听，checkout 保持 clean。
 - r10 完整 bundle 已复制至 `/Users/zhikunzheng/.medkernel-rc0-verification/7674532fd-r10-copy` 并由候选内验证器独立返回 `VERIFIED`。原包、复制件和恢复后的篡改验证副本各有 567 个文件、0 个符号链接，按逐文件 SHA-256 排序聚合后的摘要均为 `bf84dc649759edfd11cebff2016b6ef3f59c988f2af8a258c88beaab66ccbba3`。验证器分别对缺 `BACKEND_TESTS` 门禁记录、缺其原始日志、缺 Maven 本次解析报告和 CLI 制品摘要漂移返回非零拒绝；每次恢复后重新返回同一 candidateCommit/run-id 的 `VERIFIED`。
-- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（8 完成、197 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
+- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（9 完成、196 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
 - 任务 2.1 已按 TDD 完成：`node --test scripts/release/product-entry-catalog.test.mjs` 先因 `docs/contracts/product/product-entry-catalog.v1.json` 缺失以退出码 1 失败；补齐合同后 1/1 通过。合同恰含 35 个唯一 `entryCode` 和 35 条唯一路由，承载位置为 33 个主导航、1 个页头、1 个个人入口，四职责覆盖数为平台管理员 13、医疗引擎运营员 22、临床使用者 9、审计员 6；逐项声明权限、有效任职组织交集、核心动作、权威服务回读、`shared-audit-event.v1`、六态和证据键。一次性反向核对现有后端菜单、前端路由、默认职责策略与功能目录均无漂移；该 JSON 自此作为入口唯一机器合同，后续 2.2-2.3 必须让消费者由其生成并删除旧并行集合。
+- 任务 2.2 已完成：`generate-product-entry-consumers.mjs --check` 先同时报告后端 `menu-permission-catalog.generated.json` 与前端 `productEntryCatalog.generated.ts` 缺失并以退出码 1 失败；生成后源合同 SHA-256 为 `178954986bb5d083a87c00bbe7fa515d4f490aaf90f47432d8820412f90991a6`，两个消费者均由同一摘要绑定。临时篡改后端嵌入摘要时 `--check` 精确报告单文件漂移并退出 1，重新生成后恢复 `VERIFIED`；前端 Prettier 与 TypeScript 全量类型检查退出 0。CI 的前端构建作业已接入合同测试和生成器检查，禁止只改源合同不重生成。
 - 新候选提交一旦冻结，不得再修改其代码、测试或发布合同；任何此类变化都必须再次形成新候选并完整重跑 RC0。证据状态与接力文档可在候选之后单独提交，但不得把文档提交哈希冒充候选。
 
 ## 下一执行序列
 
-1. 在 `codex/launch-ledger` 按 TDD 执行 2.2：先运行 `node scripts/release/generate-product-entry-consumers.mjs --check` 证明生成器或消费者缺失会失败，再生成后端 `MenuPermissionCatalog` 资源和 `frontend/src/shared/contracts/productEntryCatalog.generated.ts`，禁止手抄第二份 35 项集合。
-2. 执行 2.3 删除旧 34/35 并行集合与数量常量，再依次执行 2.4-2.12 的真实证据强度、LAUNCH-01 至 LAUNCH-15、不可自证证据、四类缺口和严格归零总账；每个 checkbox 独立验证、提交并同步本文件。
+1. 在 `codex/launch-ledger` 按 TDD 执行 2.3：先用第 36 项夹具或旧 `ALL_34`/独立数量真相证明现有消费者会漂移，再让后端 `MenuPermissionCatalog`、前端导航、职责矩阵校验与上线覆盖证据全部读取生成消费者，删除旧并行入口集合和数量常量。
+2. 2.3 归零后依次执行 2.4-2.12 的真实证据强度、LAUNCH-01 至 LAUNCH-15、不可自证证据、四类缺口和严格归零总账；每个 checkbox 独立验证、提交并同步本文件。
 3. 35 入口与总账归零后进入平台知识权威、`.mkp`、16 语义族资源工厂、离线空机安装、openEuler/容量验证和医院复制；不得绕过依赖跳到 134。
 4. 只在系统、资源包、离线部署和目标环境证据全部稳定后进入 134；134 继续保持只读，最终清库、停机、覆盖部署只申请一次绑定范围的原子确认。
 

@@ -187,6 +187,12 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
+      - name: Test product entry contract
+        run: node --test scripts/release/product-entry-catalog.test.mjs
+
+      - name: Verify generated product entry consumers
+        run: node scripts/release/generate-product-entry-consumers.mjs --check
+
       - name: Type check
         working-directory: frontend
         run: npm run typecheck
