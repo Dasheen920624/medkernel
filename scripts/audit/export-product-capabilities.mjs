@@ -25,7 +25,11 @@ const routesPath = resolve(
 const routerPath = resolve(repositoryRoot, "frontend/src/app/router.tsx");
 const menuCatalogPath = resolve(
   repositoryRoot,
-  "medkernel-backend/src/main/java/com/medkernel/engine/security/MenuPermissionCatalog.java",
+  "medkernel-backend/src/main/resources/catalog/menu-permission-catalog.generated.json",
+);
+const productEntryCatalogPath = resolve(
+  repositoryRoot,
+  "docs/contracts/product/product-entry-catalog.v1.json",
 );
 const pagesRoot = resolve(repositoryRoot, "frontend/src/pages");
 const backendRoot = resolve(repositoryRoot, "medkernel-backend/src/main/java");
@@ -367,6 +371,11 @@ function extractRouteSections() {
 }
 
 function extractRoutes() {
+  const productEntriesByRoute = new Map(
+    JSON.parse(readFileSync(productEntryCatalogPath, "utf8")).entries.map(
+      (entry) => [entry.route, entry],
+    ),
+  );
   const sourceText = readFileSync(routesPath, "utf8");
   const sourceFile = ts.createSourceFile(
     routesPath,
@@ -403,12 +412,22 @@ function extractRoutes() {
       if (!decision) {
         throw new Error(`路由 ${route.path} 缺少显式产品裁决`);
       }
+      const productEntry = productEntriesByRoute.get(route.path);
       return {
         ...route,
+        ...(productEntry
+          ? {
+              sectionKey: productEntry.sectionCode,
+              menuKey: productEntry.entryCode,
+              menuLabel: productEntry.displayName,
+              placement: productEntry.placement,
+            }
+          : {}),
         hidden: route.hidden === true,
         placement:
+          productEntry?.placement ??
           route.placement ??
-          (route.menuKey
+          ((productEntry?.entryCode ?? route.menuKey)
             ? "primary"
             : route.hidden === true
               ? "hidden"
@@ -419,19 +438,17 @@ function extractRoutes() {
 }
 
 function extractMenus() {
-  const source = readFileSync(menuCatalogPath, "utf8");
-  return Array.from(
-    source.matchAll(
-      /menu\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*([A-Z0-9_]+),\s*MenuPlacement\.([A-Z]+)\)/g,
-    ),
-    (match) => ({
-      sectionKey: match[1],
-      menuKey: match[2],
-      displayName: match[3],
-      permission: match[4],
-      placement: match[5].toLowerCase(),
-    }),
-  );
+  const generated = JSON.parse(readFileSync(menuCatalogPath, "utf8"));
+  if (!Array.isArray(generated.menus) || generated.menus.length === 0) {
+    throw new Error("后端生成菜单目录为空");
+  }
+  return generated.menus.map((entry) => ({
+    sectionKey: entry.sectionKey,
+    menuKey: entry.menuKey,
+    displayName: entry.displayName,
+    permission: entry.permissionCode.replace(/[.-]/g, "_").toUpperCase(),
+    placement: entry.placement.toLowerCase(),
+  }));
 }
 
 function extractPageMappings() {
@@ -517,7 +534,8 @@ function controllerDecision(className, endpoints) {
     return {
       decision: "KEEP",
       target: "对应客户任务页面",
-      rationale: "策略维护归外调治理，当前任务用途确认可由知识生产操作者完成并落审计",
+      rationale:
+        "策略维护归外调治理，当前任务用途确认可由知识生产操作者完成并落审计",
     };
   }
   if (
@@ -529,13 +547,15 @@ function controllerDecision(className, endpoints) {
       return {
         decision: "KEEP",
         target: "所属业务域专业能力",
-        rationale: "外调策略由实施/运营维护，本次脱敏载荷用途确认由业务上下文承载",
+        rationale:
+          "外调策略由实施/运营维护，本次脱敏载荷用途确认由业务上下文承载",
       };
     }
     return {
       decision: "KEEP",
       target: "所属业务域专业能力",
-      rationale: "按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示",
+      rationale:
+        "按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示",
     };
   }
   if (/Batch|Export|RuntimeTask|AsyncSuffix/i.test(text)) {
@@ -624,7 +644,14 @@ function countByDecision(items) {
   );
 }
 
-function renderCatalog({ routes, menus, pages, controllers, batches, routeSections }) {
+function renderCatalog({
+  routes,
+  menus,
+  pages,
+  controllers,
+  batches,
+  routeSections,
+}) {
   const routeByMenu = new Map(
     routes
       .filter((route) => route.menuKey)
@@ -647,7 +674,9 @@ function renderCatalog({ routes, menus, pages, controllers, batches, routeSectio
   const decisionSummary = countByDecision(allCapabilities)
     .map(([decision, count]) => `| ${decision} | ${count} |`)
     .join("\n");
-  const targetCustomerDomains = routeSections.map((section) => section.label).join("、");
+  const targetCustomerDomains = routeSections
+    .map((section) => section.label)
+    .join("、");
 
   const routeRows = routes
     .map(
@@ -751,7 +780,14 @@ function generateCatalog() {
   const pages = extractPages(routes);
   const controllers = extractControllers();
   const batches = extractBatchCapabilities();
-  return renderCatalog({ routes, menus, pages, controllers, batches, routeSections });
+  return renderCatalog({
+    routes,
+    menus,
+    pages,
+    controllers,
+    batches,
+    routeSections,
+  });
 }
 
 function main() {

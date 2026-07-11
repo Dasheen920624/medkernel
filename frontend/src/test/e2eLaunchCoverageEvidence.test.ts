@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { productEntryCatalog } from "@/shared/contracts/productEntryCatalog.generated";
+
 import {
   buildBrowserE2eLaunchEvidence,
   type BrowserE2eTestResult,
@@ -456,6 +458,25 @@ function domainFacadeB0EvidenceResultFromTest(
 
 function domainFacadeB0BrowserTest(test: BrowserE2eTestResult) {
   return test;
+}
+
+function completeDomainFacadeB0BrowserTest(
+  overrides: Partial<BrowserE2eTestResult> = {},
+): BrowserE2eTestResult {
+  return {
+    file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+    title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+    status: "passed",
+    outcome: "expected",
+    attachments: [
+      {
+        name: "domain-facade-b0-evidence-codes",
+        contentType: "application/json",
+        body: JSON.stringify(domainFacadeB0Evidence()),
+      },
+    ],
+    ...overrides,
+  };
 }
 
 function expectNoDomainFacadeB0Coverage(body: Record<string, unknown>) {
@@ -6263,7 +6284,7 @@ function expectNoIdentityBindingScenarioConditionCoverage(body: Record<string, u
 
 const fourRoleCoreActionsEvidence = {
   scopeStatement:
-    "四职责主动作代表闭环：平台管理员、医疗引擎运营员、临床使用者和审计员各完成一个真实前台主动作，包含服务端状态变化或只读校验、回读和审计证据；不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "四职责主动作代表闭环：平台管理员、医疗引擎运营员、临床使用者和审计员各完成一个真实前台主动作，包含服务端状态变化或只读校验、回读和审计证据；不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   roleActions: [
     {
       role: "platform-admin",
@@ -6368,7 +6389,7 @@ function expectNoFourRoleCoreActionsCoverage(body: Record<string, unknown>) {
 const sixEntryCoreActionsEvidence = {
   matrixCode: "SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE",
   scopeStatement:
-    "六入口核心动作代表闭环：围绕安全与配置、知识审核发布中心、临床规则、消息通知、全真体验沙盘和来源血缘完成真实前台核心动作、服务回读与审计证据；不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "六入口核心动作代表闭环：围绕安全与配置、知识审核发布中心、临床规则、消息通知、全真体验沙盘和来源血缘完成真实前台核心动作、服务回读与审计证据；不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   entryActions: [
     {
       role: "platform-admin",
@@ -6530,7 +6551,7 @@ function sixEntryCoreActionsWithPathOverride(
 const platformAdminEntryCoreActionsEvidence = {
   matrixCode: "PLATFORM_ADMIN_P0_ENTRY_CORE_ACTIONS",
   scopeStatement:
-    "平台管理员 P0 入口核心动作代表矩阵：围绕服务机构、身份来源、系统接入和服务运行保障四个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "平台管理员 P0 入口核心动作代表矩阵：围绕服务机构、身份来源、系统接入和服务运行保障四个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   entryActions: [
     {
       menuKey: "tenant-onboarding",
@@ -6654,7 +6675,7 @@ function stakeholderReadinessEvidence(records = launchReadinessStakeholderRecord
 const implementationGuideEntryCoreActionsEvidence = {
   matrixCode: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
   scopeStatement:
-    "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表 34 个入口全部业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
+    "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表全部产品入口业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
   entryActions: [
     {
       menuKey: "implementation-guide",
@@ -6822,7 +6843,7 @@ function expectNoReportInterpretationS17ConditionCoverage(body: Record<string, u
 const dashboardWorkbenchCoreActionsEvidence = {
   matrixCode: "DASHBOARD_WORKBENCH_CORE_ACTIONS",
   scopeStatement:
-    "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 35 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。",
+    "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表全部产品入口业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。",
   permissionBoundaryEvidence: {
     menuSnapshotVerified: true,
     forbiddenStateAbsent: true,
@@ -6994,7 +7015,7 @@ function expectNoDashboardWorkbenchCoreActionsCoverage(body: Record<string, unkn
 const platformAdminP1EntryCoreActionsEvidence = {
   matrixCode: "PLATFORM_ADMIN_P1_ENTRY_CORE_ACTIONS",
   scopeStatement:
-    "平台管理员 P1 系统运维入口核心动作代表矩阵：围绕运行诊断和国产化适配自检两个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "平台管理员 P1 系统运维入口核心动作代表矩阵：围绕运行诊断和国产化适配自检两个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   entryActions: [
     {
       menuKey: "runtime-diagnostics",
@@ -7023,7 +7044,7 @@ const platformAdminP1EntryCoreActionsEvidence = {
 
 const platformAdminP1SystemOperationsEvidence = {
   scopeStatement:
-    "平台管理员 P1 系统运维入口真实前台证据：只证明运行诊断与国产化适配自检两个入口的代表核心动作，不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "平台管理员 P1 系统运维入口真实前台证据：只证明运行诊断与国产化适配自检两个入口的代表核心动作，不代表 6 个平台管理员入口全部闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   runtimeDiagnosticsEvidence: {
     runtimeStatus: 200,
     operationsStatus: 200,
@@ -7047,7 +7068,7 @@ const platformAdminP1SystemOperationsEvidence = {
 const clinicalEntryCoreActionsEvidence = {
   matrixCode: "CLINICAL_COLLABORATION_ENTRY_CORE_ACTIONS",
   scopeStatement:
-    "临床协同入口核心动作代表矩阵：围绕 MPI、患者路径、CDSS 提醒推荐、协同任务和随访协同五个入口完成真实前台核心动作、服务回读与审计证据；不代表完整临床流程，不代表 34 个入口全部业务动作闭环，不代表完整 S0-S40，不代表完整上线验收。",
+    "临床协同入口核心动作代表矩阵：围绕 MPI、患者路径、CDSS 提醒推荐、协同任务和随访协同五个入口完成真实前台核心动作、服务回读与审计证据；不代表完整临床流程，不代表全部产品入口业务动作闭环，不代表完整 S0-S40，不代表完整上线验收。",
   entryActions: [
     {
       menuKey: "mpi",
@@ -7118,7 +7139,7 @@ const clinicalEntryCoreActionsEvidence = {
 const qualityManagementEntryCoreActionsEvidence = {
   matrixCode: "QUALITY_MANAGEMENT_ENTRY_CORE_ACTIONS",
   scopeStatement:
-    "质量管理入口核心动作代表矩阵：围绕质量风险概览、质量问题与整改、医保审核和评价指标四个入口完成真实前台核心动作、服务回读与审计或来源对象审计链证据；不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，不代表完整 S9-S11，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "质量管理入口核心动作代表矩阵：围绕质量风险概览、质量问题与整改、医保审核和评价指标四个入口完成真实前台核心动作、服务回读与审计或来源对象审计链证据；不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，不代表完整 S9-S11，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   evaluationAssetSupplyChainEvidence: {
     assetType: "EVALUATION",
     assetIdentity: "QC.MATRIX.CLAIM.EVAL",
@@ -7306,47 +7327,12 @@ const qualityManagementEntryCoreActionsEvidence = {
   ],
 };
 
-const requiredMenuEntryCoreActionRows = [
-  "workbench",
-  "tenant-onboarding",
-  "admin-users",
-  "identity-bindings",
-  "admin-audit",
-  "security-baseline",
-  "implementation-guide",
-  "adapter-hub",
-  "system-providers",
-  "runtime-diagnostics",
-  "domestic-check",
-  "notifications",
-  "notification-settings",
-  "knowledge-governance",
-  "runtime-releases",
-  "institution-knowledge",
-  "diagnosis-knowledge",
-  "terminology-mapping",
-  "rule-definitions",
-  "pathway-templates",
-  "provenance",
-  "graph-explore",
-  "knowledge-production",
-  "ai-workflows",
-  "clinical-followup",
-  "sandbox",
-  "qc-dashboard",
-  "qc-alerts",
-  "insurance-audit",
-  "qc-eval-sets",
-  "mpi",
-  "patient-pathways",
-  "cdss-fatigue",
-  "workflow-todos",
-];
+const requiredMenuEntryCoreActionRows = productEntryCatalog.map((entry) => entry.entryCode);
 
 const knowledgeOperationsAssetEntryCoreActionsEvidence = {
   matrixCode: "KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS",
   scopeStatement:
-    "知识运营资产入口族供给链代表矩阵：围绕知识生产、知识审核发布中心、机构生效版本、术语字典、临床规则、临床路径库、机构知识库、诊断知识库、来源与血缘、知识关系和模型能力与安全十一个入口完成真实前台核心动作、服务回读、运行生效、回滚读回与只读边界证据；不代表全知识供给链完整上线，不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表完整 S0-S40，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+    "知识运营资产入口族供给链代表矩阵：围绕知识生产、知识审核发布中心、机构生效版本、术语字典、临床规则、临床路径库、机构知识库、诊断知识库、来源与血缘、知识关系和模型能力与安全十一个入口完成真实前台核心动作、服务回读、运行生效、回滚读回与只读边界证据；不代表全知识供给链完整上线，不代表 13 类医学资产全部生产闭环，不代表所有医学知识和术语体系已收集完成，不代表完整 S0-S40，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
   formalChain: {
     officialProductionInside134: true,
     externalSourcesPreparatoryOnly: true,
@@ -7779,6 +7765,8 @@ function allMenuEntryCoreActionsEvidenceResult(
     clinicalBody?: Record<string, unknown>;
     qualityBody?: Record<string, unknown>;
     knowledgeBody?: Record<string, unknown>;
+    domainFacadeBody?: Record<string, unknown>;
+    domainFacadeTest?: BrowserE2eTestResult;
   } = {},
 ) {
   return buildBrowserE2eLaunchEvidence({
@@ -7897,6 +7885,18 @@ function allMenuEntryCoreActionsEvidenceResult(
             body: JSON.stringify(
               options.knowledgeBody ?? knowledgeOperationsAssetEntryCoreActionsEvidence,
             ),
+          },
+        ],
+      },
+      options.domainFacadeTest ?? {
+        file: "/repo/frontend/e2e/domain-facade-b0-evidence.spec.ts",
+        title: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+        status: "passed",
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence-codes",
+            contentType: "application/json",
+            body: JSON.stringify(options.domainFacadeBody ?? domainFacadeB0Evidence()),
           },
         ],
       },
@@ -21708,18 +21708,18 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
-  it("declares all 34 product menu entry core-action rows only from complete cross-family evidence", () => {
+  it("declares all product entry core-action rows only from complete cross-family evidence", () => {
     const evidence = allMenuEntryCoreActionsEvidenceResult();
 
     expect(evidence.launchCoverage.menuEntryCoreActions?.map((item) => item.code)).toEqual([
-      "ALL_34_MENU_ENTRY_CORE_ACTIONS",
+      "ALL_PRODUCT_ENTRY_CORE_ACTIONS",
     ]);
     expect(evidence.launchCoverage.menuEntryCoreActionRows?.map((item) => item.code)).toEqual(
       requiredMenuEntryCoreActionRows,
     );
   });
 
-  it("does not declare all 34 menu entry rows when one authority menu key is still missing", () => {
+  it("does not declare all product entry rows when one authority menu key is still missing", () => {
     const body = {
       ...qualityManagementEntryCoreActionsEvidence,
       entryActions: qualityManagementEntryCoreActionsEvidence.entryActions.filter(
@@ -21727,6 +21727,60 @@ describe("browser E2E launch coverage evidence", () => {
       ),
     };
     const evidence = allMenuEntryCoreActionsEvidenceResult({ qualityBody: body });
+
+    expect(evidence.launchCoverage.menuEntryCoreActions).toBeUndefined();
+    expect(evidence.launchCoverage.menuEntryCoreActionRows).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "错误文件",
+      test: completeDomainFacadeB0BrowserTest({
+        file: "/repo/frontend/e2e/diagnosis-knowledge-maintenance.spec.ts",
+      }),
+    },
+    {
+      name: "错误标题",
+      test: completeDomainFacadeB0BrowserTest({ title: "运营员只打开领域门面页面" }),
+    },
+    {
+      name: "失败状态",
+      test: completeDomainFacadeB0BrowserTest({ status: "failed" }),
+    },
+    {
+      name: "跳过状态",
+      test: completeDomainFacadeB0BrowserTest({ status: "skipped", outcome: "skipped" }),
+    },
+    {
+      name: "flaky 结果",
+      test: completeDomainFacadeB0BrowserTest({ outcome: "flaky" }),
+    },
+    {
+      name: "错误 content type",
+      test: completeDomainFacadeB0BrowserTest({
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence-codes",
+            contentType: "text/plain",
+            body: JSON.stringify(domainFacadeB0Evidence()),
+          },
+        ],
+      }),
+    },
+    {
+      name: "损坏 JSON 正文",
+      test: completeDomainFacadeB0BrowserTest({
+        attachments: [
+          {
+            name: "domain-facade-b0-evidence-codes",
+            contentType: "application/json",
+            body: "{",
+          },
+        ],
+      }),
+    },
+  ])("does not declare all product entry rows from domain facade proof with $name", ({ test }) => {
+    const evidence = allMenuEntryCoreActionsEvidenceResult({ domainFacadeTest: test });
 
     expect(evidence.launchCoverage.menuEntryCoreActions).toBeUndefined();
     expect(evidence.launchCoverage.menuEntryCoreActionRows).toBeUndefined();
@@ -23753,7 +23807,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...clinicalEntryCoreActionsEvidence,
         scopeStatement:
-          "临床协同入口核心动作代表矩阵，完整临床流程已完成，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+          "临床协同入口核心动作代表矩阵，完整临床流程已完成，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
       },
     },
     {
@@ -23761,7 +23815,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...clinicalEntryCoreActionsEvidence,
         scopeStatement:
-          "临床协同入口核心动作代表矩阵，不代表完整临床流程，不代表 34 个入口全部业务动作闭环，完整 S0-S40 已完成，不代表完整上线验收。",
+          "临床协同入口核心动作代表矩阵，不代表完整临床流程，不代表全部产品入口业务动作闭环，完整 S0-S40 已完成，不代表完整上线验收。",
       },
     },
     {
@@ -23769,7 +23823,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...clinicalEntryCoreActionsEvidence,
         scopeStatement:
-          "临床协同入口核心动作代表矩阵，不代表完整临床流程，不代表 34 个入口全部业务动作闭环，不代表完整 S0-S40，完整上线验收已完成。",
+          "临床协同入口核心动作代表矩阵，不代表完整临床流程，不代表全部产品入口业务动作闭环，不代表完整 S0-S40，完整上线验收已完成。",
       },
     },
   ])("does not declare clinical entry core action coverage when $name", ({ body }) => {
@@ -23854,11 +23908,11 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
-      name: "scope 过度宣称 34 个入口全部业务动作已闭环",
+      name: "scope 过度宣称 全部产品入口业务动作已闭环",
       body: {
         ...platformAdminEntryCoreActionsEvidence,
         scopeStatement:
-          "平台管理员 P0 入口核心动作代表矩阵，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+          "平台管理员 P0 入口核心动作代表矩阵，全部产品入口业务动作闭环已完成，不代表完整上线验收。",
       },
     },
     {
@@ -23929,11 +23983,11 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
-      name: "scope 过度宣称 34 个入口全部业务动作已闭环",
+      name: "scope 过度宣称 全部产品入口业务动作已闭环",
       body: {
         ...sixEntryCoreActionsEvidence,
         scopeStatement:
-          "六入口核心动作代表闭环，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+          "六入口核心动作代表闭环，全部产品入口业务动作闭环已完成，不代表完整上线验收。",
       },
     },
     {
@@ -24077,11 +24131,11 @@ describe("browser E2E launch coverage evidence", () => {
       },
     },
     {
-      name: "scope 过度宣称 34 个入口全部业务动作已闭环",
+      name: "scope 过度宣称 全部产品入口业务动作已闭环",
       body: {
         ...fourRoleCoreActionsEvidence,
         scopeStatement:
-          "四职责主动作代表闭环，34 个入口全部业务动作闭环已完成，不代表完整上线验收。",
+          "四职责主动作代表闭环，全部产品入口业务动作闭环已完成，不代表完整上线验收。",
       },
     },
     {
@@ -24089,7 +24143,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...fourRoleCoreActionsEvidence,
         scopeStatement:
-          "四职责主动作代表闭环，不代表 34 个入口全部业务动作闭环，完整上线验收已完成。",
+          "四职责主动作代表闭环，不代表全部产品入口业务动作闭环，完整上线验收已完成。",
       },
     },
     {
@@ -24097,7 +24151,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...fourRoleCoreActionsEvidence,
         scopeStatement:
-          "四职责主动作代表闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收，完整上线已完成。",
+          "四职责主动作代表闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收，完整上线已完成。",
       },
     },
     {
@@ -24105,7 +24159,7 @@ describe("browser E2E launch coverage evidence", () => {
       body: {
         ...fourRoleCoreActionsEvidence,
         scopeStatement:
-          "四职责主动作代表闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收，全量验收已完成。",
+          "四职责主动作代表闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收，全量验收已完成。",
       },
     },
     {

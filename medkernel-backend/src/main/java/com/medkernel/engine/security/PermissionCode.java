@@ -142,7 +142,7 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：33 主导航 + 1 页头 + 1 个人入口 ─────────
+    // ─── INFRA-05 入口维度：产品入口唯一合同生成的主导航、页头与个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
     MENU_RUNTIME_RELEASES("menu.runtime-releases", PermissionDimension.MENU, Risk.LOW, "查看机构生效版本"),

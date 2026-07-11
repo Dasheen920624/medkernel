@@ -244,7 +244,7 @@ async function attachRuntimeP1Evidence(
     `${JSON.stringify(
       {
         scopeStatement:
-          "平台管理员 P1 系统运维入口真实前台证据：只证明运行诊断与国产化适配自检两个入口的代表核心动作，不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+          "平台管理员 P1 系统运维入口真实前台证据：只证明运行诊断与国产化适配自检两个入口的代表核心动作，不代表 6 个平台管理员入口全部闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收。",
         ...evidence,
         scenarioConditionEvidence: collectPlatformAdminP1ScenarioConditionEvidence(evidence),
       },

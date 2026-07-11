@@ -2666,7 +2666,7 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("entry-core-actions-codes");
     expect(e2eSource).toContain("SIX_ENTRY_CORE_ACTIONS_REPRESENTATIVE");
     expect(e2eSource).toContain("七个路由覆盖六类入口族");
-    expect(e2eSource).toContain("不代表 34 个入口全部业务动作闭环");
+    expect(e2eSource).toContain("不代表全部产品入口业务动作闭环");
     expect(e2eSource).toContain("不代表完整上线验收");
     expect(e2eSource).toContain("getSystemConfigItem(page, securityConfigKey)");
     expect(e2eSource).toContain("locateSystemConfigRow(page, before.displayName)");
@@ -2778,7 +2778,7 @@ describe("E2E credential contract", () => {
     expect(e2eSource).toContain("代表核心动作必须能回读真实审计事件");
     expect(e2eSource).not.toContain("auditVerified: true,");
     expect(e2eSource).not.toContain("完整上线验收已完成");
-    expect(e2eSource).not.toContain("34 个入口全部业务动作已闭环");
+    expect(e2eSource).not.toContain("全部产品入口业务动作已闭环");
   });
 
   it("requires compliance and personal entry coverage to aggregate only the two real action evidence specs", () => {
@@ -3038,7 +3038,7 @@ describe("E2E credential contract", () => {
     expect(source).toContain("dashboard-workbench-core-actions-codes-");
     expect(source).toContain("DASHBOARD_WORKBENCH_CORE_ACTIONS");
     expect(source).toContain("四职责工作台核心动作代表矩阵");
-    expect(source).toContain("不代表 35 个入口全部业务动作闭环");
+    expect(source).toContain("不代表全部产品入口业务动作闭环");
     expect(source).toContain("assertDashboardSourceServices");
     expect(source).toContain("GET /api/v1/security/me");
     expect(source).toContain("GET /api/v1/system/operations");

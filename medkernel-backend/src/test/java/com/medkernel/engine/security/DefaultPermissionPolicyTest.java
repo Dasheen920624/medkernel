@@ -5,8 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,75 +19,9 @@ class DefaultPermissionPolicyTest {
 
     private static final Pattern PERMISSION_LITERAL = Pattern.compile("'([a-z0-9.:-]+)'");
 
-    private static final Map<String, List<String>> CUSTOMER_MENU_SNAPSHOTS = Map.of(
-        "platform-admin", List.of(
-            "workbench",
-            "tenant-onboarding",
-            "admin-users",
-            "identity-bindings",
-            "admin-audit",
-            "security-baseline",
-            "implementation-guide",
-            "adapter-hub",
-            "system-providers",
-            "runtime-diagnostics",
-            "domestic-check",
-            "notifications",
-            "notification-settings"),
-        "engine-operator", List.of(
-            "workbench",
-            "knowledge-governance",
-            "runtime-releases",
-            "institution-knowledge",
-            "diagnosis-knowledge",
-            "terminology-mapping",
-            "domain-facade-b0-evidence",
-            "rule-definitions",
-            "pathway-templates",
-            "provenance",
-            "graph-explore",
-            "knowledge-production",
-            "ai-workflows",
-            "clinical-followup",
-            "sandbox",
-            "qc-dashboard",
-            "qc-alerts",
-            "insurance-audit",
-            "qc-eval-sets",
-            "admin-audit",
-            "notifications",
-            "notification-settings"),
-        "clinical-user", List.of(
-            "workbench",
-            "mpi",
-            "patient-pathways",
-            "cdss-fatigue",
-            "workflow-todos",
-            "clinical-followup",
-            "sandbox",
-            "notifications",
-            "notification-settings"),
-        "auditor", List.of(
-            "workbench",
-            "provenance",
-            "admin-audit",
-            "security-baseline",
-            "notifications",
-            "notification-settings")
-    );
-
     @Test
     void fourAssignableRolesJointlyCoverEveryExistingProductEntry() {
-        Set<String> assignableRoleCodes = Stream.of(RoleCode.values())
-            .filter(RoleCode::customerAssignable)
-            .map(RoleCode::code)
-            .collect(Collectors.toSet());
-
-        assertThat(assignableRoleCodes)
-            .containsExactlyInAnyOrderElementsOf(CUSTOMER_MENU_SNAPSHOTS.keySet());
-
-        Set<String> coveredMenuKeys = CUSTOMER_MENU_SNAPSHOTS.keySet().stream()
-            .map(DefaultPermissionPolicyTest::role)
+        Set<String> coveredMenuKeys = assignableRoles().stream()
             .flatMap(role -> MenuPermissionCatalog.menuKeysFor(
                 DefaultPermissionPolicy.permissionsOf(role)).stream())
             .collect(Collectors.toSet());
@@ -124,11 +56,27 @@ class DefaultPermissionPolicyTest {
 
     @Test
     void eachRoleMenuMatchesItsCompleteProductResponsibility() {
-        CUSTOMER_MENU_SNAPSHOTS.forEach((roleCode, expectedMenuKeys) ->
+        assignableRoles().forEach(role -> {
+            var expectedMenuKeys = MenuPermissionCatalog.allMenus().stream()
+                .filter(menu -> menu.responsibilityRoles().contains(role))
+                .map(MenuPermissionCatalog.MenuPermission::menuKey)
+                .toList();
             assertThat(MenuPermissionCatalog.menuKeysFor(
-                DefaultPermissionPolicy.permissionsOf(role(roleCode))))
-                .as("%s 默认菜单快照", roleCode)
-                .containsExactlyElementsOf(expectedMenuKeys));
+                DefaultPermissionPolicy.permissionsOf(role)))
+                .as("%s 默认菜单必须匹配产品入口合同职责", role.code())
+                .containsExactlyElementsOf(expectedMenuKeys);
+        });
+    }
+
+    @Test
+    void assignableRoleMenusAreDerivedAtRuntimeFromProductEntryCatalog() throws IOException {
+        String source = Files.readString(Path.of(
+            "src/main/java/com/medkernel/engine/security/DefaultPermissionPolicy.java"));
+
+        assertThat(source)
+            .contains("MenuPermissionCatalog.allMenus()")
+            .doesNotContain("MENU_")
+            .doesNotContain("withMenus(");
     }
 
     @Test
@@ -221,9 +169,7 @@ class DefaultPermissionPolicyTest {
 
     @Test
     void menuEntriesCarryTheirRequiredDomainReadOrExecutionPermission() {
-        CUSTOMER_MENU_SNAPSHOTS.keySet().stream()
-            .map(DefaultPermissionPolicyTest::role)
-            .forEach(role -> {
+        assignableRoles().forEach(role -> {
                 var permissions = DefaultPermissionPolicy.permissionsOf(role);
                 if (permissions.contains(PermissionCode.MENU_PATHWAY_TEMPLATES)
                         || permissions.contains(PermissionCode.MENU_PATIENT_PATHWAYS)) {
@@ -241,7 +187,7 @@ class DefaultPermissionPolicyTest {
                 if (permissions.contains(PermissionCode.MENU_CLINICAL_FOLLOWUP)) {
                     assertThat(permissions).contains(PermissionCode.FOLLOWUP_READ);
                 }
-            });
+        });
     }
 
     @Test
@@ -249,11 +195,16 @@ class DefaultPermissionPolicyTest {
         assertThat(DefaultPermissionPolicy.permissionsOf(role("system-superadmin")))
             .containsExactlyInAnyOrderElementsOf(EnumSet.allOf(PermissionCode.class));
 
-        CUSTOMER_MENU_SNAPSHOTS.keySet().stream()
-            .map(DefaultPermissionPolicyTest::role)
-            .forEach(role -> assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 不得获得系统紧急权限", role.code())
-                .doesNotContain(PermissionCode.ENV_EMERGENCY));
+        assignableRoles().forEach(role ->
+            assertThat(DefaultPermissionPolicy.permissionsOf(role))
+            .as("%s 不得获得系统紧急权限", role.code())
+            .doesNotContain(PermissionCode.ENV_EMERGENCY));
+    }
+
+    private static Set<RoleCode> assignableRoles() {
+        return Stream.of(RoleCode.values())
+            .filter(RoleCode::customerAssignable)
+            .collect(Collectors.toSet());
     }
 
     private static RoleCode role(String code) {

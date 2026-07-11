@@ -7,6 +7,7 @@ import {
   buildLaunchCoverageEvidence,
   readLaunchCoverageAuditConfig,
 } from "./launch-coverage-audit.mjs";
+import { PRODUCT_ENTRY_CODES } from "./full-system-rehearsal-lib.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
   new URL(
@@ -226,56 +227,21 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   );
   assert.deepEqual(evidence.coverage.menuEntryCoreActions, [
     {
-      code: "ALL_34_MENU_ENTRY_CORE_ACTIONS",
+      code: "ALL_PRODUCT_ENTRY_CORE_ACTIONS",
       status: "PASSED",
       evidenceStage: "browser-e2e",
       evidencePath:
         "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
-        "launchCoverage.menuEntryCoreActions.ALL_34_MENU_ENTRY_CORE_ACTIONS",
-      observedCode: "ALL_34_MENU_ENTRY_CORE_ACTIONS",
+        "launchCoverage.menuEntryCoreActions.ALL_PRODUCT_ENTRY_CORE_ACTIONS",
+      observedCode: "ALL_PRODUCT_ENTRY_CORE_ACTIONS",
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
     },
   ]);
   assert.deepEqual(
     evidence.coverage.menuEntryCoreActionRows.map((item) => item.code),
-    [
-      "workbench",
-      "tenant-onboarding",
-      "admin-users",
-      "identity-bindings",
-      "admin-audit",
-      "security-baseline",
-      "implementation-guide",
-      "adapter-hub",
-      "system-providers",
-      "runtime-diagnostics",
-      "domestic-check",
-      "notifications",
-      "notification-settings",
-      "knowledge-governance",
-      "runtime-releases",
-      "institution-knowledge",
-      "diagnosis-knowledge",
-      "terminology-mapping",
-      "rule-definitions",
-      "pathway-templates",
-      "provenance",
-      "graph-explore",
-      "knowledge-production",
-      "ai-workflows",
-      "clinical-followup",
-      "sandbox",
-      "qc-dashboard",
-      "qc-alerts",
-      "insurance-audit",
-      "qc-eval-sets",
-      "mpi",
-      "patient-pathways",
-      "cdss-fatigue",
-      "workflow-todos",
-    ],
+    PRODUCT_ENTRY_CODES,
   );
   assert.deepEqual(evidence.coverage.complianceWorkbenchPersonalEntryMatrix, [
     {
@@ -657,7 +623,9 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
-        readJson: readKnownEvidence(missingNursingAnesthesiaTransfusionConsumer),
+        readJson: readKnownEvidence(
+          missingNursingAnesthesiaTransfusionConsumer,
+        ),
       }),
     /第三方系统族真实消费者代表切片.*NURSING_ANESTHESIA_TRANSFUSION_ICU.*缺少前置阶段证据/u,
   );
@@ -793,7 +761,7 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
       buildLaunchCoverageEvidence(auditConfig(), {
         readJson: readKnownEvidence(missingMenuEntry),
       }),
-    /34 个产品入口真实核心动作行.*insurance-audit.*缺少前置阶段证据/u,
+    /产品入口合同真实核心动作行.*insurance-audit.*缺少前置阶段证据/u,
   );
 });
 
@@ -1066,41 +1034,10 @@ function completeStageEvidence(options = {}) {
     "clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
     "qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE",
     "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
-    "menuEntryCoreActions:ALL_34_MENU_ENTRY_CORE_ACTIONS",
-    "menuEntryCoreActionRows:workbench",
-    "menuEntryCoreActionRows:tenant-onboarding",
-    "menuEntryCoreActionRows:admin-users",
-    "menuEntryCoreActionRows:identity-bindings",
-    "menuEntryCoreActionRows:admin-audit",
-    "menuEntryCoreActionRows:security-baseline",
-    "menuEntryCoreActionRows:implementation-guide",
-    "menuEntryCoreActionRows:adapter-hub",
-    "menuEntryCoreActionRows:system-providers",
-    "menuEntryCoreActionRows:runtime-diagnostics",
-    "menuEntryCoreActionRows:domestic-check",
-    "menuEntryCoreActionRows:notifications",
-    "menuEntryCoreActionRows:notification-settings",
-    "menuEntryCoreActionRows:knowledge-governance",
-    "menuEntryCoreActionRows:runtime-releases",
-    "menuEntryCoreActionRows:institution-knowledge",
-    "menuEntryCoreActionRows:diagnosis-knowledge",
-    "menuEntryCoreActionRows:terminology-mapping",
-    "menuEntryCoreActionRows:rule-definitions",
-    "menuEntryCoreActionRows:pathway-templates",
-    "menuEntryCoreActionRows:provenance",
-    "menuEntryCoreActionRows:graph-explore",
-    "menuEntryCoreActionRows:knowledge-production",
-    "menuEntryCoreActionRows:ai-workflows",
-    "menuEntryCoreActionRows:clinical-followup",
-    "menuEntryCoreActionRows:sandbox",
-    "menuEntryCoreActionRows:qc-dashboard",
-    "menuEntryCoreActionRows:qc-alerts",
-    "menuEntryCoreActionRows:insurance-audit",
-    "menuEntryCoreActionRows:qc-eval-sets",
-    "menuEntryCoreActionRows:mpi",
-    "menuEntryCoreActionRows:patient-pathways",
-    "menuEntryCoreActionRows:cdss-fatigue",
-    "menuEntryCoreActionRows:workflow-todos",
+    "menuEntryCoreActions:ALL_PRODUCT_ENTRY_CORE_ACTIONS",
+    ...PRODUCT_ENTRY_CODES.map(
+      (entryCode) => `menuEntryCoreActionRows:${entryCode}`,
+    ),
     "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
     "complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE",
     "complianceWorkbenchPersonalEntryRows:AUDIT_EVIDENCE_EXPORT_VERIFY",

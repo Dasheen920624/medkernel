@@ -2,14 +2,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { productEntryCatalog } from "@/shared/contracts/productEntryCatalog.generated";
 import { menuSections } from "./menu";
 import { routeMetas } from "./routes";
 
 const repositoryRoot = resolve(process.cwd(), "..");
 const catalogPath = resolve(repositoryRoot, "docs/audit/product-function-catalog.md");
-const menuCatalogPath = resolve(
+const generatedMenuCatalogPath = resolve(
   repositoryRoot,
-  "medkernel-backend/src/main/java/com/medkernel/engine/security/MenuPermissionCatalog.java",
+  "medkernel-backend/src/main/resources/catalog/menu-permission-catalog.generated.json",
 );
 const exporterPath = resolve(repositoryRoot, "scripts/audit/export-product-capabilities.mjs");
 
@@ -28,24 +29,30 @@ function readCatalog(): string {
 }
 
 function extractMenuKeys(): string[] {
-  const javaSource = readFileSync(menuCatalogPath, "utf8");
-  return Array.from(javaSource.matchAll(/menu\("[^"]+",\s*"([^"]+)"/g), (match) => match[1]);
+  return extractBackendMenuEntries().map((entry) => entry.menuKey);
 }
 
 function extractBackendMenuEntries() {
-  const javaSource = readFileSync(menuCatalogPath, "utf8");
-  return Array.from(
-    javaSource.matchAll(
-      /menu\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*([A-Z0-9_]+),\s*MenuPlacement\.([A-Z]+)\)/g,
-    ),
-    (match) => ({
-      sectionKey: match[1],
-      menuKey: match[2],
-      label: match[3],
-      permission: match[4],
-      placement: match[5].toLowerCase(),
-    }),
-  );
+  const generated = JSON.parse(readFileSync(generatedMenuCatalogPath, "utf8")) as {
+    menus: Array<{
+      sectionKey: string;
+      menuKey: string;
+      displayName: string;
+      permissionCode: string;
+      placement: string;
+      route: string;
+      responsibilityRoles: string[];
+    }>;
+  };
+  return generated.menus.map((entry) => ({
+    sectionKey: entry.sectionKey,
+    menuKey: entry.menuKey,
+    label: entry.displayName,
+    permission: entry.permissionCode,
+    placement: entry.placement.toLowerCase(),
+    route: entry.route,
+    responsibilityRoles: entry.responsibilityRoles,
+  }));
 }
 
 function extractCapabilityDecisions(catalog: string): Array<{ id: string; decision: string }> {
@@ -81,22 +88,37 @@ describe("product function catalog", () => {
 
   it("keeps frontend routes and backend navigation catalog in one exact contract", () => {
     const backendEntries = extractBackendMenuEntries();
+    const contractEntries = productEntryCatalog.map((entry) => ({
+      sectionKey: entry.sectionCode,
+      menuKey: entry.entryCode,
+      label: entry.displayName,
+      permission: `menu.${entry.entryCode}`,
+      placement: entry.placement,
+      route: entry.route,
+      responsibilityRoles: [...entry.responsibilityRoles],
+    }));
     const frontendEntries = routeMetas
       .filter((route) => route.requireAuth && route.menuKey && route.menuLabel)
-      .map((route) => {
-        const menuKey = route.menuKey as string;
-        return {
-          sectionKey: route.sectionKey,
-          menuKey,
-          label: route.menuLabel,
-          permission: `MENU_${menuKey.replace(/-/g, "_").toUpperCase()}`,
-          placement: route.placement,
-        };
-      });
+      .map((route) => ({
+        sectionKey: route.sectionKey,
+        menuKey: route.menuKey,
+        label: route.menuLabel,
+        permission: `menu.${route.menuKey}`,
+        placement: route.placement,
+        route: route.path,
+        responsibilityRoles:
+          contractEntries.find((entry) => entry.menuKey === route.menuKey)?.responsibilityRoles ??
+          [],
+      }));
 
-    expect(backendEntries).toHaveLength(35);
-    expect(frontendEntries).toHaveLength(35);
-    expect(backendEntries).toEqual(expect.arrayContaining(frontendEntries));
+    expect(backendEntries).toEqual(contractEntries);
+    expect(frontendEntries).toHaveLength(contractEntries.length);
+    const frontendEntriesByMenuKey = new Map(
+      frontendEntries.map((entry) => [entry.menuKey, entry]),
+    );
+    expect(contractEntries.map((entry) => frontendEntriesByMenuKey.get(entry.menuKey))).toEqual(
+      contractEntries,
+    );
     expect(
       backendEntries.filter((entry) => entry.placement === "primary").map((entry) => entry.menuKey),
     ).toEqual(menuSections.flatMap((section) => section.items.map((item) => item.key)));

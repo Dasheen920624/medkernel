@@ -1,26 +1,23 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  productEntryCatalog,
+  productEntryCatalogContract,
+} from "@/shared/contracts/productEntryCatalog.generated";
 import { ROLE_OPTIONS } from "./roleCatalog";
 import { PRODUCT_ROLE_JOURNEYS } from "./productRoleJourneys";
 import { findRouteByPath } from "./routes";
 
-function backendDefaultMenuSnapshots(): Map<string, string[]> {
-  const source = readFileSync(
-    resolve(
-      process.cwd(),
-      "../medkernel-backend/src/test/java/com/medkernel/engine/security/DefaultPermissionPolicyTest.java",
-    ),
-    "utf8",
+function productEntryRoleSnapshots(): Map<string, string[]> {
+  return new Map(
+    productEntryCatalogContract.responsibilityRoles.map((roleCode) => [
+      roleCode,
+      productEntryCatalog
+        .filter((entry) => (entry.responsibilityRoles as readonly string[]).includes(roleCode))
+        .map((entry) => entry.entryCode),
+    ]),
   );
-  const snapshots = new Map<string, string[]>();
-  const entryPattern = /"([a-z-]+)", List\.of\(([\s\S]*?)\)(?=,\n\s*"[a-z-]+"|\n\s*\);)/g;
-  for (const match of source.matchAll(entryPattern)) {
-    const roleCode = match[1];
-    const menuKeys = Array.from(match[2].matchAll(/"([^"]+)"/g), (quoted) => quoted[1]);
-    snapshots.set(roleCode, menuKeys);
-  }
-  return snapshots;
 }
 
 function reportMenuSnapshots(report: string): Map<string, string[]> {
@@ -131,15 +128,15 @@ describe("product role journeys", () => {
     });
   });
 
-  it("keeps the complete menu snapshots synchronized with the backend permission policy", () => {
+  it("keeps the complete menu snapshots synchronized with the product entry contract", () => {
     const report = readFileSync(
       resolve(process.cwd(), "../docs/audit/product-role-journeys.md"),
       "utf8",
     );
     const reportSnapshots = reportMenuSnapshots(report);
-    const backendSnapshots = backendDefaultMenuSnapshots();
+    const contractSnapshots = productEntryRoleSnapshots();
 
-    expect(reportSnapshots).toEqual(backendSnapshots);
+    expect(reportSnapshots).toEqual(contractSnapshots);
   });
 
   it("keeps the role journey E2E gate strict about browser and server errors", () => {

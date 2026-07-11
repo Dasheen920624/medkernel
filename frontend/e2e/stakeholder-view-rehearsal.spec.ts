@@ -1717,7 +1717,7 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
           {
             matrixCode: "IMPLEMENTATION_GUIDE_SERVICE_READINESS_ACTIONS",
             scopeStatement:
-              "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表 34 个入口全部业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
+              "实施与验收入口代表动作矩阵：实施工程师从实施与验收页读取当前机构实施步骤和开通就绪状态，并进入系统接入生成上线前数据质量报告；不代表全部产品入口业务动作闭环，不代表第三方系统族全部真实消费者完成，不代表 134 清库重部署或完整交付验收。",
             entryActions: [implementationGuideEvidence],
             scenarioConditionEvidence: [
               {

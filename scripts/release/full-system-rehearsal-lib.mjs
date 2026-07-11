@@ -11,6 +11,22 @@ const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+const PRODUCT_ENTRY_CATALOG_PATH = path.join(
+  REPO_ROOT,
+  "docs/contracts/product/product-entry-catalog.v1.json",
+);
+const productEntryCatalog = JSON.parse(
+  readFileSync(PRODUCT_ENTRY_CATALOG_PATH, "utf8"),
+);
+export const PRODUCT_ENTRY_CODES = Object.freeze(
+  productEntryCatalog.entries.map((entry) => entry.entryCode),
+);
+if (
+  PRODUCT_ENTRY_CODES.length === 0 ||
+  new Set(PRODUCT_ENTRY_CODES).size !== PRODUCT_ENTRY_CODES.length
+) {
+  throw new Error("产品入口唯一合同为空或入口编码重复");
+}
 const TARGET_ENVIRONMENT_REHEARSAL_CHECKS = Object.freeze([
   "BACKUP_RESTORE_BEFORE_CLEAN",
   "CLEAN_DATABASE_V1_ONLY",
@@ -236,47 +252,12 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
     codes: ["KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE"],
   },
   menuEntryCoreActions: {
-    label: "34 个产品入口真实核心动作总账",
-    codes: ["ALL_34_MENU_ENTRY_CORE_ACTIONS"],
+    label: "产品入口合同真实核心动作总账",
+    codes: ["ALL_PRODUCT_ENTRY_CORE_ACTIONS"],
   },
   menuEntryCoreActionRows: {
-    label: "34 个产品入口真实核心动作行",
-    codes: [
-      "workbench",
-      "tenant-onboarding",
-      "admin-users",
-      "identity-bindings",
-      "admin-audit",
-      "security-baseline",
-      "implementation-guide",
-      "adapter-hub",
-      "system-providers",
-      "runtime-diagnostics",
-      "domestic-check",
-      "notifications",
-      "notification-settings",
-      "knowledge-governance",
-      "runtime-releases",
-      "institution-knowledge",
-      "diagnosis-knowledge",
-      "terminology-mapping",
-      "rule-definitions",
-      "pathway-templates",
-      "provenance",
-      "graph-explore",
-      "knowledge-production",
-      "ai-workflows",
-      "clinical-followup",
-      "sandbox",
-      "qc-dashboard",
-      "qc-alerts",
-      "insurance-audit",
-      "qc-eval-sets",
-      "mpi",
-      "patient-pathways",
-      "cdss-fatigue",
-      "workflow-todos",
-    ],
+    label: "产品入口合同真实核心动作行",
+    codes: [...PRODUCT_ENTRY_CODES],
   },
   knowledgeDomains: {
     label: "11 个知识内容分类",
