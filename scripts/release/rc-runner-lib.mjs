@@ -647,12 +647,16 @@ async function runGate({
   const nativeLog = [];
   let readinessBefore;
   if (gateId === "BROWSER_E2E") {
-    readinessBefore = await readiness(readinessUrl, {
-      runId,
-      candidateCommit,
-      phase: "BEFORE_E2E",
-      clock,
-    });
+    readinessBefore = await waitForCandidateRuntimeProbe(
+      readiness,
+      readinessUrl,
+      {
+        runId,
+        candidateCommit,
+        phase: "BEFORE_E2E",
+        clock,
+      },
+    );
   }
   const extraEnv =
     gateId === "BROWSER_E2E"
@@ -703,12 +707,16 @@ async function runGate({
       path: relative(bundleRoot, summaryPath),
     });
   } else if (gateId === "BROWSER_E2E") {
-    const readinessAfter = await readiness(readinessUrl, {
-      runId,
-      candidateCommit,
-      phase: "AFTER_E2E",
-      clock,
-    });
+    const readinessAfter = await waitForCandidateRuntimeProbe(
+      readiness,
+      readinessUrl,
+      {
+        runId,
+        candidateCommit,
+        phase: "AFTER_E2E",
+        clock,
+      },
+    );
     const sourceReportPath = path.join(
       runRoot,
       "browser-e2e/report/playwright-results.json",
@@ -991,6 +999,52 @@ export async function readCandidateRuntimeProbe(
   };
 }
 
+/**
+ * 对候选运行时的传输瞬断做有界条件重试；身份或内容校验失败立即阻断。
+ */
+export async function waitForCandidateRuntimeProbe(
+  readiness,
+  url,
+  probeOptions,
+  waitOptions = {},
+) {
+  if (typeof readiness !== "function") {
+    throw new Error("候选运行时 readiness 探针必须是函数");
+  }
+  const timeoutMs = requirePositiveInteger(
+    waitOptions.timeoutMs ?? 30_000,
+    "候选运行时探针 timeoutMs",
+  );
+  const intervalMs = requirePositiveInteger(
+    waitOptions.intervalMs ?? 250,
+    "候选运行时探针 intervalMs",
+  );
+  let lastProbeError;
+  try {
+    return await waitForCondition(
+      async () => {
+        try {
+          return await readiness(url, probeOptions);
+        } catch (error) {
+          if (!isRetryableRuntimeProbeError(error)) throw error;
+          lastProbeError = error;
+          return false;
+        }
+      },
+      `候选运行时 ${probeOptions?.phase ?? "UNKNOWN"} 传输探针稳定`,
+      { timeoutMs, intervalMs },
+    );
+  } catch (error) {
+    if (error?.code !== "CONDITION_TIMEOUT" || !lastProbeError) throw error;
+    const exhausted = new Error(
+      `候选运行时 ${probeOptions?.phase ?? "UNKNOWN"} 传输探针在 ${timeoutMs}ms 内未稳定；最后探针错误：${formatErrorChain(lastProbeError)}`,
+      { cause: lastProbeError },
+    );
+    exhausted.code = "RUNTIME_PROBE_RETRY_EXHAUSTED";
+    throw exhausted;
+  }
+}
+
 export function deriveRuntimeIdentityUrl(readinessUrl) {
   const normalized = normalizeReadinessUrl(readinessUrl);
   const url = new URL(normalized);
@@ -1012,12 +1066,15 @@ async function requestJsonRaw(url, label) {
   try {
     response = await fetch(url, {
       signal: AbortSignal.timeout(15_000),
-      headers: { accept: "application/json" },
+      headers: { accept: "application/json", connection: "close" },
     });
   } catch (error) {
-    throw new Error(
-      `${label} 请求失败：${error instanceof Error ? error.message : String(error)}`,
+    const transportError = new Error(
+      `${label} 请求失败：${formatErrorChain(error)}`,
+      { cause: error },
     );
+    transportError.code = "RUNTIME_PROBE_TRANSPORT";
+    throw transportError;
   }
   const body = await response.text();
   if (Buffer.byteLength(body, "utf8") > 64 * 1024) {
@@ -1138,9 +1195,46 @@ async function waitForCondition(
     if (lastValue) return lastValue;
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
-  throw new Error(
+  const error = new Error(
     `等待“${description}”超时（${timeoutMs}ms），当前值：${JSON.stringify(lastValue)}`,
   );
+  error.code = "CONDITION_TIMEOUT";
+  throw error;
+}
+
+function isRetryableRuntimeProbeError(error) {
+  const retryableCodes = new Set([
+    "RUNTIME_PROBE_TRANSPORT",
+    "ECONNABORTED",
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_SOCKET",
+  ]);
+  let current = error;
+  for (let depth = 0; current && depth < 6; depth += 1) {
+    if (retryableCodes.has(current.code)) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+function formatErrorChain(error) {
+  const parts = [];
+  let current = error;
+  for (let depth = 0; current && depth < 6; depth += 1) {
+    const message =
+      current instanceof Error ? current.message : String(current);
+    const code =
+      typeof current === "object" && current && typeof current.code === "string"
+        ? `[${current.code}] `
+        : "";
+    parts.push(`${code}${message}`);
+    current =
+      typeof current === "object" && current ? current.cause : undefined;
+  }
+  return parts.join(" <- ");
 }
 
 function isPortOpen(host, port) {
@@ -1374,6 +1468,13 @@ function requireText(value, label) {
     throw new Error(`${label} 不能为空`);
   }
   return value.trim();
+}
+
+function requirePositiveInteger(value, label) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${label} 必须是正整数`);
+  }
+  return value;
 }
 
 function now(clock) {

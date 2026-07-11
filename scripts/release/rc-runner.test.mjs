@@ -26,6 +26,7 @@ import {
   stopCandidateRuntime,
   summarizePlaywrightReport,
   summarizeSurefireReports,
+  waitForCandidateRuntimeProbe,
 } from "./rc-runner-lib.mjs";
 
 const PROJECT_ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -352,7 +353,9 @@ test("运行器拒绝带忽略构建残留的伪干净候选起跑", async () =>
 test("候选运行探针同时校验 readiness 与 JAR 内嵌提交身份", async (context) => {
   const candidateCommit = "a".repeat(40);
   let reportedCommit = candidateCommit;
+  const observedConnections = [];
   const server = createServer((request, response) => {
+    observedConnections.push(request.headers.connection);
     response.setHeader("content-type", "application/json");
     if (request.url === "/medkernel/actuator/health/readiness") {
       response.end(`${JSON.stringify({ status: "UP" })}\n`);
@@ -400,6 +403,7 @@ test("候选运行探针同时校验 readiness 与 JAR 内嵌提交身份", asyn
   assert.equal(probe.check.buildBound, true);
   assert.equal(probe.check.buildCommit, candidateCommit);
   assert.match(probe.check.identitySha256, /^[a-f0-9]{64}$/u);
+  assert.deepEqual(observedConnections, ["close", "close"]);
 
   reportedCommit = "b".repeat(40);
   await assert.rejects(
@@ -409,6 +413,84 @@ test("候选运行探针同时校验 readiness 与 JAR 内嵌提交身份", asyn
       phase: "AFTER_E2E",
     }),
     /运行时身份.*候选提交不一致/u,
+  );
+});
+
+test("候选运行稳定探针只重试传输瞬断并保留最后错误因果", async () => {
+  const candidateCommit = "d".repeat(40);
+  const expected = { check: { candidateCommit } };
+  let attempts = 0;
+  const transientReadiness = async () => {
+    attempts += 1;
+    if (attempts < 3) {
+      const socketError = Object.assign(new Error("另一端关闭连接"), {
+        code: "UND_ERR_SOCKET",
+      });
+      throw Object.assign(
+        new Error("readiness AFTER_E2E 请求失败：fetch failed"),
+        {
+          code: "RUNTIME_PROBE_TRANSPORT",
+          cause: socketError,
+        },
+      );
+    }
+    return expected;
+  };
+
+  assert.equal(
+    await waitForCandidateRuntimeProbe(
+      transientReadiness,
+      "http://127.0.0.1:18080/medkernel/actuator/health/readiness",
+      {
+        runId: "rc-probe-20260711-002",
+        candidateCommit,
+        phase: "AFTER_E2E",
+      },
+      { timeoutMs: 100, intervalMs: 1 },
+    ),
+    expected,
+  );
+  assert.equal(attempts, 3);
+
+  attempts = 0;
+  await assert.rejects(
+    waitForCandidateRuntimeProbe(
+      async () => {
+        attempts += 1;
+        throw new Error("运行时身份 AFTER_E2E 候选提交不一致");
+      },
+      "http://127.0.0.1:18080/medkernel/actuator/health/readiness",
+      {
+        runId: "rc-probe-20260711-003",
+        candidateCommit,
+        phase: "AFTER_E2E",
+      },
+      { timeoutMs: 100, intervalMs: 1 },
+    ),
+    /候选提交不一致/u,
+  );
+  assert.equal(attempts, 1);
+
+  await assert.rejects(
+    waitForCandidateRuntimeProbe(
+      async () => {
+        const socketError = Object.assign(new Error("陈旧连接已关闭"), {
+          code: "UND_ERR_SOCKET",
+        });
+        throw Object.assign(new Error("fetch failed"), {
+          code: "RUNTIME_PROBE_TRANSPORT",
+          cause: socketError,
+        });
+      },
+      "http://127.0.0.1:18080/medkernel/actuator/health/readiness",
+      {
+        runId: "rc-probe-20260711-004",
+        candidateCommit,
+        phase: "AFTER_E2E",
+      },
+      { timeoutMs: 5, intervalMs: 1 },
+    ),
+    /AFTER_E2E.*最后探针错误.*RUNTIME_PROBE_TRANSPORT.*UND_ERR_SOCKET/su,
   );
 });
 
