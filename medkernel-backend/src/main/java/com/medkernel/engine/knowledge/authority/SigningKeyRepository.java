@@ -22,4 +22,9 @@ public interface SigningKeyRepository extends Repository<SigningKey, Long> {
         String authorityId,
         String issuerInstanceId
     );
+
+    List<SigningKey> findByTenantIdAndAuthorityIdOrderByCreatedAtAscIdAsc(
+        String tenantId,
+        String authorityId
+    );
 }
