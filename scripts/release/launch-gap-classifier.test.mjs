@@ -143,6 +143,85 @@ test("缺口 ID 与 LAUNCH/证据键组合不得重复且每项字段必须完�
   );
 });
 
+test("IMPLEMENTATION 缺口必须提供完整可执行修复计划", () => {
+  for (const field of [
+    "failingTest",
+    "implementationPath",
+    "consumerReadback",
+    "auditReadback",
+  ]) {
+    const remediationPlan = implementationRemediationPlan();
+    delete remediationPlan[field];
+    assert.throws(
+      () => classifyLaunchGaps([launchGap({ remediationPlan })]),
+      new RegExp(`IMPLEMENTATION.*remediationPlan.*${field}.*不能为空`, "u"),
+    );
+  }
+
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        launchGap({
+          remediationPlan: implementationRemediationPlan({
+            implementationPath: "scripts/release/not-the-owner.mjs",
+          }),
+        }),
+      ]),
+    /implementationPath.*必须与 ownerPath 一致/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        launchGap({
+          remediationPlan: implementationRemediationPlan({
+            consumerReadback: true,
+          }),
+        }),
+      ]),
+    /consumerReadback.*不能为空/u,
+  );
+});
+
+test("IMPLEMENTATION 失败测试可指向仓内 Java、Node 或部署测试", () => {
+  const result = classifyLaunchGaps([
+    launchGap({
+      remediationPlan: implementationRemediationPlan({
+        failingTest: "deploy/onprem/tests/validate-medkernel-deploy.sh",
+      }),
+    }),
+  ]);
+  assert.equal(
+    result.gaps[0].remediationPlan.failingTest,
+    "deploy/onprem/tests/validate-medkernel-deploy.sh",
+  );
+});
+
+test("IMPLEMENTATION 修复计划保持缺口开放，移除已修复项后重跑归零", () => {
+  const openResult = classifyLaunchGaps([launchGap()]);
+  assert.deepEqual(openResult.implementationClosure, {
+    evidenceKey: "launch.gap.implementation.closed",
+    status: "OPEN",
+    remainingGapCount: 1,
+    remainingGapIds: ["GAP-LAUNCH-01-IMPLEMENTATION"],
+  });
+  assert.deepEqual(openResult.gaps[0].remediationPlan, {
+    failingTest: "scripts/release/launch-gap-classifier.test.mjs",
+    implementationPath:
+      "medkernel-backend/src/main/java/com/medkernel/LaunchService.java",
+    consumerReadback: "launch.runtime.implementation.consumer-readback",
+    auditReadback: "launch.runtime.implementation.audit-readback",
+  });
+
+  const closedResult = classifyLaunchGaps([]);
+  assert.deepEqual(closedResult.implementationClosure, {
+    evidenceKey: "launch.gap.implementation.closed",
+    status: "CLOSED",
+    remainingGapCount: 0,
+    remainingGapIds: [],
+  });
+  assert.equal(closedResult.classificationCounts.IMPLEMENTATION, 0);
+});
+
 test("无缺口时输出四类严格归零结果", () => {
   assert.deepEqual(classifyLaunchGaps([]), {
     schemaVersion: "1.0.0",
@@ -155,12 +234,18 @@ test("无缺口时输出四类严格归零结果", () => {
       DATA: 0,
       ENVIRONMENT: 0,
     },
+    implementationClosure: {
+      evidenceKey: "launch.gap.implementation.closed",
+      status: "CLOSED",
+      remainingGapCount: 0,
+      remainingGapIds: [],
+    },
     gaps: [],
   });
 });
 
 function launchGap(overrides = {}) {
-  return {
+  const gap = {
     gapId: "GAP-LAUNCH-01-IMPLEMENTATION",
     launchCode: "LAUNCH-01",
     evidenceKey: "launch.runtime.implementation",
@@ -169,6 +254,25 @@ function launchGap(overrides = {}) {
     summary: "缺少可执行的运行实现",
     ownerPath:
       "medkernel-backend/src/main/java/com/medkernel/LaunchService.java",
+    remediationPlan: implementationRemediationPlan(),
+    ...overrides,
+  };
+  if (
+    gap.classification !== "IMPLEMENTATION" &&
+    !Object.hasOwn(overrides, "remediationPlan")
+  ) {
+    delete gap.remediationPlan;
+  }
+  return gap;
+}
+
+function implementationRemediationPlan(overrides = {}) {
+  return {
+    failingTest: "scripts/release/launch-gap-classifier.test.mjs",
+    implementationPath:
+      "medkernel-backend/src/main/java/com/medkernel/LaunchService.java",
+    consumerReadback: "launch.runtime.implementation.consumer-readback",
+    auditReadback: "launch.runtime.implementation.audit-readback",
     ...overrides,
   };
 }

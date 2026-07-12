@@ -1,4 +1,6 @@
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const LAUNCH_GAP_CLASSIFICATIONS = Object.freeze([
   "IMPLEMENTATION",
@@ -14,7 +16,11 @@ export const LAUNCH_GAP_KINDS = Object.freeze({
   UNCONTROLLED_TARGET_RESOURCE_ABSENT: "ENVIRONMENT",
 });
 
-const LAUNCH_GAP_FIELDS = Object.freeze([
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+const LAUNCH_GAP_REQUIRED_FIELDS = Object.freeze([
   "gapId",
   "launchCode",
   "evidenceKey",
@@ -23,8 +29,17 @@ const LAUNCH_GAP_FIELDS = Object.freeze([
   "summary",
   "ownerPath",
 ]);
+const LAUNCH_GAP_OPTIONAL_FIELDS = Object.freeze(["remediationPlan"]);
+const IMPLEMENTATION_REMEDIATION_FIELDS = Object.freeze([
+  "failingTest",
+  "implementationPath",
+  "consumerReadback",
+  "auditReadback",
+]);
 const LAUNCH_CODE_PATTERN = /^LAUNCH-(0[1-9]|1[0-5])$/u;
 const GAP_ID_PATTERN = /^GAP-[A-Z0-9][A-Z0-9._-]*$/u;
+const EVIDENCE_KEY_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+$/u;
+const TEST_PATH_PATTERN = /(?:Test\.java|\.(?:test|spec)\.[cm]?[jt]sx?)$/u;
 
 export function classifyLaunchGaps(value) {
   if (!Array.isArray(value)) {
@@ -50,6 +65,10 @@ export function classifyLaunchGaps(value) {
     classificationCounts[gap.classification] += 1;
     return gap;
   });
+  const remainingImplementationGapIds = gaps
+    .filter((gap) => gap.classification === "IMPLEMENTATION")
+    .map((gap) => gap.gapId)
+    .sort();
 
   return {
     schemaVersion: "1.0.0",
@@ -57,6 +76,12 @@ export function classifyLaunchGaps(value) {
     gapCount: gaps.length,
     unclassifiedCount: 0,
     classificationCounts,
+    implementationClosure: {
+      evidenceKey: "launch.gap.implementation.closed",
+      status: remainingImplementationGapIds.length === 0 ? "CLOSED" : "OPEN",
+      remainingGapCount: remainingImplementationGapIds.length,
+      remainingGapIds: remainingImplementationGapIds,
+    },
     gaps,
   };
 }
@@ -64,7 +89,12 @@ export function classifyLaunchGaps(value) {
 function validateLaunchGap(candidate, index) {
   const label = `第 ${index + 1} 项缺口`;
   const gap = requireRecord(candidate, label);
-  requireExactKeys(gap, LAUNCH_GAP_FIELDS, label);
+  requireObjectKeys(
+    gap,
+    LAUNCH_GAP_REQUIRED_FIELDS,
+    LAUNCH_GAP_OPTIONAL_FIELDS,
+    label,
+  );
 
   const gapId = requireText(gap.gapId, `${label} gapId`);
   if (!GAP_ID_PATTERN.test(gapId)) {
@@ -101,8 +131,18 @@ function validateLaunchGap(candidate, index) {
     gap.ownerPath,
     `${label} ownerPath`,
   );
+  let remediationPlan;
+  if (classification === "IMPLEMENTATION") {
+    remediationPlan = validateImplementationRemediationPlan(
+      gap.remediationPlan,
+      ownerPath,
+      label,
+    );
+  } else if (Object.hasOwn(gap, "remediationPlan")) {
+    throw new Error(`${label} ${classification} remediationPlan 尚未定义`);
+  }
 
-  return {
+  const result = {
     gapId,
     launchCode,
     evidenceKey,
@@ -111,6 +151,63 @@ function validateLaunchGap(candidate, index) {
     summary,
     ownerPath,
   };
+  if (remediationPlan !== undefined) {
+    result.remediationPlan = remediationPlan;
+  }
+  return result;
+}
+
+function validateImplementationRemediationPlan(value, ownerPath, label) {
+  const planLabel = `${label} IMPLEMENTATION remediationPlan`;
+  const plan = requireRecord(value, planLabel);
+  requireExactKeys(plan, IMPLEMENTATION_REMEDIATION_FIELDS, planLabel);
+
+  const failingTest = requireRepositoryRelativePath(
+    plan.failingTest,
+    `${planLabel} failingTest`,
+  );
+  if (!isTestFilePath(failingTest)) {
+    throw new Error(`${planLabel} failingTest 必须指向测试文件`);
+  }
+  const failingTestPath = path.resolve(REPO_ROOT, failingTest);
+  if (!existsSync(failingTestPath) || !statSync(failingTestPath).isFile()) {
+    throw new Error(`${planLabel} failingTest 必须指向仓内现存测试文件`);
+  }
+
+  const implementationPath = requireRepositoryRelativePath(
+    plan.implementationPath,
+    `${planLabel} implementationPath`,
+  );
+  if (implementationPath !== ownerPath) {
+    throw new Error(`${planLabel} implementationPath 必须与 ownerPath 一致`);
+  }
+  const consumerReadback = requireEvidenceKey(
+    plan.consumerReadback,
+    `${planLabel} consumerReadback`,
+  );
+  const auditReadback = requireEvidenceKey(
+    plan.auditReadback,
+    `${planLabel} auditReadback`,
+  );
+  if (consumerReadback === auditReadback) {
+    throw new Error(`${planLabel} 消费者回读与审计回读必须是不同证据键`);
+  }
+
+  return {
+    failingTest,
+    implementationPath,
+    consumerReadback,
+    auditReadback,
+  };
+}
+
+function isTestFilePath(value) {
+  return (
+    TEST_PATH_PATTERN.test(value) ||
+    value
+      .split("/")
+      .some((segment) => ["test", "tests", "__tests__"].includes(segment))
+  );
 }
 
 function requireRecord(value, label) {
@@ -141,6 +238,19 @@ function requireExactKeys(value, expectedKeys, label) {
   }
 }
 
+function requireObjectKeys(value, requiredKeys, optionalKeys, label) {
+  const actualKeys = Object.keys(value).sort();
+  const missing = requiredKeys.filter((key) => !actualKeys.includes(key));
+  if (missing.length > 0) {
+    throw new Error(`${label} ${missing.join("、")} 不能为空`);
+  }
+  const allowed = new Set([...requiredKeys, ...optionalKeys]);
+  const unknown = actualKeys.filter((key) => !allowed.has(key));
+  if (unknown.length > 0) {
+    throw new Error(`${label} 包含未知字段：${unknown.join("、")}`);
+  }
+}
+
 function requireText(value, label) {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${label} 不能为空`);
@@ -149,6 +259,14 @@ function requireText(value, label) {
     throw new Error(`${label} 不得包含首尾空白`);
   }
   return value;
+}
+
+function requireEvidenceKey(value, label) {
+  const evidenceKey = requireText(value, label);
+  if (!EVIDENCE_KEY_PATTERN.test(evidenceKey)) {
+    throw new Error(`${label} 必须是规范的点分证据键`);
+  }
+  return evidenceKey;
 }
 
 function requireRepositoryRelativePath(value, label) {
