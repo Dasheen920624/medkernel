@@ -149,6 +149,12 @@ jobs:
       - name: Block new direct medkernel config reads
         run: node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main
 
+      - name: Test platform signing secret inventory
+        run: node --test scripts/security/signing-secret-inventory.test.mjs
+
+      - name: Enforce external platform signing key boundary
+        run: node scripts/security/signing-secret-inventory.mjs
+
       - name: Test product CLI skeleton (DATASVC-01 FR-3)
         run: node --test cli/test/*.test.mjs
 

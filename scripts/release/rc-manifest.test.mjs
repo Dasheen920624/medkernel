@@ -81,6 +81,8 @@ const GATE_COMMANDS = Object.freeze({
     "cd . && CI=true node scripts/authenticity-guard.mjs --mode=all",
     "cd . && CI=true node --test scripts/config-boundary-guard.test.mjs",
     "cd . && CI=true node scripts/config-boundary-guard.mjs --mode=all",
+    "cd . && CI=true node --test scripts/security/signing-secret-inventory.test.mjs",
+    "cd . && CI=true node scripts/security/signing-secret-inventory.mjs",
     "cd . && CI=true node --test scripts/migration-convention-guard.test.mjs",
     "cd . && CI=true node scripts/migration-convention-guard.mjs --mode=all",
     "cd . && CI=true node --test scripts/performance-contract-guard.test.mjs",

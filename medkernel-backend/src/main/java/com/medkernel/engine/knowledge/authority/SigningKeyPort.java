@@ -27,6 +27,25 @@ public interface SigningKeyPort {
      */
     String publicKeyFingerprint(String certificateChainPem);
 
+    /**
+     * 请求外置设施使用不可导出密钥签署规范化载荷。
+     *
+     * <p>应用只传递稳定身份、公开 {@code keyId} 和待签字节；实现不得把私钥或可恢复密钥材料
+     * 返回应用进程。返回的签名属于公开交付元数据。
+     *
+     * @param authorityId 平台知识权威稳定标识
+     * @param issuerInstanceId 当前发布实例稳定标识
+     * @param keyId 外置密钥公开标识
+     * @param canonicalPayload 确定性编码后的待签载荷
+     * @return 签名值字节
+     */
+    byte[] sign(
+        String authorityId,
+        String issuerInstanceId,
+        String keyId,
+        byte[] canonicalPayload
+    );
+
     /** 外置密钥设施返回的公开登记元数据，不含任何私钥或访问凭证。 */
     record ProvisionedSigningKey(
         String authorityId,
