@@ -1,77 +1,57 @@
 # 会话接力
 
-> 开工先读本文件。这里只保留当前可执行事实；产品范围见
-> [PRODUCT_SCOPE](PRODUCT_SCOPE.md)，实施契约见当前 OpenSpec。历史过程使用 Git 追溯，不在当前工作树保留第二套事实源。
+> 开工只读本文件续接；产品不变量见 [CONSTITUTION](CONSTITUTION.md)，完整范围见
+> [PRODUCT_SCOPE](PRODUCT_SCOPE.md)，实施合同见当前 OpenSpec。历史过程、作废候选与旧任务证据只用 Git 追溯，
+> 不在本文件保留第二套事实源。
 
-## 当前唯一主线
+## 立即续接
 
-- OpenSpec 变更：`converge-full-launch-and-knowledge-platform`，schema 为 `spec-driven`。
-- 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`；当前实施分支：`codex/launch-ledger`，基于 `origin/main=4c6795aaa6ba6481756e239fefff90afd1c724a2`。
-- 固定输入锚点：`sourceBaseCommit=7217504ce82e1aa119c3402e3b5d054f9369e018`；该提交不是 RC，禁止直接提升。
-- 原 `candidateCommit=d4514938e6ba7d6f0d09eb736a0c66ab72863b07` 及其 run-id `rc0-20260710T155756Z-d4514938e` 已作废，禁止推送、提升或复用其 `PROMOTABLE` 结论和制品摘要。
-- 试运行候选 `b81f2e9b84a7874e89485ce32ff2b9238e60b32a` 已作废：clean 后端测试本身退出 0，但无 Docker/未开启专项容量环境的 3 组条件套件生成 7 条 skipped，独立验证器按合同正确拒绝；其 checkout、bundle、run 只能保留作失败诊断，禁止提升或复用。
-- 试运行候选 `c369a4be2c842820bac4872538cae068c308b712` 已作废：clean 后端门禁全绿，Playwright 两项目实际 `expected=114, unexpected=0, flaky=0, skipped=0`，但同步 E2E 子进程阻塞事件循环约 33 分钟后，`AFTER_E2E` 单次 fetch 返回 `fetch failed`；后端当时仍存活并随后由运行器优雅停止，该现象与长阻塞后的陈旧连接复用一致，但旧错误包装已丢失底层 cause，不能把推断冒充已观测错误码。其 checkout、bundle、run 和通过报告只能用于根因诊断，禁止提升、复制或拼接到新候选。
-- 试运行候选 `6b72c7bf4dbcd5ed40d6e2422e2c368338ac7451` 已作废：首次 detached clean 运行被桌面长任务续接机制终止前台 PTY，未形成最终清单；随后 one-shot LaunchAgent 误设 `ProcessType=Background`，后端全测从前台约 4 分钟被宿主 QoS 限速至约 25 分钟，并在已成功导出 10 万条数据后触发 `KnowledgeExportServiceLargeScaleTest` 的墙钟断言（实际 56 秒，要求小于 30 秒）。该失败同时暴露四处 10 万级墙钟合同漏标 `performance`，因此该候选及全部运行根目录只作诊断，禁止提升或复用。
-- 试运行候选 `118969301fe03f03278877c8c23ef5def2544255` 已作废：r4 起跑后发现旧作废运行残留的 `embed-business-host-server` 占用 4174，Playwright 正确拒绝端口污染；清理残留后建立的全新 r5 由本轮进程独占 4174/5173/28086，后端 clean 门禁实际 `tests=3175, failures=0, errors=0, skipped=0`，真实 Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`。但 RC 解析器的单测夹具错误地把 Playwright 官方 JSON 中可选的叶子 `suites` 字段假定为必填数组，因而在 E2E 全绿后报“Playwright suite 结构非法”；r5 未生成完整九门禁、六制品清单，仍不得提升、复制或拼接证据。
-- 试运行候选 `88a1663777260e66c325588c3ce1948a03700c9f` 已作废：r6 因操作者把合同要求的“预先存在且为空” bundle/run 根目录误设为不存在，在执行任何门禁前被总控拒绝；使用全新根目录、run-id 和端口重建的 r7 完整通过九类门禁，其中后端为 519 份报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 114/114，CLI、五方言数据库、部署、格式/OpenSpec、前端 verify/build、MCP、T-GATE 均退出 0。r7 随后构建出前五类制品，但 `ONPREM_DELIVERY` 校验器错误地用规范化 LF 的 Git raw blob 比较 `.gitattributes` 要求导出为 BOM+CRLF 的 `mk-publish.ps1`，在实际 tar、构建暂存源和 `git archive` 三者字节一致时误拒；未形成六制品清单，r6/r7 全部证据仍禁止提升或拼接。
-- 试运行候选 `2e60d2a9fa47917d73157153b7fc7c377cb9b742` 已作废：r8 从 detached clean checkout 按锁文件重建依赖，完整通过九类门禁并构建六类制品；后端为 519 份报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 114/114，前端为 116 文件、2210 项测试全绿且生产构建成功。但运行器与终态清单各维护一套 Playwright 结构解析器，终态副本仍把叶子 suite 的可选 `suites` 当必填；继续诊断又确认终态日志解析器写死旧 `#` 前缀且未处理 Vitest 原生 ANSI SGR 显示码。原始运行因此未生成终态清单，r8 checkout、bundle、run 和全部通过证据永久禁止提升、复制或拼接；修复后的代码对完整 r8 bundle 成功执行诊断性 `CREATED` 与 `VERIFIED`，仅证明根因和证据完整性，不改变 r8 作废状态。
-- 候选 `6bd805b3c40e68b95efeeb2e07e7eefe07ef3f96`（r9）已作废：本地 clean RC0 的九类门禁、六类制品、复制复验和篡改拒绝均真实通过，但 PR #654 的 required CI 运行 `29153747137` 在前端全量覆盖率中暴露两个测试时序合同不稳定点；按“测试有任何变化即形成新候选并完整重跑”的规则，r9 不再可提升。其原始 bundle `/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-6bd805b3c-r9/bundle`、复制件和诊断副本仅保留作根因与完整性证据，禁止发布、部署、拼接或复用 `PROMOTABLE/VERIFIED` 结论。
-- 当前唯一可提升 RC0 为冻结候选 `7674532fdb4f3db8373bb996369cfc1fe359c553`，run-id `rc0-20260711T132737Z-7674532fd-r10`，来源锚点仍为 `7217504ce82e1aa119c3402e3b5d054f9369e018`。它从 detached clean checkout 按锁文件重建依赖，九类门禁、六类制品和候选内独立验证器均真实通过；原始 bundle 位于 `/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-7674532fd-r10/bundle`。PR #654 的同候选 required CI 运行 `29154337443` 为 8/8 success。候选代码、测试与发布合同已冻结；后续证据文档提交不是新候选，不得用其提交哈希替代该 candidateCommit。
-- PR #654 的最终证据提交 `8739d71d6a0577e08ca9e7a02cb0434343f700ef` 对应 required CI 运行 `29156309904`，8/8 全部 success；该 PR 已于 2026-07-11 squash 合入 `main`，squash commit 为 `4c6795aaa6ba6481756e239fefff90afd1c724a2`。重新 fetch 后 `origin/main` 精确指向该提交，`git merge-base --is-ancestor` 退出 0，远端 `codex/launch-convergence` 已删除。
-- 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 仍有用户改动；不得回滚、暂存、清理或污染。
+- 唯一 OpenSpec：`converge-full-launch-and-knowledge-platform`，当前 **5/31 个结果任务完成、26 个待执行**。
+- 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`；分支：`codex/launch-ledger`。
+- 当前下一项：任务 2.2，复用任务 2.1 的规范 manifest、13 类适配器和既有外置签名端口，流式生成、落盘回读、签发登记并下载真实自包含 `.mkp`；不得提前实现上传、DELTA、HTTPS 拉取或第二套发布框架。
+- 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 含用户改动，禁止回滚、暂存、清理或污染。
 
-## 旧 RC0 作废原因
+## 当前路线为何是主线
 
-1. `ClinicalRuntimeReleaseService` 曾允许当前机构版本里的 `WITHDRAWN` 医疗资产进入新的机构生效版本，违反 `CONSTITUTION §3`“撤回阻止危险或错误版本进入新的机构生效版本；历史证据仍可重放”的红线。
-2. 旧 RC 验证器只校验自报 `PASSED` 的摘要 JSON 和任意文件哈希，没有独立解析原始执行结果、退出码、依赖重建和制品格式/来源。删除原始日志与报告后仍可返回 `VERIFIED`，普通文本也可冒充 JAR/TAR 制品。
-3. 因候选代码和证据契约都将变化，旧候选的九类门禁日志只能作为诊断材料，不能作为发布证据；不得在新清单里继承其状态或摘要。
+- 旧任务图为 205 项、24 项完成、181 项待办、537 条直接依赖、最长关键路径 152，过度串行是推进缓慢的真实原因。
+- 当前任务图在不缩减完整产品、医疗安全、完整资源、134 部署和医院复制结果的前提下，收敛为 31 个结果任务、37 条直接依赖、最长关键路径 20；权威完成后 `.mkp`、资源矩阵和 onprem 可独立推进。
+- 首发不建设自动跨宿主交接状态机、DELTA 链、HTTPS 自动拉取、独立权威页面、第二套部署框架或第二套证据编排器。医疗责任审核和 134 最终一次破坏性确认仍是不可删除的安全边界。
 
-## 当前实施状态
+## 不可替代的可信基线
 
-- 前后端 `WITHDRAWN` 穿透已按 TDD 修复：平台标准发布、机构激活、历史回滚和离线恢复会在事务内按稳定顺序锁定精确版本账本行，重新核对租户、层级、类型、身份、版次、内容摘要和状态；撤回版本只能保留历史重放，不能进入任何新版本。前端只允许本次查询确认的 `DRAFT/PUBLISHED` 候选进入评估和提交。
-- 候选后端 JAR 内嵌 `META-INF/medkernel-build.json`，公开 ping 只从制品资源解析完整提交；RC 浏览器门禁同时保存 readiness 与运行时身份原始响应，拒绝误连任意返回 `UP` 的旧服务。
-- RC schema v2、六制品构建器和无人工中间门的运行器已实现：全新检出按锁文件重建依赖，执行九类门禁，直接解析 Surefire/Playwright/T-GATE 原始输出，构建并核验六类候选制品，绑定运行标识、完整提交、时间窗、命令、退出码、来源树、逐文件摘要和内嵌元数据；复制、删除、篡改、越界、符号链接、旧 schema、伪制品和工作区残留攻击均有拒绝用例。
-- clean RC0 首次真实执行暴露并确认了专项环境边界：普通后端 clean 门禁显式排除 `docker,performance` 标签，机器可读计划声明这些套件必须在后续 PostgreSQL 16/openEuler 目标环境和 10 万级容量门禁中独立完成；实际生成的 Surefire 报告仍严格要求零 skipped。定向 Maven 验证仅执行未标记的 H2 方言测试，报告 `tests=1, failures=0, errors=0, skipped=0`。
-- RC 机器计划现显式枚举五个 10 万级墙钟套件；起跑前扫描全部 Java 测试并拒绝漏登记、漏类级或方法级 `performance` 标签。三个纯容量类使用类级标签，`KnowledgeIdentityRepositoryTest` 只标记单个 10 万级方法，保留其余普通仓储回归；定向 Maven 排除验证实际执行 `tests=7, failures=0, errors=0, skipped=0`，三个纯容量类未生成 Surefire 报告。
-- Playwright 原始报告解析器现遵守仓内锁定版本官方 `JSONReportSuite` 契约：`specs` 必须为数组，叶子 suite 可省略可选的嵌套 `suites`，但显式非数组值仍立即拒绝。修复测试先以真实叶子结构稳定复现旧误拒，再转绿；新解析器直接重算已作废 r5 的原始 JSON，得到两个项目各 57/57、合计 114/114，仅用于证明解析根因，不把旧运行提升为 RC。
-- 运行器与终态清单现调用同一共享 Playwright suite/spec 结构解析器，消除两份契约独立漂移。终态日志解析器按锁定 Node 24 同时接受 TAP/spec reporter 的 `#` 与 `ℹ` 计数前缀，并仅剥离标准 ANSI SGR 显示码后核验原始语义；计数不一致、真实失败、缺构建标记和畸形结构的反例仍全部拒绝。
-- 候选制品来源校验现按同一候选提交的 `git archive` 导出字节逐文件重算，保留 `.gitattributes` 的确定性 EOL/导出语义后再与 tar 比较，不以文本归一化或跳过校验放行。测试夹具显式证明 PowerShell raw blob 为 LF、交付包为 CRLF，并继续拒绝任何非候选来源或字节篡改。
-- 候选运行探针已改为每次显式短连接，并仅对带 `RUNTIME_PROBE_TRANSPORT`/网络错误码的瞬断做最多 30 秒条件重试；每次尝试仍须完整通过 readiness 和 JAR 内嵌提交身份。身份错配、响应结构或内容错误立即失败，持续瞬断会保留完整 cause/code 后阻断，不能把不稳定运行时伪报为通过。
-- r9 的本地真实结果仍是后端 519 份 Surefire 报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`，九类门禁与六类制品完整；这些事实只用于诊断验证器和运行链，不能抵消远端 required CI 失败，也不能提升 r9。运行结束后 LaunchAgent 已卸载，4174/5173/28090 无监听。
-- r10 后端生成 519 份 Surefire 报告、3175 项测试，失败/错误/跳过均为 0；Browser E2E 的 Chromium 与国产 Chromium 模拟各 57/57，合计 `expected=114, unexpected=0, flaky=0, skipped=0`，且 E2E 前后 readiness 与 JAR 内嵌完整提交均匹配。CLI、五方言数据库、部署合同、格式/OpenSpec、前端 verify/build、MCP、T-GATE 其余门禁均退出 0；六类制品为后端 JAR、CLI 包、五方言迁移包、前端静态包、MCP 包和院内离线交付包。运行结束后 LaunchAgent `com.medkernel.rc0.7674532fd.r10` 已卸载，4174/5173/28091 均无监听，checkout 保持 clean。
-- r10 完整 bundle 已复制至 `/Users/zhikunzheng/.medkernel-rc0-verification/7674532fd-r10-copy` 并由候选内验证器独立返回 `VERIFIED`。原包、复制件和恢复后的篡改验证副本各有 567 个文件、0 个符号链接，按逐文件 SHA-256 排序聚合后的摘要均为 `bf84dc649759edfd11cebff2016b6ef3f59c988f2af8a258c88beaab66ccbba3`。验证器分别对缺 `BACKEND_TESTS` 门禁记录、缺其原始日志、缺 Maven 本次解析报告和 CLI 制品摘要漂移返回非零拒绝；每次恢复后重新返回同一 candidateCommit/run-id 的 `VERIFIED`。
-- 深度复核确认旧任务图过度串行：205 项中仅 24 项完成，203 项带依赖、537 条直接依赖、最长关键路径 152。现已在不缩减 `PRODUCT_SCOPE`、医疗安全、完整资源、134 部署和医院复制结果的前提下，将 OpenSpec 收敛为 31 个结果任务（当前 4 个完成、27 个待执行）、37 条直接依赖、最长关键路径 20；`.mkp`、资源工厂和院内离线交付在最小权威完成后独立推进。首发明确不建设全自动跨宿主交接、差量包链、HTTPS 自动拉取、独立权威页面、第二套部署框架或第二套证据编排器。
-- 任务 2.1 已按 TDD 完成：`node --test scripts/release/product-entry-catalog.test.mjs` 先因 `docs/contracts/product/product-entry-catalog.v1.json` 缺失以退出码 1 失败；补齐合同后 1/1 通过。合同恰含 35 个唯一 `entryCode` 和 35 条唯一路由，承载位置为 33 个主导航、1 个页头、1 个个人入口，四职责覆盖数为平台管理员 13、医疗引擎运营员 22、临床使用者 9、审计员 6；逐项声明权限、有效任职组织交集、核心动作、权威服务回读、`shared-audit-event.v1`、六态和证据键。一次性反向核对现有后端菜单、前端路由、默认职责策略与功能目录均无漂移；该 JSON 自此作为入口唯一机器合同，后续 2.2-2.3 必须让消费者由其生成并删除旧并行集合。
-- 任务 2.2 已完成：`generate-product-entry-consumers.mjs --check` 先同时报告后端 `menu-permission-catalog.generated.json` 与前端 `productEntryCatalog.generated.ts` 缺失并以退出码 1 失败；生成后源合同 SHA-256 为 `178954986bb5d083a87c00bbe7fa515d4f490aaf90f47432d8820412f90991a6`，两个消费者均由同一摘要绑定。临时篡改后端嵌入摘要时 `--check` 精确报告单文件漂移并退出 1，重新生成后恢复 `VERIFIED`；前端 Prettier 与 TypeScript 全量类型检查退出 0。CI 的前端构建作业已接入合同测试和生成器检查，禁止只改源合同不重生成。
-- 任务 2.3 已完成：后端 `MenuPermissionCatalog` 改为严格读取生成资源，前端路由、菜单和四职责快照均由生成合同派生，上线覆盖矩阵也由合同枚举全部入口；第 35 项 `domain-facade-b0-evidence` 只有目标 Playwright 用例通过且严格附件可验证时才计入核心动作总证据。TDD 先分别证明后端缺 `route`/职责消费者无法编译、前端移除 Java 源码快照后职责矩阵变空，以及第 36 项夹具会被唯一合同校验拒绝；实现后 `rg -n 'ALL_34|34 个入口|entryCount *= *35' frontend/src medkernel-backend/src scripts` 零命中，生成器 `--check` 返回 `VERIFIED`，发布脚本 17/17、前端 116 文件 2217/2217、生产构建和定向后端测试全绿。后端按 RC0 同口径 fresh `clean test` 并明确排除 `docker,performance` 后生成 519 份 Surefire 报告、3177 项测试，失败/错误/跳过均为 0；Docker/PostgreSQL/openEuler 与容量门禁仍由后续目标环境任务独立完成，不能据此冒领。
-- 任务 2.4 已完成：`launch-entry-evidence.schema.json` 固定 `ROUTE_ONLY`、`READBACK_ONLY`、`CORE_ACTION`、`CORE_ACTION_WITH_PERMISSION`、`CORE_ACTION_WITH_SIX_STATE` 五级单调证据强度，完整入口合同要求逐项覆盖路由、权威回读、真实核心动作、审计回读、允许/拒绝权限、有效组织范围与六态。覆盖审计按已验证能力反算强度，不信自报等级，并把恰好 35 行逐项绑定入口编码、路由、动作、权限、组织范围、六态、观察时间、覆盖边界和未覆盖范围；负向测试证明 `ROUTE_ONLY` 不能冒充权限/六态证据，真实 `CORE_ACTION` 也不能冒充完整合同。当前 Browser E2E 只如实产出 `CORE_ACTION` 和明确的权限/组织/六态缺口，故完整上线审计仍须在 2.9 补齐真实测试后才能通过，不能提前自报 `PASSED`。验证结果为覆盖审计 10/10、发布脚本 20/20、前端 116 文件 2217/2217、生产构建成功，生成器检查、严格 OpenSpec 与差异检查均通过。
-- 任务 2.5 已完成：`launch-ledger.v1.schema.json` 成为 `LAUNCH-01` 至 `LAUNCH-15` 编码、中文验收语义、要求覆盖范围和 `PASSED/FAILED` 状态的唯一合同，原运行器内 15 项硬编码已删除并改为从 schema 加载。审计输出的每项账本严格携带要求范围、实际证据范围、缺失范围、逐条前置证据引用、同一 RC0 `candidateCommit`、`runId` 和判定时间，并重新与覆盖矩阵逐项核对；缺项、重复、未知码、自由文本状态、字段漂移或候选/运行标识漂移均不能过账。全系统总控不再在总账缺失时现场重算放行，而是要求审计产出的固定总账并再次校验编码、语义、状态和覆盖一致性；`LAUNCH_RUN_ID` 已从演练入口传入审计并同步部署文档。TDD 红灯先因 `validateLaunchLedger` 不存在退出 1；实现后发布相关 22/22、JSON 语法、严格 OpenSpec 和差异检查通过。
-- 任务 2.6 已完成：全系统总控在前九阶段逐项验证后、进入最终覆盖审计前原子生成固定路径 `source-provenance.json`，记录同一 `candidateCommit`、`runId`、捕获时间、精确证据路径和解析后 JSON 内容 SHA-256；最终审计只接受九个预定义阶段及路径，独立重算摘要，并把来源运行标识、候选提交、摘要和捕获时间写入每条 LAUNCH 前置引用。`validateEvidenceSource` 同时拒绝最终审计自证、白名单外路径、旧 run-id、观察/捕获晚于判定时间、来源清单时间倒置和内容摘要漂移；账本再次要求全部来源与本次候选、运行标识和时间窗一致。TDD 红灯先因校验器不存在退出 1，五类负向用例随后全部转绿；发布相关 23/23、生成器、JSON、格式、严格 OpenSpec 和差异检查通过。
-- 任务 2.7 已完成：`launch-gap-classifier.mjs` 固定 `IMPLEMENTATION`、`TEST`、`DATA`、`ENVIRONMENT` 四类及其唯一 `gapKind` 映射；每项必须绑定 `LAUNCH-01` 至 `LAUNCH-15`、稳定缺口 ID、证据键、缺口说明和规范仓库相对 `ownerPath`。分类器拒绝未知/多分类、原因错配、原型键绕过、重复 ID、同一 LAUNCH/证据键重复登记和越界路径，并为无缺口输出四类全零结果；CI 已接入该合同。TDD 先因模块不存在退出 1，并分别以原型键和重复逻辑键复现红灯；实现后定向 6/6、发布脚本全量 131/131、语法与格式检查通过。
-- 任务 2.8 已完成：`IMPLEMENTATION` 缺口必须携带严格 `remediationPlan`，其中 `failingTest` 必须是仓内现存的 Java、Node 或部署测试，`implementationPath` 必须与唯一 `ownerPath` 一致，`consumerReadback` 与 `auditReadback` 必须是两个不同的规范证据键；缺少任一项、布尔自报、路径错配或伪测试路径均拒绝。完整计划本身仍保持缺口 `OPEN`，不会冒充修复；只有实现项从重跑输入中消失才生成 `launch.gap.implementation.closed` 的 `CLOSED`、剩余数 0。TDD 先因 `remediationPlan` 被旧合同拒绝而红，部署 Shell 测试路径也单独先红；实现后定向 9/9、发布脚本全量 134/134、格式与语法检查通过。
-- 任务 2.9 已完成：`TEST` 缺口的 `remediationPlan` 必须绑定仓内现存可执行测试、规范观察证据键和稳定大写观察码，缺字段、静态布尔或非法观察码均拒绝；计划存在时仍为 `OPEN`，只有测试缺口从重跑输入移除后才生成 `launch.gap.test.closed=CLOSED`。产品入口六态已按体验权威统一为加载、空、正常、错误、无权和部分成功，运行依赖降级继续单独诚实表达；35 入口只有在目标 Playwright 用例真实附带六个 DOM 观察码、逐入口允许/拒绝权限画像、有效组织范围和空职责账号回读后才升级为完整入口合同。最终本地 Chromium 复演为 1/1、`duration=62341ms`、`unexpected=0`、`flaky=0`、`skipped=0`，附件恰含 35 个唯一入口且允许/拒绝画像均实测 HTTP 200；发布脚本 135/135、前端 116 文件 2221/2221、生产构建、生成器、真实性门禁、格式、严格 OpenSpec 和差异检查均通过。全量前端同时清理了 LAUNCH 总账 schema 化后遗留的旧硬编码源码断言，未恢复第二套真相源。
-- 任务 2.10 已完成：`DATA` 缺口必须携带严格 `remediationPlan`，其中 `coverageContract` 只能等于后续 5.1 负责创建的唯一权威路径 `medkernel-backend/src/main/resources/catalog/medical-resource-coverage.v1.json`，并分别绑定资源生产 API、不可变发布、机构生效、正式消费者和审计回读五个互不复用的规范证据键；缺任一环节、布尔自报、平行矩阵路径或一证多用均拒绝。完整计划仍保持缺口 `OPEN`，只有真实数据生产并在重跑输入中移除该缺口后才输出 `launch.gap.data.closed=CLOSED`；本任务未提前创建 5.1 的矩阵文件，避免打乱依赖或形成第二真相源。TDD 红灯先由旧分类器以“DATA remediationPlan 尚未定义”失败，随后 11/11 定向通过；发布脚本全量 136/136、格式和差异检查通过。
-- 任务 2.11 已完成：`docs/audit/deferred-issues.md` 的现行事项表升级为七列机器合同，在原有两个真实外部事项上补充稳定目标资源类型、观察码和事实证据键，不改变其事实或关闭条件。`ENVIRONMENT` 缺口的 `ownerPath` 只能指向该清单，`remediationPlan` 必须引用已登记 `DEFER-xxx`，且目标资源类型、观察码、事实证据键和缺口说明须与清单逐项一致；仓内路径、未知事项、静态布尔、借真实外部事项包装仓库实现问题均拒绝。有效环境缺口输出 `launch.gap.environment.honest`、`status=OPEN`、`blocksLaunch=true`，只有清单事项对应缺口从输入消失才为 `CLEAR`，不会因诚实登记而冒充上线通过。TDD 红灯先由旧分类器以“ENVIRONMENT remediationPlan 尚未定义”失败并证明仓库问题可错误借用外部事项，随后 12/12 定向通过；发布脚本全量 137/137、格式和差异检查通过。
-- 任务 2.12 已完成：新增 `summarizeLaunchLedger`，先用固定 schema 重验 15 项总账与逐条覆盖观察，再同步调用四分类器反算 `launch.ledger.zero-unknown`；只有 15/15 通过且 `FAILED`、`UNKNOWN`、`SKIPPED`、缺证、未解释失败、人工豁免、已分类/未分类缺口全部为 0，IMPLEMENTATION/TEST/DATA 为 `CLOSED`、ENVIRONMENT 为 `CLEAR` 且不阻断时才输出 `PASSED`。人工豁免只能作为结构化阻断事实输入，不能提供通过计数；缺口或豁免存在即给出稳定阻断码。摘要绑定总账同一 `candidateCommit`、`runId` 和判定时间，并被十阶段总控重新核验后原样写入最终索引；删摘要、篡改计数、旧 run-id 或仅改顶层状态均无法放行。TDD 红灯先因导出不存在失败；实现后定向 16/16、三组合同 36/36、发布脚本全量 140/140，语法、格式和差异检查通过。
-- 任务 3.1 已完成：在 `com.medkernel.engine.knowledge.authority` 定义七个不可变权威聚合、六组生命周期枚举和七个租户优先的选择性 Spring Data JDBC 仓储端口；所有聚合携带稳定身份、乐观锁和审计字段，不持久化私钥材料，也不把主机、IP 或部署路径耦合进权威身份。`PackageRegistration` 使用 `deliveryId` 表达可移植医疗资源交付制品，并由规格明确禁止其成为临床运行选择器，避免复活已退役的运行包指针。TDD 红灯先因全部领域类型缺失而编译失败；实现后权威合同 4/4、联合领域归属与运行架构 13/13 均通过。首次全量后端回归以唯一失败暴露旧 `packageId/package_id` 词义冲突，完成根因修正后重跑得到 3193 项、失败 0、错误 0、构建成功；本机无 Docker 导致既有 Testcontainers 条件套件 7 项跳过，继续由目标环境任务承担，未冒领为已验证。
-- 任务 3.2 已完成：唯一 `medkernel.schema.json` 从 207 张扩展为 214 张终态表，加入稳定权威、签发实例、公开信任根、签名公钥、权威交接、密钥吊销和交付制品注册七张表；每表均有平台租户、乐观锁、创建/更新审计、`trace_id`、中文表列说明、身份/序号唯一约束、生命周期检查和复合租户外键，且不持久化私钥、宿主、IP 或部署路径。TDD 红灯为 `AuthoritySchemaContractTest` 的 3 项中 2 失败、1 错误，精确证明七表与五方言 DDL 缺失；生成后合同 3/3 通过。数据库联合回归首次以旧术语“清单摘要”唯一失败，未放宽门禁而统一为“目录校验码”，重跑 24 项零失败，H2 空库真实迁移成功，PostgreSQL/Oracle 容器烟测因本机无 Docker 跳过 2 项。生成器测试 8/8、迁移规约测试 14/14、`--check` 与全量扫描均通过，数据库独立证据为 `PASSED`、五方言各仅一个 V1；最终全量后端 3196 项失败 0、错误 0、构建成功，既有目标环境套件 7 项因无 Docker 跳过并继续留给后续环境任务。
-- 任务 3.3 已完成：新增 `AuthorityService.initialize`，只接受当前请求中显式 `t-1` 上下文和 1 至 128 位安全稳定 `authorityId`，不读取 IP、主机名或部署目录；首次初始化写入数据库，同一标识在重启、迁机或等价备份恢复后幂等返回。第二个标识由独立子事务留下包含操作者、现有标识、`traceId` 和稳定冲突码的失败审计后拒绝，客户租户越界同样独立留痕后拒绝；非法或超长标识在失败审计中统一收敛为 128 位字段可承载的固定占位标识，不会反向破坏审计。TDD 红灯先因 `AuthorityService` 缺失编译失败，审计长度反例也真实先红；实现后定向 6/6、联合领域归属/运行架构/仓储/schema 合同 22/22 全绿；RC0 同口径后端 `clean test` 生成 522 份 Surefire 报告、3190 项测试，失败/错误/跳过均为 0。真实性门禁测试 56/56、全量扫描 2211 个文件零阻断，中文注释、严格 OpenSpec 和差异检查全部通过；Docker/PostgreSQL/openEuler 与 10 万级容量合同仍由后续目标环境任务独立验证，未冒领为本机通过。
-- 任务 3.4 已完成：新增 `IssuerRegistrationService.register` 与公开元数据型 `SigningKeyPort`，每个宿主无关 `issuerInstanceId` 绑定独立 `keyId`；已有活动发布者时新实例以 `STANDBY` 登记，首个实例的活动初始化现由任务 1.4 补齐。同实例重试幂等返回既有绑定，不重复造钥，不同实例复用既有 `keyId`、证书公钥材料或返回错绑身份均由独立失败审计拒绝。数据库只保存公开证书链、根指纹和有效期，端口结果不暴露私钥/凭据；无 HSM/KMS 适配器时拒绝型默认端口允许系统基线启动，但造钥能力诚实返回 `DOWNSTREAM_UNAVAILABLE`。TDD 红灯先因服务、端口和唯一性查询缺失编译失败，定向实现后 7/7；首次全量回归真实暴露 Spring 上下文缺端口 Bean 并触发同根错误，修复安全降级配置后应用上下文与定向合同 8/8、领域/权威/schema 联合合同 20/20。最终 RC0 同口径后端 `clean test` 生成 523 份 Surefire 报告、3197 项测试，失败/错误/跳过均为 0；真实性门禁测试 56/56、含未跟踪新文件的全量扫描 2214 个文件零阻断，中文注释、严格 OpenSpec 和差异检查全部通过。Docker/PostgreSQL/openEuler、10 万级容量与真实 HSM/KMS 仍由后续任务验证，未冒领为本机通过。
-- 任务 3.5 已完成：新增最小 `HsmKmsSigningClient` 和生产 `HsmKmsSigningAdapter`，应用只能请求设施创建不可导出 SM2 密钥、取得公开证书链并按公开 `keyId` 签名；适配器独立解析并验证叶子至自签根的证书签名连续性，从公开材料计算 SM3 根/叶指纹和有效期，不提供私钥读取、导出、备份或解封接口。Spring 只接受一个设施驱动，零驱动时保持 B0 启动并诚实返回 `DOWNSTREAM_UNAVAILABLE`，多驱动则拒绝歧义；唯一进程内适配器位于 `src/test`，密钥仅在测试 JVM 随机生成。新增 `authority.key.external-boundary` 严格秘密清单及全仓扫描，数据库权威实体、医疗包、全部生产日志、全部部署脚本、改名/移包后的权威实体或 HSM 驱动一旦出现私钥类型、字段、路径或输出即失败；TDD 先后真实复现缺端口、伪造拼接证书链、跨行日志、清单夹带字段、目录改名和生产驱动移包绕过，再逐项转绿。最终边界测试 7/7、秘密清单 6/6 且实扫 1978 个文件零违规，权威/Spring 联合测试 28/28；RC0 同口径后端 `clean test` 生成 524 份 Surefire 报告、3204 项测试，失败/错误/跳过均为 0。RC 清单合同 62/62、真实性 56/56、配置 2/2、迁移 14/14、性能合同 4/4、数据库生成 8/8、中文注释、严格 OpenSpec 和差异检查全部通过。真实厂商 HSM/KMS 驱动、设施级托管备份和目标机联调仍须在后续目标环境任务中验证，未冒领为本机通过。
-- 新任务 1.4 已完成：新增 `TrustAnchorBootstrapService`，只接受由已签软件清单或独立认证配置提供的公开 `authorityId/rootFingerprint/rootCertificate`，验证有效自签 CA 根并绑定现有 `t-1` 权威，禁止包介质 TOFU、不同活动根静默替换及宿主/IP 冒充权威；固定根后的首个 issuer/key 原子成为唯一活动发布者，后续实例仍为待命。`PackageSigner` 只通过 `SigningKeyPort` 请求外置不可导出 SM2 密钥签名，`PackageSignatureVerifier` 按固定根、公开证书链、活动 issuer/key、有效期和吊销序号验签；`PackageRegistrationService` 只登记首发 FULL 包，对完全相同重试幂等返回，并拒绝同 delivery 异摘要、同序号异交付和 DELTA。TDD 分别以缺类型编译失败、首个 issuer 未激活和不可变登记缺失建立红灯；三保护临时故障注入精确产生 3 条失败并恢复后 4/4 全绿。Spring 空库上下文随后真实暴露 4 个多构造器服务未标生产构造器，按同仓模式修复后启动通过。权威域定向 34 项与启动 1 项均零失败/错误/跳过；签名秘密合同 6/6 且实扫 1988 个文件零违规；数据库生成器 8/8 与五方言 `--check`、真实性 56/56、配置 2/2、迁移 14/14、性能 4/4、中文注释全量扫描及差异检查均通过，未修改数据库模式。证据键：`authority.launch-minimum.fixed-root-sm2-registry`。
-- 新候选提交一旦冻结，不得再修改其代码、测试或发布合同；任何此类变化都必须再次形成新候选并完整重跑 RC0。证据状态与接力文档可在候选之后单独提交，但不得把文档提交哈希冒充候选。
+- 固定来源锚点：`7217504ce82e1aa119c3402e3b5d054f9369e018`，不得直接提升。
+- 已保全 RC0：`7674532fdb4f3db8373bb996369cfc1fe359c553`；run-id `rc0-20260711T132737Z-7674532fd-r10`；原始 bundle：`/Users/zhikunzheng/.medkernel-rc0-runs/rc0-20260711-7674532fd-r10/bundle`。
+- RC0 的九类门禁、六类制品、复制复验、篡改拒绝和 PR #654 required CI 8/8 均真实通过；保全提交已以 `4c6795aaa6ba6481756e239fefff90afd1c724a2` 合入当时的 `origin/main`。
+- RC0 只证明冻结输入可复现。其后的权威、`.mkp` 和上线实现会形成新的上线 RC；不得把旧 RC0 制品或历史证据拼接成当前完成结论。
+
+## 已完成结果
+
+- 1.1：保全可复现 RC0 并合入主线。
+- 1.2：建立 35 入口与 `LAUNCH-01`～`LAUNCH-15` 唯一机器总账，缺证、未知、跳过或自证不能过账。
+- 1.3：建立稳定平台权威、独立 issuer/key、外置 HSM/KMS 私钥边界和五方言 V1 持久化骨架。
+- 1.4：固定根 SM2 签发验签、首个活动 issuer/key 和不可变 FULL 包登记闭环完成；拒绝 TOFU、宿主/IP 冒信任、吊销/过期 key、重放、同序号异摘要和 DELTA。
+- 2.1：确定性 FULL manifest 与 13 类统一适配器完成。manifest 固定 UTF-8 规范字节，绑定 authority/issuer/key/发布序号/平台版本/兼容范围/逐文件 SM3，拒绝未知宿主字段、父链、绝对或非规范路径、重复/未排序文件；13 个 `VersionedAssetType` 恰好各一适配器，统一 `export/validate/materialize`，携带完整正文、多来源、许可文件摘要、精确依赖、绑定版本的校验事实和确定性合成测试证明。规则共享条件片段、路径子路径/继承及路径环复用同一自包含策略阻断。证据键：`mkp.full.manifest-adapters13`。
+
+## 当前验证事实
+
+- 任务 2.1 TDD 红灯先因 manifest、注册表和适配器类型不存在而编译失败；实现后 manifest 4 项、适配器 5 项、原有编著回归 9 项、Spring H2 V1 启动 1 项、领域归属 3 项和运行架构 6 项，合计 28 项零失败/错误/跳过。
+- Spring 使用真实 H2 空模式执行唯一 V1 后成功启动；新增注册表无构造器歧义。
+- 真实性门禁 56/56、全量扫描 2236 文件零阻断；签名秘密合同 6/6、扫描 1998 文件零违规；中文 Javadoc、严格 OpenSpec 与差异检查通过。
+- 任务 2.1 没有修改数据库、前端、部署脚本或 134；没有把定向验证冒充当前分支全量后端回归。完整 clean、双实例、真实 openEuler/PostgreSQL、容量和断网验证仍由后续结果任务提供。
 
 ## 下一执行序列
 
-1. 在 `codex/launch-ledger` 按 TDD 执行任务 2.1：只建设确定性 FULL `.mkp` manifest 和 13 类统一适配器，复用既有版本资产、依赖与签发服务，不提前实现上传、物化、差量链或新发布框架。
-2. 任务 3.1 唯一资源覆盖矩阵和任务 4.1 现有 onprem 首发软件合同与 2.1 无共享写入，可由后续 AI 独立推进；测试、消费者回读、审计和证据留在对应结果任务内部，不拆成串行门禁。
-3. 三条产品线汇合后完成双实例空库往返、一次本地全系统演练和同一提交不可变 RC；只读核查 134 并准备唯一一次最终确认输入。
-4. 只有系统、完整资源包和离线部署真实稳定后才在 134 执行备份恢复、一次确认部署、完整资源生产、全系统演练、48～72 小时稳定窗口和空医院复制。
+1. 2.2：从现有平台标准版本和各领域权威正文生成真实内容文件，形成确定性容器，落盘重读、逐文件/整包 SM3、SM2 签名、不可变登记和真实下载。
+2. 2.3～2.5：真实上传进入隔离区，统一预检，空 V1 库全有或全无物化，CAS 激活/回滚，并在两个独立实例间完成文件往返。
+3. 3.1～3.6：用唯一覆盖矩阵驱动获许可来源、13 类资产和完整医疗资源生产审核，不新建并行资源工厂。
+4. 4.1～4.5：只扩展现有 `deploy/onprem`，形成 openEuler 24.03 LTS x86_64/PostgreSQL 16 的单一断网交付实现并做真实空机 smoke。
+5. 5.1～5.5：本地双实例、一次全系统演练、现行文档、不可变上线 RC 和 134 只读预检。
+6. 6.1～6.6：仅在唯一确认内部署 134，生产审核完整资源，执行全系统演练、第二次恢复和 48～72 小时稳定窗口，再用同一软件与 `.mkp` 完成空医院复制。
 
 ## 上线与 134 边界
 
-- 开发阶段只运行自动回归，不新增反复人工项目关卡；医疗资源发布仍必须由有资质责任人审核，AI 不自动开嘱。
-- 在系统完整验证稳定前不得部署 134。当前只允许对 134 做已授权的只读核查。
-- 清库、停机、覆盖部署只保留一次最终原子确认；确认必须绑定主机、数据库、目录、候选提交、run-id、备份恢复点和实施窗口。
-- 134 或未来其它服务器可作为平台知识管理源，但院内运行包必须固定版本、可签名校验、可离线安装、可回滚；平台更新不得绕过医院侧审核和机构生效版本。
-- 不使用真实患者数据，不把密钥、凭据、数据库密码、JWT、证书私钥或未脱敏目标机证据写入仓库和日志。
+- 开发阶段只运行自动回归，不增加人工过程门禁；医疗内容正式发布仍须有资质责任人审核，AI 不自动开嘱。
+- 系统、医疗资源包和离线部署未完成本地稳定验证前不得写入 134；当前对 134 只允许已授权的只读预检。
+- 清库、停机和覆盖部署只保留最终一次确认，且必须绑定主机、数据库、目录、候选提交、run-id、备份恢复点、删除范围和窗口；任何漂移使确认失效。
+- 134 或未来服务器可作为平台知识管理源；医院只消费固定版本、可验签、可离线导入、可回滚的完整包，平台更新不得绕过医院审核和机构生效版本。
+- 禁止真实患者数据、凭据、私钥、数据库密码、JWT 或未脱敏目标证据进入仓库、日志、`.mkp` 和普通备份。
