@@ -31,7 +31,8 @@ test("上线缺口只能按固定原因唯一归入四类", () => {
       evidenceKey: "launch.runtime.published-data",
       gapKind: "PUBLISHED_RUNTIME_DATA_ABSENT",
       classification: "DATA",
-      ownerPath: "docs/contracts/knowledge/medical-resource-coverage.v1.json",
+      ownerPath:
+        "medkernel-backend/src/main/resources/catalog/medical-resource-coverage.v1.json",
     }),
     launchGap({
       gapId: "GAP-LAUNCH-15-ENVIRONMENT",
@@ -292,6 +293,86 @@ test("TEST 缺口必须绑定仓内可执行测试、真实观察证据与稳定
   });
 });
 
+test("DATA 缺口必须绑定唯一资源矩阵与发布生效消费审计闭环", () => {
+  const dataGap = launchGap({
+    gapId: "GAP-LAUNCH-03-DATA",
+    launchCode: "LAUNCH-03",
+    evidenceKey: "launch.runtime.published-data",
+    gapKind: "PUBLISHED_RUNTIME_DATA_ABSENT",
+    classification: "DATA",
+    summary: "缺少已发布并由正式消费者回读的医疗资源",
+    ownerPath:
+      "medkernel-backend/src/main/resources/catalog/medical-resource-coverage.v1.json",
+  });
+
+  for (const field of [
+    "coverageContract",
+    "productionApiEvidence",
+    "publicationReadback",
+    "effectiveReleaseReadback",
+    "consumerReadback",
+    "auditReadback",
+  ]) {
+    const remediationPlan = dataRemediationPlan();
+    delete remediationPlan[field];
+    assert.throws(
+      () => classifyLaunchGaps([{ ...dataGap, remediationPlan }]),
+      new RegExp(`DATA.*remediationPlan.*${field}.*不能为空`, "u"),
+    );
+  }
+
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...dataGap,
+          remediationPlan: dataRemediationPlan({
+            coverageContract:
+              "docs/contracts/knowledge/medical-resource-coverage.v1.json",
+          }),
+        },
+      ]),
+    /coverageContract.*必须指向唯一医疗资源覆盖矩阵/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...dataGap,
+          remediationPlan: dataRemediationPlan({ productionApiEvidence: true }),
+        },
+      ]),
+    /productionApiEvidence.*不能为空/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...dataGap,
+          remediationPlan: dataRemediationPlan({
+            publicationReadback: "resource.production.api-observation",
+          }),
+        },
+      ]),
+    /生产、发布、生效、消费与审计必须使用不同证据键/u,
+  );
+
+  const result = classifyLaunchGaps([dataGap]);
+  assert.deepEqual(result.dataClosure, {
+    evidenceKey: "launch.gap.data.closed",
+    status: "OPEN",
+    remainingGapCount: 1,
+    remainingGapIds: ["GAP-LAUNCH-03-DATA"],
+  });
+  assert.deepEqual(result.gaps[0].remediationPlan, dataRemediationPlan());
+  assert.deepEqual(classifyLaunchGaps([]).dataClosure, {
+    evidenceKey: "launch.gap.data.closed",
+    status: "CLOSED",
+    remainingGapCount: 0,
+    remainingGapIds: [],
+  });
+});
+
 test("无缺口时输出四类严格归零结果", () => {
   assert.deepEqual(classifyLaunchGaps([]), {
     schemaVersion: "1.0.0",
@@ -312,6 +393,12 @@ test("无缺口时输出四类严格归零结果", () => {
     },
     testClosure: {
       evidenceKey: "launch.gap.test.closed",
+      status: "CLOSED",
+      remainingGapCount: 0,
+      remainingGapIds: [],
+    },
+    dataClosure: {
+      evidenceKey: "launch.gap.data.closed",
       status: "CLOSED",
       remainingGapCount: 0,
       remainingGapIds: [],
@@ -339,7 +426,12 @@ function launchGap(overrides = {}) {
   ) {
     gap.remediationPlan = testRemediationPlan();
   } else if (
-    !["IMPLEMENTATION", "TEST"].includes(gap.classification) &&
+    !Object.hasOwn(overrides, "remediationPlan") &&
+    gap.classification === "DATA"
+  ) {
+    gap.remediationPlan = dataRemediationPlan();
+  } else if (
+    !["IMPLEMENTATION", "TEST", "DATA"].includes(gap.classification) &&
     !Object.hasOwn(overrides, "remediationPlan")
   ) {
     delete gap.remediationPlan;
@@ -363,6 +455,19 @@ function testRemediationPlan(overrides = {}) {
     executableTest: "frontend/e2e/all-done-route-smoke.spec.ts",
     observationEvidence: "launch.entry.runtime-observation",
     observedCode: "ENTRY_PERMISSION_ALLOWED",
+    ...overrides,
+  };
+}
+
+function dataRemediationPlan(overrides = {}) {
+  return {
+    coverageContract:
+      "medkernel-backend/src/main/resources/catalog/medical-resource-coverage.v1.json",
+    productionApiEvidence: "resource.production.api-observation",
+    publicationReadback: "resource.lifecycle.publication-readback",
+    effectiveReleaseReadback: "resource.lifecycle.effective-release-readback",
+    consumerReadback: "resource.runtime.consumer-readback",
+    auditReadback: "resource.lifecycle.audit-readback",
     ...overrides,
   };
 }

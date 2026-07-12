@@ -41,6 +41,16 @@ const TEST_REMEDIATION_FIELDS = Object.freeze([
   "observationEvidence",
   "observedCode",
 ]);
+const DATA_REMEDIATION_FIELDS = Object.freeze([
+  "coverageContract",
+  "productionApiEvidence",
+  "publicationReadback",
+  "effectiveReleaseReadback",
+  "consumerReadback",
+  "auditReadback",
+]);
+const MEDICAL_RESOURCE_COVERAGE_CONTRACT =
+  "medkernel-backend/src/main/resources/catalog/medical-resource-coverage.v1.json";
 const LAUNCH_CODE_PATTERN = /^LAUNCH-(0[1-9]|1[0-5])$/u;
 const GAP_ID_PATTERN = /^GAP-[A-Z0-9][A-Z0-9._-]*$/u;
 const EVIDENCE_KEY_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+$/u;
@@ -79,6 +89,10 @@ export function classifyLaunchGaps(value) {
     .filter((gap) => gap.classification === "TEST")
     .map((gap) => gap.gapId)
     .sort();
+  const remainingDataGapIds = gaps
+    .filter((gap) => gap.classification === "DATA")
+    .map((gap) => gap.gapId)
+    .sort();
 
   return {
     schemaVersion: "1.0.0",
@@ -97,6 +111,12 @@ export function classifyLaunchGaps(value) {
       status: remainingTestGapIds.length === 0 ? "CLOSED" : "OPEN",
       remainingGapCount: remainingTestGapIds.length,
       remainingGapIds: remainingTestGapIds,
+    },
+    dataClosure: {
+      evidenceKey: "launch.gap.data.closed",
+      status: remainingDataGapIds.length === 0 ? "CLOSED" : "OPEN",
+      remainingGapCount: remainingDataGapIds.length,
+      remainingGapIds: remainingDataGapIds,
     },
     gaps,
   };
@@ -156,6 +176,12 @@ function validateLaunchGap(candidate, index) {
     );
   } else if (classification === "TEST") {
     remediationPlan = validateTestRemediationPlan(gap.remediationPlan, label);
+  } else if (classification === "DATA") {
+    remediationPlan = validateDataRemediationPlan(
+      gap.remediationPlan,
+      ownerPath,
+      label,
+    );
   } else if (Object.hasOwn(gap, "remediationPlan")) {
     throw new Error(`${label} ${classification} remediationPlan 尚未定义`);
   }
@@ -173,6 +199,44 @@ function validateLaunchGap(candidate, index) {
     result.remediationPlan = remediationPlan;
   }
   return result;
+}
+
+function validateDataRemediationPlan(value, ownerPath, label) {
+  const planLabel = `${label} DATA remediationPlan`;
+  const plan = requireRecord(value, planLabel);
+  requireExactKeys(plan, DATA_REMEDIATION_FIELDS, planLabel);
+
+  const coverageContract = requireRepositoryRelativePath(
+    plan.coverageContract,
+    `${planLabel} coverageContract`,
+  );
+  if (
+    coverageContract !== MEDICAL_RESOURCE_COVERAGE_CONTRACT ||
+    coverageContract !== ownerPath
+  ) {
+    throw new Error(
+      `${planLabel} coverageContract 必须指向唯一医疗资源覆盖矩阵 ${MEDICAL_RESOURCE_COVERAGE_CONTRACT}`,
+    );
+  }
+
+  const evidence = Object.fromEntries(
+    DATA_REMEDIATION_FIELDS.slice(1).map((field) => [
+      field,
+      requireEvidenceKey(plan[field], `${planLabel} ${field}`),
+    ]),
+  );
+  if (
+    new Set(Object.values(evidence)).size !== Object.values(evidence).length
+  ) {
+    throw new Error(
+      `${planLabel} 生产、发布、生效、消费与审计必须使用不同证据键`,
+    );
+  }
+
+  return {
+    coverageContract,
+    ...evidence,
+  };
 }
 
 function validateTestRemediationPlan(value, label) {
