@@ -73,11 +73,11 @@
 
 ### Requirement: 不可变包注册表与权威审计
 
-平台 SHALL 按 authorityId 维护不可变包注册表，至少记录 packageId、发布序号、manifest 摘要、issuerInstanceId、keyId、父包或基线摘要、包类型、签发状态和时间。相同 packageId 与摘要的重复登记 MUST 幂等；相同 authorityId 和发布序号出现不同摘要 MUST 视为冲突。权威创建、实例冻结、接管、签发、轮换、吊销和拒绝事件 MUST 全部进入可追溯审计链。
+平台 SHALL 按 authorityId 维护不可变医疗资源交付注册表，至少记录 deliveryId、发布序号、manifest 摘要、issuerInstanceId、keyId、父交付或基线摘要、包类型、签发状态和时间。deliveryId 只标识可移植交付制品，不得作为临床运行选择器；相同 deliveryId 与摘要的重复登记 MUST 幂等；相同 authorityId 和发布序号出现不同摘要 MUST 视为冲突。权威创建、实例冻结、接管、签发、轮换、吊销和拒绝事件 MUST 全部进入可追溯审计链。
 
 #### Scenario: 重复登记同一已签包
 
-- **WHEN** 活动发布实例以相同 packageId、发布序号和 manifest 摘要再次登记
+- **WHEN** 活动发布实例以相同 deliveryId、发布序号和 manifest 摘要再次登记
 - **THEN** 系统 SHALL 返回既有登记且不得创建第二条发布事实
 
 #### Scenario: 发布序号摘要冲突

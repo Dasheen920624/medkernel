@@ -40,7 +40,7 @@
 
 ### Requirement: 确定性 manifest 与内容寻址
 
-manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序规则，至少绑定 packageId、authorityId、issuerInstanceId、keyId、发布序号、包类型、平台发布稳定身份、父包或 fromDigest、兼容范围以及逐文件路径、大小和 SM3 摘要。相同已登记发布输入 MUST 生成逐字节相同的 manifest 和相同 manifest 摘要；本地 evidenceId、数据库主键、绝对路径、主机名、IP 和临时导出时间 MUST NOT 进入内容寻址字段。
+manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序规则，至少绑定 deliveryId、authorityId、issuerInstanceId、keyId、发布序号、包类型、平台发布稳定身份、父交付或 fromDigest、兼容范围以及逐文件路径、大小和 SM3 摘要。deliveryId 只标识该可移植交付制品，不得进入临床运行选择；相同已登记发布输入 MUST 生成逐字节相同的 manifest 和相同 manifest 摘要；本地 evidenceId、数据库主键、绝对路径、主机名、IP 和临时导出时间 MUST NOT 进入内容寻址字段。
 
 #### Scenario: 在不同宿主重复导出同一发布
 
@@ -73,7 +73,7 @@ manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序�
 
 ### Requirement: 防篡改与防重放校验
 
-导入服务 MUST 先按真实文件字节重算逐文件和整包 SM3 摘要，再验证锚定到固定平台信任根的 SM2 签名、authorityId、issuerInstanceId、keyId、发布序号及吊销状态。系统 SHALL 以 authorityId、packageId、发布序号和 manifest 摘要登记幂等事实；完全相同的包重复提交不得产生重复业务副作用，同序号异摘要、普通升级路径中的旧序号或分叉父摘要 MUST 被拒绝，历史版本只能经显式本地回滚流程重新生效。
+导入服务 MUST 先按真实文件字节重算逐文件和整包 SM3 摘要，再验证锚定到固定平台信任根的 SM2 签名、authorityId、issuerInstanceId、keyId、发布序号及吊销状态。系统 SHALL 以 authorityId、deliveryId、发布序号和 manifest 摘要登记幂等事实；完全相同的包重复提交不得产生重复业务副作用，同序号异摘要、普通升级路径中的旧序号或分叉父摘要 MUST 被拒绝，历史版本只能经显式本地回滚流程重新生效。
 
 #### Scenario: 包内容被篡改
 
@@ -82,7 +82,7 @@ manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序�
 
 #### Scenario: 完全相同的包重复提交
 
-- **WHEN** 已成功登记的 packageId 和 manifest 摘要再次提交
+- **WHEN** 已成功登记的 deliveryId 和 manifest 摘要再次提交
 - **THEN** 系统 SHALL 返回既有导入结果且不得重复创建资产版本、发布或激活修订
 
 #### Scenario: 重放较旧或分叉包

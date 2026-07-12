@@ -41,7 +41,7 @@
 
 ## 3. 持久化平台知识权威、首次信任与密钥围栏
 
-- [ ] 3.1 定义权威领域模型与仓储合同。依赖：2.12；主要文件/接口：创建 com.medkernel.engine.knowledge.authority 下 Authority、IssuerInstance、TrustRoot、SigningKey、Handover、Revocation、PackageRegistration 及 repository 端口；失败测试：AuthorityRepositoryContractTest 先因类型缺失失败；验证：BE -Dtest=AuthorityRepositoryContractTest test；证据键：authority.domain.contract。
+- [x] 3.1 定义权威领域模型与仓储合同。依赖：2.12；主要文件/接口：创建 com.medkernel.engine.knowledge.authority 下 Authority、IssuerInstance、TrustRoot、SigningKey、Handover、Revocation、PackageRegistration 及 repository 端口；失败测试：AuthorityRepositoryContractTest 先因类型缺失失败；验证：BE -Dtest=AuthorityRepositoryContractTest test；证据键：authority.domain.contract。
 - [ ] 3.2 扩展唯一 schema 并生成五方言。依赖：3.1；主要文件/接口：medkernel.schema.json 及五方言 V1；失败测试：schema 测试对缺 tenant/version/audit/唯一约束/中文 COMMENT 失败；验证：DB；证据键：authority.database.five-dialects。
 - [ ] 3.3 初始化稳定 authorityId 与唯一 t-1。依赖：3.2；主要文件/接口：AuthorityService.initialize、AuthorityRepository；失败测试：第二 authorityId、宿主/IP/目录变化和备份恢复生成新身份时失败；验证：BE -Dtest=AuthorityServiceTest test；证据键：authority.identity.stable-t1。
 - [ ] 3.4 为每个 issuer 创建独立身份和独立 keyId。依赖：3.3；主要文件/接口：IssuerRegistrationService、SigningKeyPort；失败测试：两个 issuer 复用 keyId 或密钥材料时失败；验证：BE -Dtest=IssuerRegistrationServiceTest test；证据键：authority.issuer.independent-key。
@@ -78,7 +78,7 @@
 - [ ] 4.16 验证 13 类空库往返。依赖：4.3-4.15；主要文件/接口：MedicalPackageRoundTripIT；失败测试：任一类型导出后无法在空 V1 库物化并运行回读时失败；验证：BE -Dtest=MedicalPackageRoundTripIT test；证据键：mkp.adapter.roundtrip13。
 - [ ] 4.17 生成规范目录、流式 SM3 和 SM2 信封。依赖：4.16；主要文件/接口：MedicalPackageExporter、StreamingDigestWriter、PackageSigner；失败测试：条目顺序/时间戳漂移、大小不实、任一字节篡改验真时失败；验证：BE -Dtest=MedicalPackageExporterTest test；证据键：mkp.file.signed-bytes。
 - [ ] 4.18 执行严格内容白名单。依赖：4.17；主要文件/接口：PackageContentBoundaryPolicy；失败测试：患者、医院覆盖、凭据、私钥、运行证据或无法证明合成的测试向量进入包时失败；验证：BE -Dtest=PackageContentBoundaryPolicyTest test；证据键：mkp.file.no-patient-secret。
-- [ ] 4.19 实现真实导出文件和下载 API。依赖：4.17-4.18；主要文件/接口：MedicalPackageExportService、MedicalPackageFileController GET /api/knowledge/packages/{packageId}/file、下载 DTO；失败测试：仅有 evidenceId/登记行而文件缺失、Range 越界、无权或摘要漂移时失败；验证：BE -Dtest=MedicalPackageFileControllerTest test；证据键：mkp.transport.download-real-file。
+- [ ] 4.19 实现真实导出文件和下载 API。依赖：4.17-4.18；主要文件/接口：MedicalPackageExportService、MedicalPackageFileController GET /api/knowledge/packages/{deliveryId}/file、下载 DTO；失败测试：仅有 evidenceId/登记行而文件缺失、Range 越界、无权或摘要漂移时失败；验证：BE -Dtest=MedicalPackageFileControllerTest test；证据键：mkp.transport.download-real-file。
 - [ ] 4.20 实现受限离线上传 API。依赖：4.19；主要文件/接口：MedicalPackageImportController POST /api/knowledge/packages/imports/upload、multipart DTO、QuarantineStore；失败测试：绝对路径、..、符号链接、文件数/大小/解压比/并发限额、重复幂等键或跨租户时失败；验证：BE -Dtest=MedicalPackageUploadControllerTest test；证据键：mkp.transport.upload-quarantine。
 - [ ] 4.21 实现 HTTPS 在线拉取 API。依赖：4.20；主要文件/接口：MedicalPackagePullRequest DTO、OnlinePackageFetcher、POST /api/knowledge/packages/imports/pull；失败测试：非 HTTPS、SSRF 地址、重定向越界、无大小限制、无权限或平台直写数据库时失败；验证：BE -Dtest=OnlinePackageFetcherTest,MedicalPackagePullControllerTest test；证据键：mkp.transport.online-pull。
 - [ ] 4.22 统一下载、上传、拉取的 DTO、权限、审计、限额和幂等。依赖：4.19-4.21；主要文件/接口：PackageTransferPolicy、PackageTransferAuditService、IdempotencyRepository；失败测试：同字节不同入口产生不同 manifest 摘要/幂等键，或日志泄漏 URL 凭据时失败；验证：BE -Dtest=PackageTransferContractTest test；证据键：mkp.transport.unified-contract。
