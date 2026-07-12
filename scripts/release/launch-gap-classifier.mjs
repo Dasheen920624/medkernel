@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,7 @@ const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+const DEFERRED_ISSUES_PATH = "docs/audit/deferred-issues.md";
 const LAUNCH_GAP_REQUIRED_FIELDS = Object.freeze([
   "gapId",
   "launchCode",
@@ -49,10 +50,17 @@ const DATA_REMEDIATION_FIELDS = Object.freeze([
   "consumerReadback",
   "auditReadback",
 ]);
+const ENVIRONMENT_REMEDIATION_FIELDS = Object.freeze([
+  "deferredIssueId",
+  "targetResourceKind",
+  "targetFactEvidence",
+  "observedCode",
+]);
 const MEDICAL_RESOURCE_COVERAGE_CONTRACT =
   "medkernel-backend/src/main/resources/catalog/medical-resource-coverage.v1.json";
 const LAUNCH_CODE_PATTERN = /^LAUNCH-(0[1-9]|1[0-5])$/u;
 const GAP_ID_PATTERN = /^GAP-[A-Z0-9][A-Z0-9._-]*$/u;
+const DEFERRED_ISSUE_ID_PATTERN = /^DEFER-[0-9]{3}$/u;
 const EVIDENCE_KEY_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+$/u;
 const TEST_PATH_PATTERN = /(?:Test\.java|\.(?:test|spec)\.[cm]?[jt]sx?)$/u;
 const OBSERVED_CODE_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/u;
@@ -93,6 +101,19 @@ export function classifyLaunchGaps(value) {
     .filter((gap) => gap.classification === "DATA")
     .map((gap) => gap.gapId)
     .sort();
+  const remainingEnvironmentGaps = gaps.filter(
+    (gap) => gap.classification === "ENVIRONMENT",
+  );
+  const remainingEnvironmentGapIds = remainingEnvironmentGaps
+    .map((gap) => gap.gapId)
+    .sort();
+  const deferredIssueIds = [
+    ...new Set(
+      remainingEnvironmentGaps.map(
+        (gap) => gap.remediationPlan.deferredIssueId,
+      ),
+    ),
+  ].sort();
 
   return {
     schemaVersion: "1.0.0",
@@ -117,6 +138,14 @@ export function classifyLaunchGaps(value) {
       status: remainingDataGapIds.length === 0 ? "CLOSED" : "OPEN",
       remainingGapCount: remainingDataGapIds.length,
       remainingGapIds: remainingDataGapIds,
+    },
+    environmentConstraint: {
+      evidenceKey: "launch.gap.environment.honest",
+      status: remainingEnvironmentGapIds.length === 0 ? "CLEAR" : "OPEN",
+      blocksLaunch: remainingEnvironmentGapIds.length > 0,
+      remainingGapCount: remainingEnvironmentGapIds.length,
+      remainingGapIds: remainingEnvironmentGapIds,
+      deferredIssueIds,
     },
     gaps,
   };
@@ -182,6 +211,13 @@ function validateLaunchGap(candidate, index) {
       ownerPath,
       label,
     );
+  } else if (classification === "ENVIRONMENT") {
+    remediationPlan = validateEnvironmentRemediationPlan(
+      gap.remediationPlan,
+      ownerPath,
+      summary,
+      label,
+    );
   } else if (Object.hasOwn(gap, "remediationPlan")) {
     throw new Error(`${label} ${classification} remediationPlan 尚未定义`);
   }
@@ -199,6 +235,114 @@ function validateLaunchGap(candidate, index) {
     result.remediationPlan = remediationPlan;
   }
   return result;
+}
+
+function validateEnvironmentRemediationPlan(value, ownerPath, summary, label) {
+  const planLabel = `${label} ENVIRONMENT remediationPlan`;
+  if (ownerPath !== DEFERRED_ISSUES_PATH) {
+    throw new Error(
+      `${label} ENVIRONMENT ownerPath 必须指向当前待处理问题清单 ${DEFERRED_ISSUES_PATH}`,
+    );
+  }
+  const plan = requireRecord(value, planLabel);
+  requireExactKeys(plan, ENVIRONMENT_REMEDIATION_FIELDS, planLabel);
+
+  const deferredIssueId = requireText(
+    plan.deferredIssueId,
+    `${planLabel} deferredIssueId`,
+  );
+  if (!DEFERRED_ISSUE_ID_PATTERN.test(deferredIssueId)) {
+    throw new Error(
+      `${planLabel} deferredIssueId 必须是稳定的 DEFER- 三位编号`,
+    );
+  }
+  const fact = loadDeferredIssueFacts().get(deferredIssueId);
+  if (!fact) {
+    throw new Error(`${planLabel} deferredIssueId ${deferredIssueId} 未登记`);
+  }
+  if (summary !== fact.summary) {
+    throw new Error(`${label} summary 必须与待处理事项一致`);
+  }
+
+  const targetResourceKind = requireObservedCode(
+    plan.targetResourceKind,
+    `${planLabel} targetResourceKind`,
+  );
+  const targetFactEvidence = requireEvidenceKey(
+    plan.targetFactEvidence,
+    `${planLabel} targetFactEvidence`,
+  );
+  const observedCode = requireObservedCode(
+    plan.observedCode,
+    `${planLabel} observedCode`,
+  );
+  if (targetResourceKind !== fact.targetResourceKind) {
+    throw new Error(`${planLabel} targetResourceKind 与当前待处理事实不一致`);
+  }
+  if (targetFactEvidence !== fact.targetFactEvidence) {
+    throw new Error(`${planLabel} targetFactEvidence 与当前待处理事实不一致`);
+  }
+  if (observedCode !== fact.observedCode) {
+    throw new Error(`${planLabel} observedCode 与当前待处理事实不一致`);
+  }
+
+  return {
+    deferredIssueId,
+    targetResourceKind,
+    targetFactEvidence,
+    observedCode,
+  };
+}
+
+function loadDeferredIssueFacts() {
+  const content = readFileSync(
+    path.resolve(REPO_ROOT, DEFERRED_ISSUES_PATH),
+    "utf8",
+  );
+  const facts = new Map();
+  for (const line of content.split(/\r?\n/u)) {
+    if (!/^\|\s*DEFER-[0-9]{3}\s*\|/u.test(line)) continue;
+    const columns = line
+      .slice(1, line.endsWith("|") ? -1 : undefined)
+      .split("|")
+      .map((column) => column.trim());
+    if (columns.length !== 7) {
+      throw new Error("当前待处理问题清单必须使用七列机器合同");
+    }
+    const [
+      deferredIssueId,
+      targetResourceKind,
+      observedCode,
+      targetFactEvidence,
+      summary,
+      currentStatus,
+      closureCondition,
+    ] = columns;
+    if (facts.has(deferredIssueId)) {
+      throw new Error(`当前待处理问题清单存在重复 ID：${deferredIssueId}`);
+    }
+    facts.set(deferredIssueId, {
+      targetResourceKind: requireObservedCode(
+        targetResourceKind,
+        `${deferredIssueId} 目标资源类型`,
+      ),
+      observedCode: requireObservedCode(
+        observedCode,
+        `${deferredIssueId} 事实观察码`,
+      ),
+      targetFactEvidence: requireEvidenceKey(
+        targetFactEvidence,
+        `${deferredIssueId} 事实证据键`,
+      ),
+      summary: requireText(summary, `${deferredIssueId} 事项`),
+      currentStatus: requireText(currentStatus, `${deferredIssueId} 当前状态`),
+      closureCondition: requireText(
+        closureCondition,
+        `${deferredIssueId} 关闭条件`,
+      ),
+    });
+  }
+  return facts;
 }
 
 function validateDataRemediationPlan(value, ownerPath, label) {
@@ -388,6 +532,14 @@ function requireEvidenceKey(value, label) {
     throw new Error(`${label} 必须是规范的点分证据键`);
   }
   return evidenceKey;
+}
+
+function requireObservedCode(value, label) {
+  const observedCode = requireText(value, label);
+  if (!OBSERVED_CODE_PATTERN.test(observedCode)) {
+    throw new Error(`${label} 必须是稳定的大写观察码`);
+  }
+  return observedCode;
 }
 
 function requireRepositoryRelativePath(value, label) {

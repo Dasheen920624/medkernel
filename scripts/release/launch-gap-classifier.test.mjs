@@ -40,6 +40,7 @@ test("上线缺口只能按固定原因唯一归入四类", () => {
       evidenceKey: "launch.target.resource",
       gapKind: "UNCONTROLLED_TARGET_RESOURCE_ABSENT",
       classification: "ENVIRONMENT",
+      summary: "人大金仓与达梦真实运行环境尚未接入当前工作机",
       ownerPath: "docs/audit/deferred-issues.md",
     }),
   ]);
@@ -373,6 +374,111 @@ test("DATA 缺口必须绑定唯一资源矩阵与发布生效消费审计闭环
   });
 });
 
+test("ENVIRONMENT 缺口只能引用有目标事实的不可控现场事项并持续阻断上线", () => {
+  const environmentGap = launchGap({
+    gapId: "GAP-LAUNCH-15-ENVIRONMENT",
+    launchCode: "LAUNCH-15",
+    evidenceKey: "launch.target.resource",
+    gapKind: "UNCONTROLLED_TARGET_RESOURCE_ABSENT",
+    classification: "ENVIRONMENT",
+    summary: "人大金仓与达梦真实运行环境尚未接入当前工作机",
+    ownerPath: "docs/audit/deferred-issues.md",
+  });
+
+  for (const field of [
+    "deferredIssueId",
+    "targetResourceKind",
+    "targetFactEvidence",
+    "observedCode",
+  ]) {
+    const remediationPlan = environmentRemediationPlan();
+    delete remediationPlan[field];
+    assert.throws(
+      () => classifyLaunchGaps([{ ...environmentGap, remediationPlan }]),
+      new RegExp(`ENVIRONMENT.*remediationPlan.*${field}.*不能为空`, "u"),
+    );
+  }
+
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...environmentGap,
+          ownerPath: "scripts/release/launch-gap-classifier.mjs",
+        },
+      ]),
+    /ENVIRONMENT.*ownerPath.*当前待处理问题清单/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...environmentGap,
+          summary: "仓库内缺少可执行实现",
+        },
+      ]),
+    /summary.*必须与待处理事项一致/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...environmentGap,
+          remediationPlan: environmentRemediationPlan({
+            deferredIssueId: "DEFER-999",
+          }),
+        },
+      ]),
+    /deferredIssueId.*未登记/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...environmentGap,
+          remediationPlan: environmentRemediationPlan({
+            targetResourceKind: "REPOSITORY_IMPLEMENTATION",
+          }),
+        },
+      ]),
+    /targetResourceKind.*待处理事实不一致/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...environmentGap,
+          remediationPlan: environmentRemediationPlan({
+            targetFactEvidence: true,
+          }),
+        },
+      ]),
+    /targetFactEvidence.*不能为空/u,
+  );
+
+  const result = classifyLaunchGaps([environmentGap]);
+  assert.deepEqual(result.environmentConstraint, {
+    evidenceKey: "launch.gap.environment.honest",
+    status: "OPEN",
+    blocksLaunch: true,
+    remainingGapCount: 1,
+    remainingGapIds: ["GAP-LAUNCH-15-ENVIRONMENT"],
+    deferredIssueIds: ["DEFER-001"],
+  });
+  assert.deepEqual(
+    result.gaps[0].remediationPlan,
+    environmentRemediationPlan(),
+  );
+  assert.deepEqual(classifyLaunchGaps([]).environmentConstraint, {
+    evidenceKey: "launch.gap.environment.honest",
+    status: "CLEAR",
+    blocksLaunch: false,
+    remainingGapCount: 0,
+    remainingGapIds: [],
+    deferredIssueIds: [],
+  });
+});
+
 test("无缺口时输出四类严格归零结果", () => {
   assert.deepEqual(classifyLaunchGaps([]), {
     schemaVersion: "1.0.0",
@@ -403,6 +509,14 @@ test("无缺口时输出四类严格归零结果", () => {
       remainingGapCount: 0,
       remainingGapIds: [],
     },
+    environmentConstraint: {
+      evidenceKey: "launch.gap.environment.honest",
+      status: "CLEAR",
+      blocksLaunch: false,
+      remainingGapCount: 0,
+      remainingGapIds: [],
+      deferredIssueIds: [],
+    },
     gaps: [],
   });
 });
@@ -431,7 +545,14 @@ function launchGap(overrides = {}) {
   ) {
     gap.remediationPlan = dataRemediationPlan();
   } else if (
-    !["IMPLEMENTATION", "TEST", "DATA"].includes(gap.classification) &&
+    !Object.hasOwn(overrides, "remediationPlan") &&
+    gap.classification === "ENVIRONMENT"
+  ) {
+    gap.remediationPlan = environmentRemediationPlan();
+  } else if (
+    !["IMPLEMENTATION", "TEST", "DATA", "ENVIRONMENT"].includes(
+      gap.classification,
+    ) &&
     !Object.hasOwn(overrides, "remediationPlan")
   ) {
     delete gap.remediationPlan;
@@ -468,6 +589,16 @@ function dataRemediationPlan(overrides = {}) {
     effectiveReleaseReadback: "resource.lifecycle.effective-release-readback",
     consumerReadback: "resource.runtime.consumer-readback",
     auditReadback: "resource.lifecycle.audit-readback",
+    ...overrides,
+  };
+}
+
+function environmentRemediationPlan(overrides = {}) {
+  return {
+    deferredIssueId: "DEFER-001",
+    targetResourceKind: "TARGET_DATABASE_RUNTIME",
+    targetFactEvidence: "environment.target-database-runtime.observed",
+    observedCode: "TARGET_DATABASE_RUNTIME_UNAVAILABLE",
     ...overrides,
   };
 }
