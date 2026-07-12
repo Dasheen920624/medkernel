@@ -21717,6 +21717,40 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.menuEntryCoreActionRows?.map((item) => item.code)).toEqual(
       requiredMenuEntryCoreActionRows,
     );
+    expect(evidence.launchCoverage.menuEntryCoreActionRows).toHaveLength(
+      productEntryCatalog.length,
+    );
+    evidence.launchCoverage.menuEntryCoreActionRows?.forEach((row, index) => {
+      const entry = productEntryCatalog[index];
+      expect(row).toMatchObject({
+        requiredEvidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+        evidenceStrength: "CORE_ACTION",
+        verifiedCapabilities: ["ROUTE", "AUTHORITATIVE_READBACK", "CORE_ACTION", "AUDIT_READBACK"],
+        verifiedObject: {
+          entryCode: entry.entryCode,
+          route: entry.route,
+          actionCodes: entry.coreActions.map((action) => action.actionCode),
+          permissionCodes: [],
+          organizationScopeMode: null,
+          sixStates: [],
+        },
+        coverageBoundary: {
+          mode: "LIMITED_ENTRY_SLICE",
+          statement: expect.stringContaining("不代表完整入口合同"),
+        },
+        uncoveredScope: [
+          "PERMISSION_ALLOWED",
+          "PERMISSION_FORBIDDEN",
+          "ORGANIZATION_SCOPE",
+          "STATE_LOADING",
+          "STATE_EMPTY",
+          "STATE_READY",
+          "STATE_ERROR",
+          "STATE_FORBIDDEN",
+          "STATE_DEGRADED",
+        ],
+      });
+    });
   });
 
   it("does not declare all product entry rows when one authority menu key is still missing", () => {

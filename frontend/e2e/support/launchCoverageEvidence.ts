@@ -1,6 +1,29 @@
 import path from "node:path";
 
 import { productEntryCatalog } from "../../src/shared/contracts/productEntryCatalog.generated";
+import launchEntryEvidenceSchema from "../../../scripts/release/launch-entry-evidence.schema.json";
+
+type LaunchEntryEvidenceStrength =
+  | "ROUTE_ONLY"
+  | "READBACK_ONLY"
+  | "CORE_ACTION"
+  | "CORE_ACTION_WITH_PERMISSION"
+  | "CORE_ACTION_WITH_SIX_STATE";
+
+type LaunchEntryVerifiedCapability =
+  | "ROUTE"
+  | "AUTHORITATIVE_READBACK"
+  | "CORE_ACTION"
+  | "AUDIT_READBACK"
+  | "PERMISSION_ALLOWED"
+  | "PERMISSION_FORBIDDEN"
+  | "ORGANIZATION_SCOPE"
+  | "STATE_LOADING"
+  | "STATE_EMPTY"
+  | "STATE_READY"
+  | "STATE_ERROR"
+  | "STATE_FORBIDDEN"
+  | "STATE_DEGRADED";
 
 export type BrowserE2eRunStats = {
   startTime?: string;
@@ -30,6 +53,22 @@ export type LaunchCoverageRow = {
   status: "PASSED";
   evidenceKey: string;
   observedAt: string;
+  requiredEvidenceStrength?: LaunchEntryEvidenceStrength;
+  evidenceStrength?: LaunchEntryEvidenceStrength;
+  verifiedCapabilities?: LaunchEntryVerifiedCapability[];
+  verifiedObject?: {
+    entryCode: string;
+    route: string;
+    actionCodes: string[];
+    permissionCodes: string[];
+    organizationScopeMode: string | null;
+    sixStates: string[];
+  };
+  coverageBoundary?: {
+    mode: "LIMITED_ENTRY_SLICE" | "FULL_ENTRY_CONTRACT";
+    statement: string;
+  };
+  uncoveredScope?: LaunchEntryVerifiedCapability[];
 };
 
 export type BrowserE2eLaunchEvidence = {
@@ -666,6 +705,35 @@ const knowledgeOperationsAssetEntryCoreActionsClaims = [
 ];
 const menuEntryCoreActionsClaims = ["menuEntryCoreActions:ALL_PRODUCT_ENTRY_CORE_ACTIONS"];
 const requiredMenuEntryCoreActionRows = productEntryCatalog.map((entry) => entry.entryCode);
+const launchEntryStrengthPolicy = launchEntryEvidenceSchema[
+  "x-medkernel-strength-policy"
+] as Array<{
+  level: LaunchEntryEvidenceStrength;
+  requiredCapabilities: LaunchEntryVerifiedCapability[];
+}>;
+const requiredProductEntryEvidenceStrength = launchEntryEvidenceSchema[
+  "x-medkernel-product-entry-required-strength"
+] as LaunchEntryEvidenceStrength;
+const coreActionEntryStrengthPolicy = requireLaunchEntryStrengthPolicy("CORE_ACTION");
+const fullEntryStrengthPolicy = requireLaunchEntryStrengthPolicy(
+  requiredProductEntryEvidenceStrength,
+);
+const coreActionVerifiedCapabilities = Object.freeze([
+  ...coreActionEntryStrengthPolicy.requiredCapabilities,
+]);
+const coreActionUncoveredScope = Object.freeze(
+  fullEntryStrengthPolicy.requiredCapabilities.filter(
+    (capability) => !coreActionVerifiedCapabilities.includes(capability),
+  ),
+);
+
+function requireLaunchEntryStrengthPolicy(level: LaunchEntryEvidenceStrength) {
+  const policy = launchEntryStrengthPolicy.find((item) => item.level === level);
+  if (!policy) {
+    throw new Error(`产品入口证据强度 schema 缺少 ${level} 策略`);
+  }
+  return policy;
+}
 
 const knowledgeSupplyChainEvidenceMatrixClaims = [
   "knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
@@ -1778,14 +1846,8 @@ export function buildBrowserE2eLaunchEvidence(input: {
     );
   }
   if (hasRequiredMenuEntryCoreActionEvidence(input.tests)) {
-    mergeClaims(
-      evidence.launchCoverage,
-      [
-        ...menuEntryCoreActionsClaims,
-        ...requiredMenuEntryCoreActionRows.map((row) => `menuEntryCoreActionRows:${row}`),
-      ],
-      generatedAt,
-    );
+    mergeClaims(evidence.launchCoverage, menuEntryCoreActionsClaims, generatedAt);
+    mergeProductEntryCoreActionEvidence(evidence.launchCoverage, generatedAt);
   }
   if (hasRequiredKnowledgeSupplyChainEvidenceAttachment(input.tests)) {
     mergeClaims(
@@ -17284,6 +17346,40 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 
 function isSha256(value: unknown) {
   return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
+
+function mergeProductEntryCoreActionEvidence(
+  target: Record<string, LaunchCoverageRow[]>,
+  observedAt: string,
+) {
+  const key = "menuEntryCoreActionRows";
+  target[key] ??= [];
+  for (const entry of productEntryCatalog) {
+    if (target[key].some((row) => row.code === entry.entryCode)) continue;
+    target[key].push({
+      code: entry.entryCode,
+      status: "PASSED",
+      evidenceKey: `launchCoverage.${key}.${entry.entryCode}`,
+      observedAt,
+      requiredEvidenceStrength: requiredProductEntryEvidenceStrength,
+      evidenceStrength: coreActionEntryStrengthPolicy.level,
+      verifiedCapabilities: [...coreActionVerifiedCapabilities],
+      verifiedObject: {
+        entryCode: entry.entryCode,
+        route: entry.route,
+        actionCodes: entry.coreActions.map((action) => action.actionCode),
+        permissionCodes: [],
+        organizationScopeMode: null,
+        sixStates: [],
+      },
+      coverageBoundary: {
+        mode: "LIMITED_ENTRY_SLICE",
+        statement:
+          "真实核心动作、权威回读和审计已验证；权限拒绝边界、有效组织范围与六态尚未逐入口完成，不代表完整入口合同。",
+      },
+      uncoveredScope: [...coreActionUncoveredScope],
+    });
+  }
 }
 
 function mergeClaims(

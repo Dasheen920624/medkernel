@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   buildLaunchCoverageEvidence,
   readLaunchCoverageAuditConfig,
+  validateLaunchEntryEvidence,
 } from "./launch-coverage-audit.mjs";
 import { PRODUCT_ENTRY_CODES } from "./full-system-rehearsal-lib.mjs";
 
@@ -16,6 +17,103 @@ const MANIFEST_PATH = fileURLToPath(
   ),
 );
 const SOURCE = "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17";
+const PRODUCT_ENTRY_CATALOG = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../docs/contracts/product/product-entry-catalog.v1.json",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  ),
+);
+const PRODUCT_ENTRY_BY_CODE = new Map(
+  PRODUCT_ENTRY_CATALOG.entries.map((entry) => [entry.entryCode, entry]),
+);
+const LAUNCH_ENTRY_EVIDENCE_SCHEMA = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL("./launch-entry-evidence.schema.json", import.meta.url),
+    ),
+    "utf8",
+  ),
+);
+const FULL_ENTRY_STRENGTH_POLICY =
+  LAUNCH_ENTRY_EVIDENCE_SCHEMA["x-medkernel-strength-policy"].at(-1);
+const CORE_ACTION_STRENGTH_POLICY = LAUNCH_ENTRY_EVIDENCE_SCHEMA[
+  "x-medkernel-strength-policy"
+].find((item) => item.level === "CORE_ACTION");
+
+test("入口证据 schema 固定五级强度及逐级验证能力", () => {
+  assert.deepEqual(
+    LAUNCH_ENTRY_EVIDENCE_SCHEMA["x-medkernel-strength-policy"].map(
+      (item) => item.level,
+    ),
+    [
+      "ROUTE_ONLY",
+      "READBACK_ONLY",
+      "CORE_ACTION",
+      "CORE_ACTION_WITH_PERMISSION",
+      "CORE_ACTION_WITH_SIX_STATE",
+    ],
+  );
+  assert.deepEqual(FULL_ENTRY_STRENGTH_POLICY.requiredCapabilities, [
+    "ROUTE",
+    "AUTHORITATIVE_READBACK",
+    "CORE_ACTION",
+    "AUDIT_READBACK",
+    "PERMISSION_ALLOWED",
+    "PERMISSION_FORBIDDEN",
+    "ORGANIZATION_SCOPE",
+    "STATE_LOADING",
+    "STATE_EMPTY",
+    "STATE_READY",
+    "STATE_ERROR",
+    "STATE_FORBIDDEN",
+    "STATE_DEGRADED",
+  ]);
+});
+
+test("入口证据强度拒绝 ROUTE_ONLY 冒充带权限或六态核心动作", () => {
+  const entry = PRODUCT_ENTRY_CATALOG.entries.find(
+    (item) => item.entryCode === "workbench",
+  );
+  assert.ok(entry);
+
+  for (const requiredStrength of [
+    "CORE_ACTION_WITH_PERMISSION",
+    "CORE_ACTION_WITH_SIX_STATE",
+  ]) {
+    assert.throws(
+      () =>
+        validateLaunchEntryEvidence(
+          routeOnlyEntryEvidence(entry, requiredStrength),
+          entry,
+          requiredStrength,
+        ),
+      new RegExp(`ROUTE_ONLY.*不能满足.*${requiredStrength}`, "u"),
+    );
+  }
+});
+
+test("真实 CORE_ACTION 证据仍不能冒充完整入口合同", () => {
+  const entry = PRODUCT_ENTRY_CATALOG.entries.find(
+    (item) => item.entryCode === "workbench",
+  );
+  assert.ok(entry);
+  assert.ok(CORE_ACTION_STRENGTH_POLICY);
+
+  assert.throws(
+    () =>
+      validateLaunchEntryEvidence(
+        coreActionEntryEvidence(entry),
+        entry,
+        "CORE_ACTION_WITH_SIX_STATE",
+      ),
+    /CORE_ACTION.*不能满足.*CORE_ACTION_WITH_SIX_STATE/u,
+  );
+});
 
 test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () => {
   const env = baseEnv();
@@ -242,6 +340,21 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   assert.deepEqual(
     evidence.coverage.menuEntryCoreActionRows.map((item) => item.code),
     PRODUCT_ENTRY_CODES,
+  );
+  assert.equal(evidence.entryEvidence.schemaVersion, "1.0.0");
+  assert.equal(
+    evidence.entryEvidence.requiredEvidenceStrength,
+    "CORE_ACTION_WITH_SIX_STATE",
+  );
+  assert.equal(evidence.entryEvidence.rows.length, PRODUCT_ENTRY_CODES.length);
+  assert.equal(
+    evidence.entryEvidence.rows.every(
+      (row) =>
+        row.evidenceStrength === "CORE_ACTION_WITH_SIX_STATE" &&
+        row.coverageBoundary.mode === "FULL_ENTRY_CONTRACT" &&
+        row.uncoveredScope.length === 0,
+    ),
+    true,
   );
   assert.deepEqual(evidence.coverage.complianceWorkbenchPersonalEntryMatrix, [
     {
@@ -1148,6 +1261,11 @@ function completeStageEvidence(options = {}) {
     "specialDiseaseStages:OUTCOME_EVALUATION",
     "specialDiseaseStages:QUALITY_ITERATION",
   ]);
+  evidence["browser-e2e"].launchCoverage.menuEntryCoreActionRows = evidence[
+    "browser-e2e"
+  ].launchCoverage.menuEntryCoreActionRows.map((row) =>
+    fullEntryEvidence(row, PRODUCT_ENTRY_BY_CODE.get(row.code)),
+  );
   return evidence;
 }
 
@@ -1233,6 +1351,98 @@ function launchCoverageClaims(entries) {
     });
   }
   return claims;
+}
+
+function fullEntryEvidence(row, entry) {
+  assert.ok(entry, `测试夹具缺少入口合同 ${row.code}`);
+  return {
+    ...row,
+    requiredEvidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+    evidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+    verifiedCapabilities: [...FULL_ENTRY_STRENGTH_POLICY.requiredCapabilities],
+    verifiedObject: {
+      entryCode: entry.entryCode,
+      route: entry.route,
+      actionCodes: entry.coreActions.map((action) => action.actionCode),
+      permissionCodes: [...entry.requiredPermissions],
+      organizationScopeMode: entry.organizationScopeMode,
+      sixStates: [...entry.sixStates],
+    },
+    coverageBoundary: {
+      mode: "FULL_ENTRY_CONTRACT",
+      statement:
+        "完整入口合同：路由、权威回读、真实核心动作、审计、权限边界、组织范围与六态均已验证。",
+    },
+    uncoveredScope: [],
+  };
+}
+
+function routeOnlyEntryEvidence(entry, requiredStrength) {
+  return {
+    code: entry.entryCode,
+    status: "PASSED",
+    evidenceKey: `launchCoverage.menuEntryCoreActionRows.${entry.entryCode}`,
+    observedAt: "2026-06-22T09:00:00.000Z",
+    requiredEvidenceStrength: requiredStrength,
+    evidenceStrength: "ROUTE_ONLY",
+    verifiedCapabilities: ["ROUTE"],
+    verifiedObject: {
+      entryCode: entry.entryCode,
+      route: entry.route,
+      actionCodes: [],
+      permissionCodes: [],
+      organizationScopeMode: null,
+      sixStates: [],
+    },
+    coverageBoundary: {
+      mode: "LIMITED_ENTRY_SLICE",
+      statement: "仅验证入口路由可达，不代表完整入口合同。",
+    },
+    uncoveredScope: [
+      "AUTHORITATIVE_READBACK",
+      "CORE_ACTION",
+      "AUDIT_READBACK",
+      "PERMISSION_ALLOWED",
+      "PERMISSION_FORBIDDEN",
+      "ORGANIZATION_SCOPE",
+      "STATE_LOADING",
+      "STATE_EMPTY",
+      "STATE_READY",
+      "STATE_ERROR",
+      "STATE_FORBIDDEN",
+      "STATE_DEGRADED",
+    ],
+  };
+}
+
+function coreActionEntryEvidence(entry) {
+  const verifiedCapabilities = [
+    ...CORE_ACTION_STRENGTH_POLICY.requiredCapabilities,
+  ];
+  return {
+    code: entry.entryCode,
+    status: "PASSED",
+    evidenceKey: `launchCoverage.menuEntryCoreActionRows.${entry.entryCode}`,
+    observedAt: "2026-06-22T09:00:00.000Z",
+    requiredEvidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+    evidenceStrength: "CORE_ACTION",
+    verifiedCapabilities,
+    verifiedObject: {
+      entryCode: entry.entryCode,
+      route: entry.route,
+      actionCodes: entry.coreActions.map((action) => action.actionCode),
+      permissionCodes: [],
+      organizationScopeMode: null,
+      sixStates: [],
+    },
+    coverageBoundary: {
+      mode: "LIMITED_ENTRY_SLICE",
+      statement: "真实核心动作、权威回读和审计已验证，但不代表完整入口合同。",
+    },
+    uncoveredScope: FULL_ENTRY_STRENGTH_POLICY.requiredCapabilities.filter(
+      (capability) => !verifiedCapabilities.includes(capability),
+    ),
+  };
 }
 
 function fullKnowledgeEvidence() {

@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medkernel.local/contracts/release/launch-entry-evidence.schema.json",
+  "title": "MedKernel 产品入口上线证据",
+  "description": "逐入口记录要求强度、实际强度、已验证对象、覆盖边界和未覆盖范围。CORE_ACTION_WITH_SIX_STATE 是完整入口合同，包含权限边界和六态，不允许仅凭路由或自报等级提升。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "status",
+    "evidenceKey",
+    "observedAt",
+    "requiredEvidenceStrength",
+    "evidenceStrength",
+    "verifiedCapabilities",
+    "verifiedObject",
+    "coverageBoundary",
+    "uncoveredScope"
+  ],
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "status": {
+      "const": "PASSED"
+    },
+    "evidenceKey": {
+      "type": "string",
+      "pattern": "^launchCoverage\\.menuEntryCoreActionRows\\.[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requiredEvidenceStrength": {
+      "$ref": "#/$defs/evidenceStrength"
+    },
+    "evidenceStrength": {
+      "$ref": "#/$defs/evidenceStrength"
+    },
+    "verifiedCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/verifiedCapability"
+      }
+    },
+    "verifiedObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryCode",
+        "route",
+        "actionCodes",
+        "permissionCodes",
+        "organizationScopeMode",
+        "sixStates"
+      ],
+      "properties": {
+        "entryCode": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "route": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "actionCodes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "permissionCodes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "organizationScopeMode": {
+          "type": ["string", "null"]
+        },
+        "sixStates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "loading",
+              "empty",
+              "ready",
+              "error",
+              "forbidden",
+              "degraded"
+            ]
+          }
+        }
+      }
+    },
+    "coverageBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "statement"],
+      "properties": {
+        "mode": {
+          "enum": ["LIMITED_ENTRY_SLICE", "FULL_ENTRY_CONTRACT"]
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "uncoveredScope": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/verifiedCapability"
+      }
+    }
+  },
+  "$defs": {
+    "evidenceStrength": {
+      "enum": [
+        "ROUTE_ONLY",
+        "READBACK_ONLY",
+        "CORE_ACTION",
+        "CORE_ACTION_WITH_PERMISSION",
+        "CORE_ACTION_WITH_SIX_STATE"
+      ]
+    },
+    "verifiedCapability": {
+      "enum": [
+        "ROUTE",
+        "AUTHORITATIVE_READBACK",
+        "CORE_ACTION",
+        "AUDIT_READBACK",
+        "PERMISSION_ALLOWED",
+        "PERMISSION_FORBIDDEN",
+        "ORGANIZATION_SCOPE",
+        "STATE_LOADING",
+        "STATE_EMPTY",
+        "STATE_READY",
+        "STATE_ERROR",
+        "STATE_FORBIDDEN",
+        "STATE_DEGRADED"
+      ]
+    }
+  },
+  "x-medkernel-contract-version": "1.0.0",
+  "x-medkernel-product-entry-required-strength": "CORE_ACTION_WITH_SIX_STATE",
+  "x-medkernel-strength-policy": [
+    {
+      "level": "ROUTE_ONLY",
+      "requiredCapabilities": ["ROUTE"]
+    },
+    {
+      "level": "READBACK_ONLY",
+      "requiredCapabilities": ["ROUTE", "AUTHORITATIVE_READBACK"]
+    },
+    {
+      "level": "CORE_ACTION",
+      "requiredCapabilities": [
+        "ROUTE",
+        "AUTHORITATIVE_READBACK",
+        "CORE_ACTION",
+        "AUDIT_READBACK"
+      ]
+    },
+    {
+      "level": "CORE_ACTION_WITH_PERMISSION",
+      "requiredCapabilities": [
+        "ROUTE",
+        "AUTHORITATIVE_READBACK",
+        "CORE_ACTION",
+        "AUDIT_READBACK",
+        "PERMISSION_ALLOWED",
+        "PERMISSION_FORBIDDEN",
+        "ORGANIZATION_SCOPE"
+      ]
+    },
+    {
+      "level": "CORE_ACTION_WITH_SIX_STATE",
+      "requiredCapabilities": [
+        "ROUTE",
+        "AUTHORITATIVE_READBACK",
+        "CORE_ACTION",
+        "AUDIT_READBACK",
+        "PERMISSION_ALLOWED",
+        "PERMISSION_FORBIDDEN",
+        "ORGANIZATION_SCOPE",
+        "STATE_LOADING",
+        "STATE_EMPTY",
+        "STATE_READY",
+        "STATE_ERROR",
+        "STATE_FORBIDDEN",
+        "STATE_DEGRADED"
+      ]
+    }
+  ]
+}

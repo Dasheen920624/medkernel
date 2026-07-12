@@ -1,6 +1,6 @@
 # 完整上线收敛实施任务
 
-> 执行约定：每个 checkbox 是可独立失败、验证、提交和接力的小写集；严格按依赖执行。失败测试必须先红再绿，证据只收本次 run-id 的真实命令结果。所有路径相对仓库根目录；创建新类时保持 com.medkernel.engine/shared.** 公共 Javadoc 为中文。禁止把医疗责任审核、临床确认或 134 单次破坏性确认伪造成自动通过。
+> 执行约定：每个 checkbox 是可独立失败、验证、提交和接力的小写集；严格按依赖执行。失败测试必须先红再绿，证据只收本次 run-id 的真实命令结果。所有路径相对仓库根目录；创建新类时保持 com.medkernel.engine/shared.\*\* 公共 Javadoc 为中文。禁止把医疗责任审核、临床确认或 134 单次破坏性确认伪造成自动通过。
 
 ## 命令别名
 
@@ -11,7 +11,7 @@
 - DB = node --test scripts/db/generate-migrations.test.mjs && node scripts/db/generate-migrations.mjs --check
 - TG = node --test scripts/authenticity-guard.test.mjs && node scripts/authenticity-guard.mjs --mode=all
 - E2E = cd frontend && CI=true npm run e2e -- --workers=1 --retries=0
-- DEP = for f in deploy/onprem/tests/validate-*.sh; do bash "$f"; done
+- DEP = for f in deploy/onprem/tests/validate-\*.sh; do bash "$f"; done
 - DIFF = git diff --check
 
 ## 1. 从输入锚点形成 RC0 并恢复可信基线
@@ -19,17 +19,17 @@
 - [x] 1.1 升级 RC 清单为不可删原始证据的严格合同。依赖：无；主要文件/接口：scripts/release/rc-manifest-lib.mjs、rc-manifest.mjs、rc-manifest.test.mjs；失败测试：先证明删除任一门禁原始证据后旧验证器仍错误 VERIFIED，并新增对旧 schema、缺原始文件、缺精确命令/退出码、摘要/时间/run-id/候选不一致、制品或依赖无可重验来源证明的拒绝用例；实现：新 schema 对每个 gate 绑定原始证据路径与摘要、执行命令、退出码、开始/结束时间和观察计数，对每个制品/依赖绑定可重建输入、来源提交、构建命令与逐文件摘要，独立验证器必须直接重读原始文件和来源链而非只信摘要 JSON；验证：NT scripts/release/rc-manifest.test.mjs 且复制后逐项删除原始证据均非零退出；证据键：rc0.manifest.raw-evidence-independent-recalculation。
 - [x] 1.2 隔离非事务审计测试数据且保留提交后回读。依赖：无；主要文件/接口：IntegrationServiceTest；失败测试：BE -Dtest=IntegrationServiceTest test 曾复现跨用例 2/6 污染；验证：同命令重复全绿；证据键：rc0.backend.integration-isolation。
 - [x] 1.3 收敛 35 入口口径、E2E ESLint 和客户面空态语言。依赖：1.2；主要文件/接口：D0DomainAcceptanceTest、e2eLaunchCoverageEvidence.test.ts、DomainFacadeB0Evidence.tsx；失败测试：后端定向测试、FE run lint、TG 曾分别失败；验证：三命令全绿；证据键：rc0.scope35-and-ui-truthfulness。
-- [x] 1.4 由唯一 schema 生成五方言 V1。依赖：1.3；主要文件/接口：medkernel.schema.json、db/migration/{h2,postgres,oracle,dm,kingbase}/V1__baseline.sql；失败测试：DB 曾报告 ck_rec_card_type 漂移；验证：DB 全绿；证据键：rc0.database.generated-v1。
+- [x] 1.4 由唯一 schema 生成五方言 V1。依赖：1.3；主要文件/接口：medkernel.schema.json、db/migration/{h2,postgres,oracle,dm,kingbase}/V1\_\_baseline.sql；失败测试：DB 曾报告 ck_rec_card_type 漂移；验证：DB 全绿；证据键：rc0.database.generated-v1。
 - [x] 1.5 补齐 OpenSpec 上下文并严格校验。依赖：1.4；主要文件/接口：openspec/config.yaml、本变更全部产物；失败测试：OSV 在上下文缺失时失败；验证：OSV 通过；证据键：rc0.openspec.strict。
 - [x] 1.6 废止不可重验的 d4514938e6ba7d6f0d09eb736a0c66ab72863b07 清单并形成新的 clean RC0。依赖：1.1-1.5；主要文件/接口：修复后的 rc-manifest v2、全新 candidateCommit、隔离 checkout 与证据 bundle；失败测试：旧 d451 清单、旧 schema、缺任一原始证据、从旧 target/dist/test-results 拼接结果、E2E skipped/flaky/unexpected、10 万级墙钟套件漏登记/漏 `performance` 标签或制品/依赖来源不可重建时均必须拒绝；执行：先提交 1.1 修复形成新的完整 candidateCommit，再从该提交全新检出按锁文件重建依赖；RC 机器计划必须枚举全部 10 万级墙钟套件，起跑前扫描源码并核对类级或方法级 `performance` 标签；普通后端 clean 门禁显式排除 `docker,performance` 标签且对实际生成的 Surefire 报告保持零 skipped，Docker/PostgreSQL 16/openEuler 与 10 万级容量套件转入后续目标环境门禁独立完成，不得伪造或视为本门禁已覆盖；同时完整重跑前端 verify/build、浏览器 E2E（workers=1、retries=0）、CLI/MCP、DB、DEP、TG、格式/OpenSpec，并保存逐门禁原始命令、退出码和来源证明；Playwright 解析器须遵守锁定版本官方 JSON reporter 契约，接受叶子 suite 省略可选嵌套 `suites` 字段，同时拒绝非数组畸形结构、空壳或逐测试结果与统计不一致，运行器与终态清单必须调用同一共享结构解析器；终态验证器须接受锁定 Node 24 原生 TAP/spec reporter 的 `#`/`ℹ` 计数前缀，并只在语义解析前剥离标准 ANSI SGR 显示码，任何真实失败、计数漂移或必需语义缺失仍须拒绝；六类制品须逐文件比较同一候选 `git archive` 导出字节，确定性保留 `.gitattributes` 的 EOL/导出语义，禁止用 raw blob 误拒合法 CRLF，也禁止文本归一化或跳过字节校验放行篡改；E2E 前后探针须使用短连接，每次完整校验 readiness 与 JAR 内嵌提交身份，仅对明确传输瞬断做最多 30 秒条件重试，身份/内容不一致立即失败；验证：将整个 bundle 复制到异目录由候选内独立验证器 VERIFIED，再逐类删除原始证据确认全部被拒绝；证据键：rc0.clean.new-candidate-full-raw-gates、rc0.browser-e2e.full-replay。
-- [x] 1.7 保全 RC0 成果并以 squash 合入 main。依赖：1.6；主要文件/接口：codex/launch-convergence 分支、远端 PR、docs/_HANDOFF.md；失败测试：远端 CI 任一 required check 非 success 时禁止合并；验证：git fetch origin && git merge-base --is-ancestor <squash-commit> origin/main；证据键：rc0.pr.preserved-main。
+- [x] 1.7 保全 RC0 成果并以 squash 合入 main。依赖：1.6；主要文件/接口：codex/launch-convergence 分支、远端 PR、docs/\_HANDOFF.md；失败测试：远端 CI 任一 required check 非 success 时禁止合并；验证：git fetch origin && git merge-base --is-ancestor <squash-commit> origin/main；证据键：rc0.pr.preserved-main。
 
 ## 2. 建立 35 入口、LAUNCH 总账与自动缺口闭环
 
 - [x] 2.1 定义唯一 35 入口合同。依赖：1.7；主要文件/接口：创建 docs/contracts/product/product-entry-catalog.v1.json、scripts/release/product-entry-catalog.test.mjs；失败测试：NT scripts/release/product-entry-catalog.test.mjs 应先因缺文件失败；验证：恰好 35 个唯一 entryCode 且字段、路由、四职责、权限、组织范围、动作、回读、审计、六态、证据键齐全；证据键：catalog.entries.schema。
 - [x] 2.2 生成后端与前端入口消费者。依赖：2.1；主要文件/接口：创建 scripts/release/generate-product-entry-consumers.mjs，生成 MenuPermissionCatalog 资源和 frontend/src/shared/contracts/productEntryCatalog.generated.ts；失败测试：生成器 --check 应先报告消费者缺失；验证：node scripts/release/generate-product-entry-consumers.mjs --check；证据键：catalog.entries.generated-consumers。
 - [x] 2.3 删除 34/35 并行集合和数量常量。依赖：2.2；主要文件/接口：MenuPermissionCatalog、frontend 导航、D0DomainAcceptanceTest、e2eLaunchCoverageEvidence.test.ts、职责矩阵校验；失败测试：在测试夹具加入第 36 项或硬编码 ALL_34 后目录漂移测试失败；验证：rg -n 'ALL_34|34 个入口|entryCount *= *35' frontend/src medkernel-backend/src scripts 返回零非生成命中；证据键：catalog.entries.no-parallel-truth。
-- [ ] 2.4 逐入口绑定真实证据强度。依赖：2.3；主要文件/接口：scripts/release/launch-entry-evidence.schema.json、launch-coverage-audit.mjs；失败测试：ROUTE_ONLY 冒充 CORE_ACTION_WITH_PERMISSION 或 CORE_ACTION_WITH_SIX_STATE 时失败；验证：NT scripts/release/launch-coverage-audit.test.mjs；证据键：catalog.entries.evidence-strength。
+- [x] 2.4 逐入口绑定真实证据强度。依赖：2.3；主要文件/接口：scripts/release/launch-entry-evidence.schema.json、launch-coverage-audit.mjs；失败测试：ROUTE_ONLY 冒充 CORE_ACTION_WITH_PERMISSION 或 CORE_ACTION_WITH_SIX_STATE 时失败；验证：NT scripts/release/launch-coverage-audit.test.mjs；证据键：catalog.entries.evidence-strength。
 - [ ] 2.5 定义 LAUNCH-01 至 LAUNCH-15 固定 schema。依赖：2.4；主要文件/接口：创建 docs/contracts/release/launch-ledger.v1.schema.json，修改 launch-coverage-audit.mjs；失败测试：缺项、重复、未知码、自由文本状态应失败；验证：NT scripts/release/launch-coverage-audit.test.mjs；证据键：launch.ledger.schema15。
 - [ ] 2.6 强制证据来源不可自证。依赖：2.5；主要文件/接口：launch-coverage-audit.mjs 的 validateEvidenceSource；失败测试：最终审计引用自身、白名单外路径、旧 run-id、晚于判定时间或摘要被替换时失败；验证：NT scripts/release/launch-coverage-audit.test.mjs；证据键：launch.evidence.non-self-attestation。
 - [ ] 2.7 建立缺口四分类。依赖：2.6；主要文件/接口：创建 scripts/release/launch-gap-classifier.mjs、launch-gap-classifier.test.mjs；失败测试：未知分类或无 ownerPath 的缺口失败；验证：NT scripts/release/launch-gap-classifier.test.mjs，且每项只归 IMPLEMENTATION、TEST、DATA、ENVIRONMENT 之一；证据键：launch.gap.classification。
@@ -183,7 +183,7 @@
 - [ ] 8.3 完成逐小写集规格符合性评审。依赖：8.1-8.2；主要文件/接口：本变更 specs/tasks 与实现 diff；失败测试：任一 SHALL/MUST 无任务、测试或证据映射时阻断；验证：OSV 和独立评审结论零 blocker；证据键：review.spec-compliance.zero-blocker。
 - [ ] 8.4 完成逐小写集代码质量与医疗安全评审。依赖：8.3；主要文件/接口：所有新增代码/测试/迁移/部署脚本；失败测试：秘密泄漏、患者数据、自动开嘱/发布、吞错成功、并发/事务/降级缺陷任一存在时阻断；验证：受影响测试、全量门禁、TG、DB、DEP；证据键：review.code-medical-safety.zero-blocker。
 - [ ] 8.5 创建并验证新的可提升 RC。依赖：8.4；主要文件/接口：RC manifest、软件包、.mkp、离线仓库、SBOM、签名/来源证明；失败测试：任何原始证据不可重算、提交/摘要/来源漂移或 E2E/真实 profile smoke 缺失时失败；验证：全新检出重跑并由独立验证器 VERIFIED；证据键：release.rc.before-134.verified。
-- [ ] 8.6 更新唯一接力入口。依赖：8.5；主要文件/接口：docs/_HANDOFF.md；失败测试：缺当前 commit/run-id/命令/证据/未完成 checkbox/134 单次确认边界或包含历史并行计划时失败；验证：OSV、DIFF；证据键：handoff.ready-for-134。
+- [ ] 8.6 更新唯一接力入口。依赖：8.5；主要文件/接口：docs/\_HANDOFF.md；失败测试：缺当前 commit/run-id/命令/证据/未完成 checkbox/134 单次确认边界或包含历史并行计划时失败；验证：OSV、DIFF；证据键：handoff.ready-for-134。
 
 ## 9. 对 134 执行一次确认后的首次正式部署
 
@@ -251,6 +251,6 @@
 ## 12. 同步主规格并归档 OpenSpec
 
 - [ ] 12.1 将已实施 delta 同步到主规格。依赖：11.9；主要文件/接口：openspec/specs 下 launch-convergence、platform-knowledge-authority、portable-medical-resource-package、medical-resource-factory、onprem-offline-delivery、target-environment-rollout 主规格；失败测试：change spec 与主规格 requirement/scenario 缺失或冲突时失败；验证：openspec validate --all --strict --no-interactive；证据键：openspec.main-specs.synced。
-- [ ] 12.2 完成最终任务、代码和证据核对。依赖：12.1；主要文件/接口：本 tasks.md、docs/_HANDOFF.md、最终 commit/run-id/证据索引；失败测试：任一 checkbox 未完成、证据不可重算、deferred issue 被冒领或秘密/患者明文命中时禁止归档；验证：全量门禁、OSV、DIFF；证据键：openspec.archive.preflight-complete。
+- [ ] 12.2 完成最终任务、代码和证据核对。依赖：12.1；主要文件/接口：本 tasks.md、docs/\_HANDOFF.md、最终 commit/run-id/证据索引；失败测试：任一 checkbox 未完成、证据不可重算、deferred issue 被冒领或秘密/患者明文命中时禁止归档；验证：全量门禁、OSV、DIFF；证据键：openspec.archive.preflight-complete。
 - [ ] 12.3 归档变更并验证归档后主规格。依赖：12.2；主要文件/接口：openspec archive converge-full-launch-and-knowledge-platform、openspec/changes/archive；失败测试：归档命令报告未同步/未完成或归档后 strict 失败时不得删除当前变更；验证：openspec archive converge-full-launch-and-knowledge-platform --yes && openspec validate --all --strict --no-interactive；证据键：openspec.change.archived-strict。
-- [ ] 12.4 更新最终接力与 Git 收尾。依赖：12.3；主要文件/接口：docs/_HANDOFF.md、最终中文 PR/commit、origin/main；失败测试：主线不含归档提交、远端 CI 非全绿或残留临时分支/worktree 时不得宣称完成；验证：git fetch origin、merge-base、git worktree list、远端分支检查；证据键：project.launch-convergence.closed-on-main。
+- [ ] 12.4 更新最终接力与 Git 收尾。依赖：12.3；主要文件/接口：docs/\_HANDOFF.md、最终中文 PR/commit、origin/main；失败测试：主线不含归档提交、远端 CI 非全绿或残留临时分支/worktree 时不得宣称完成；验证：git fetch origin、merge-base、git worktree list、远端分支检查；证据键：project.launch-convergence.closed-on-main。
