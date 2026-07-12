@@ -86,7 +86,7 @@ test("入口证据 schema 固定五级强度及逐级验证能力", () => {
     "STATE_READY",
     "STATE_ERROR",
     "STATE_FORBIDDEN",
-    "STATE_DEGRADED",
+    "STATE_PARTIAL",
   ]);
 });
 
@@ -1629,7 +1629,7 @@ function routeOnlyEntryEvidence(entry, requiredStrength) {
       "STATE_READY",
       "STATE_ERROR",
       "STATE_FORBIDDEN",
-      "STATE_DEGRADED",
+      "STATE_PARTIAL",
     ],
   };
 }

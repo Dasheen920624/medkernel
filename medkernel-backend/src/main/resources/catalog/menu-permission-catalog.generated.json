@@ -3,7 +3,7 @@
   "catalogId": "medkernel-menu-permission-catalog",
   "generatedFrom": "docs/contracts/product/product-entry-catalog.v1.json",
   "sourceCatalogId": "medkernel-product-entry-catalog",
-  "sourceCatalogSha256": "178954986bb5d083a87c00bbe7fa515d4f490aaf90f47432d8820412f90991a6",
+  "sourceCatalogSha256": "db671bc8c188abb0c8365855c2f395d6f310965f9eb589f56e7026e961ca005f",
   "menus": [
     {
       "sectionKey": "workbench",

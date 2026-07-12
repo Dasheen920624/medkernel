@@ -1342,10 +1342,24 @@ describe("E2E credential contract", () => {
     const releaseGate = readFileSync("../scripts/release/full-system-rehearsal-lib.mjs", "utf8");
     expect(releaseGate).toContain("multiHospitalRuntimeIsolationRows");
     expect(releaseGate).toContain("TWO_HOSPITAL_RUNTIME_RELEASE_ISOLATION");
-    expect(releaseGate).toContain('requiredCoverage: ["organizationLevels"]');
+    expect(releaseGate).toContain("LAUNCH_LEDGER_SCHEMA_PATH");
+    expect(releaseGate).toContain("readFileSync(LAUNCH_LEDGER_SCHEMA_PATH");
+    expect(releaseGate).not.toContain('requiredCoverage: ["organizationLevels"]');
     expect(releaseGate).not.toContain(
       'requiredCoverage: ["organizationLevels", "multiHospitalRuntimeIsolationRows"]',
     );
+    const launchLedgerSchema = JSON.parse(
+      readFileSync("../docs/contracts/release/launch-ledger.v1.schema.json", "utf8"),
+    ) as {
+      "x-medkernel-launch-acceptance": Array<{
+        code: string;
+        requiredCoverage: string[];
+      }>;
+    };
+    expect(
+      launchLedgerSchema["x-medkernel-launch-acceptance"].find((item) => item.code === "LAUNCH-13")
+        ?.requiredCoverage,
+    ).toEqual(["organizationLevels"]);
   });
 
   it("requires quality management entry rehearsal to activate the CLAIM indicator into hospital runtime before snapshot creation", () => {

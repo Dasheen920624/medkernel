@@ -21,7 +21,7 @@
     "ready",
     "error",
     "forbidden",
-    "degraded"
+    "partial"
   ],
   "organizationScopeContract": {
     "mode": "effective-assignment-intersection",
@@ -62,7 +62,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.workbench.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.workbench"
     },
     {
@@ -92,7 +92,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.tenant-onboarding.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.tenant-onboarding"
     },
     {
@@ -122,7 +122,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.admin-users.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.admin-users"
     },
     {
@@ -152,7 +152,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.identity-bindings.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.identity-bindings"
     },
     {
@@ -182,7 +182,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.knowledge-governance.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.knowledge-governance"
     },
     {
@@ -212,7 +212,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.runtime-releases.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.runtime-releases"
     },
     {
@@ -242,7 +242,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.institution-knowledge.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.institution-knowledge"
     },
     {
@@ -272,7 +272,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.diagnosis-knowledge.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.diagnosis-knowledge"
     },
     {
@@ -302,7 +302,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.terminology-mapping.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.terminology-mapping"
     },
     {
@@ -332,7 +332,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.domain-facade-b0-evidence.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.domain-facade-b0-evidence"
     },
     {
@@ -362,7 +362,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.rule-definitions.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.rule-definitions"
     },
     {
@@ -392,7 +392,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.pathway-templates.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.pathway-templates"
     },
     {
@@ -422,7 +422,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.provenance.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.provenance"
     },
     {
@@ -452,7 +452,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.graph-explore.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.graph-explore"
     },
     {
@@ -482,7 +482,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.knowledge-production.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.knowledge-production"
     },
     {
@@ -512,7 +512,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.ai-workflows.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.ai-workflows"
     },
     {
@@ -542,7 +542,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.mpi.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.mpi"
     },
     {
@@ -572,7 +572,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.patient-pathways.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.patient-pathways"
     },
     {
@@ -602,7 +602,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.cdss-fatigue.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.cdss-fatigue"
     },
     {
@@ -632,7 +632,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.workflow-todos.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.workflow-todos"
     },
     {
@@ -662,7 +662,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.clinical-followup.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.clinical-followup"
     },
     {
@@ -692,7 +692,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.sandbox.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.sandbox"
     },
     {
@@ -722,7 +722,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.qc-dashboard.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.qc-dashboard"
     },
     {
@@ -752,7 +752,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.qc-alerts.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.qc-alerts"
     },
     {
@@ -782,7 +782,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.insurance-audit.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.insurance-audit"
     },
     {
@@ -812,7 +812,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.qc-eval-sets.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.qc-eval-sets"
     },
     {
@@ -842,7 +842,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.admin-audit.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.admin-audit"
     },
     {
@@ -872,7 +872,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.security-baseline.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.security-baseline"
     },
     {
@@ -902,7 +902,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.implementation-guide.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.implementation-guide"
     },
     {
@@ -937,7 +937,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.adapter-hub.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.adapter-hub"
     },
     {
@@ -967,7 +967,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.system-providers.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.system-providers"
     },
     {
@@ -997,7 +997,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.runtime-diagnostics.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.runtime-diagnostics"
     },
     {
@@ -1027,7 +1027,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.domestic-check.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.domestic-check"
     },
     {
@@ -1057,7 +1057,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.notifications.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.notifications"
     },
     {
@@ -1087,7 +1087,7 @@
         "eventContract": "shared-audit-event.v1",
         "evidenceKey": "catalog.entries.notification-settings.audit"
       },
-      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      "sixStates": ["loading", "empty", "ready", "error", "forbidden", "partial"],
       "evidenceKey": "catalog.entries.notification-settings"
     }
   ]

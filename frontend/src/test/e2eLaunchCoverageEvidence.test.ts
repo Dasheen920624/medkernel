@@ -7329,6 +7329,56 @@ const qualityManagementEntryCoreActionsEvidence = {
 
 const requiredMenuEntryCoreActionRows = productEntryCatalog.map((entry) => entry.entryCode);
 
+function productEntryRuntimeObservationEvidence() {
+  const stateCodes = productEntryCatalog[0].sixStates.map(
+    (state) => `STATE_${state.toUpperCase()}`,
+  );
+  return {
+    schemaVersion: "1.0.0",
+    observationEvidence: "launch.entry.runtime-observation",
+    stateRenderer: {
+      runner: "vitest",
+      testFile: "frontend/src/shared/ui/PageState.test.tsx",
+      resultSha256: "a".repeat(64),
+      assertions: stateCodes.map((observedCode) => ({
+        observedCode,
+        testName: `PageState [${observedCode}] 真实 DOM 观察`,
+        status: "passed",
+      })),
+    },
+    entries: productEntryCatalog.map((entry) => ({
+      entryCode: entry.entryCode,
+      route: entry.route,
+      allowed: {
+        observedCode: "ENTRY_PERMISSION_ALLOWED",
+        role: entry.responsibilityRoles[0],
+        profileStatus: 200,
+        actualPath: `/medkernel${entry.route}`,
+        headingText: entry.displayName,
+        permissionCodes: [...entry.requiredPermissions],
+      },
+      forbidden: {
+        observedCode: "ENTRY_PERMISSION_FORBIDDEN",
+        userId: "e2e-launch-contract-roleless",
+        profileStatus: 200,
+        actualPath: `/medkernel${entry.route}`,
+        title: "当前权限不足",
+        permissionCodes: [],
+        menuKeys: [],
+      },
+      organizationScope: {
+        observedCode: "ENTRY_ORGANIZATION_SCOPE",
+        mode: entry.organizationScopeMode,
+        tenantId: "t-e2e-rehearsal-local",
+        assignmentScopeLevel: "FACILITY",
+        assignmentScopeCode: "hospital-e2e-1",
+        effectiveScopeField: "hospitalId",
+        effectiveScopeCode: "hospital-e2e-1",
+      },
+    })),
+  };
+}
+
 const knowledgeOperationsAssetEntryCoreActionsEvidence = {
   matrixCode: "KNOWLEDGE_OPERATIONS_ASSET_ENTRY_CORE_ACTIONS",
   scopeStatement:
@@ -7767,6 +7817,7 @@ function allMenuEntryCoreActionsEvidenceResult(
     knowledgeBody?: Record<string, unknown>;
     domainFacadeBody?: Record<string, unknown>;
     domainFacadeTest?: BrowserE2eTestResult;
+    entryRuntimeObservationBody?: Record<string, unknown>;
   } = {},
 ) {
   return buildBrowserE2eLaunchEvidence({
@@ -7900,6 +7951,22 @@ function allMenuEntryCoreActionsEvidenceResult(
           },
         ],
       },
+      ...(options.entryRuntimeObservationBody
+        ? [
+            {
+              file: "/repo/frontend/e2e/all-done-route-smoke.spec.ts",
+              title: "每个真实角色打开全部授权页面且没有系统级错误",
+              status: "passed" as const,
+              attachments: [
+                {
+                  name: "product-entry-runtime-observations",
+                  contentType: "application/json",
+                  body: JSON.stringify(options.entryRuntimeObservationBody),
+                },
+              ],
+            },
+          ]
+        : []),
     ],
   });
 }
@@ -21708,7 +21775,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
-  it("declares all product entry core-action rows only from complete cross-family evidence", () => {
+  it("keeps product entry rows at limited core-action strength without runtime observations", () => {
     const evidence = allMenuEntryCoreActionsEvidenceResult();
 
     expect(evidence.launchCoverage.menuEntryCoreActions?.map((item) => item.code)).toEqual([
@@ -21747,10 +21814,93 @@ describe("browser E2E launch coverage evidence", () => {
           "STATE_READY",
           "STATE_ERROR",
           "STATE_FORBIDDEN",
-          "STATE_DEGRADED",
+          "STATE_PARTIAL",
         ],
       });
     });
+  });
+
+  it("declares the full 35-entry contract only from executable permission, organization and six-state observations", () => {
+    const evidence = allMenuEntryCoreActionsEvidenceResult({
+      entryRuntimeObservationBody: productEntryRuntimeObservationEvidence(),
+    });
+
+    expect(evidence.launchCoverage.menuEntryCoreActionRows).toHaveLength(
+      productEntryCatalog.length,
+    );
+    evidence.launchCoverage.menuEntryCoreActionRows?.forEach((row, index) => {
+      const entry = productEntryCatalog[index];
+      expect(row).toMatchObject({
+        requiredEvidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+        evidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+        verifiedCapabilities: [
+          "ROUTE",
+          "AUTHORITATIVE_READBACK",
+          "CORE_ACTION",
+          "AUDIT_READBACK",
+          "PERMISSION_ALLOWED",
+          "PERMISSION_FORBIDDEN",
+          "ORGANIZATION_SCOPE",
+          "STATE_LOADING",
+          "STATE_EMPTY",
+          "STATE_READY",
+          "STATE_ERROR",
+          "STATE_FORBIDDEN",
+          "STATE_PARTIAL",
+        ],
+        verifiedObject: {
+          entryCode: entry.entryCode,
+          route: entry.route,
+          actionCodes: entry.coreActions.map((action) => action.actionCode),
+          permissionCodes: [...entry.requiredPermissions],
+          organizationScopeMode: entry.organizationScopeMode,
+          sixStates: [...entry.sixStates],
+        },
+        coverageBoundary: {
+          mode: "FULL_ENTRY_CONTRACT",
+          statement: expect.stringContaining("完整入口合同"),
+        },
+        uncoveredScope: [],
+      });
+    });
+  });
+
+  it.each([
+    {
+      name: "静态权限布尔",
+      mutate: (body: ReturnType<typeof productEntryRuntimeObservationEvidence>) => {
+        body.entries[0].allowed = true as never;
+      },
+    },
+    {
+      name: "缺少真实观察码",
+      mutate: (body: ReturnType<typeof productEntryRuntimeObservationEvidence>) => {
+        delete (body.entries[0].allowed as { observedCode?: string }).observedCode;
+      },
+    },
+    {
+      name: "缺少六态执行结果",
+      mutate: (body: ReturnType<typeof productEntryRuntimeObservationEvidence>) => {
+        body.stateRenderer.assertions = body.stateRenderer.assertions.filter(
+          (item) => item.observedCode !== "STATE_PARTIAL",
+        );
+      },
+    },
+  ])("does not elevate entry strength from $name", ({ mutate }) => {
+    const body = productEntryRuntimeObservationEvidence();
+    mutate(body);
+    const evidence = allMenuEntryCoreActionsEvidenceResult({
+      entryRuntimeObservationBody: body,
+    });
+
+    expect(evidence.launchCoverage.menuEntryCoreActionRows).toHaveLength(
+      productEntryCatalog.length,
+    );
+    expect(
+      evidence.launchCoverage.menuEntryCoreActionRows?.every(
+        (row) => row.evidenceStrength === "CORE_ACTION",
+      ),
+    ).toBe(true);
   });
 
   it("does not declare all product entry rows when one authority menu key is still missing", () => {

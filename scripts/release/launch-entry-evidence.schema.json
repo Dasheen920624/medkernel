@@ -96,7 +96,7 @@
               "ready",
               "error",
               "forbidden",
-              "degraded"
+              "partial"
             ]
           }
         }
@@ -148,7 +148,7 @@
         "STATE_READY",
         "STATE_ERROR",
         "STATE_FORBIDDEN",
-        "STATE_DEGRADED"
+        "STATE_PARTIAL"
       ]
     }
   },
@@ -199,7 +199,7 @@
         "STATE_READY",
         "STATE_ERROR",
         "STATE_FORBIDDEN",
-        "STATE_DEGRADED"
+        "STATE_PARTIAL"
       ]
     }
   ]

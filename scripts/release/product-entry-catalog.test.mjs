@@ -29,7 +29,7 @@ const sixStates = [
   "ready",
   "error",
   "forbidden",
-  "degraded",
+  "partial",
 ];
 const sectionCodes = new Set([
   "workbench",

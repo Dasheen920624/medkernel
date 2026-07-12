@@ -16,12 +16,12 @@ describe("PageState", () => {
     ]);
   });
 
-  it("renders loading state", () => {
+  it("[STATE_LOADING] renders loading state", () => {
     render(<PageState state="loading" />);
     expect(screen.getByText("正在加载")).toBeInTheDocument();
   });
 
-  it("renders empty state with action", () => {
+  it("[STATE_EMPTY] renders empty state with action", () => {
     render(
       <PageState state="empty" title="暂无发布记录" action={<Button>导入离线交付文件</Button>} />,
     );
@@ -29,7 +29,7 @@ describe("PageState", () => {
     expect(screen.getByRole("button", { name: "导入离线交付文件" })).toBeInTheDocument();
   });
 
-  it("renders error audit evidence hint and retry action without exposing tracking number", () => {
+  it("[STATE_ERROR] renders error audit evidence hint and retry action without exposing tracking number", () => {
     const retry = vi.fn();
 
     render(<PageState state="error" traceId="trace-001" onRetry={retry} />);
@@ -53,14 +53,14 @@ describe("PageState", () => {
     expect(screen.queryByText(/trace-002/)).not.toBeInTheDocument();
   });
 
-  it("renders forbidden state without sensitive details", () => {
+  it("[STATE_FORBIDDEN] renders forbidden state without sensitive details", () => {
     render(<PageState state="forbidden" />);
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
     expect(screen.getByText(/联系平台管理员/)).toBeInTheDocument();
     expect(screen.queryByText(/信息科主任/)).not.toBeInTheDocument();
   });
 
-  it("renders partial success counts", () => {
+  it("[STATE_PARTIAL] renders partial success counts", () => {
     render(
       <PageState
         state="partial"
@@ -85,7 +85,7 @@ describe("PageState", () => {
     expect(screen.queryByText(/\/api\/v1\/package/)).not.toBeInTheDocument();
   });
 
-  it("renders ready children", () => {
+  it("[STATE_READY] renders ready children", () => {
     render(
       <PageState state="ready">
         <div>正常内容</div>

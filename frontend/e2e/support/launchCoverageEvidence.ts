@@ -1,7 +1,22 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { productEntryCatalog } from "../../src/shared/contracts/productEntryCatalog.generated";
-import launchEntryEvidenceSchema from "../../../scripts/release/launch-entry-evidence.schema.json";
+
+const launchEntryEvidenceSchemaPath = [
+  path.resolve(process.cwd(), "scripts/release/launch-entry-evidence.schema.json"),
+  path.resolve(process.cwd(), "../scripts/release/launch-entry-evidence.schema.json"),
+].find((candidate) => existsSync(candidate));
+
+if (!launchEntryEvidenceSchemaPath) {
+  throw new Error(
+    "无法定位 launch-entry-evidence.schema.json；必须从仓库根目录或 frontend 目录运行",
+  );
+}
+
+const launchEntryEvidenceSchema = JSON.parse(
+  readFileSync(launchEntryEvidenceSchemaPath, "utf8"),
+) as Record<string, unknown>;
 
 type LaunchEntryEvidenceStrength =
   | "ROUTE_ONLY"
@@ -23,7 +38,13 @@ type LaunchEntryVerifiedCapability =
   | "STATE_READY"
   | "STATE_ERROR"
   | "STATE_FORBIDDEN"
-  | "STATE_DEGRADED";
+  | "STATE_PARTIAL";
+
+type ProductEntryRuntimeObservation = {
+  permissionCodes: string[];
+  organizationScopeMode: string;
+  sixStates: string[];
+};
 
 export type BrowserE2eRunStats = {
   startTime?: string;
@@ -1847,7 +1868,11 @@ export function buildBrowserE2eLaunchEvidence(input: {
   }
   if (hasRequiredMenuEntryCoreActionEvidence(input.tests)) {
     mergeClaims(evidence.launchCoverage, menuEntryCoreActionsClaims, generatedAt);
-    mergeProductEntryCoreActionEvidence(evidence.launchCoverage, generatedAt);
+    mergeProductEntryCoreActionEvidence(
+      evidence.launchCoverage,
+      generatedAt,
+      collectProductEntryRuntimeObservations(input.tests),
+    );
   }
   if (hasRequiredKnowledgeSupplyChainEvidenceAttachment(input.tests)) {
     mergeClaims(
@@ -2908,6 +2933,207 @@ function hasRequiredMenuEntryCoreActionEvidence(tests: BrowserE2eTestResult[]) {
 function addMenuRowsIf(target: Set<string>, condition: boolean, rows: readonly string[]) {
   if (!condition) return;
   for (const row of rows) target.add(row);
+}
+
+function collectProductEntryRuntimeObservations(
+  tests: BrowserE2eTestResult[],
+): Map<string, ProductEntryRuntimeObservation> | null {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "all-done-route-smoke.spec.ts" ||
+      test.title !== "每个真实角色打开全部授权页面且没有系统级错误" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected"
+    ) {
+      continue;
+    }
+    const attachment = test.attachments?.find(
+      (item) => item.name === "product-entry-runtime-observations",
+    );
+    if (attachment?.contentType !== "application/json" || !attachment.body) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(attachment.body) as unknown;
+    } catch {
+      continue;
+    }
+    const observations = validateProductEntryRuntimeObservations(parsed);
+    if (observations) return observations;
+  }
+  return null;
+}
+
+function validateProductEntryRuntimeObservations(
+  value: unknown,
+): Map<string, ProductEntryRuntimeObservation> | null {
+  const body = exactRecord(value, [
+    "schemaVersion",
+    "observationEvidence",
+    "stateRenderer",
+    "entries",
+  ]);
+  if (
+    !body ||
+    body.schemaVersion !== "1.0.0" ||
+    body.observationEvidence !== "launch.entry.runtime-observation" ||
+    !hasCompletePageStateRuntimeObservations(body.stateRenderer) ||
+    !Array.isArray(body.entries) ||
+    body.entries.length !== productEntryCatalog.length
+  ) {
+    return null;
+  }
+
+  const observations = new Map<string, ProductEntryRuntimeObservation>();
+  for (const entry of productEntryCatalog) {
+    const matches = body.entries.filter(
+      (candidate) => recordValue(candidate)?.entryCode === entry.entryCode,
+    );
+    if (matches.length !== 1) return null;
+    const observation = validateProductEntryRuntimeObservation(matches[0], entry);
+    if (!observation) return null;
+    observations.set(entry.entryCode, observation);
+  }
+  return observations.size === productEntryCatalog.length ? observations : null;
+}
+
+function hasCompletePageStateRuntimeObservations(value: unknown) {
+  const renderer = exactRecord(value, ["runner", "testFile", "resultSha256", "assertions"]);
+  if (
+    !renderer ||
+    renderer.runner !== "vitest" ||
+    renderer.testFile !== "frontend/src/shared/ui/PageState.test.tsx" ||
+    !isSha256(renderer.resultSha256) ||
+    !Array.isArray(renderer.assertions)
+  ) {
+    return false;
+  }
+  const requiredCodes = productEntryCatalog[0].sixStates.map(
+    (state) => `STATE_${state.toUpperCase()}`,
+  );
+  if (renderer.assertions.length !== requiredCodes.length) return false;
+  const observedCodes = new Set<string>();
+  for (const candidate of renderer.assertions) {
+    const assertion = exactRecord(candidate, ["observedCode", "testName", "status"]);
+    if (
+      !assertion ||
+      !requiredCodes.includes(assertion.observedCode as (typeof requiredCodes)[number]) ||
+      assertion.status !== "passed" ||
+      !hasText(assertion.testName) ||
+      !String(assertion.testName).includes(`[${String(assertion.observedCode)}]`) ||
+      observedCodes.has(String(assertion.observedCode))
+    ) {
+      return false;
+    }
+    observedCodes.add(String(assertion.observedCode));
+  }
+  return requiredCodes.every((code) => observedCodes.has(code));
+}
+
+function validateProductEntryRuntimeObservation(
+  value: unknown,
+  expected: (typeof productEntryCatalog)[number],
+): ProductEntryRuntimeObservation | null {
+  const entry = exactRecord(value, [
+    "entryCode",
+    "route",
+    "allowed",
+    "forbidden",
+    "organizationScope",
+  ]);
+  if (!entry || entry.entryCode !== expected.entryCode || entry.route !== expected.route) {
+    return null;
+  }
+  const allowed = exactRecord(entry.allowed, [
+    "observedCode",
+    "role",
+    "profileStatus",
+    "actualPath",
+    "headingText",
+    "permissionCodes",
+  ]);
+  if (
+    !allowed ||
+    allowed.observedCode !== "ENTRY_PERMISSION_ALLOWED" ||
+    !(expected.responsibilityRoles as readonly string[]).includes(String(allowed.role)) ||
+    !is2xxStatus(allowed.profileStatus) ||
+    !pathMatchesRoute(allowed.actualPath, expected.route) ||
+    !hasText(allowed.headingText) ||
+    !arrayEquals(allowed.permissionCodes, expected.requiredPermissions)
+  ) {
+    return null;
+  }
+
+  const forbidden = exactRecord(entry.forbidden, [
+    "observedCode",
+    "userId",
+    "profileStatus",
+    "actualPath",
+    "title",
+    "permissionCodes",
+    "menuKeys",
+  ]);
+  if (
+    !forbidden ||
+    forbidden.observedCode !== "ENTRY_PERMISSION_FORBIDDEN" ||
+    !hasText(forbidden.userId) ||
+    !is2xxStatus(forbidden.profileStatus) ||
+    !pathMatchesRoute(forbidden.actualPath, expected.route) ||
+    forbidden.title !== "当前权限不足" ||
+    !arrayEquals(forbidden.permissionCodes, []) ||
+    !arrayEquals(forbidden.menuKeys, [])
+  ) {
+    return null;
+  }
+
+  const organizationScope = exactRecord(entry.organizationScope, [
+    "observedCode",
+    "mode",
+    "tenantId",
+    "assignmentScopeLevel",
+    "assignmentScopeCode",
+    "effectiveScopeField",
+    "effectiveScopeCode",
+  ]);
+  const scopeLevel = textValue(organizationScope?.assignmentScopeLevel)?.toUpperCase();
+  const effectiveFieldByLevel: Record<string, string> = {
+    TENANT: "tenantId",
+    GROUP: "groupId",
+    FACILITY: "hospitalId",
+    CAMPUS: "campusId",
+    SITE: "siteId",
+    DEPARTMENT: "departmentId",
+    WARD: "wardId",
+    SPECIALTY: "specialtyId",
+  };
+  if (
+    !organizationScope ||
+    organizationScope.observedCode !== "ENTRY_ORGANIZATION_SCOPE" ||
+    organizationScope.mode !== expected.organizationScopeMode ||
+    !hasText(organizationScope.tenantId) ||
+    !scopeLevel ||
+    organizationScope.effectiveScopeField !== effectiveFieldByLevel[scopeLevel] ||
+    !hasText(organizationScope.assignmentScopeCode) ||
+    organizationScope.effectiveScopeCode !== organizationScope.assignmentScopeCode
+  ) {
+    return null;
+  }
+
+  return {
+    permissionCodes: [...expected.requiredPermissions],
+    organizationScopeMode: expected.organizationScopeMode,
+    sixStates: [...expected.sixStates],
+  };
+}
+
+function exactRecord(value: unknown, expectedKeys: readonly string[]) {
+  const record = recordValue(value);
+  if (!record) return null;
+  const actualKeys = Object.keys(record).sort();
+  const canonicalKeys = [...expectedKeys].sort();
+  return actualKeys.length === canonicalKeys.length &&
+    actualKeys.every((key, index) => key === canonicalKeys[index])
+    ? record
+    : null;
 }
 
 function hasRequiredDomainFacadeB0EvidenceFromTargetSpec(tests: BrowserE2eTestResult[]) {
@@ -17326,6 +17552,10 @@ function is2xxStatus(value: unknown) {
   return typeof value === "number" && value >= 200 && value < 300;
 }
 
+function pathMatchesRoute(value: unknown, route: string) {
+  return typeof value === "string" && (value === route || value.endsWith(route));
+}
+
 function isPositiveNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
@@ -17351,33 +17581,41 @@ function isSha256(value: unknown) {
 function mergeProductEntryCoreActionEvidence(
   target: Record<string, LaunchCoverageRow[]>,
   observedAt: string,
+  runtimeObservations: Map<string, ProductEntryRuntimeObservation> | null,
 ) {
   const key = "menuEntryCoreActionRows";
   target[key] ??= [];
   for (const entry of productEntryCatalog) {
     if (target[key].some((row) => row.code === entry.entryCode)) continue;
+    const runtimeObservation = runtimeObservations?.get(entry.entryCode);
+    const hasFullEntryContract = runtimeObservation !== undefined;
     target[key].push({
       code: entry.entryCode,
       status: "PASSED",
       evidenceKey: `launchCoverage.${key}.${entry.entryCode}`,
       observedAt,
       requiredEvidenceStrength: requiredProductEntryEvidenceStrength,
-      evidenceStrength: coreActionEntryStrengthPolicy.level,
-      verifiedCapabilities: [...coreActionVerifiedCapabilities],
+      evidenceStrength: hasFullEntryContract
+        ? fullEntryStrengthPolicy.level
+        : coreActionEntryStrengthPolicy.level,
+      verifiedCapabilities: hasFullEntryContract
+        ? [...fullEntryStrengthPolicy.requiredCapabilities]
+        : [...coreActionVerifiedCapabilities],
       verifiedObject: {
         entryCode: entry.entryCode,
         route: entry.route,
         actionCodes: entry.coreActions.map((action) => action.actionCode),
-        permissionCodes: [],
-        organizationScopeMode: null,
-        sixStates: [],
+        permissionCodes: runtimeObservation?.permissionCodes ?? [],
+        organizationScopeMode: runtimeObservation?.organizationScopeMode ?? null,
+        sixStates: runtimeObservation?.sixStates ?? [],
       },
       coverageBoundary: {
-        mode: "LIMITED_ENTRY_SLICE",
-        statement:
-          "真实核心动作、权威回读和审计已验证；权限拒绝边界、有效组织范围与六态尚未逐入口完成，不代表完整入口合同。",
+        mode: hasFullEntryContract ? "FULL_ENTRY_CONTRACT" : "LIMITED_ENTRY_SLICE",
+        statement: hasFullEntryContract
+          ? "真实核心动作、权威回读、审计、允许与拒绝权限边界、有效组织范围及六态均已通过可执行观察验证，构成完整入口合同。"
+          : "真实核心动作、权威回读和审计已验证；权限拒绝边界、有效组织范围与六态尚未逐入口完成，不代表完整入口合同。",
       },
-      uncoveredScope: [...coreActionUncoveredScope],
+      uncoveredScope: hasFullEntryContract ? [] : [...coreActionUncoveredScope],
     });
   }
 }

@@ -1,7 +1,7 @@
 // 本文件由 docs/contracts/product/product-entry-catalog.v1.json 通过 scripts/release/generate-product-entry-consumers.mjs 生成，禁止手工修改。
 
 export const productEntryCatalogSourceSha256 =
-  "178954986bb5d083a87c00bbe7fa515d4f490aaf90f47432d8820412f90991a6" as const;
+  "db671bc8c188abb0c8365855c2f395d6f310965f9eb589f56e7026e961ca005f" as const;
 
 export const productEntryCatalogContract = {
   schemaVersion: "1.0.0",
@@ -16,7 +16,7 @@ export const productEntryCatalogContract = {
     "docs/audit/product-role-journeys.md",
   ],
   responsibilityRoles: ["platform-admin", "engine-operator", "clinical-user", "auditor"],
-  sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+  sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
   organizationScopeContract: {
     mode: "effective-assignment-intersection",
     tenantBound: true,
@@ -52,7 +52,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.workbench.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.workbench",
     },
     {
@@ -82,7 +82,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.tenant-onboarding.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.tenant-onboarding",
     },
     {
@@ -112,7 +112,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.admin-users.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.admin-users",
     },
     {
@@ -142,7 +142,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.identity-bindings.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.identity-bindings",
     },
     {
@@ -172,7 +172,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.knowledge-governance.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.knowledge-governance",
     },
     {
@@ -202,7 +202,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.runtime-releases.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.runtime-releases",
     },
     {
@@ -232,7 +232,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.institution-knowledge.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.institution-knowledge",
     },
     {
@@ -262,7 +262,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.diagnosis-knowledge.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.diagnosis-knowledge",
     },
     {
@@ -292,7 +292,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.terminology-mapping.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.terminology-mapping",
     },
     {
@@ -323,7 +323,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.domain-facade-b0-evidence.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.domain-facade-b0-evidence",
     },
     {
@@ -353,7 +353,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.rule-definitions.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.rule-definitions",
     },
     {
@@ -383,7 +383,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.pathway-templates.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.pathway-templates",
     },
     {
@@ -413,7 +413,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.provenance.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.provenance",
     },
     {
@@ -443,7 +443,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.graph-explore.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.graph-explore",
     },
     {
@@ -474,7 +474,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.knowledge-production.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.knowledge-production",
     },
     {
@@ -504,7 +504,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.ai-workflows.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.ai-workflows",
     },
     {
@@ -534,7 +534,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.mpi.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.mpi",
     },
     {
@@ -564,7 +564,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.patient-pathways.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.patient-pathways",
     },
     {
@@ -594,7 +594,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.cdss-fatigue.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.cdss-fatigue",
     },
     {
@@ -624,7 +624,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.workflow-todos.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.workflow-todos",
     },
     {
@@ -654,7 +654,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.clinical-followup.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.clinical-followup",
     },
     {
@@ -684,7 +684,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.sandbox.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.sandbox",
     },
     {
@@ -714,7 +714,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.qc-dashboard.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.qc-dashboard",
     },
     {
@@ -744,7 +744,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.qc-alerts.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.qc-alerts",
     },
     {
@@ -774,7 +774,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.insurance-audit.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.insurance-audit",
     },
     {
@@ -804,7 +804,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.qc-eval-sets.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.qc-eval-sets",
     },
     {
@@ -834,7 +834,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.admin-audit.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.admin-audit",
     },
     {
@@ -864,7 +864,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.security-baseline.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.security-baseline",
     },
     {
@@ -894,7 +894,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.implementation-guide.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.implementation-guide",
     },
     {
@@ -929,7 +929,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.adapter-hub.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.adapter-hub",
     },
     {
@@ -959,7 +959,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.system-providers.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.system-providers",
     },
     {
@@ -989,7 +989,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.runtime-diagnostics.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.runtime-diagnostics",
     },
     {
@@ -1019,7 +1019,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.domestic-check.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.domestic-check",
     },
     {
@@ -1049,7 +1049,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.notifications.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.notifications",
     },
     {
@@ -1079,7 +1079,7 @@ export const productEntryCatalogContract = {
         eventContract: "shared-audit-event.v1",
         evidenceKey: "catalog.entries.notification-settings.audit",
       },
-      sixStates: ["loading", "empty", "ready", "error", "forbidden", "degraded"],
+      sixStates: ["loading", "empty", "ready", "error", "forbidden", "partial"],
       evidenceKey: "catalog.entries.notification-settings",
     },
   ],

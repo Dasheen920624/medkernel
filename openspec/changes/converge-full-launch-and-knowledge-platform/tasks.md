@@ -34,7 +34,7 @@
 - [x] 2.6 强制证据来源不可自证。依赖：2.5；主要文件/接口：launch-coverage-audit.mjs 的 validateEvidenceSource；失败测试：最终审计引用自身、白名单外路径、旧 run-id、晚于判定时间或摘要被替换时失败；验证：NT scripts/release/launch-coverage-audit.test.mjs；证据键：launch.evidence.non-self-attestation。
 - [x] 2.7 建立缺口四分类。依赖：2.6；主要文件/接口：创建 scripts/release/launch-gap-classifier.mjs、launch-gap-classifier.test.mjs；失败测试：未知分类或无 ownerPath 的缺口失败；验证：NT scripts/release/launch-gap-classifier.test.mjs，且每项只归 IMPLEMENTATION、TEST、DATA、ENVIRONMENT 之一；证据键：launch.gap.classification。
 - [x] 2.8 闭环 IMPLEMENTATION 缺口。依赖：2.7；主要文件/接口：launch-gap-classifier.mjs 的 remediationPlan、目标实现与对应单测；失败测试：实现缺口无 failingTest、implementationPath、consumerReadback 或 auditReadback 时失败；验证：分类器重跑后该类缺口归零；证据键：launch.gap.implementation.closed。
-- [ ] 2.9 闭环 TEST 缺口。依赖：2.7；主要文件/接口：launch-gap-classifier.mjs、对应单测/契约/E2E；失败测试：测试缺口只有静态布尔或没有真实观察码时失败；验证：受影响测试和覆盖审计重跑归零；证据键：launch.gap.test.closed。
+- [x] 2.9 闭环 TEST 缺口。依赖：2.7；主要文件/接口：launch-gap-classifier.mjs、对应单测/契约/E2E；失败测试：测试缺口只有静态布尔或没有真实观察码时失败；验证：受影响测试和覆盖审计重跑归零；证据键：launch.gap.test.closed。
 - [ ] 2.10 闭环 DATA 缺口。依赖：2.7；主要文件/接口：medical-resource-coverage.v1.json、资源生产 API、消费者回读；失败测试：仅有候选/文件/分类名而无发布、生效、消费、审计时失败；验证：资源闭环证据重跑归零；证据键：launch.gap.data.closed。
 - [ ] 2.11 约束 ENVIRONMENT 缺口。依赖：2.7；主要文件/接口：docs/audit/deferred-issues.md、launch-gap-classifier.mjs；失败测试：仓库内可解决缺口或无目标资源事实却标 ENVIRONMENT 时失败；验证：仅不可控现场项进入清单且 LAUNCH 保持未通过；证据键：launch.gap.environment.honest。
 - [ ] 2.12 输出严格归零总账。依赖：2.8-2.11；主要文件/接口：launch-coverage-audit.mjs 的 summarizeLaunchLedger；失败测试：FAILED、UNKNOWN、SKIPPED、缺证、未解释失败、人工豁免任一非零时禁止 PASSED；验证：NT scripts/release/launch-coverage-audit.test.mjs；证据键：launch.ledger.zero-unknown。

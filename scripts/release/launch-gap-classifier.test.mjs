@@ -222,6 +222,76 @@ test("IMPLEMENTATION 修复计划保持缺口开放，移除已修复项后重�
   assert.equal(closedResult.classificationCounts.IMPLEMENTATION, 0);
 });
 
+test("TEST 缺口必须绑定仓内可执行测试、真实观察证据与稳定观察码", () => {
+  const testGap = launchGap({
+    gapId: "GAP-LAUNCH-02-TEST",
+    launchCode: "LAUNCH-02",
+    evidenceKey: "launch.entry.runtime-observation",
+    gapKind: "EXECUTABLE_EVIDENCE_ABSENT",
+    classification: "TEST",
+    ownerPath: "frontend/e2e/all-done-route-smoke.spec.ts",
+  });
+
+  for (const field of [
+    "executableTest",
+    "observationEvidence",
+    "observedCode",
+  ]) {
+    const remediationPlan = testRemediationPlan();
+    delete remediationPlan[field];
+    assert.throws(
+      () => classifyLaunchGaps([{ ...testGap, remediationPlan }]),
+      new RegExp(`TEST.*remediationPlan.*${field}.*不能为空`, "u"),
+    );
+  }
+
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...testGap,
+          remediationPlan: testRemediationPlan({ observationEvidence: true }),
+        },
+      ]),
+    /observationEvidence.*不能为空/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...testGap,
+          remediationPlan: testRemediationPlan({ observedCode: true }),
+        },
+      ]),
+    /observedCode.*不能为空/u,
+  );
+  assert.throws(
+    () =>
+      classifyLaunchGaps([
+        {
+          ...testGap,
+          remediationPlan: testRemediationPlan({ observedCode: "observed" }),
+        },
+      ]),
+    /observedCode.*稳定的大写观察码/u,
+  );
+
+  const result = classifyLaunchGaps([testGap]);
+  assert.deepEqual(result.testClosure, {
+    evidenceKey: "launch.gap.test.closed",
+    status: "OPEN",
+    remainingGapCount: 1,
+    remainingGapIds: ["GAP-LAUNCH-02-TEST"],
+  });
+  assert.deepEqual(result.gaps[0].remediationPlan, testRemediationPlan());
+  assert.deepEqual(classifyLaunchGaps([]).testClosure, {
+    evidenceKey: "launch.gap.test.closed",
+    status: "CLOSED",
+    remainingGapCount: 0,
+    remainingGapIds: [],
+  });
+});
+
 test("无缺口时输出四类严格归零结果", () => {
   assert.deepEqual(classifyLaunchGaps([]), {
     schemaVersion: "1.0.0",
@@ -236,6 +306,12 @@ test("无缺口时输出四类严格归零结果", () => {
     },
     implementationClosure: {
       evidenceKey: "launch.gap.implementation.closed",
+      status: "CLOSED",
+      remainingGapCount: 0,
+      remainingGapIds: [],
+    },
+    testClosure: {
+      evidenceKey: "launch.gap.test.closed",
       status: "CLOSED",
       remainingGapCount: 0,
       remainingGapIds: [],
@@ -258,7 +334,12 @@ function launchGap(overrides = {}) {
     ...overrides,
   };
   if (
-    gap.classification !== "IMPLEMENTATION" &&
+    !Object.hasOwn(overrides, "remediationPlan") &&
+    gap.classification === "TEST"
+  ) {
+    gap.remediationPlan = testRemediationPlan();
+  } else if (
+    !["IMPLEMENTATION", "TEST"].includes(gap.classification) &&
     !Object.hasOwn(overrides, "remediationPlan")
   ) {
     delete gap.remediationPlan;
@@ -273,6 +354,15 @@ function implementationRemediationPlan(overrides = {}) {
       "medkernel-backend/src/main/java/com/medkernel/LaunchService.java",
     consumerReadback: "launch.runtime.implementation.consumer-readback",
     auditReadback: "launch.runtime.implementation.audit-readback",
+    ...overrides,
+  };
+}
+
+function testRemediationPlan(overrides = {}) {
+  return {
+    executableTest: "frontend/e2e/all-done-route-smoke.spec.ts",
+    observationEvidence: "launch.entry.runtime-observation",
+    observedCode: "ENTRY_PERMISSION_ALLOWED",
     ...overrides,
   };
 }

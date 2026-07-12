@@ -36,10 +36,16 @@ const IMPLEMENTATION_REMEDIATION_FIELDS = Object.freeze([
   "consumerReadback",
   "auditReadback",
 ]);
+const TEST_REMEDIATION_FIELDS = Object.freeze([
+  "executableTest",
+  "observationEvidence",
+  "observedCode",
+]);
 const LAUNCH_CODE_PATTERN = /^LAUNCH-(0[1-9]|1[0-5])$/u;
 const GAP_ID_PATTERN = /^GAP-[A-Z0-9][A-Z0-9._-]*$/u;
 const EVIDENCE_KEY_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+$/u;
 const TEST_PATH_PATTERN = /(?:Test\.java|\.(?:test|spec)\.[cm]?[jt]sx?)$/u;
+const OBSERVED_CODE_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/u;
 
 export function classifyLaunchGaps(value) {
   if (!Array.isArray(value)) {
@@ -69,6 +75,10 @@ export function classifyLaunchGaps(value) {
     .filter((gap) => gap.classification === "IMPLEMENTATION")
     .map((gap) => gap.gapId)
     .sort();
+  const remainingTestGapIds = gaps
+    .filter((gap) => gap.classification === "TEST")
+    .map((gap) => gap.gapId)
+    .sort();
 
   return {
     schemaVersion: "1.0.0",
@@ -81,6 +91,12 @@ export function classifyLaunchGaps(value) {
       status: remainingImplementationGapIds.length === 0 ? "CLOSED" : "OPEN",
       remainingGapCount: remainingImplementationGapIds.length,
       remainingGapIds: remainingImplementationGapIds,
+    },
+    testClosure: {
+      evidenceKey: "launch.gap.test.closed",
+      status: remainingTestGapIds.length === 0 ? "CLOSED" : "OPEN",
+      remainingGapCount: remainingTestGapIds.length,
+      remainingGapIds: remainingTestGapIds,
     },
     gaps,
   };
@@ -138,6 +154,8 @@ function validateLaunchGap(candidate, index) {
       ownerPath,
       label,
     );
+  } else if (classification === "TEST") {
+    remediationPlan = validateTestRemediationPlan(gap.remediationPlan, label);
   } else if (Object.hasOwn(gap, "remediationPlan")) {
     throw new Error(`${label} ${classification} remediationPlan 尚未定义`);
   }
@@ -155,6 +173,45 @@ function validateLaunchGap(candidate, index) {
     result.remediationPlan = remediationPlan;
   }
   return result;
+}
+
+function validateTestRemediationPlan(value, label) {
+  const planLabel = `${label} TEST remediationPlan`;
+  const plan = requireRecord(value, planLabel);
+  requireExactKeys(plan, TEST_REMEDIATION_FIELDS, planLabel);
+
+  const executableTest = requireRepositoryRelativePath(
+    plan.executableTest,
+    `${planLabel} executableTest`,
+  );
+  if (!isTestFilePath(executableTest)) {
+    throw new Error(`${planLabel} executableTest 必须指向测试文件`);
+  }
+  const executableTestPath = path.resolve(REPO_ROOT, executableTest);
+  if (
+    !existsSync(executableTestPath) ||
+    !statSync(executableTestPath).isFile()
+  ) {
+    throw new Error(`${planLabel} executableTest 必须指向仓内现存测试文件`);
+  }
+
+  const observationEvidence = requireEvidenceKey(
+    plan.observationEvidence,
+    `${planLabel} observationEvidence`,
+  );
+  const observedCode = requireText(
+    plan.observedCode,
+    `${planLabel} observedCode`,
+  );
+  if (!OBSERVED_CODE_PATTERN.test(observedCode)) {
+    throw new Error(`${planLabel} observedCode 必须是稳定的大写观察码`);
+  }
+
+  return {
+    executableTest,
+    observationEvidence,
+    observedCode,
+  };
 }
 
 function validateImplementationRemediationPlan(value, ownerPath, label) {
