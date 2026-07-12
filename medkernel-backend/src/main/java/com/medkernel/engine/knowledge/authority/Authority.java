@@ -10,7 +10,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 平台知识权威的稳定身份与当前发布游标。
  *
- * <p>{@code authorityId} 与宿主、IP、目录和数据库主键解耦；当前发布实例及序号只能通过后续原子接管服务推进。
+ * <p>{@code authorityId} 与宿主、IP、目录和数据库主键解耦；固定根、首个发布实例和包发布序号
+ * 分别只能由可信根初始化、首发实例登记和不可变包注册事务推进，后续迁移再使用原子接管流程。
  */
 @Table("mk_knowledge_authority")
 public record Authority(

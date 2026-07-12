@@ -137,6 +137,42 @@ class IssuerRegistrationServiceTest {
     }
 
     @Test
+    void activatesFirstIssuerAndKeyWhenAuthorityHasNoPublisher() {
+        Authority emptyAuthority = authorityWithoutActiveIssuer();
+        SigningKeyPort.ProvisionedSigningKey provisioned =
+            provisionedKey(ISSUER_A, KEY_A, PUBLIC_KEY_A, "CERTIFICATE-A");
+        when(authorities.findByTenantId(PlatformTenant.ID)).thenReturn(Optional.of(emptyAuthority));
+        when(issuers.findByTenantIdAndAuthorityIdAndIssuerInstanceId(
+            PlatformTenant.ID, AUTHORITY_ID, ISSUER_A)).thenReturn(Optional.empty());
+        when(signingKeyPort.provisionSigningKey(AUTHORITY_ID, ISSUER_A)).thenReturn(provisioned);
+        when(signingKeyPort.publicKeyFingerprint("CERTIFICATE-A")).thenReturn(PUBLIC_KEY_A);
+        when(signingKeys.findByTenantIdAndAuthorityIdAndKeyId(
+            PlatformTenant.ID, AUTHORITY_ID, KEY_A)).thenReturn(Optional.empty());
+        when(signingKeys.findByTenantIdAndAuthorityIdOrderByCreatedAtAscIdAsc(
+            PlatformTenant.ID, AUTHORITY_ID)).thenReturn(List.of());
+        when(trustRoots.findByTenantIdAndAuthorityIdAndRootFingerprint(
+            PlatformTenant.ID, AUTHORITY_ID, ROOT_FINGERPRINT)).thenReturn(Optional.of(trustRoot()));
+        when(issuers.save(any(IssuerInstance.class))).thenAnswer(invocation ->
+            withIssuerDatabaseIdentity(invocation.getArgument(0, IssuerInstance.class), 41L));
+        when(signingKeys.save(any(SigningKey.class))).thenAnswer(invocation ->
+            withKeyDatabaseIdentity(invocation.getArgument(0, SigningKey.class), 81L));
+        when(authorities.save(any(Authority.class))).thenAnswer(invocation ->
+            invocation.getArgument(0, Authority.class));
+
+        IssuerRegistrationService.Registration result =
+            service.register(ISSUER_A, "134 平台知识发布实例");
+
+        ArgumentCaptor<Authority> activatedAuthority = ArgumentCaptor.forClass(Authority.class);
+        verify(authorities).save(activatedAuthority.capture());
+        assertThat(result.issuer().status()).isEqualTo(IssuerInstanceStatus.ACTIVE);
+        assertThat(result.issuer().activatedAt()).isNotNull();
+        assertThat(result.signingKey().status()).isEqualTo(SigningKeyStatus.ACTIVE);
+        assertThat(activatedAuthority.getValue().activeIssuerInstanceId()).isEqualTo(ISSUER_A);
+        assertThat(activatedAuthority.getValue().activeTrustRootFingerprint())
+            .isEqualTo(ROOT_FINGERPRINT);
+    }
+
+    @Test
     void repeatedRegistrationReturnsPersistedBindingWithoutProvisioningAgain() {
         IssuerInstance existingIssuer = issuer(42L, ISSUER_B);
         SigningKey existingKey = signingKey(84L, ISSUER_B, KEY_B, "CERTIFICATE-B");
@@ -284,6 +320,24 @@ class IssuerRegistrationServiceTest {
             now,
             "platform-admin",
             "trace-authority");
+    }
+
+    private Authority authorityWithoutActiveIssuer() {
+        Authority authority = authority();
+        return new Authority(
+            authority.id(),
+            authority.tenantId(),
+            authority.authorityId(),
+            null,
+            authority.activeTrustRootFingerprint(),
+            authority.handoverSequence(),
+            0,
+            authority.lockVersion(),
+            authority.createdAt(),
+            authority.createdBy(),
+            authority.updatedAt(),
+            authority.updatedBy(),
+            authority.traceId());
     }
 
     private TrustRoot trustRoot() {

@@ -17,7 +17,7 @@
 - [x] 1.1 冻结并保全可复现 RC0。依赖：无；结果：输入锚点 `7217504ce82e1aa119c3402e3b5d054f9369e018` 已收敛为候选 `7674532fdb4f3db8373bb996369cfc1fe359c553`，RC0 bundle 按真实文件、原始命令、提交和摘要独立复验，并经成果保全 PR 合入 `main`；验证：独立目录复验 bundle、`origin/main` 包含合并提交；证据键：`rc0.clean.preserved-main`。
 - [x] 1.2 建立 35 入口与十五项上线唯一总账。依赖：1.1；结果：唯一机器目录生成前后端消费者，`LAUNCH-01`～`LAUNCH-15` 固定 schema、证据来源约束、四类缺口和零 `FAILED/UNKNOWN/SKIPPED` 汇总合同已经落地；验证：入口生成检查及 `launch-coverage-audit`、`launch-gap-classifier` 全部测试；证据键：`launch.catalog-ledger.single-truth`。
 - [x] 1.3 建立平台权威持久化骨架。依赖：1.2；结果：稳定 `authorityId`、独立 `issuerInstanceId/keyId`、外置 HSM/KMS 签名端口、不可泄露私钥边界及权威相关五方言 V1 已实现；验证：权威领域、稳定身份、issuer 独立密钥、密钥边界测试和 DB；证据键：`authority.foundation.five-dialects-external-key`。
-- [ ] 1.4 完成首发最小可信签发闭环。依赖：1.3；结果：由签名软件 manifest 或独立配置预置 `authorityId/rootFingerprint`，固定根锚定的 SM2 signer/verifier 拒绝 TOFU、未知/过期/吊销 key 和非活动 issuer，不可变包注册表幂等拒绝同序号异摘要；只保留未来冷迁移所需字段，不实现自动交接状态机或独立权威页面；主要接口：现有 authority 包、`SmCryptoService`、`SigningKeyPort`、包注册仓储；验证：定向单测覆盖空医院预置、篡改、自签、IP 冒信任、吊销、重放和私钥泄漏扫描，随后 BE 定向绿；证据键：`authority.launch-minimum.fixed-root-sm2-registry`。
+- [x] 1.4 完成首发最小可信签发闭环。依赖：1.3；结果：由签名软件 manifest 或独立配置预置 `authorityId/rootFingerprint`，固定根锚定的 SM2 signer/verifier 拒绝 TOFU、未知/过期/吊销 key 和非活动 issuer，不可变包注册表幂等拒绝同序号异摘要；只保留未来冷迁移所需字段，不实现自动交接状态机或独立权威页面；主要接口：现有 authority 包、`SmCryptoService`、`SigningKeyPort`、包注册仓储；验证：定向单测覆盖空医院预置、篡改、自签、IP 冒信任、吊销、重放和私钥泄漏扫描，随后 BE 定向绿；证据键：`authority.launch-minimum.fixed-root-sm2-registry`。
 
 > 1.4 完成后，第 2、3、4 结果包并行推进；后续依赖只表示真实产品数据流，不表示新增项目门禁。
 

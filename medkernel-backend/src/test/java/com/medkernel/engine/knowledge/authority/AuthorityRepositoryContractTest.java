@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 平台知识权威领域与仓储端口契约。
  *
- * <p>合同只定义宿主无关的持久化事实与租户隔离查询；建表、签名实现和接管服务由后续任务实现。
+ * <p>合同只定义宿主无关的持久化事实与租户隔离查询；具体签发和未来冷迁移行为由服务层合同覆盖。
  */
 class AuthorityRepositoryContractTest {
 

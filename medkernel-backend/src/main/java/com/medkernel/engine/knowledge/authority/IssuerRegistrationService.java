@@ -24,7 +24,8 @@ import com.medkernel.shared.context.RequestContext;
  * 平台知识发布实例登记服务。
  *
  * <p>每个发布实例都以宿主无关的稳定身份登记，并由外置 HSM/KMS 创建独立签名密钥。
- * 服务只持久化公开证书元数据；新实例始终以待命状态进入后续唯一活动发布者接管流程。
+ * 服务只持久化公开证书元数据；固定根后的首个实例原子成为活动发布者，后续实例保持待命，
+ * 不在首发路径建设自动交接状态机。
  */
 @Service
 public class IssuerRegistrationService {
@@ -59,7 +60,7 @@ public class IssuerRegistrationService {
     }
 
     /**
-     * 登记一个待命发布实例及其独立签名密钥。
+     * 登记发布实例及其独立签名密钥。
      *
      * <p>相同 {@code issuerInstanceId} 的重试直接返回数据库中既有绑定，不再次触发密钥创建；
      * 不同实例复用 {@code keyId} 或叶子公钥材料会被拒绝并独立留下失败审计。
@@ -93,15 +94,16 @@ public class IssuerRegistrationService {
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
         String traceId = traceId();
+        boolean firstIssuer = authority.activeIssuerInstanceId() == null;
         IssuerInstance savedIssuer = issuers.save(new IssuerInstance(
             null,
             PlatformTenant.ID,
             authority.authorityId(),
             issuerInstanceId,
             normalizedDisplayName,
-            IssuerInstanceStatus.STANDBY,
+            firstIssuer ? IssuerInstanceStatus.ACTIVE : IssuerInstanceStatus.STANDBY,
             authority.handoverSequence(),
-            null,
+            firstIssuer ? now : null,
             null,
             null,
             null,
@@ -118,7 +120,7 @@ public class IssuerRegistrationService {
             provisioned.keyId(),
             provisioned.rootFingerprint(),
             provisioned.certificateChainPem(),
-            SigningKeyStatus.STANDBY,
+            firstIssuer ? SigningKeyStatus.ACTIVE : SigningKeyStatus.STANDBY,
             provisioned.notBefore(),
             provisioned.notAfter(),
             authority.handoverSequence(),
@@ -129,11 +131,28 @@ public class IssuerRegistrationService {
             now,
             actor,
             traceId));
+        if (firstIssuer) {
+            authorities.save(new Authority(
+                authority.id(),
+                authority.tenantId(),
+                authority.authorityId(),
+                issuerInstanceId,
+                provisioned.rootFingerprint(),
+                authority.handoverSequence(),
+                authority.releaseSequence(),
+                authority.lockVersion(),
+                authority.createdAt(),
+                authority.createdBy(),
+                now,
+                actor,
+                traceId));
+        }
         auditRecorder.record(
             AuditAction.CREATE,
             RESOURCE_TYPE,
             issuerInstanceId,
-            "登记待命发布实例 issuerInstanceId=" + issuerInstanceId
+            "登记" + (firstIssuer ? "首发活动" : "待命")
+                + "发布实例 issuerInstanceId=" + issuerInstanceId
                 + "，独立 keyId=" + provisioned.keyId());
         return new Registration(savedIssuer, savedKey);
     }
