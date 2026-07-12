@@ -40,7 +40,7 @@
 - r9 的本地真实结果仍是后端 519 份 Surefire 报告、3175 项测试零失败/错误/跳过，Browser E2E 两项目各 57/57、合计 `expected=114, unexpected=0, flaky=0, skipped=0`，九类门禁与六类制品完整；这些事实只用于诊断验证器和运行链，不能抵消远端 required CI 失败，也不能提升 r9。运行结束后 LaunchAgent 已卸载，4174/5173/28090 无监听。
 - r10 后端生成 519 份 Surefire 报告、3175 项测试，失败/错误/跳过均为 0；Browser E2E 的 Chromium 与国产 Chromium 模拟各 57/57，合计 `expected=114, unexpected=0, flaky=0, skipped=0`，且 E2E 前后 readiness 与 JAR 内嵌完整提交均匹配。CLI、五方言数据库、部署合同、格式/OpenSpec、前端 verify/build、MCP、T-GATE 其余门禁均退出 0；六类制品为后端 JAR、CLI 包、五方言迁移包、前端静态包、MCP 包和院内离线交付包。运行结束后 LaunchAgent `com.medkernel.rc0.7674532fd.r10` 已卸载，4174/5173/28091 均无监听，checkout 保持 clean。
 - r10 完整 bundle 已复制至 `/Users/zhikunzheng/.medkernel-rc0-verification/7674532fd-r10-copy` 并由候选内验证器独立返回 `VERIFIED`。原包、复制件和恢复后的篡改验证副本各有 567 个文件、0 个符号链接，按逐文件 SHA-256 排序聚合后的摘要均为 `bf84dc649759edfd11cebff2016b6ef3f59c988f2af8a258c88beaab66ccbba3`。验证器分别对缺 `BACKEND_TESTS` 门禁记录、缺其原始日志、缺 Maven 本次解析报告和 CLI 制品摘要漂移返回非零拒绝；每次恢复后重新返回同一 candidateCommit/run-id 的 `VERIFIED`。
-- OpenSpec `tasks.md` 已收敛为 205 个可供后续 AI 顺序执行的原子任务（24 完成、181 待执行）；覆盖缺口总账、首次信任根、签发者密钥隔离、自包含 `.mkp`、16 语义族医疗资源工厂、离线依赖仓、openEuler 空机部署、目标工具本地实现、134 一次确认部署、全量资源生产、医院复制和知识源迁移。
+- 深度复核确认旧任务图过度串行：205 项中仅 24 项完成，203 项带依赖、537 条直接依赖、最长关键路径 152。现已在不缩减 `PRODUCT_SCOPE`、医疗安全、完整资源、134 部署和医院复制结果的前提下，将 OpenSpec 收敛为 31 个结果任务（3 个既有结果、28 个待执行）、37 条直接依赖、最长关键路径 20；`.mkp`、资源工厂和院内离线交付在最小权威完成后并行。首发明确不建设全自动跨宿主交接、差量包链、HTTPS 自动拉取、独立权威页面、第二套部署框架或第二套证据编排器。
 - 任务 2.1 已按 TDD 完成：`node --test scripts/release/product-entry-catalog.test.mjs` 先因 `docs/contracts/product/product-entry-catalog.v1.json` 缺失以退出码 1 失败；补齐合同后 1/1 通过。合同恰含 35 个唯一 `entryCode` 和 35 条唯一路由，承载位置为 33 个主导航、1 个页头、1 个个人入口，四职责覆盖数为平台管理员 13、医疗引擎运营员 22、临床使用者 9、审计员 6；逐项声明权限、有效任职组织交集、核心动作、权威服务回读、`shared-audit-event.v1`、六态和证据键。一次性反向核对现有后端菜单、前端路由、默认职责策略与功能目录均无漂移；该 JSON 自此作为入口唯一机器合同，后续 2.2-2.3 必须让消费者由其生成并删除旧并行集合。
 - 任务 2.2 已完成：`generate-product-entry-consumers.mjs --check` 先同时报告后端 `menu-permission-catalog.generated.json` 与前端 `productEntryCatalog.generated.ts` 缺失并以退出码 1 失败；生成后源合同 SHA-256 为 `178954986bb5d083a87c00bbe7fa515d4f490aaf90f47432d8820412f90991a6`，两个消费者均由同一摘要绑定。临时篡改后端嵌入摘要时 `--check` 精确报告单文件漂移并退出 1，重新生成后恢复 `VERIFIED`；前端 Prettier 与 TypeScript 全量类型检查退出 0。CI 的前端构建作业已接入合同测试和生成器检查，禁止只改源合同不重生成。
 - 任务 2.3 已完成：后端 `MenuPermissionCatalog` 改为严格读取生成资源，前端路由、菜单和四职责快照均由生成合同派生，上线覆盖矩阵也由合同枚举全部入口；第 35 项 `domain-facade-b0-evidence` 只有目标 Playwright 用例通过且严格附件可验证时才计入核心动作总证据。TDD 先分别证明后端缺 `route`/职责消费者无法编译、前端移除 Java 源码快照后职责矩阵变空，以及第 36 项夹具会被唯一合同校验拒绝；实现后 `rg -n 'ALL_34|34 个入口|entryCount *= *35' frontend/src medkernel-backend/src scripts` 零命中，生成器 `--check` 返回 `VERIFIED`，发布脚本 17/17、前端 116 文件 2217/2217、生产构建和定向后端测试全绿。后端按 RC0 同口径 fresh `clean test` 并明确排除 `docker,performance` 后生成 519 份 Surefire 报告、3177 项测试，失败/错误/跳过均为 0；Docker/PostgreSQL/openEuler 与容量门禁仍由后续目标环境任务独立完成，不能据此冒领。
@@ -62,10 +62,10 @@
 
 ## 下一执行序列
 
-1. 在 `codex/launch-ledger` 按 TDD 执行 3.6：把固定 `authorityId/rootFingerprint` 预置进已签软件 manifest 与无秘密 site 信任引导配置；空医院只有 `.mkp` 同介质未知根时必须拒绝初始化。
-2. 3.6 独立提交后按依赖顺序完成 3.7 禁止 TOFU、3.8 唯一活动签发者 CAS、密钥围栏、不可变注册表和可信迁移。
-3. 权威链稳定后进入 `.mkp`、16 语义族资源工厂、离线空机安装、openEuler/容量验证和医院复制；不得绕过依赖跳到 134。
-4. 只在系统、资源包、离线部署和目标环境证据全部稳定后进入 134；134 继续保持只读，最终清库、停机、覆盖部署只申请一次绑定范围的原子确认。
+1. 在 `codex/launch-ledger` 按 TDD 执行新任务 1.4：复用现有 authority 表和 `SmCryptoService`，以签名软件 manifest 或独立配置预置固定 `authorityId/rootFingerprint`，实现 SM2 signer/verifier、拒绝 TOFU/失效 key/非活动 issuer，并完成不可变包注册；不新增医院信任检查点表或自动迁移状态机。
+2. 1.4 独立提交后并行推进 2.1 确定性 FULL `.mkp`、3.1 唯一资源覆盖矩阵和 4.1 现有 onprem 首发软件合同；测试、消费者回读、审计和证据留在对应结果任务内部，不再拆成串行门禁。
+3. 三条产品线汇合后完成双实例空库往返、一次本地全系统演练和同一提交不可变 RC；只读核查 134 并准备唯一一次最终确认输入。
+4. 只有系统、完整资源包和离线部署真实稳定后才在 134 执行备份恢复、一次确认部署、完整资源生产、全系统演练、48～72 小时稳定窗口和空医院复制。
 
 ## 上线与 134 边界
 

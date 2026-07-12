@@ -16,17 +16,17 @@
 
 ### Requirement: 发布实例身份与唯一活动发布者
 
-每个实际发布实例 SHALL 拥有唯一且不可变的 issuerInstanceId，同一 authorityId 在任一时刻 MUST 只有一个活动发布者。只有活动 issuerInstanceId 才能签发和登记新平台包；待命、冻结、已交接或已吊销实例 MUST 被禁止签发。活动发布者切换 SHALL 使用带期望当前实例和交接序号的原子比较并交换，防止双活。
+每个实际发布实例 SHALL 拥有唯一且不可变的 issuerInstanceId，同一 authorityId 在任一时刻 MUST 只有一个被登记为 ACTIVE 的发布者。只有该 issuerInstanceId 及其有效外置密钥才能签发和登记新平台包；待命、冻结、已交接或已吊销实例 MUST 被禁止签发。首次上线 MUST 固定 134 为活动发布者，不要求在运行期提供自动接管接口。
 
-#### Scenario: 134 与未来服务器同时登记
+#### Scenario: 134 作为首发活动发布者
 
-- **WHEN** 134 已是某 authorityId 的活动发布者且未来服务器以新的 issuerInstanceId 登记为待命实例
-- **THEN** 系统只允许 134 签发新包，并拒绝待命实例的签发请求
+- **WHEN** 134 以稳定 issuerInstanceId 登记为某 authorityId 的活动发布者并绑定有效外置密钥
+- **THEN** 系统只允许该实例签发新包，并把 issuerInstanceId 与 keyId 写入签名信封和包注册表
 
-#### Scenario: 并发争抢活动发布权
+#### Scenario: 非活动实例请求签发
 
-- **WHEN** 两个待命实例基于同一个期望活动 issuerInstanceId 并发请求接管
-- **THEN** 系统 MUST 只允许一个原子切换成功，另一个请求返回冲突且不得产生已签发包
+- **WHEN** 任一未登记为 ACTIVE、已冻结或已吊销的 issuerInstanceId 请求签发
+- **THEN** 系统 MUST 拒绝请求、不得产生包，并记录权威与实例身份的失败审计
 
 #### Scenario: 非活动实例签发的包进入医院
 
@@ -90,23 +90,23 @@
 - **WHEN** 具备只读权限的操作者查询平台权威
 - **THEN** 系统 SHALL 返回 authorityId、当前活动 issuerInstanceId、固定信任根指纹、有效 keyId、最新交接序号和最近包登记，且不得返回私钥材料
 
-### Requirement: 从 134 到未来服务器的可信迁移交接
+### Requirement: 保留从 134 到未来服务器的受控迁移边界
 
-平台 SHALL 支持把权威宿主从 134 迁移到未来服务器，同时保持 authorityId、信任根、包序列和发布血缘连续。迁移 MUST 依次冻结 134 的新签发、核对数据库与原件、审计、包注册表和信任链的摘要、由当前可信权威签署交接记录，再以期望当前 issuerInstanceId 原子激活目标实例；目标核对完成前不得撤销 134 的原活动状态，切换完成后 134 MUST 无法继续签发。
+首发数据和包合同 SHALL 保留未来受控迁移所需的 authorityId、issuerInstanceId、keyId、发布序号、父摘要、密钥状态和吊销事实，但首次上线 MUST NOT 依赖完整自动化跨宿主交接状态机。未来迁移 MUST 采用冷迁移边界：停止新签发，备份并核对数据库、原件、审计、包注册表和信任材料，轮换或吊销旧发布密钥，再把新宿主登记为唯一 ACTIVE 发布实例；迁移过程中不得同时存在两个可被医院接受的新签发者。
 
-#### Scenario: 134 成功迁移到未来服务器
+#### Scenario: 未来执行受控冷迁移
 
-- **WHEN** 目标实例以不同 issuerInstanceId 完成全量摘要核对且交接记录通过固定信任根验证
-- **THEN** 系统 SHALL 保持原 authorityId 并原子切换唯一活动发布者，后续包延续既有发布序号和父摘要
+- **WHEN** 目标实例以不同 issuerInstanceId 完成全量摘要核对，且旧发布密钥已轮换或吊销
+- **THEN** 系统 SHALL 保持原 authorityId、信任根、发布序号和父摘要连续，并只登记目标实例为 ACTIVE
 
 #### Scenario: 目标核对失败
 
-- **WHEN** 数据库、原件、审计、包注册表或信任链任一摘要与 134 交接清单不一致
-- **THEN** 系统 MUST 终止切换、恢复迁移前的 134 发布状态并禁止目标实例签发
+- **WHEN** 数据库、原件、审计、包注册表或信任材料任一摘要与迁移清单不一致
+- **THEN** 运维流程 MUST 终止切换并禁止目标实例签发；在旧密钥尚未吊销时可恢复 134 的原发布状态
 
 #### Scenario: 交接后旧实例继续签发
 
-- **WHEN** 已完成交接的 134 尝试用旧 issuerInstanceId 登记更高序号包
+- **WHEN** 已完成迁移的 134 尝试用已吊销 keyId 或非活动 issuerInstanceId 登记更高序号包
 - **THEN** 系统 MUST 拒绝签发和登记，并保留已激活的未来服务器为唯一活动发布者
 
 ### Requirement: 医院只读消费且不得反写平台主源
