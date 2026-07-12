@@ -33,7 +33,7 @@ import com.medkernel.shared.crypto.SmCryptoService;
  * <p>测试密钥在运行时随机生成且只存在于测试 JVM 内存；生产源码、配置、数据库和测试资源均不包含
  * 固定私钥。本适配器用于在没有真实 HSM/KMS 的单元测试中验证公开元数据与签名端口合同。
  */
-final class InMemorySigningAdapter implements SigningKeyPort {
+public final class InMemorySigningAdapter implements SigningKeyPort {
 
     private static final String SIGNATURE_ALGORITHM = "SM3withSM2";
     private static final String PROVIDER = "BC";
@@ -46,7 +46,7 @@ final class InMemorySigningAdapter implements SigningKeyPort {
     private final X509Certificate rootCertificate;
     private final String rootFingerprint;
 
-    InMemorySigningAdapter(Clock clock) {
+    public InMemorySigningAdapter(Clock clock) {
         this.clock = clock;
         try {
             this.rootKeyPair = crypto.generateSm2KeyPair();

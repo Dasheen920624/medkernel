@@ -9,7 +9,7 @@ const BACKEND_MAIN = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const AUTHORITY_MAIN =
   /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/knowledge\/authority\/.+\.java$/;
 const PACKAGE_MAIN =
-  /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/knowledge\/packageio\/.+\.java$/;
+  /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/knowledge\/(?:packageio|delivery)\/.+\.java$/;
 const DATABASE_SCHEMA =
   "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json";
 const AUTHORITY_TABLES = new Set([

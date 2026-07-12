@@ -238,3 +238,25 @@ test("生产 HSM 驱动移到其它包后仍不得持有可导出私钥", async 
     },
   );
 });
+
+test("现行医疗包 delivery 目录禁止新增私钥或凭据字段", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/delivery/UnsafePackage.java": `
+        public record UnsafePackage(String deliveryId, String privateKeyMaterial) {}
+      `,
+    },
+    async (root, files) => {
+      const report = await scanSigningSecretBoundary(
+        root,
+        files,
+        VALID_INVENTORY,
+      );
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(
+        report.violations.map((violation) => violation.ruleId),
+        ["signing-secret.medical-package"],
+      );
+    },
+  );
+});

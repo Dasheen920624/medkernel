@@ -39,6 +39,11 @@ class PackageRegistrationServiceTest {
     private static final String KEY_ID = "kms:key:issuer-134";
     private static final String ROOT_FINGERPRINT = "sm3:" + "a".repeat(64);
     private static final String MANIFEST_DIGEST = "sm3:" + "b".repeat(64);
+    private static final String PACKAGE_DIGEST = "sm3:" + "d".repeat(64);
+    private static final long PACKAGE_SIZE = 4_096L;
+    private static final String STORAGE_COORDINATE =
+        "mkp-full-000001/" + "b".repeat(64) + ".mkp";
+    private static final String PLATFORM_RELEASE_ID = "baseline-release-0001";
     private static final String DELIVERY_ID = "mkp-full-000001";
     private static final Instant NOW = Instant.parse("2026-07-12T08:00:00Z");
 
@@ -99,7 +104,15 @@ class PackageRegistrationServiceTest {
     @Test
     void registersSignedFullPackageOnceAndReturnsSameFactOnRetry() {
         PackageRegistrationCommand command = new PackageRegistrationCommand(
-            DELIVERY_ID, MedicalPackageType.FULL, null, null, null);
+            DELIVERY_ID,
+            MedicalPackageType.FULL,
+            null,
+            null,
+            null,
+            PLATFORM_RELEASE_ID,
+            PACKAGE_DIGEST,
+            PACKAGE_SIZE,
+            STORAGE_COORDINATE);
         when(registrations.findByTenantIdAndAuthorityIdAndDeliveryId(
             PlatformTenant.ID, AUTHORITY_ID, DELIVERY_ID))
             .thenReturn(Optional.empty());
@@ -127,6 +140,10 @@ class PackageRegistrationServiceTest {
             any(String.class));
         assertThat(persisted.getValue().tenantId()).isEqualTo(PlatformTenant.ID);
         assertThat(persisted.getValue().manifestDigest()).isEqualTo(MANIFEST_DIGEST);
+        assertThat(persisted.getValue().platformReleaseIdentity()).isEqualTo(PLATFORM_RELEASE_ID);
+        assertThat(persisted.getValue().packageFileDigest()).isEqualTo(PACKAGE_DIGEST);
+        assertThat(persisted.getValue().packageFileSize()).isEqualTo(PACKAGE_SIZE);
+        assertThat(persisted.getValue().storageCoordinate()).isEqualTo(STORAGE_COORDINATE);
         assertThat(persisted.getValue().packageType()).isEqualTo(MedicalPackageType.FULL);
         assertThat(persisted.getValue().signingStatus()).isEqualTo(PackageSigningStatus.SIGNED);
         assertThat(persisted.getValue().traceId()).isEqualTo("trace-package-register");
@@ -162,7 +179,16 @@ class PackageRegistrationServiceTest {
             PlatformTenant.ID, AUTHORITY_ID, DELIVERY_ID)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.register(
-            new PackageRegistrationCommand(DELIVERY_ID, MedicalPackageType.FULL, null, null, null),
+            new PackageRegistrationCommand(
+                DELIVERY_ID,
+                MedicalPackageType.FULL,
+                null,
+                null,
+                null,
+                PLATFORM_RELEASE_ID,
+                PACKAGE_DIGEST,
+                PACKAGE_SIZE,
+                DELIVERY_ID + "/" + "c".repeat(64) + ".mkp"),
             anchor,
             alteredEnvelope))
             .isInstanceOfSatisfying(ApiException.class,
@@ -183,8 +209,7 @@ class PackageRegistrationServiceTest {
                 41L, DELIVERY_ID, 1, MANIFEST_DIGEST, NOW.minusSeconds(1))));
 
         assertThatThrownBy(() -> service.register(
-            new PackageRegistrationCommand(
-                otherDeliveryId, MedicalPackageType.FULL, null, null, null),
+            fullCommand(otherDeliveryId),
             anchor,
             envelope))
             .isInstanceOfSatisfying(ApiException.class,
@@ -202,7 +227,11 @@ class PackageRegistrationServiceTest {
             MedicalPackageType.DELTA,
             DELIVERY_ID,
             MANIFEST_DIGEST,
-            MANIFEST_DIGEST);
+            MANIFEST_DIGEST,
+            PLATFORM_RELEASE_ID,
+            PACKAGE_DIGEST,
+            PACKAGE_SIZE,
+            STORAGE_COORDINATE);
 
         assertThatThrownBy(() -> service.register(delta, anchor, envelope))
             .isInstanceOfSatisfying(ApiException.class,
@@ -240,6 +269,10 @@ class PackageRegistrationServiceTest {
             registration.deliveryId(),
             registration.releaseSequence(),
             registration.manifestDigest(),
+            registration.platformReleaseIdentity(),
+            registration.packageFileDigest(),
+            registration.packageFileSize(),
+            registration.storageCoordinate(),
             registration.issuerInstanceId(),
             registration.keyId(),
             registration.parentDeliveryId(),
@@ -269,6 +302,10 @@ class PackageRegistrationServiceTest {
             deliveryId,
             releaseSequence,
             manifestDigest,
+            PLATFORM_RELEASE_ID,
+            PACKAGE_DIGEST,
+            PACKAGE_SIZE,
+            STORAGE_COORDINATE,
             ISSUER_ID,
             KEY_ID,
             null,
@@ -284,6 +321,19 @@ class PackageRegistrationServiceTest {
             NOW,
             "platform-publisher",
             "trace-package-register");
+    }
+
+    private PackageRegistrationCommand fullCommand(String deliveryId) {
+        return new PackageRegistrationCommand(
+            deliveryId,
+            MedicalPackageType.FULL,
+            null,
+            null,
+            null,
+            PLATFORM_RELEASE_ID,
+            PACKAGE_DIGEST,
+            PACKAGE_SIZE,
+            deliveryId + "/" + "b".repeat(64) + ".mkp");
     }
 
     private void assertFailureAudit(ErrorCode errorCode, String deliveryId) {

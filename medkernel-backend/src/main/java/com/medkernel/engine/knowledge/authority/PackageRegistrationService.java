@@ -3,6 +3,7 @@ package com.medkernel.engine.knowledge.authority;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ public class PackageRegistrationService {
     private static final String UNRESOLVED_DELIVERY_ID = "UNRESOLVED_DELIVERY_ID";
     private static final Pattern STABLE_ID =
         Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");
+    private static final Pattern SM3 = Pattern.compile("sm3:[0-9a-f]{64}");
+    private static final Pattern STORAGE_COORDINATE = Pattern.compile(
+        "[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/[0-9a-f]{64}\\.mkp");
 
     private final PackageRegistrationRepository registrations;
     private final AuthorityRepository authorities;
@@ -58,6 +62,28 @@ public class PackageRegistrationService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /** 查询当前平台权威下的不可变包登记事实。 */
+    public Optional<PackageRegistration> findRegistered(String deliveryId) {
+        assertPlatformTenant(null);
+        if (!isStableId(deliveryId)) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "医疗资源包 deliveryId 必须是稳定标识");
+        }
+        Authority authority = authorities.findByTenantId(PlatformTenant.ID).orElse(null);
+        if (authority == null) {
+            return Optional.empty();
+        }
+        return registrations.findByTenantIdAndAuthorityIdAndDeliveryId(
+            PlatformTenant.ID, authority.authorityId(), deliveryId);
+    }
+
+    /** 读取已登记包；不存在时明确返回 NOT_FOUND。 */
+    public PackageRegistration requireRegistered(String deliveryId) {
+        return findRegistered(deliveryId)
+            .orElseThrow(() -> ApiException.notFound("医疗资源包 " + deliveryId));
+    }
+
     /**
      * 验签后登记完整包；完全相同的重试返回既有事实且不重复推进发布序号。
      *
@@ -73,6 +99,7 @@ public class PackageRegistrationService {
         assertPlatformTenant(command);
         validateCommand(command);
         VerifiedPackageSignature verified = verifier.verify(anchor, envelope);
+        validateArtifactBinding(command, verified);
 
         PackageRegistration existing = registrations
             .findByTenantIdAndAuthorityIdAndDeliveryId(
@@ -120,6 +147,10 @@ public class PackageRegistrationService {
             command.deliveryId(),
             verified.releaseSequence(),
             verified.manifestDigest(),
+            command.platformReleaseIdentity(),
+            command.packageFileDigest(),
+            command.packageFileSize(),
+            command.storageCoordinate(),
             verified.issuerInstanceId(),
             verified.keyId(),
             command.parentDeliveryId(),
@@ -165,9 +196,26 @@ public class PackageRegistrationService {
                 || command.packageType() != MedicalPackageType.FULL
                 || command.parentDeliveryId() != null
                 || command.parentManifestDigest() != null
-                || command.baseManifestDigest() != null) {
+                || command.baseManifestDigest() != null
+                || !isStableId(command.platformReleaseIdentity())
+                || command.packageFileDigest() == null
+                || !SM3.matcher(command.packageFileDigest()).matches()
+                || command.packageFileSize() <= 0
+                || command.storageCoordinate() == null
+                || !STORAGE_COORDINATE.matcher(command.storageCoordinate()).matches()) {
             reject(auditDeliveryId(command), ErrorCode.VALIDATION_FAILED,
-                "首发医疗资源包登记仅接受无父链的完整包（FULL）和稳定 deliveryId");
+                "首发医疗资源包登记仅接受无父链 FULL、稳定版本身份及真实受管文件事实");
+        }
+    }
+
+    private void validateArtifactBinding(
+            PackageRegistrationCommand command,
+            VerifiedPackageSignature verified) {
+        String expectedCoordinate = command.deliveryId() + "/"
+            + verified.manifestDigest().substring("sm3:".length()) + ".mkp";
+        if (!expectedCoordinate.equals(command.storageCoordinate())) {
+            reject(command.deliveryId(), ErrorCode.VALIDATION_FAILED,
+                "医疗资源包存储坐标必须由 deliveryId 和真实 manifest 摘要唯一派生");
         }
     }
 
@@ -179,6 +227,11 @@ public class PackageRegistrationService {
             && Objects.equals(existing.deliveryId(), command.deliveryId())
             && existing.releaseSequence() == verified.releaseSequence()
             && Objects.equals(existing.manifestDigest(), verified.manifestDigest())
+            && Objects.equals(
+                existing.platformReleaseIdentity(), command.platformReleaseIdentity())
+            && Objects.equals(existing.packageFileDigest(), command.packageFileDigest())
+            && existing.packageFileSize() == command.packageFileSize()
+            && Objects.equals(existing.storageCoordinate(), command.storageCoordinate())
             && Objects.equals(existing.issuerInstanceId(), verified.issuerInstanceId())
             && Objects.equals(existing.keyId(), verified.keyId())
             && Objects.equals(existing.parentDeliveryId(), command.parentDeliveryId())

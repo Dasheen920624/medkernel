@@ -4094,6 +4094,10 @@ CREATE TABLE mk_knowledge_package_registration (
     delivery_id VARCHAR(128) NOT NULL,
     release_sequence BIGINT NOT NULL,
     manifest_digest VARCHAR(128) NOT NULL,
+    platform_release_identity VARCHAR(128) NOT NULL,
+    package_file_digest VARCHAR(128) NOT NULL,
+    package_file_size BIGINT NOT NULL,
+    storage_coordinate VARCHAR(512) NOT NULL,
     issuer_instance_id VARCHAR(128) NOT NULL,
     key_id VARCHAR(128) NOT NULL,
     parent_delivery_id VARCHAR(128),
@@ -4997,6 +5001,10 @@ ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT uk_mk_knowledge_del
 ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT uk_mk_knowledge_delivery_sequence UNIQUE (tenant_id, authority_id, release_sequence);
 ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT uk_mk_knowledge_delivery_manifest UNIQUE (tenant_id, authority_id, manifest_digest);
 ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_release_seq CHECK (release_sequence >= 1);
+ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_manifest_digest CHECK (REGEXP_LIKE(manifest_digest, '^sm3:[0-9a-f]{64}$'));
+ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_file_digest CHECK (REGEXP_LIKE(package_file_digest, '^sm3:[0-9a-f]{64}$'));
+ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_file_size CHECK (package_file_size >= 1);
+ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_storage CHECK (REGEXP_LIKE(storage_coordinate, '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/[0-9a-f]{64}\.mkp$'));
 ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_type CHECK (package_type IN('FULL', 'DELTA'));
 ALTER TABLE mk_knowledge_package_registration ADD CONSTRAINT ck_mk_knowledge_delivery_signing CHECK (signing_status IN('SIGNED', 'REVOKED'));
 
@@ -9124,6 +9132,10 @@ COMMENT ON COLUMN mk_knowledge_package_registration.authority_id IS '平台知�
 COMMENT ON COLUMN mk_knowledge_package_registration.delivery_id IS '便携医疗资源交付制品标识';
 COMMENT ON COLUMN mk_knowledge_package_registration.release_sequence IS '严格递增的医疗资源发布序号';
 COMMENT ON COLUMN mk_knowledge_package_registration.manifest_digest IS '交付制品目录校验码';
+COMMENT ON COLUMN mk_knowledge_package_registration.platform_release_identity IS '包内平台标准版本稳定标识';
+COMMENT ON COLUMN mk_knowledge_package_registration.package_file_digest IS '整个医疗资源包真实字节的 SM3 摘要';
+COMMENT ON COLUMN mk_knowledge_package_registration.package_file_size IS '整个医疗资源包真实字节数';
+COMMENT ON COLUMN mk_knowledge_package_registration.storage_coordinate IS '与宿主根目录无关的受管存储相对坐标';
 COMMENT ON COLUMN mk_knowledge_package_registration.issuer_instance_id IS '交付制品签发实例标识';
 COMMENT ON COLUMN mk_knowledge_package_registration.key_id IS '交付制品签名密钥标识';
 COMMENT ON COLUMN mk_knowledge_package_registration.parent_delivery_id IS '直接父级交付制品标识';

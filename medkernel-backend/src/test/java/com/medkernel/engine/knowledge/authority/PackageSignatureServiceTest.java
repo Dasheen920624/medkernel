@@ -66,6 +66,7 @@ class PackageSignatureServiceTest {
 
     @Test
     void verifiesFixedRootSignatureAndRejectsTamperedManifestDigest() {
+        PackageSigningIdentity identity = signer.identityForNextRelease();
         PackageSignatureEnvelope envelope = signer.sign(MANIFEST_DIGEST, 8);
 
         VerifiedPackageSignature verified = verifier.verify(
@@ -78,6 +79,12 @@ class PackageSignatureServiceTest {
         assertThat(verified.releaseSequence()).isEqualTo(8);
         assertThat(verified.manifestDigest()).isEqualTo(MANIFEST_DIGEST);
         assertThat(envelope.signatureBase64()).isNotBlank();
+        assertThat(identity).isEqualTo(new PackageSigningIdentity(
+            AUTHORITY_ID,
+            ISSUER_ID,
+            provisioned.keyId(),
+            provisioned.rootFingerprint(),
+            8));
 
         PackageSignatureEnvelope tampered = new PackageSignatureEnvelope(
             envelope.authorityId(),

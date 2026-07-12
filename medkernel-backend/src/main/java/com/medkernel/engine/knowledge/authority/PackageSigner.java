@@ -65,19 +65,66 @@ public class PackageSigner {
      * @return 仅含公开材料的签名信封
      */
     public PackageSignatureEnvelope sign(String manifestDigest, long releaseSequence) {
-        assertPlatformTenant();
         if (manifestDigest == null || !MANIFEST_DIGEST.matcher(manifestDigest).matches()) {
             throw conflict("manifest 摘要必须为规范 SM3 摘要");
         }
+        ActiveSigningContext context = resolveActiveSigningContext();
+        Authority authority = context.authority();
+        IssuerInstance issuer = context.issuer();
+        SigningKey key = context.key();
+        Instant now = context.signingTime();
+        if (releaseSequence != context.releaseSequence()) {
+            throw conflict("发布序号必须恰为当前序号加一");
+        }
+
+        PackageSignatureEnvelope unsigned = new PackageSignatureEnvelope(
+            authority.authorityId(),
+            issuer.issuerInstanceId(),
+            key.keyId(),
+            key.rootFingerprint(),
+            releaseSequence,
+            manifestDigest,
+            key.certificateChainPem(),
+            now,
+            "");
+        byte[] signature = signingKeyPort.sign(
+            authority.authorityId(), issuer.issuerInstanceId(), key.keyId(),
+            unsigned.canonicalPayload());
+        return new PackageSignatureEnvelope(
+            unsigned.authorityId(),
+            unsigned.issuerInstanceId(),
+            unsigned.keyId(),
+            unsigned.rootFingerprint(),
+            unsigned.releaseSequence(),
+            unsigned.manifestDigest(),
+            unsigned.certificateChainPem(),
+            unsigned.signedAt(),
+            crypto.base64Encode(signature));
+    }
+
+    /**
+     * 返回构建 manifest 必需的下一次公开签发身份；执行与真实签名相同的活动状态、
+     * 有效期、授权边界和吊销检查，但不接触或调用私钥。
+     */
+    public PackageSigningIdentity identityForNextRelease() {
+        ActiveSigningContext context = resolveActiveSigningContext();
+        return new PackageSigningIdentity(
+            context.authority().authorityId(),
+            context.issuer().issuerInstanceId(),
+            context.key().keyId(),
+            context.key().rootFingerprint(),
+            context.releaseSequence());
+    }
+
+    private ActiveSigningContext resolveActiveSigningContext() {
+        assertPlatformTenant();
         Authority authority = authorities.findByTenantId(PlatformTenant.ID).orElse(null);
         if (authority == null
                 || authority.activeIssuerInstanceId() == null
                 || authority.activeTrustRootFingerprint() == null) {
             throw conflict("平台权威没有活动 issuer 或固定信任根");
         }
-        if (releaseSequence != authority.releaseSequence() + 1) {
-            throw conflict("发布序号必须恰为当前序号加一");
-        }
+        long releaseSequence = authority.releaseSequence() + 1;
 
         IssuerInstance issuer = issuers
             .findByTenantIdAndAuthorityIdAndIssuerInstanceId(
@@ -115,29 +162,7 @@ public class PackageSigner {
             throw conflict("已吊销签名密钥不得签发新包");
         }
 
-        PackageSignatureEnvelope unsigned = new PackageSignatureEnvelope(
-            authority.authorityId(),
-            issuer.issuerInstanceId(),
-            key.keyId(),
-            key.rootFingerprint(),
-            releaseSequence,
-            manifestDigest,
-            key.certificateChainPem(),
-            now,
-            "");
-        byte[] signature = signingKeyPort.sign(
-            authority.authorityId(), issuer.issuerInstanceId(), key.keyId(),
-            unsigned.canonicalPayload());
-        return new PackageSignatureEnvelope(
-            unsigned.authorityId(),
-            unsigned.issuerInstanceId(),
-            unsigned.keyId(),
-            unsigned.rootFingerprint(),
-            unsigned.releaseSequence(),
-            unsigned.manifestDigest(),
-            unsigned.certificateChainPem(),
-            unsigned.signedAt(),
-            crypto.base64Encode(signature));
+        return new ActiveSigningContext(authority, issuer, key, releaseSequence, now);
     }
 
     private void assertPlatformTenant() {
@@ -153,5 +178,14 @@ public class PackageSigner {
 
     private ApiException conflict(String message) {
         return new ApiException(ErrorCode.CONFLICT, message);
+    }
+
+    private record ActiveSigningContext(
+        Authority authority,
+        IssuerInstance issuer,
+        SigningKey key,
+        long releaseSequence,
+        Instant signingTime
+    ) {
     }
 }

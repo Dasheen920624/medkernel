@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import com.medkernel.engine.cdshook.RealtimeCdsProperties;
 import com.medkernel.engine.context.ClinicalEventProperties;
 import com.medkernel.engine.integration.service.IntegrationProperties;
+import com.medkernel.engine.knowledge.delivery.FullPackageStorageProperties;
+import com.medkernel.engine.knowledge.delivery.FullPackageExportProperties;
 import com.medkernel.shared.idempotency.IdempotencyProperties;
 
 /**
@@ -16,7 +18,9 @@ import com.medkernel.shared.idempotency.IdempotencyProperties;
     ClinicalEventProperties.class,
     IntegrationProperties.class,
     RealtimeCdsProperties.class,
-    IdempotencyProperties.class
+    IdempotencyProperties.class,
+    FullPackageStorageProperties.class,
+    FullPackageExportProperties.class
 })
 public class MedKernelConfigurationProperties {
 }

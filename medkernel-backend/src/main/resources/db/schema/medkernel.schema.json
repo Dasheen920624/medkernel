@@ -44797,6 +44797,41 @@
             "comment": "交付制品目录校验码"
           },
           {
+            "name": "platform_release_identity",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "包内平台标准版本稳定标识"
+          },
+          {
+            "name": "package_file_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "整个医疗资源包真实字节的 SM3 摘要"
+          },
+          {
+            "name": "package_file_size",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "整个医疗资源包真实字节数"
+          },
+          {
+            "name": "storage_coordinate",
+            "type": "string",
+            "length": 512,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "与宿主根目录无关的受管存储相对坐标"
+          },
+          {
             "name": "issuer_instance_id",
             "type": "string",
             "length": 128,
@@ -44963,6 +44998,22 @@
           {
             "name": "ck_mk_knowledge_delivery_release_seq",
             "expression": "release_sequence >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_delivery_manifest_digest",
+            "expression": "REGEXP_LIKE(manifest_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_delivery_file_digest",
+            "expression": "REGEXP_LIKE(package_file_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_delivery_file_size",
+            "expression": "package_file_size >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_delivery_storage",
+            "expression": "REGEXP_LIKE(storage_coordinate, '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/[0-9a-f]{64}\\.mkp$')"
           },
           {
             "name": "ck_mk_knowledge_delivery_type",
