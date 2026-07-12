@@ -802,6 +802,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
   const sourceRecords = [];
   let launchCoverage = null;
   let launchAcceptance = null;
+  let launchLedgerSummary = null;
   const stages = buildFullSystemStagePlan(config);
   const totalStages = stages.length;
 
@@ -845,6 +846,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     if (stage.id === "launch-coverage") {
       launchCoverage = evidence.coverage;
       launchAcceptance = evidence.acceptance;
+      launchLedgerSummary = evidence.ledgerSummary;
     }
     const stageFinishedAt = now(clock);
     if (stage.id !== "launch-coverage") {
@@ -894,6 +896,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     apiBaseUrl: config.apiBaseUrl,
     coverage: launchCoverage,
     acceptance: launchAcceptance,
+    ledgerSummary: launchLedgerSummary,
     sourceProvenance: {
       path: config.sourceManifestPath,
       sourceCount: sourceRecords.length,
@@ -1386,9 +1389,6 @@ export function assertCompleteLaunchCoverage(evidence) {
   if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
     throw new Error("完整产品范围覆盖证据不是 JSON 对象");
   }
-  if (evidence.status !== "PASSED") {
-    throw new Error("完整产品范围覆盖审计未通过");
-  }
   const coverage = evidence.coverage;
   if (!coverage || typeof coverage !== "object" || Array.isArray(coverage)) {
     throw new Error("完整产品范围覆盖矩阵缺失");
@@ -1438,6 +1438,9 @@ export function assertCompleteLaunchCoverage(evidence) {
           `${requirement.label} ${row.code} 缺少前置阶段观测时间`,
         );
       }
+      if (actual.has(row.code)) {
+        throw new Error(`${requirement.label} ${row.code} 覆盖行重复`);
+      }
       actual.add(row.code);
     }
     if (
@@ -1463,7 +1466,93 @@ export function assertCompleteLaunchCoverage(evidence) {
         .join("；")}`,
     );
   }
+  assertZeroLaunchLedgerSummary(evidence, acceptance);
+  if (evidence.status !== "PASSED") {
+    throw new Error("完整产品范围覆盖审计未通过");
+  }
   return true;
+}
+
+function assertZeroLaunchLedgerSummary(evidence, acceptance) {
+  const summary = evidence.ledgerSummary;
+  const firstRow = acceptance[0];
+  const accounting = summary?.accounting;
+  const gapClassification = summary?.gapClassification;
+  const gapClosures = summary?.gapClosures;
+  const expectedAccounting = {
+    requiredLedgerCount: REQUIRED_LAUNCH_ACCEPTANCE.length,
+    passedCount: REQUIRED_LAUNCH_ACCEPTANCE.length,
+    failedCount: 0,
+    unknownCount: 0,
+    skippedCount: 0,
+    missingEvidenceCount: 0,
+    unexplainedFailureCount: 0,
+    manualWaiverCount: 0,
+    classifiedGapCount: 0,
+    unclassifiedGapCount: 0,
+  };
+  const expectedClassificationCounts = {
+    IMPLEMENTATION: 0,
+    TEST: 0,
+    DATA: 0,
+    ENVIRONMENT: 0,
+  };
+  if (
+    !/^[a-f0-9]{40}$/u.test(firstRow?.candidateCommit ?? "") ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(firstRow?.runId ?? "") ||
+    !hasText(firstRow?.decidedAt) ||
+    !Number.isFinite(Date.parse(firstRow.decidedAt)) ||
+    acceptance.some(
+      (row) =>
+        row.candidateCommit !== firstRow.candidateCommit ||
+        row.runId !== firstRow.runId ||
+        row.decidedAt !== firstRow.decidedAt,
+    ) ||
+    evidence.source !== firstRow.candidateCommit ||
+    evidence.candidateCommit !== firstRow.candidateCommit ||
+    evidence.runId !== firstRow.runId ||
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    summary.schemaVersion !== "1.0.0" ||
+    summary.evidenceKey !== "launch.ledger.zero-unknown" ||
+    summary.status !== "PASSED" ||
+    summary.candidateCommit !== firstRow?.candidateCommit ||
+    summary.runId !== firstRow?.runId ||
+    summary.decidedAt !== firstRow?.decidedAt ||
+    !sameScalarRecord(accounting, expectedAccounting) ||
+    gapClassification?.evidenceKey !== "launch.gap.classification" ||
+    gapClassification?.gapCount !== 0 ||
+    gapClassification?.unclassifiedCount !== 0 ||
+    !sameScalarRecord(
+      gapClassification?.classificationCounts,
+      expectedClassificationCounts,
+    ) ||
+    gapClosures?.implementation?.evidenceKey !==
+      "launch.gap.implementation.closed" ||
+    gapClosures.implementation.status !== "CLOSED" ||
+    gapClosures.implementation.remainingGapCount !== 0 ||
+    !sameStringArray(gapClosures.implementation.remainingGapIds, []) ||
+    gapClosures?.test?.evidenceKey !== "launch.gap.test.closed" ||
+    gapClosures.test.status !== "CLOSED" ||
+    gapClosures.test.remainingGapCount !== 0 ||
+    !sameStringArray(gapClosures.test.remainingGapIds, []) ||
+    gapClosures?.data?.evidenceKey !== "launch.gap.data.closed" ||
+    gapClosures.data.status !== "CLOSED" ||
+    gapClosures.data.remainingGapCount !== 0 ||
+    !sameStringArray(gapClosures.data.remainingGapIds, []) ||
+    gapClosures?.environment?.evidenceKey !== "launch.gap.environment.honest" ||
+    gapClosures.environment.status !== "CLEAR" ||
+    gapClosures.environment.blocksLaunch !== false ||
+    gapClosures.environment.remainingGapCount !== 0 ||
+    !sameStringArray(gapClosures.environment.remainingGapIds, []) ||
+    !sameStringArray(gapClosures.environment.deferredIssueIds, []) ||
+    !sameStringArray(summary.blockingReasons, [])
+  ) {
+    throw new Error(
+      "LAUNCH 严格归零总账未证明失败、未知、跳过、缺证、未解释失败、人工豁免及四类缺口全部为零",
+    );
+  }
 }
 
 function validateLaunchAcceptanceStructure(value, coverage) {
@@ -1523,6 +1612,20 @@ function sameStringArray(actual, expected) {
     Array.isArray(actual) &&
     actual.length === expected.length &&
     actual.every((item, index) => item === expected[index])
+  );
+}
+
+function sameScalarRecord(actual, expected) {
+  if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
+    return false;
+  }
+  const expectedKeys = Object.keys(expected);
+  const actualKeys = Object.keys(actual);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    expectedKeys.every(
+      (key) => Object.hasOwn(actual, key) && actual[key] === expected[key],
+    )
   );
 }
 

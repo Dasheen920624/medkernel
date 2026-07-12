@@ -18,6 +18,7 @@ import {
   runFullSystemRehearsal,
   validateStageEvidence,
 } from "./full-system-rehearsal-lib.mjs";
+import { summarizeLaunchLedger } from "./launch-coverage-audit.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
   new URL(
@@ -317,6 +318,7 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   );
   assert.equal(result.coverage.databaseDialects.length, 5);
   assert.equal(result.acceptance.length, 15);
+  assert.deepEqual(result.ledgerSummary, coverageEvidence.ledgerSummary);
   assert.equal(
     result.acceptance.find((item) => item.code === "LAUNCH-11")?.status,
     "PASSED",
@@ -379,6 +381,48 @@ test("整套演练持续输出十阶段进度并在总索引记录阶段耗时",
 test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放行", () => {
   const complete = completeLaunchCoverageEvidence();
   assert.doesNotThrow(() => assertCompleteLaunchCoverage(complete));
+
+  const reorderedSummary = structuredClone(complete);
+  reorderedSummary.ledgerSummary.accounting = Object.fromEntries(
+    Object.entries(reorderedSummary.ledgerSummary.accounting).reverse(),
+  );
+  reorderedSummary.ledgerSummary.gapClassification.classificationCounts =
+    Object.fromEntries(
+      Object.entries(
+        reorderedSummary.ledgerSummary.gapClassification.classificationCounts,
+      ).reverse(),
+    );
+  assert.doesNotThrow(() => assertCompleteLaunchCoverage(reorderedSummary));
+
+  const missingSummary = structuredClone(complete);
+  delete missingSummary.ledgerSummary;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingSummary),
+    /严格归零总账/u,
+  );
+
+  const waivedSummary = structuredClone(complete);
+  waivedSummary.ledgerSummary.accounting.manualWaiverCount = 1;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(waivedSummary),
+    /人工豁免.*全部为零/u,
+  );
+
+  const detachedSummary = structuredClone(complete);
+  detachedSummary.ledgerSummary.runId = "rc0-20260711T132737Z-other-run";
+  assert.throws(
+    () => assertCompleteLaunchCoverage(detachedSummary),
+    /严格归零总账/u,
+  );
+
+  const duplicatedCoverage = structuredClone(complete);
+  duplicatedCoverage.coverage.versionedAssets.push(
+    structuredClone(duplicatedCoverage.coverage.versionedAssets[0]),
+  );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(duplicatedCoverage),
+    /13 类版本化资产.*重复/u,
+  );
 
   const missingLedger = structuredClone(complete);
   delete missingLedger.acceptance;
@@ -606,11 +650,50 @@ test("目标环境复演 CLI 从外部源证据生成标准阶段证据", () => 
 
 function completeLaunchCoverageEvidence() {
   const coverage = completeLaunchCoverageRows();
+  const acceptance = completeLaunchLedger(coverage);
   return {
+    schemaVersion: "1.0.0",
     status: "PASSED",
+    source: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    candidateCommit: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    runId: RUN_ID,
+    generatedAt: "2026-06-22T09:00:00.000Z",
     coverage,
-    acceptance: buildLaunchAcceptance(coverage),
+    acceptance,
+    ledgerSummary: summarizeLaunchLedger(acceptance, {
+      coverage,
+      gaps: [],
+      manualWaivers: [],
+    }),
   };
+}
+
+function completeLaunchLedger(coverage) {
+  return buildLaunchAcceptance(coverage).map((row) => {
+    const evidenceRefs = row.requiredCoverage.flatMap((coverageKey) =>
+      coverage[coverageKey].map((item) => ({
+        coverageKey,
+        evidenceStage: item.evidenceStage,
+        evidencePath: item.evidencePath,
+        evidenceKey: item.evidenceKey,
+        observedCode: item.observedCode,
+        observedStatus: item.observedStatus,
+        observedAt: item.observedAt,
+        sourceRunId: RUN_ID,
+        sourceCandidateCommit: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+        sourceContentSha256: "a".repeat(64),
+        sourceCapturedAt: "2026-06-22T09:00:00.000Z",
+      })),
+    );
+    return {
+      ...row,
+      actualEvidenceScope: [...row.requiredCoverage],
+      evidenceRefs,
+      candidateCommit: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+      runId: RUN_ID,
+      decidedAt: "2026-06-22T09:00:00.000Z",
+    };
+  });
 }
 
 function completeLaunchCoverageRows() {

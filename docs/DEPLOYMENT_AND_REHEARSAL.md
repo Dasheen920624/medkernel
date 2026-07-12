@@ -169,6 +169,10 @@ node scripts/release/full-system-rehearsal.mjs
 总索引。审计同时按 `docs/contracts/release/launch-ledger.v1.schema.json` 生成恰好
 `LAUNCH-01` 至 `LAUNCH-15` 的机器总账；每项绑定同一 `candidateCommit`、`runId`、判定时间、
 要求范围、实际证据范围和逐条前置证据引用，自由文本“已通过”不能替代 `PASSED` 机器状态。
+审计随后由 `summarizeLaunchLedger` 反算 `launch.ledger.zero-unknown`：15 项必须全部通过，
+`FAILED`、`UNKNOWN`、`SKIPPED`、缺证、未解释失败、人工豁免、未分类缺口和四类开放缺口必须
+全部为零；任一非零只输出 `FAILED`。归零摘要与总账绑定同一候选、运行标识和判定时间，并原样进入
+十阶段总索引；删除摘要、篡改计数、漂移 run-id 或仅把顶层状态改成 `PASSED` 均不能放行。
 总控会在进入最终覆盖审计前生成 `source-provenance.json`：仅允许九个固定前置阶段路径，逐文件记录
 同一 RC0 的候选提交、运行标识、捕获时间和 JSON 内容 SHA-256。审计会重新读取并计算摘要；旧
 run-id、最终审计自证、白名单外路径、判定后的时间或摘要漂移都会直接阻断。
@@ -251,6 +255,8 @@ run-id、最终审计自证、白名单外路径、判定后的时间或摘要�
 - 汇总逐项覆盖矩阵，每行必须包含前置阶段 `evidenceStage`、`evidencePath`、`evidenceKey`、
   `observedCode`、`observedStatus` 和 `observedAt`；覆盖审计阶段不得自证覆盖，任何 `SKIPPED`、
   `UNKNOWN` 或未解释失败都不能判定上线通过。
+- 输出 `launch.ledger.zero-unknown` 严格归零摘要，逐项记录总账通过/失败、未知、跳过、缺证、
+  未解释失败、人工豁免、已分类/未分类缺口计数及四类闭环状态；不得以人工豁免抵消任何非零项。
 
 ## 6. 发布后独立验收
 

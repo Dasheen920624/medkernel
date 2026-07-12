@@ -11,6 +11,7 @@ import {
   buildRequiredLaunchAcceptance,
   validateStageEvidence,
 } from "./full-system-rehearsal-lib.mjs";
+import { classifyLaunchGaps } from "./launch-gap-classifier.mjs";
 import { writeJsonAtomic } from "./launch-account-bootstrap-lib.mjs";
 import { validateFullKnowledgeManifest } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
@@ -54,6 +55,15 @@ const launchLedgerDefinitionByCode = new Map(
 const launchLedgerStatuses = Object.freeze([
   ...launchLedgerSchema.$defs.status.enum,
 ]);
+const knownCoverageOutcomeStatuses = Object.freeze([
+  "PASSED",
+  "FAILED",
+  "UNKNOWN",
+  "SKIPPED",
+  "WAIVED",
+  "MANUAL_WAIVER",
+]);
+const manualWaiverStatuses = new Set(["WAIVED", "MANUAL_WAIVER"]);
 const entryStrengthPolicy = loadEntryStrengthPolicy(launchEntryEvidenceSchema);
 const entryStrengthByLevel = new Map(
   entryStrengthPolicy.map((item, index) => [item.level, { ...item, index }]),
@@ -171,7 +181,7 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
   const generatedAt = decidedAt;
   const evidence = {
     schemaVersion: "1.0.0",
-    status: "PASSED",
+    status: "FAILED",
     source: config.source,
     candidateCommit: config.source,
     runId: config.runId,
@@ -198,6 +208,12 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
       sourceByEvidencePath,
     },
   );
+  evidence.ledgerSummary = summarizeLaunchLedger(evidence.acceptance, {
+    coverage,
+    gaps: options.launchGaps ?? [],
+    manualWaivers: options.manualWaivers ?? [],
+  });
+  evidence.status = evidence.ledgerSummary.status;
   assertCompleteLaunchCoverage(evidence);
   evidence.entryEvidence = validateProductEntryEvidence(stageEvidence);
   return evidence;
@@ -440,6 +456,234 @@ export function validateLaunchLedger(value, options = {}) {
     );
   }
   return normalized;
+}
+
+export function summarizeLaunchLedger(value, options = {}) {
+  const coverage = requireRecord(options.coverage, "LAUNCH 覆盖矩阵");
+  const ledger = validateLaunchLedger(value);
+  validateLaunchLedgerSummaryAgainstCoverage(ledger, coverage);
+  const gapClassification = classifyLaunchGaps(
+    requireArray(options.gaps, "LAUNCH 缺口输入"),
+  );
+  const manualWaivers = validateManualWaivers(options.manualWaivers);
+  const observations = collectLaunchCoverageObservations(coverage, ledger);
+  const failedRows = ledger.filter((row) => row.status === "FAILED");
+  const gapLaunchCodes = new Set(
+    gapClassification.gaps.map((gap) => gap.launchCode),
+  );
+  const unknownStatuses = observations.filter(
+    (item) => item.status === "UNKNOWN",
+  );
+  const skippedStatuses = observations.filter(
+    (item) => item.status === "SKIPPED",
+  );
+  const missingEvidence = observations.filter(
+    (item) => item.evidenceComplete !== true,
+  );
+  const coverageWaivers = observations.filter((item) =>
+    manualWaiverStatuses.has(item.status),
+  );
+  const unexplainedCoverageOutcomes = observations.filter(
+    (item) => !knownCoverageOutcomeStatuses.includes(item.status),
+  );
+  const unexplainedLedgerFailures = failedRows.filter(
+    (row) => !gapLaunchCodes.has(row.code),
+  );
+  const accounting = {
+    requiredLedgerCount: launchLedgerDefinitions.length,
+    passedCount: ledger.filter((row) => row.status === "PASSED").length,
+    failedCount: failedRows.length,
+    unknownCount: unknownStatuses.length,
+    skippedCount: skippedStatuses.length,
+    missingEvidenceCount: missingEvidence.length,
+    unexplainedFailureCount:
+      unexplainedLedgerFailures.length + unexplainedCoverageOutcomes.length,
+    manualWaiverCount: manualWaivers.length + coverageWaivers.length,
+    classifiedGapCount: gapClassification.gapCount,
+    unclassifiedGapCount: gapClassification.unclassifiedCount,
+  };
+  const blockingReasons = buildLaunchLedgerBlockingReasons(
+    accounting,
+    gapClassification,
+  );
+  const firstRow = ledger[0];
+
+  return {
+    schemaVersion: "1.0.0",
+    evidenceKey: "launch.ledger.zero-unknown",
+    status: blockingReasons.length === 0 ? "PASSED" : "FAILED",
+    candidateCommit: firstRow.candidateCommit,
+    runId: firstRow.runId,
+    decidedAt: firstRow.decidedAt,
+    accounting,
+    gapClassification: {
+      evidenceKey: gapClassification.evidenceKey,
+      gapCount: gapClassification.gapCount,
+      unclassifiedCount: gapClassification.unclassifiedCount,
+      classificationCounts: { ...gapClassification.classificationCounts },
+    },
+    gapClosures: {
+      implementation: { ...gapClassification.implementationClosure },
+      test: { ...gapClassification.testClosure },
+      data: { ...gapClassification.dataClosure },
+      environment: { ...gapClassification.environmentConstraint },
+    },
+    blockingReasons,
+  };
+}
+
+function validateLaunchLedgerSummaryAgainstCoverage(ledger, coverage) {
+  const expectedRows = buildLaunchAcceptance(coverage);
+  for (const [index, row] of ledger.entries()) {
+    const expected = expectedRows[index];
+    const expectedEvidenceRefs = row.requiredCoverage.flatMap((coverageKey) =>
+      (Array.isArray(coverage[coverageKey]) ? coverage[coverageKey] : [])
+        .filter(
+          (item) =>
+            item?.status === "PASSED" &&
+            item.observedStatus === "PASSED" &&
+            hasText(item.evidenceStage) &&
+            item.evidenceStage !== "launch-coverage" &&
+            hasText(item.evidencePath) &&
+            hasText(item.evidenceKey) &&
+            hasText(item.observedCode) &&
+            isIsoDateTime(item.observedAt),
+        )
+        .map((item) => ({
+          coverageKey,
+          evidenceStage: item.evidenceStage,
+          evidencePath: item.evidencePath,
+          evidenceKey: item.evidenceKey,
+          observedCode: item.observedCode,
+          observedStatus: item.observedStatus,
+          observedAt: item.observedAt,
+        })),
+    );
+    const actualEvidenceRefs = row.evidenceRefs.map((ref) => ({
+      coverageKey: ref.coverageKey,
+      evidenceStage: ref.evidenceStage,
+      evidencePath: ref.evidencePath,
+      evidenceKey: ref.evidenceKey,
+      observedCode: ref.observedCode,
+      observedStatus: ref.observedStatus,
+      observedAt: ref.observedAt,
+    }));
+    const expectedActualScope = row.requiredCoverage.filter((coverageKey) =>
+      expectedEvidenceRefs.some((ref) => ref.coverageKey === coverageKey),
+    );
+    if (
+      row.status !== expected.status ||
+      !arraysEqual(row.missingCoverage, expected.missingCoverage) ||
+      !arraysEqual(row.actualEvidenceScope, expectedActualScope) ||
+      JSON.stringify(actualEvidenceRefs) !==
+        JSON.stringify(expectedEvidenceRefs)
+    ) {
+      throw new Error(`${row.code} 严格归零判定与覆盖矩阵不一致`);
+    }
+  }
+}
+
+function collectLaunchCoverageObservations(coverage, ledger) {
+  const requiredCoverage = [
+    ...new Set(ledger.flatMap((row) => row.requiredCoverage)),
+  ];
+  const observations = [];
+  for (const coverageKey of requiredCoverage) {
+    const rows = coverage[coverageKey];
+    if (!Array.isArray(rows) || rows.length === 0) {
+      observations.push({
+        coverageKey,
+        code: null,
+        status: "UNKNOWN",
+        evidenceComplete: false,
+      });
+      continue;
+    }
+    for (const row of rows) {
+      const status = hasText(row?.status) ? row.status.trim() : "UNKNOWN";
+      observations.push({
+        coverageKey,
+        code: hasText(row?.code) ? row.code.trim() : null,
+        status,
+        evidenceComplete:
+          hasText(row?.code) &&
+          hasText(row?.evidenceStage) &&
+          row.evidenceStage !== "launch-coverage" &&
+          hasText(row?.evidencePath) &&
+          hasText(row?.evidenceKey) &&
+          row.observedCode === row.code &&
+          row.observedStatus === status &&
+          isIsoDateTime(row.observedAt),
+      });
+    }
+  }
+  return observations;
+}
+
+function validateManualWaivers(value) {
+  const waivers = requireArray(value, "LAUNCH 人工豁免");
+  const waiverIds = new Set();
+  return waivers.map((rawWaiver, index) => {
+    const label = `第 ${index + 1} 项 LAUNCH 人工豁免`;
+    const waiver = requireRecord(rawWaiver, label);
+    requireExactObjectKeys(waiver, ["waiverId", "launchCode", "reason"], label);
+    const waiverId = requireText(waiver.waiverId, `${label} waiverId`);
+    if (!/^WAIVER-[A-Z0-9][A-Z0-9._-]*$/u.test(waiverId)) {
+      throw new Error(`${label} waiverId 必须是稳定的 WAIVER- 大写标识`);
+    }
+    if (waiverIds.has(waiverId)) {
+      throw new Error(`LAUNCH 人工豁免 ID 重复 ${waiverId}`);
+    }
+    waiverIds.add(waiverId);
+    const launchCode = requireText(waiver.launchCode, `${label} launchCode`);
+    if (!launchLedgerDefinitionByCode.has(launchCode)) {
+      throw new Error(`${label} launchCode 不在 LAUNCH-01 至 LAUNCH-15`);
+    }
+    return {
+      waiverId,
+      launchCode,
+      reason: requireText(waiver.reason, `${label} reason`),
+    };
+  });
+}
+
+function buildLaunchLedgerBlockingReasons(accounting, gapClassification) {
+  const reasons = [];
+  if (accounting.failedCount > 0) reasons.push("LEDGER_FAILED");
+  if (accounting.unknownCount > 0) reasons.push("COVERAGE_UNKNOWN");
+  if (accounting.skippedCount > 0) reasons.push("COVERAGE_SKIPPED");
+  if (accounting.missingEvidenceCount > 0) reasons.push("EVIDENCE_MISSING");
+  if (accounting.unexplainedFailureCount > 0) {
+    reasons.push("FAILURE_UNEXPLAINED");
+  }
+  if (accounting.manualWaiverCount > 0) {
+    reasons.push("MANUAL_WAIVER_PRESENT");
+  }
+  if (accounting.unclassifiedGapCount > 0) {
+    reasons.push("GAP_UNCLASSIFIED");
+  }
+  if (gapClassification.implementationClosure.status !== "CLOSED") {
+    reasons.push("IMPLEMENTATION_GAP_OPEN");
+  }
+  if (gapClassification.testClosure.status !== "CLOSED") {
+    reasons.push("TEST_GAP_OPEN");
+  }
+  if (gapClassification.dataClosure.status !== "CLOSED") {
+    reasons.push("DATA_GAP_OPEN");
+  }
+  if (
+    gapClassification.environmentConstraint.status !== "CLEAR" ||
+    gapClassification.environmentConstraint.blocksLaunch !== false
+  ) {
+    reasons.push("ENVIRONMENT_GAP_OPEN");
+  }
+  if (
+    accounting.requiredLedgerCount !== launchLedgerDefinitions.length ||
+    accounting.passedCount !== launchLedgerDefinitions.length
+  ) {
+    reasons.push("LEDGER_NOT_ALL_PASSED");
+  }
+  return reasons;
 }
 
 function validateLaunchLedgerRow(row, definition) {

@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   buildLaunchCoverageEvidence,
   readLaunchCoverageAuditConfig,
+  summarizeLaunchLedger,
   validateEvidenceSource,
   validateLaunchEntryEvidence,
   validateLaunchLedger,
@@ -202,6 +203,123 @@ test("LAUNCH 总账拒绝缺项、重复、未知码和自由文本状态", () =
       ),
     /LAUNCH-01.*状态.*PASSED.*FAILED/u,
   );
+});
+
+test("LAUNCH 严格归零总账只在十五项与四类缺口全部归零时通过", () => {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+
+  const summary = summarizeLaunchLedger(evidence.acceptance, {
+    coverage: evidence.coverage,
+    gaps: [],
+    manualWaivers: [],
+  });
+
+  assert.equal(summary.schemaVersion, "1.0.0");
+  assert.equal(summary.evidenceKey, "launch.ledger.zero-unknown");
+  assert.equal(summary.status, "PASSED");
+  assert.equal(summary.candidateCommit, SOURCE);
+  assert.equal(summary.runId, RUN_ID);
+  assert.equal(summary.decidedAt, "2026-06-22T09:00:00.000Z");
+  assert.deepEqual(summary.accounting, {
+    requiredLedgerCount: 15,
+    passedCount: 15,
+    failedCount: 0,
+    unknownCount: 0,
+    skippedCount: 0,
+    missingEvidenceCount: 0,
+    unexplainedFailureCount: 0,
+    manualWaiverCount: 0,
+    classifiedGapCount: 0,
+    unclassifiedGapCount: 0,
+  });
+  assert.deepEqual(summary.blockingReasons, []);
+  assert.equal(summary.gapClosures.implementation.status, "CLOSED");
+  assert.equal(summary.gapClosures.test.status, "CLOSED");
+  assert.equal(summary.gapClosures.data.status, "CLOSED");
+  assert.equal(summary.gapClosures.environment.status, "CLEAR");
+  assert.equal(summary.gapClosures.environment.blocksLaunch, false);
+  assert.deepEqual(evidence.ledgerSummary, summary);
+});
+
+test("LAUNCH 严格归零总账拒绝失败、未知、跳过、缺证和未解释结果", () => {
+  const cases = [
+    {
+      label: "FAILED",
+      status: "FAILED",
+      expectedCounter: "failedCount",
+    },
+    {
+      label: "UNKNOWN",
+      status: "UNKNOWN",
+      expectedCounter: "unknownCount",
+    },
+    {
+      label: "SKIPPED",
+      status: "SKIPPED",
+      expectedCounter: "skippedCount",
+    },
+    {
+      label: "缺证",
+      status: "PASSED",
+      missingEvidence: true,
+      expectedCounter: "missingEvidenceCount",
+    },
+    {
+      label: "未解释失败",
+      status: "BROKEN",
+      expectedCounter: "unexplainedFailureCount",
+    },
+  ];
+
+  for (const invalidCase of cases) {
+    const fixture = launchLedgerOutcomeFixture(invalidCase);
+    const summary = summarizeLaunchLedger(fixture.ledger, {
+      coverage: fixture.coverage,
+      gaps: [],
+      manualWaivers: [],
+    });
+
+    assert.equal(summary.status, "FAILED", invalidCase.label);
+    assert.ok(
+      summary.accounting[invalidCase.expectedCounter] > 0,
+      invalidCase.label,
+    );
+    assert.ok(summary.blockingReasons.length > 0, invalidCase.label);
+  }
+});
+
+test("LAUNCH 严格归零总账不接受人工豁免或仍开放的四类缺口", () => {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+  const withWaiver = summarizeLaunchLedger(evidence.acceptance, {
+    coverage: evidence.coverage,
+    gaps: [],
+    manualWaivers: [
+      {
+        waiverId: "WAIVER-LAUNCH-01",
+        launchCode: "LAUNCH-01",
+        reason: "测试不得以人工豁免放行",
+      },
+    ],
+  });
+  assert.equal(withWaiver.status, "FAILED");
+  assert.equal(withWaiver.accounting.manualWaiverCount, 1);
+  assert.ok(withWaiver.blockingReasons.includes("MANUAL_WAIVER_PRESENT"));
+
+  const withGap = summarizeLaunchLedger(evidence.acceptance, {
+    coverage: evidence.coverage,
+    gaps: [launchSummaryImplementationGap()],
+    manualWaivers: [],
+  });
+  assert.equal(withGap.status, "FAILED");
+  assert.equal(withGap.accounting.classifiedGapCount, 1);
+  assert.equal(withGap.gapClosures.implementation.status, "OPEN");
+  assert.ok(withGap.blockingReasons.includes("IMPLEMENTATION_GAP_OPEN"));
 });
 
 test("前置证据来源拒绝自证、白名单外路径、旧 run-id、未来时间和摘要替换", () => {
@@ -1065,6 +1183,58 @@ test("完整覆盖审计遇到任一前置阶段失败时拒绝生成 PASSED 证
     /前置阶段未全部通过.*browser-e2e/u,
   );
 });
+
+function launchLedgerOutcomeFixture({ status, missingEvidence = false }) {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+  const coverage = structuredClone(evidence.coverage);
+  const ledger = structuredClone(evidence.acceptance);
+  const coverageKey = "productLayers";
+  const coverageRow = coverage[coverageKey][0];
+  const launchRow = ledger.find((row) =>
+    row.requiredCoverage.includes(coverageKey),
+  );
+  assert.ok(launchRow);
+
+  if (missingEvidence) {
+    coverageRow.evidenceKey = null;
+  } else {
+    coverageRow.status = status;
+    coverageRow.observedStatus = status;
+  }
+  launchRow.status = "FAILED";
+  launchRow.missingCoverage = launchRow.requiredCoverage.filter(
+    (key) => key === coverageKey,
+  );
+  launchRow.evidenceRefs = launchRow.evidenceRefs.filter(
+    (ref) =>
+      !(
+        ref.coverageKey === coverageKey && ref.observedCode === coverageRow.code
+      ),
+  );
+
+  return { coverage, ledger };
+}
+
+function launchSummaryImplementationGap() {
+  return {
+    gapId: "GAP-LAUNCH-01-STRICT-SUMMARY",
+    launchCode: "LAUNCH-01",
+    evidenceKey: "launch.ledger.strict-summary",
+    gapKind: "IMPLEMENTATION_ABSENT",
+    classification: "IMPLEMENTATION",
+    summary: "严格归零总账实现仍未完成",
+    ownerPath: "scripts/release/launch-coverage-audit.mjs",
+    remediationPlan: {
+      failingTest: "scripts/release/launch-coverage-audit.test.mjs",
+      implementationPath: "scripts/release/launch-coverage-audit.mjs",
+      consumerReadback: "launch.ledger.strict-summary.consumer-readback",
+      auditReadback: "launch.ledger.strict-summary.audit-readback",
+    },
+  };
+}
 
 function auditConfig() {
   return {
