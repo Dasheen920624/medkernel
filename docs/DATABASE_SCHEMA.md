@@ -6,8 +6,14 @@
 
 `medkernel-backend/src/main/resources/db/schema/medkernel.schema.json`
 
-当前模型版本为 `1`，包含 207 张终态表。固定职责、权限包、模型目录和安全策略由应用播种器
+当前模型版本为 `1`，包含 214 张终态表。固定职责、权限包、模型目录和安全策略由应用播种器
 维护，不在迁移中重复维护业务目录。
+
+平台知识权威由同一模型中的七张表持久化：稳定权威、签发实例、公开信任根、签名公钥、
+权威交接、密钥吊销和交付制品注册。七张表统一携带平台租户、乐观锁、创建/更新审计和
+追踪字段；稳定身份、交接序号、发布序号及目录校验码均由数据库唯一约束和检查约束保护。
+私钥材料、宿主地址、IP 和部署路径不进入权威模式，签名私钥只允许由后续外置 HSM/KMS
+端口使用。
 
 上线后的每个版本只新增一份规范化变更清单：
 
@@ -59,7 +65,7 @@ node scripts/db/generate-migrations.mjs --check
 
 ```bash
 cd medkernel-backend
-mvn -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest test
+mvn -Dtest=AuthoritySchemaContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest test
 ```
 
 验证范围：
@@ -72,3 +78,4 @@ mvn -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDial
 - V2/V3 夹具保证一份规范变更可生成五方言同版本 SQL；
 - 无规范源的手写迁移会失败且不被删除；
 - 旧角色覆盖、人员会签和来源审批表列不得重新进入模式。
+- 平台知识权威七张表具备租户、版本、审计、唯一约束、状态约束、复合外键和中文说明。

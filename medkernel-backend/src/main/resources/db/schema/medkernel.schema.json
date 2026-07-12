@@ -43185,6 +43185,1882 @@
           ]
         }
       ]
-    }
+    },
+      {
+        "name": "mk_knowledge_authority",
+        "comment": "平台知识权威稳定身份与当前签发游标",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "与宿主环境解耦的权威稳定标识"
+          },
+          {
+            "name": "active_issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "当前唯一活动签发实例标识"
+          },
+          {
+            "name": "active_trust_root_fingerprint",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "当前活动公开信任根指纹"
+          },
+          {
+            "name": "handover_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "已激活的权威交接序号"
+          },
+          {
+            "name": "release_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "已注册的医疗资源发布序号"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_authority",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_authority_tenant",
+            "columns": [
+              "tenant_id"
+            ]
+          },
+          {
+            "name": "uk_mk_knowledge_authority_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_authority_tenant",
+            "expression": "tenant_id = 't-1'"
+          },
+          {
+            "name": "ck_mk_knowledge_authority_handover_seq",
+            "expression": "handover_sequence >= 0"
+          },
+          {
+            "name": "ck_mk_knowledge_authority_release_seq",
+            "expression": "release_sequence >= 0"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_authority_active_issuer",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "active_issuer_instance_id"
+            ],
+            "referencedTable": "mk_knowledge_issuer_instance",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_authority_active_root",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "active_trust_root_fingerprint"
+            ],
+            "referencedTable": "mk_knowledge_trust_root",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "root_fingerprint"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "mk_knowledge_issuer_instance",
+        "comment": "平台知识权威签发实例生命周期",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台知识权威稳定标识"
+          },
+          {
+            "name": "issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "与宿主地址解耦的签发实例标识"
+          },
+          {
+            "name": "display_name",
+            "type": "string",
+            "length": 256,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "签发实例中文展示名称"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "length": 32,
+            "nullable": false,
+            "default": "'STANDBY'",
+            "identity": false,
+            "comment": "签发实例生命周期状态"
+          },
+          {
+            "name": "last_handover_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "实例已接受的最后交接序号"
+          },
+          {
+            "name": "activated_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "实例激活时间"
+          },
+          {
+            "name": "frozen_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "实例冻结时间"
+          },
+          {
+            "name": "handed_over_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "实例完成交接时间"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_issuer_instance",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_issuer_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_issuer_status",
+            "expression": "status IN('STANDBY', 'ACTIVE', 'FROZEN', 'HANDED_OVER', 'REVOKED')"
+          },
+          {
+            "name": "ck_mk_knowledge_issuer_handover_seq",
+            "expression": "last_handover_sequence >= 0"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_issuer_instance_authority",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "referencedTable": "mk_knowledge_authority",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_issuer_status",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "status",
+                "order": "ASC"
+              }
+            ]
+          },
+          {
+            "name": "idx_mk_knowledge_issuer_created",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "created_at",
+                "order": "ASC"
+              },
+              {
+                "name": "id",
+                "order": "ASC"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_knowledge_trust_root",
+        "comment": "平台知识权威公开信任根及根轮换证明",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台知识权威稳定标识"
+          },
+          {
+            "name": "root_fingerprint",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "公开信任根证书指纹"
+          },
+          {
+            "name": "root_certificate_pem",
+            "type": "text",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "公开信任根证书内容"
+          },
+          {
+            "name": "predecessor_fingerprint",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "前任公开信任根指纹"
+          },
+          {
+            "name": "effective_handover_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "信任根生效交接序号"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "length": 32,
+            "nullable": false,
+            "default": "'STANDBY'",
+            "identity": false,
+            "comment": "公开信任根生命周期状态"
+          },
+          {
+            "name": "valid_from",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "信任根有效期起点"
+          },
+          {
+            "name": "valid_until",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "信任根有效期终点"
+          },
+          {
+            "name": "transition_authorized_by_key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "授权根轮换的签名密钥标识"
+          },
+          {
+            "name": "transition_signature",
+            "type": "text",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "旧根授权的轮换签名"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_trust_root",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_trust_root_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "root_fingerprint"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_trust_root_status",
+            "expression": "status IN('STANDBY', 'ACTIVE', 'RETIRED', 'REVOKED')"
+          },
+          {
+            "name": "ck_mk_knowledge_trust_root_handover_seq",
+            "expression": "effective_handover_sequence >= 0"
+          },
+          {
+            "name": "ck_mk_knowledge_trust_root_validity",
+            "expression": "valid_until > valid_from"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_trust_root_authority",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "referencedTable": "mk_knowledge_authority",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_trust_root_predecessor",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "predecessor_fingerprint"
+            ],
+            "referencedTable": "mk_knowledge_trust_root",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "root_fingerprint"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_trust_root_transition_key",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "transition_authorized_by_key_id"
+            ],
+            "referencedTable": "mk_knowledge_signing_key",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_trust_root_status",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "status",
+                "order": "ASC"
+              },
+              {
+                "name": "effective_handover_sequence",
+                "order": "ASC"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_knowledge_signing_key",
+        "comment": "平台知识发布签名公钥与外置密钥授权边界",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台知识权威稳定标识"
+          },
+          {
+            "name": "issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "密钥所属签发实例标识"
+          },
+          {
+            "name": "key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "外置签名密钥公开标识"
+          },
+          {
+            "name": "root_fingerprint",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "签名证书所属公开信任根指纹"
+          },
+          {
+            "name": "certificate_chain_pem",
+            "type": "text",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "签名公钥证书链内容"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "length": 32,
+            "nullable": false,
+            "default": "'STANDBY'",
+            "identity": false,
+            "comment": "签名密钥生命周期状态"
+          },
+          {
+            "name": "not_before",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "密钥授权生效时间"
+          },
+          {
+            "name": "not_after",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "密钥授权失效时间"
+          },
+          {
+            "name": "authorized_from_handover_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "密钥授权起始交接序号"
+          },
+          {
+            "name": "authorized_through_handover_sequence",
+            "type": "int64",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "密钥授权终止交接序号"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_signing_key",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_signing_key_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_signing_key_status",
+            "expression": "status IN('STANDBY', 'ACTIVE', 'DISABLED', 'REVOKED')"
+          },
+          {
+            "name": "ck_mk_knowledge_signing_key_validity",
+            "expression": "not_after > not_before"
+          },
+          {
+            "name": "ck_mk_knowledge_signing_key_handover_range",
+            "expression": "authorized_from_handover_sequence >= 0 AND (authorized_through_handover_sequence IS NULL OR authorized_through_handover_sequence >= authorized_from_handover_sequence)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_signing_key_authority",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "referencedTable": "mk_knowledge_authority",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_signing_key_issuer",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "referencedTable": "mk_knowledge_issuer_instance",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_signing_key_root",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "root_fingerprint"
+            ],
+            "referencedTable": "mk_knowledge_trust_root",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "root_fingerprint"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_signing_key_issuer",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "issuer_instance_id",
+                "order": "ASC"
+              },
+              {
+                "name": "status",
+                "order": "ASC"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_knowledge_authority_handover",
+        "comment": "平台知识权威签署交接清单与激活事实",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台知识权威稳定标识"
+          },
+          {
+            "name": "handover_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "权威交接不可变标识"
+          },
+          {
+            "name": "handover_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "严格递增的权威交接序号"
+          },
+          {
+            "name": "source_issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "交接来源签发实例标识"
+          },
+          {
+            "name": "target_issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "交接目标签发实例标识"
+          },
+          {
+            "name": "expected_active_issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "冻结时预期的活动签发实例标识"
+          },
+          {
+            "name": "database_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "权威数据库快照摘要"
+          },
+          {
+            "name": "material_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "医疗资料原件摘要"
+          },
+          {
+            "name": "audit_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "审计链摘要"
+          },
+          {
+            "name": "registry_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "交付制品注册表摘要"
+          },
+          {
+            "name": "trust_chain_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "公开信任链摘要"
+          },
+          {
+            "name": "handover_manifest_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "权威交接目录校验码"
+          },
+          {
+            "name": "signed_by_key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "交接清单签名密钥标识"
+          },
+          {
+            "name": "signature",
+            "type": "text",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "交接清单数字签名"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "length": 32,
+            "nullable": false,
+            "default": "'DRAFT'",
+            "identity": false,
+            "comment": "权威交接生命周期状态"
+          },
+          {
+            "name": "frozen_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "权威冻结时间"
+          },
+          {
+            "name": "verified_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "交接验证完成时间"
+          },
+          {
+            "name": "activated_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "目标实例激活时间"
+          },
+          {
+            "name": "aborted_at",
+            "type": "timestamp",
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "交接中止时间"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_authority_handover",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_handover_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "handover_id"
+            ]
+          },
+          {
+            "name": "uk_mk_knowledge_handover_sequence",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "handover_sequence"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_handover_sequence",
+            "expression": "handover_sequence >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_handover_status",
+            "expression": "status IN('DRAFT', 'FROZEN', 'VERIFIED', 'ACTIVATED', 'ABORTED')"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_authority_handover_authority",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "referencedTable": "mk_knowledge_authority",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_handover_source",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "source_issuer_instance_id"
+            ],
+            "referencedTable": "mk_knowledge_issuer_instance",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_handover_target",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "target_issuer_instance_id"
+            ],
+            "referencedTable": "mk_knowledge_issuer_instance",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_handover_expected",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "expected_active_issuer_instance_id"
+            ],
+            "referencedTable": "mk_knowledge_issuer_instance",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_handover_signing_key",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "signed_by_key_id"
+            ],
+            "referencedTable": "mk_knowledge_signing_key",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_handover_status",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "status",
+                "order": "ASC"
+              },
+              {
+                "name": "handover_sequence",
+                "order": "ASC"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_knowledge_key_revocation",
+        "comment": "平台知识签名密钥单调吊销事实",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台知识权威稳定标识"
+          },
+          {
+            "name": "revocation_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "密钥吊销事实不可变标识"
+          },
+          {
+            "name": "revocation_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "严格递增的密钥吊销序号"
+          },
+          {
+            "name": "key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "被吊销的签名密钥标识"
+          },
+          {
+            "name": "effective_release_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "吊销开始生效的医疗资源发布序号"
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "length": 512,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "密钥吊销原因"
+          },
+          {
+            "name": "signed_by_key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "吊销事实签名密钥标识"
+          },
+          {
+            "name": "signature",
+            "type": "text",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "吊销事实数字签名"
+          },
+          {
+            "name": "revoked_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "密钥吊销时间"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_key_revocation",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_revocation_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "revocation_id"
+            ]
+          },
+          {
+            "name": "uk_mk_knowledge_revocation_sequence",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "revocation_sequence"
+            ]
+          },
+          {
+            "name": "uk_mk_knowledge_revocation_key",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_revocation_sequence",
+            "expression": "revocation_sequence >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_revocation_release_seq",
+            "expression": "effective_release_sequence >= 0"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_key_revocation_authority",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "referencedTable": "mk_knowledge_authority",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_revocation_target_key",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "referencedTable": "mk_knowledge_signing_key",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_revocation_signing_key",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "signed_by_key_id"
+            ],
+            "referencedTable": "mk_knowledge_signing_key",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "mk_knowledge_package_registration",
+        "comment": "平台知识医疗资源交付制品不可变注册事实",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台租户标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "平台知识权威稳定标识"
+          },
+          {
+            "name": "delivery_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "便携医疗资源交付制品标识"
+          },
+          {
+            "name": "release_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "严格递增的医疗资源发布序号"
+          },
+          {
+            "name": "manifest_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "交付制品目录校验码"
+          },
+          {
+            "name": "issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "交付制品签发实例标识"
+          },
+          {
+            "name": "key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "交付制品签名密钥标识"
+          },
+          {
+            "name": "parent_delivery_id",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "直接父级交付制品标识"
+          },
+          {
+            "name": "parent_manifest_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "直接父级交付制品目录校验码"
+          },
+          {
+            "name": "base_manifest_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "差量适用的初始完整交付目录校验码"
+          },
+          {
+            "name": "package_type",
+            "type": "string",
+            "length": 16,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "医疗资源交付类型"
+          },
+          {
+            "name": "signing_status",
+            "type": "string",
+            "length": 16,
+            "nullable": false,
+            "default": "'SIGNED'",
+            "identity": false,
+            "comment": "交付制品签发状态"
+          },
+          {
+            "name": "signed_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "交付制品完成签名时间"
+          },
+          {
+            "name": "registered_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "交付制品登记时间"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_package_registration",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_delivery_identity",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "delivery_id"
+            ]
+          },
+          {
+            "name": "uk_mk_knowledge_delivery_sequence",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "release_sequence"
+            ]
+          },
+          {
+            "name": "uk_mk_knowledge_delivery_manifest",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "manifest_digest"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_delivery_release_seq",
+            "expression": "release_sequence >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_delivery_type",
+            "expression": "package_type IN('FULL', 'DELTA')"
+          },
+          {
+            "name": "ck_mk_knowledge_delivery_signing",
+            "expression": "signing_status IN('SIGNED', 'REVOKED')"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_package_registration_authority",
+            "columns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "referencedTable": "mk_knowledge_authority",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_delivery_issuer",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "referencedTable": "mk_knowledge_issuer_instance",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "issuer_instance_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_delivery_signing_key",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "referencedTable": "mk_knowledge_signing_key",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "key_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_delivery_parent",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "parent_delivery_id"
+            ],
+            "referencedTable": "mk_knowledge_package_registration",
+            "referencedColumns": [
+              "tenant_id",
+              "authority_id",
+              "delivery_id"
+            ],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_delivery_issuer",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "issuer_instance_id",
+                "order": "ASC"
+              },
+              {
+                "name": "release_sequence",
+                "order": "ASC"
+              }
+            ]
+          }
+        ]
+      }
   ]
 }
