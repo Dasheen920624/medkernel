@@ -68,7 +68,9 @@ async function performPlatformAdminPersonnelAction(page: Page): Promise<RoleActi
   await ensureReadySession(page, "platform-admin");
   await page.goto(appPath("/admin/users"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "人员与账号" }).first()).toBeVisible({
+  await expect(
+    page.locator("main").getByRole("heading", { name: "人员与账号" }).first(),
+  ).toBeVisible({
     timeout: 30_000,
   });
 
@@ -135,7 +137,10 @@ async function performPlatformAdminPersonnelAction(page: Page): Promise<RoleActi
   await expect(drawer.getByText("临床使用者").first()).toBeVisible({ timeout: 20_000 });
   await expect(drawer.getByText(/已绑定|院内工号|工号/u).first()).toBeVisible({ timeout: 20_000 });
 
-  const detailResponse = await getApi(page, `/compliance/personnel/${encodeURIComponent(personId ?? "")}`);
+  const detailResponse = await getApi(
+    page,
+    `/compliance/personnel/${encodeURIComponent(personId ?? "")}`,
+  );
   await expectOk(detailResponse, "平台管理员回读新增人员详情");
   const detail = (await responseData(detailResponse)) as {
     person?: { employeeNo?: string };
@@ -167,7 +172,10 @@ async function performEngineOperatorProviderAction(page: Page): Promise<RoleActi
   await page.goto(appPath("/knowledge/production"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(
-    page.locator("main").getByRole("heading", { name: /知识生产/ }).first(),
+    page
+      .locator("main")
+      .getByRole("heading", { name: /知识生产/ })
+      .first(),
   ).toBeVisible({ timeout: 30_000 });
 
   const providerCode = `role-action-ollama-${Date.now().toString(36)}`;
@@ -204,7 +212,10 @@ async function performEngineOperatorProviderAction(page: Page): Promise<RoleActi
   await expect(providerRow).toContainText("待健康检查");
   await expect(page.getByText("生产前校验", { exact: true }).first()).toBeVisible();
 
-  const readbackResponse = await getApi(page, `/model-providers/${encodeURIComponent(providerCode)}`);
+  const readbackResponse = await getApi(
+    page,
+    `/model-providers/${encodeURIComponent(providerCode)}`,
+  );
   await expectOk(readbackResponse, "运营员回读模型服务配置");
   const readback = (await responseData(readbackResponse)) as {
     providerCode?: string;
@@ -251,7 +262,10 @@ async function performClinicalTodoAction(page: Page): Promise<RoleActionEvidence
   const dialog = page.getByRole("dialog", { name: "生成医技报告解读" });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-  const interpretResponsePromise = waitForPost(page, "/engine/recommendations/report-interpretation");
+  const interpretResponsePromise = waitForPost(
+    page,
+    "/engine/recommendations/report-interpretation",
+  );
   await dialog.getByRole("button", { name: "生成报告解读" }).click();
   const interpretResponse = await interpretResponsePromise;
   const interpretText = await interpretResponse.text();
@@ -277,10 +291,14 @@ async function performClinicalTodoAction(page: Page): Promise<RoleActionEvidence
     waitUntil: "domcontentloaded",
   });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
-  const todoRow = page.locator("tr", { has: page.locator(`a[href*="${expectedSourceId}"]`) }).first();
+  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
+  const todoRow = page
+    .locator("tr", { has: page.locator(`a[href*="${expectedSourceId}"]`) })
+    .first();
   await expect(todoRow, "临床用户应能定位本轮报告解读协同待办").toBeVisible({
     timeout: 30_000,
   });
@@ -313,9 +331,11 @@ async function performClinicalTodoAction(page: Page): Promise<RoleActionEvidence
     waitUntil: "domcontentloaded",
   });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.locator("main").getByRole("heading", { name: "协同任务" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
 
   const completedTodosResponsePromise = waitForCompletedReportTodoReadback(page, expectedSourceId);
   await choosePageSelectOption(page, "待办状态", "已完成");
@@ -328,9 +348,7 @@ async function performClinicalTodoAction(page: Page): Promise<RoleActionEvidence
   expect(
     readbackRows.some(
       (item) =>
-        item.todoId === todoId &&
-        item.sourceId === expectedSourceId &&
-        item.status === "COMPLETED",
+        item.todoId === todoId && item.sourceId === expectedSourceId && item.status === "COMPLETED",
     ),
     `已完成筛选应回读本轮完成待办 url=${completedTodosResponse.url()} rows=${JSON.stringify(readbackRows)} expectedTodo=${todoId} expectedSource=${expectedSourceId}`,
   ).toBe(true);
@@ -354,7 +372,9 @@ async function performAuditorEvidenceAction(page: Page): Promise<RoleActionEvide
   await ensureReadySession(page, "auditor");
   await page.goto(appPath("/admin/audit"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "审计与证据" }).first()).toBeVisible({
+  await expect(
+    page.locator("main").getByRole("heading", { name: "审计与证据" }).first(),
+  ).toBeVisible({
     timeout: 30_000,
   });
 
@@ -363,7 +383,10 @@ async function performAuditorEvidenceAction(page: Page): Promise<RoleActionEvide
   const firstAuditRow = page.getByRole("row").filter({ has: firstDetailButton }).first();
   await expect(firstAuditRow.locator("td").first()).not.toHaveText("", { timeout: 10_000 });
   await firstDetailButton.click();
-  const detailDrawer = page.locator(".ant-drawer-content").filter({ hasText: "审计事件详情" }).last();
+  const detailDrawer = page
+    .locator(".ant-drawer-content")
+    .filter({ hasText: "审计事件详情" })
+    .last();
   await expect(detailDrawer).toBeVisible({ timeout: 20_000 });
   await expect(detailDrawer.getByText("审计事件详情")).toBeVisible();
   await expect(detailDrawer.getByRole("row", { name: /^摘要 .+/u })).toBeVisible();
@@ -443,12 +466,16 @@ async function performAuditorEvidenceAction(page: Page): Promise<RoleActionEvide
   };
 }
 
-async function createContextSnapshotForReportInterpretation(page: Page): Promise<ContextSnapshotSummary> {
+async function createContextSnapshotForReportInterpretation(
+  page: Page,
+): Promise<ContextSnapshotSummary> {
   await page.goto(appPath("/mpi"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("main").getByRole("heading", { name: "患者索引" }).first()).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.locator("main").getByRole("heading", { name: "患者索引" }).first()).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
   await page.getByRole("button", { name: "新增患者" }).click();
   const patientDialog = page.getByRole("dialog", { name: /新增患者主索引/ });
   await expect(patientDialog).toBeVisible({ timeout: 10_000 });
@@ -552,7 +579,7 @@ async function attachFourRoleCoreActionEvidence(
     body: JSON.stringify(
       {
         scopeStatement:
-          "四职责主动作代表闭环：平台管理员、医疗引擎运营员、临床使用者和审计员各完成一个真实前台主动作，包含服务端状态变化或只读校验、回读和审计证据；不代表 34 个入口全部业务动作闭环，不代表完整上线验收。",
+          "四职责主动作代表闭环：平台管理员、医疗引擎运营员、临床使用者和审计员各完成一个真实前台主动作，包含服务端状态变化或只读校验、回读和审计证据；不代表全部产品入口业务动作闭环，不代表完整上线验收。",
         roleActions,
         platformAdmin: actions.platformAdmin,
         engineOperator: actions.engineOperator,
@@ -565,10 +592,7 @@ async function attachFourRoleCoreActionEvidence(
   });
 }
 
-async function auditEventExists(
-  page: Page,
-  options: { resourceType: string; resourceId: string },
-) {
+async function auditEventExists(page: Page, options: { resourceType: string; resourceId: string }) {
   if (!options.resourceId) return false;
   const response = await getApi(
     page,
@@ -580,7 +604,9 @@ async function auditEventExists(
   const data = await responseData(response);
   return pageItems(data).some((item) => {
     const record = recordValue(item);
-    return record?.resourceType === options.resourceType && record.resourceId === options.resourceId;
+    return (
+      record?.resourceType === options.resourceType && record.resourceId === options.resourceId
+    );
   });
 }
 

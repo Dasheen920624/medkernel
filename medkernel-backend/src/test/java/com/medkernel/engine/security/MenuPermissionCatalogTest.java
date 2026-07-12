@@ -1,7 +1,6 @@
 package com.medkernel.engine.security;
 
 import java.util.EnumSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -11,47 +10,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MenuPermissionCatalogTest {
 
-    private static final Set<String> EXPECTED_MENU_KEYS = Set.of(
-        "workbench",
-        "implementation-guide",
-        "tenant-onboarding",
-        "runtime-releases",
-        "pathway-templates",
-        "rule-definitions",
-        "terminology-mapping",
-        "adapter-hub",
-        "mpi",
-        "patient-pathways",
-        "cdss-fatigue",
-        "workflow-todos",
-        "notifications",
-        "clinical-followup",
-        "sandbox",
-        "qc-dashboard",
-        "qc-alerts",
-        "insurance-audit",
-        "qc-eval-sets",
-        "knowledge-governance",
-        "institution-knowledge",
-        "diagnosis-knowledge",
-        "domain-facade-b0-evidence",
-        "knowledge-production",
-        "admin-users",
-        "identity-bindings",
-        "admin-audit",
-        "security-baseline",
-        "system-providers",
-        "notification-settings",
-        "provenance",
-        "graph-explore",
-        "ai-workflows",
-        "domestic-check",
-        "runtime-diagnostics");
-
     @Test
-    void catalogContainsExactlyLockedNavigationEntries() {
-        assertThat(MenuPermissionCatalog.allMenuKeys())
-            .containsExactlyInAnyOrderElementsOf(EXPECTED_MENU_KEYS);
+    void generatedCatalogKeysAndRoutesAreUnique() {
+        assertThat(MenuPermissionCatalog.allMenus()).isNotEmpty();
+        assertThat(MenuPermissionCatalog.allMenuKeys()).doesNotHaveDuplicates();
+        assertThat(MenuPermissionCatalog.allMenus())
+            .extracting(MenuPermissionCatalog.MenuPermission::route)
+            .doesNotHaveDuplicates();
     }
 
     @Test
@@ -80,7 +45,6 @@ class MenuPermissionCatalogTest {
     @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
-            .hasSize(35)
             .allSatisfy(menu -> {
                 assertThat(menu.permission().dimension()).isEqualTo(PermissionDimension.MENU);
                 assertThat(menu.permission().target()).isEqualTo(menu.menuKey());
@@ -89,10 +53,21 @@ class MenuPermissionCatalogTest {
     }
 
     @Test
+    void catalogEntriesExposeGeneratedRouteAndResponsibilityRoles() {
+        assertThat(MenuPermissionCatalog.allMenus())
+            .allSatisfy(menu -> {
+                assertThat(menu.route()).startsWith("/");
+                assertThat(menu.responsibilityRoles())
+                    .isNotEmpty()
+                    .allMatch(RoleCode::customerAssignable);
+            });
+    }
+
+    @Test
     void catalogLocksPrimaryHeaderAndProfilePlacements() {
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(33);
+            .isNotEmpty();
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
             .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
@@ -105,31 +80,20 @@ class MenuPermissionCatalogTest {
 
     @Test
     void catalogLocksEightDomainOwnership() {
-        Map<String, Set<String>> menusBySection = MenuPermissionCatalog.allMenus().stream()
+        Set<String> primarySections = MenuPermissionCatalog.allMenus().stream()
             .filter(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .collect(Collectors.groupingBy(
-                MenuPermissionCatalog.MenuPermission::sectionKey,
-                Collectors.mapping(MenuPermissionCatalog.MenuPermission::menuKey, Collectors.toSet())));
+            .map(MenuPermissionCatalog.MenuPermission::sectionKey)
+            .collect(Collectors.toSet());
 
-        assertThat(menusBySection).containsExactlyInAnyOrderEntriesOf(Map.of(
-            "workbench", Set.of("workbench"),
-            "organization-people", Set.of("tenant-onboarding", "admin-users", "identity-bindings"),
-            "knowledge-governance", Set.of(
-                "knowledge-governance", "institution-knowledge", "diagnosis-knowledge",
-                "domain-facade-b0-evidence",
-                "runtime-releases", "terminology-mapping", "rule-definitions", "pathway-templates",
-                "provenance", "graph-explore"),
-            "knowledge-production", Set.of("knowledge-production", "ai-workflows"),
-            "clinical-collaboration", Set.of(
-                "mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup",
-                "sandbox"),
-            "quality-management", Set.of(
-                "qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"),
-            "compliance-security", Set.of("admin-audit", "security-baseline"),
-            "system-operations", Set.of(
-                "implementation-guide", "adapter-hub", "system-providers", "domestic-check",
-                "runtime-diagnostics")
-        ));
+        assertThat(primarySections).containsExactlyInAnyOrder(
+            "workbench",
+            "organization-people",
+            "knowledge-governance",
+            "knowledge-production",
+            "clinical-collaboration",
+            "quality-management",
+            "compliance-security",
+            "system-operations");
     }
 
     @Test

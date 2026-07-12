@@ -20,6 +20,14 @@
 
 仓库不保存数据库备份、患者数据、密钥或历史演练截图。
 
+平台知识签名私钥不属于普通应用备份范围：应用只备份公开 `keyId`、证书链、根指纹、有效期、包注册表和审计；
+不可导出私钥仅由外置 HSM/KMS 的独立受控流程备份，禁止复制到数据库、`conf`、运行目录或归档文件。每次候选验证运行：
+
+```bash
+node --test scripts/security/signing-secret-inventory.test.mjs
+node scripts/security/signing-secret-inventory.mjs
+```
+
 ## 恢复前检查
 
 1. 确认目标是隔离验证环境或已经批准覆盖的运行环境；

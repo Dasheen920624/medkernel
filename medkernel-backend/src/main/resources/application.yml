@@ -15,6 +15,11 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+  servlet:
+    multipart:
+      max-file-size: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_FILE_SIZE:512MB}
+      max-request-size: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_REQUEST_SIZE:520MB}
+      file-size-threshold: 0
 
 server:
   port: ${SERVER_PORT:18080}
@@ -82,6 +87,25 @@ medkernel:
   integration:
     health-probe-interval-ms: ${MEDKERNEL_INTEGRATION_HEALTH_PROBE_INTERVAL_MS:300000}
     secret-key: ${MEDKERNEL_INTEGRATION_SECRET_KEY:}
+  knowledge:
+    package-storage:
+      root: ${MEDKERNEL_KNOWLEDGE_PACKAGE_STORAGE_ROOT:./data/knowledge-packages}
+    package-export:
+      package-format-version: ${MEDKERNEL_KNOWLEDGE_PACKAGE_FORMAT_VERSION:1.0}
+      minimum-engine-version: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MIN_ENGINE_VERSION:1.0.0}
+      maximum-engine-version: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_ENGINE_VERSION:1.x}
+      minimum-database-schema-version: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MIN_DB_SCHEMA_VERSION:V1}
+      maximum-database-schema-version: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_DB_SCHEMA_VERSION:V1}
+    package-import:
+      quarantine-root: ${MEDKERNEL_KNOWLEDGE_PACKAGE_QUARANTINE_ROOT:./data/knowledge-package-quarantine}
+      max-package-bytes: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_BYTES:536870912}
+      max-entries: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_ENTRIES:10000}
+      max-entry-bytes: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_ENTRY_BYTES:134217728}
+      max-expanded-bytes: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_EXPANDED_BYTES:536870912}
+      max-compression-ratio: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_COMPRESSION_RATIO:10}
+      supported-package-format-version: ${MEDKERNEL_KNOWLEDGE_PACKAGE_FORMAT_VERSION:1.0}
+      current-engine-version: ${MEDKERNEL_ENGINE_VERSION:1.0.0}
+      current-database-schema-version: ${MEDKERNEL_DATABASE_SCHEMA_VERSION:V1}
   auth:
     mfa:
       enabled: ${MEDKERNEL_AUTH_MFA_ENABLED:false}

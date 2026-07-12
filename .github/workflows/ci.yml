@@ -149,6 +149,12 @@ jobs:
       - name: Block new direct medkernel config reads
         run: node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main
 
+      - name: Test platform signing secret inventory
+        run: node --test scripts/security/signing-secret-inventory.test.mjs
+
+      - name: Enforce external platform signing key boundary
+        run: node scripts/security/signing-secret-inventory.mjs
+
       - name: Test product CLI skeleton (DATASVC-01 FR-3)
         run: node --test cli/test/*.test.mjs
 
@@ -186,6 +192,12 @@ jobs:
       - name: Install
         working-directory: frontend
         run: npm ci --no-audit --no-fund
+
+      - name: Test product entry and launch gap contracts
+        run: node --test scripts/release/product-entry-catalog.test.mjs scripts/release/launch-gap-classifier.test.mjs
+
+      - name: Verify generated product entry consumers
+        run: node scripts/release/generate-product-entry-consumers.mjs --check
 
       - name: Type check
         working-directory: frontend

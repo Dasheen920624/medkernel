@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -6,7 +7,12 @@ import test from "node:test";
 import {
   buildLaunchCoverageEvidence,
   readLaunchCoverageAuditConfig,
+  summarizeLaunchLedger,
+  validateEvidenceSource,
+  validateLaunchEntryEvidence,
+  validateLaunchLedger,
 } from "./launch-coverage-audit.mjs";
+import { PRODUCT_ENTRY_CODES } from "./full-system-rehearsal-lib.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
   new URL(
@@ -15,6 +21,377 @@ const MANIFEST_PATH = fileURLToPath(
   ),
 );
 const SOURCE = "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17";
+const RUN_ID = "rc0-20260711T132737Z-7674532fd-r10";
+const PRODUCT_ENTRY_CATALOG = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../docs/contracts/product/product-entry-catalog.v1.json",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  ),
+);
+const PRODUCT_ENTRY_BY_CODE = new Map(
+  PRODUCT_ENTRY_CATALOG.entries.map((entry) => [entry.entryCode, entry]),
+);
+const LAUNCH_ENTRY_EVIDENCE_SCHEMA = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL("./launch-entry-evidence.schema.json", import.meta.url),
+    ),
+    "utf8",
+  ),
+);
+const FULL_ENTRY_STRENGTH_POLICY =
+  LAUNCH_ENTRY_EVIDENCE_SCHEMA["x-medkernel-strength-policy"].at(-1);
+const CORE_ACTION_STRENGTH_POLICY = LAUNCH_ENTRY_EVIDENCE_SCHEMA[
+  "x-medkernel-strength-policy"
+].find((item) => item.level === "CORE_ACTION");
+const LAUNCH_LEDGER_SCHEMA = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../docs/contracts/release/launch-ledger.v1.schema.json",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  ),
+);
+
+test("入口证据 schema 固定五级强度及逐级验证能力", () => {
+  assert.deepEqual(
+    LAUNCH_ENTRY_EVIDENCE_SCHEMA["x-medkernel-strength-policy"].map(
+      (item) => item.level,
+    ),
+    [
+      "ROUTE_ONLY",
+      "READBACK_ONLY",
+      "CORE_ACTION",
+      "CORE_ACTION_WITH_PERMISSION",
+      "CORE_ACTION_WITH_SIX_STATE",
+    ],
+  );
+  assert.deepEqual(FULL_ENTRY_STRENGTH_POLICY.requiredCapabilities, [
+    "ROUTE",
+    "AUTHORITATIVE_READBACK",
+    "CORE_ACTION",
+    "AUDIT_READBACK",
+    "PERMISSION_ALLOWED",
+    "PERMISSION_FORBIDDEN",
+    "ORGANIZATION_SCOPE",
+    "STATE_LOADING",
+    "STATE_EMPTY",
+    "STATE_READY",
+    "STATE_ERROR",
+    "STATE_FORBIDDEN",
+    "STATE_PARTIAL",
+  ]);
+});
+
+test("入口证据强度拒绝 ROUTE_ONLY 冒充带权限或六态核心动作", () => {
+  const entry = PRODUCT_ENTRY_CATALOG.entries.find(
+    (item) => item.entryCode === "workbench",
+  );
+  assert.ok(entry);
+
+  for (const requiredStrength of [
+    "CORE_ACTION_WITH_PERMISSION",
+    "CORE_ACTION_WITH_SIX_STATE",
+  ]) {
+    assert.throws(
+      () =>
+        validateLaunchEntryEvidence(
+          routeOnlyEntryEvidence(entry, requiredStrength),
+          entry,
+          requiredStrength,
+        ),
+      new RegExp(`ROUTE_ONLY.*不能满足.*${requiredStrength}`, "u"),
+    );
+  }
+});
+
+test("真实 CORE_ACTION 证据仍不能冒充完整入口合同", () => {
+  const entry = PRODUCT_ENTRY_CATALOG.entries.find(
+    (item) => item.entryCode === "workbench",
+  );
+  assert.ok(entry);
+  assert.ok(CORE_ACTION_STRENGTH_POLICY);
+
+  assert.throws(
+    () =>
+      validateLaunchEntryEvidence(
+        coreActionEntryEvidence(entry),
+        entry,
+        "CORE_ACTION_WITH_SIX_STATE",
+      ),
+    /CORE_ACTION.*不能满足.*CORE_ACTION_WITH_SIX_STATE/u,
+  );
+});
+
+test("LAUNCH 总账 schema 固定且仅固定 LAUNCH-01 至 LAUNCH-15", () => {
+  assert.deepEqual(
+    LAUNCH_LEDGER_SCHEMA["x-medkernel-launch-acceptance"].map(
+      (item) => item.code,
+    ),
+    Array.from(
+      { length: 15 },
+      (_, index) => `LAUNCH-${String(index + 1).padStart(2, "0")}`,
+    ),
+  );
+  assert.deepEqual(LAUNCH_LEDGER_SCHEMA.$defs.status.enum, [
+    "PASSED",
+    "FAILED",
+  ]);
+  assert.deepEqual(LAUNCH_LEDGER_SCHEMA.$defs.entry.required, [
+    "code",
+    "label",
+    "requiredCoverage",
+    "actualEvidenceScope",
+    "status",
+    "missingCoverage",
+    "evidenceRefs",
+    "candidateCommit",
+    "runId",
+    "decidedAt",
+  ]);
+  assert.deepEqual(LAUNCH_LEDGER_SCHEMA.$defs.evidenceRef.required.slice(-4), [
+    "sourceRunId",
+    "sourceCandidateCommit",
+    "sourceContentSha256",
+    "sourceCapturedAt",
+  ]);
+});
+
+test("LAUNCH 总账拒绝缺项、重复、未知码和自由文本状态", () => {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+  const validLedger = evidence.acceptance;
+  assert.equal(validateLaunchLedger(validLedger).length, 15);
+
+  assert.throws(
+    () => validateLaunchLedger(validLedger.slice(1)),
+    /缺少.*LAUNCH-01/u,
+  );
+  assert.throws(
+    () =>
+      validateLaunchLedger([
+        ...validLedger.slice(0, -1),
+        structuredClone(validLedger[0]),
+      ]),
+    /重复.*LAUNCH-01/u,
+  );
+  assert.throws(
+    () =>
+      validateLaunchLedger(
+        validLedger.map((item, index) =>
+          index === 14 ? { ...item, code: "LAUNCH-16" } : item,
+        ),
+      ),
+    /未知.*LAUNCH-16/u,
+  );
+  assert.throws(
+    () =>
+      validateLaunchLedger(
+        validLedger.map((item, index) =>
+          index === 0 ? { ...item, status: "已通过" } : item,
+        ),
+      ),
+    /LAUNCH-01.*状态.*PASSED.*FAILED/u,
+  );
+});
+
+test("LAUNCH 严格归零总账只在十五项与四类缺口全部归零时通过", () => {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+
+  const summary = summarizeLaunchLedger(evidence.acceptance, {
+    coverage: evidence.coverage,
+    gaps: [],
+    manualWaivers: [],
+  });
+
+  assert.equal(summary.schemaVersion, "1.0.0");
+  assert.equal(summary.evidenceKey, "launch.ledger.zero-unknown");
+  assert.equal(summary.status, "PASSED");
+  assert.equal(summary.candidateCommit, SOURCE);
+  assert.equal(summary.runId, RUN_ID);
+  assert.equal(summary.decidedAt, "2026-06-22T09:00:00.000Z");
+  assert.deepEqual(summary.accounting, {
+    requiredLedgerCount: 15,
+    passedCount: 15,
+    failedCount: 0,
+    unknownCount: 0,
+    skippedCount: 0,
+    missingEvidenceCount: 0,
+    unexplainedFailureCount: 0,
+    manualWaiverCount: 0,
+    classifiedGapCount: 0,
+    unclassifiedGapCount: 0,
+  });
+  assert.deepEqual(summary.blockingReasons, []);
+  assert.equal(summary.gapClosures.implementation.status, "CLOSED");
+  assert.equal(summary.gapClosures.test.status, "CLOSED");
+  assert.equal(summary.gapClosures.data.status, "CLOSED");
+  assert.equal(summary.gapClosures.environment.status, "CLEAR");
+  assert.equal(summary.gapClosures.environment.blocksLaunch, false);
+  assert.deepEqual(evidence.ledgerSummary, summary);
+});
+
+test("LAUNCH 严格归零总账拒绝失败、未知、跳过、缺证和未解释结果", () => {
+  const cases = [
+    {
+      label: "FAILED",
+      status: "FAILED",
+      expectedCounter: "failedCount",
+    },
+    {
+      label: "UNKNOWN",
+      status: "UNKNOWN",
+      expectedCounter: "unknownCount",
+    },
+    {
+      label: "SKIPPED",
+      status: "SKIPPED",
+      expectedCounter: "skippedCount",
+    },
+    {
+      label: "缺证",
+      status: "PASSED",
+      missingEvidence: true,
+      expectedCounter: "missingEvidenceCount",
+    },
+    {
+      label: "未解释失败",
+      status: "BROKEN",
+      expectedCounter: "unexplainedFailureCount",
+    },
+  ];
+
+  for (const invalidCase of cases) {
+    const fixture = launchLedgerOutcomeFixture(invalidCase);
+    const summary = summarizeLaunchLedger(fixture.ledger, {
+      coverage: fixture.coverage,
+      gaps: [],
+      manualWaivers: [],
+    });
+
+    assert.equal(summary.status, "FAILED", invalidCase.label);
+    assert.ok(
+      summary.accounting[invalidCase.expectedCounter] > 0,
+      invalidCase.label,
+    );
+    assert.ok(summary.blockingReasons.length > 0, invalidCase.label);
+  }
+});
+
+test("LAUNCH 严格归零总账不接受人工豁免或仍开放的四类缺口", () => {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+  const withWaiver = summarizeLaunchLedger(evidence.acceptance, {
+    coverage: evidence.coverage,
+    gaps: [],
+    manualWaivers: [
+      {
+        waiverId: "WAIVER-LAUNCH-01",
+        launchCode: "LAUNCH-01",
+        reason: "测试不得以人工豁免放行",
+      },
+    ],
+  });
+  assert.equal(withWaiver.status, "FAILED");
+  assert.equal(withWaiver.accounting.manualWaiverCount, 1);
+  assert.ok(withWaiver.blockingReasons.includes("MANUAL_WAIVER_PRESENT"));
+
+  const withGap = summarizeLaunchLedger(evidence.acceptance, {
+    coverage: evidence.coverage,
+    gaps: [launchSummaryImplementationGap()],
+    manualWaivers: [],
+  });
+  assert.equal(withGap.status, "FAILED");
+  assert.equal(withGap.accounting.classifiedGapCount, 1);
+  assert.equal(withGap.gapClosures.implementation.status, "OPEN");
+  assert.ok(withGap.blockingReasons.includes("IMPLEMENTATION_GAP_OPEN"));
+});
+
+test("前置证据来源拒绝自证、白名单外路径、旧 run-id、未来时间和摘要替换", () => {
+  const stageEvidence = completeStageEvidence();
+  const cases = [
+    {
+      name: "最终审计引用自身",
+      mutate(manifest) {
+        manifest.sources[0].stageId = "launch-coverage";
+        manifest.sources[0].evidencePath = auditConfig().outputPath;
+      },
+      pattern: /不得引用最终审计自身/u,
+    },
+    {
+      name: "白名单外路径",
+      mutate(manifest) {
+        manifest.sources[0].evidencePath =
+          "/var/lib/medkernel/evidence/not-allowed.json";
+      },
+      pattern: /白名单/u,
+    },
+    {
+      name: "旧 run-id",
+      mutate(manifest) {
+        manifest.runId = "rc0-20260710T000000Z-old-run";
+      },
+      pattern: /运行标识.*不一致/u,
+    },
+    {
+      name: "晚于判定时间",
+      mutate(manifest) {
+        manifest.sources[0].capturedAt = "2026-06-22T09:00:00.001Z";
+      },
+      pattern: /晚于.*判定时间/u,
+    },
+    {
+      name: "摘要被替换",
+      mutate(manifest) {
+        manifest.sources[0].contentSha256 = "0".repeat(64);
+      },
+      pattern: /内容摘要.*不一致/u,
+    },
+  ];
+
+  for (const invalidCase of cases) {
+    assert.throws(
+      () =>
+        buildLaunchCoverageEvidence(auditConfig(), {
+          readJson: readKnownEvidence(stageEvidence, invalidCase.mutate),
+          now: () => "2026-06-22T09:00:00.000Z",
+        }),
+      invalidCase.pattern,
+      invalidCase.name,
+    );
+  }
+
+  const manifest = sourceManifest(stageEvidence);
+  assert.doesNotThrow(() =>
+    validateEvidenceSource({
+      stageId: manifest.sources[0].stageId,
+      evidencePath: manifest.sources[0].evidencePath,
+      evidence: stageEvidence[manifest.sources[0].stageId],
+      sourceRecord: manifest.sources[0],
+      expectedPath: manifest.sources[0].evidencePath,
+      expectedRunId: RUN_ID,
+      expectedCandidateCommit: SOURCE,
+      manifest,
+      decidedAt: "2026-06-22T09:00:00.000Z",
+      outputPath: auditConfig().outputPath,
+    }),
+  );
+});
 
 test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () => {
   const env = baseEnv();
@@ -32,6 +409,11 @@ test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () =
   );
   assert.equal(config.manifestPath, MANIFEST_PATH);
   assert.equal(config.source, SOURCE);
+  assert.equal(config.runId, RUN_ID);
+  assert.equal(
+    config.sourceManifestPath,
+    "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
+  );
 
   env.LAUNCH_COVERAGE_EVIDENCE_PATH =
     "/workspace/medkernel/tmp/launch-coverage.json";
@@ -48,6 +430,14 @@ test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () =
     () =>
       readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
     /40 位提交哈希/u,
+  );
+
+  env.LAUNCH_SOURCE = SOURCE;
+  env.LAUNCH_RUN_ID = "short";
+  assert.throws(
+    () =>
+      readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
+    /LAUNCH_RUN_ID 格式非法/u,
   );
 });
 
@@ -226,56 +616,36 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   );
   assert.deepEqual(evidence.coverage.menuEntryCoreActions, [
     {
-      code: "ALL_34_MENU_ENTRY_CORE_ACTIONS",
+      code: "ALL_PRODUCT_ENTRY_CORE_ACTIONS",
       status: "PASSED",
       evidenceStage: "browser-e2e",
       evidencePath:
         "/var/lib/medkernel/evidence/current-launch/e2e/report/results.json",
       evidenceKey:
-        "launchCoverage.menuEntryCoreActions.ALL_34_MENU_ENTRY_CORE_ACTIONS",
-      observedCode: "ALL_34_MENU_ENTRY_CORE_ACTIONS",
+        "launchCoverage.menuEntryCoreActions.ALL_PRODUCT_ENTRY_CORE_ACTIONS",
+      observedCode: "ALL_PRODUCT_ENTRY_CORE_ACTIONS",
       observedStatus: "PASSED",
       observedAt: "2026-06-22T09:00:00.000Z",
     },
   ]);
   assert.deepEqual(
     evidence.coverage.menuEntryCoreActionRows.map((item) => item.code),
-    [
-      "workbench",
-      "tenant-onboarding",
-      "admin-users",
-      "identity-bindings",
-      "admin-audit",
-      "security-baseline",
-      "implementation-guide",
-      "adapter-hub",
-      "system-providers",
-      "runtime-diagnostics",
-      "domestic-check",
-      "notifications",
-      "notification-settings",
-      "knowledge-governance",
-      "runtime-releases",
-      "institution-knowledge",
-      "diagnosis-knowledge",
-      "terminology-mapping",
-      "rule-definitions",
-      "pathway-templates",
-      "provenance",
-      "graph-explore",
-      "knowledge-production",
-      "ai-workflows",
-      "clinical-followup",
-      "sandbox",
-      "qc-dashboard",
-      "qc-alerts",
-      "insurance-audit",
-      "qc-eval-sets",
-      "mpi",
-      "patient-pathways",
-      "cdss-fatigue",
-      "workflow-todos",
-    ],
+    PRODUCT_ENTRY_CODES,
+  );
+  assert.equal(evidence.entryEvidence.schemaVersion, "1.0.0");
+  assert.equal(
+    evidence.entryEvidence.requiredEvidenceStrength,
+    "CORE_ACTION_WITH_SIX_STATE",
+  );
+  assert.equal(evidence.entryEvidence.rows.length, PRODUCT_ENTRY_CODES.length);
+  assert.equal(
+    evidence.entryEvidence.rows.every(
+      (row) =>
+        row.evidenceStrength === "CORE_ACTION_WITH_SIX_STATE" &&
+        row.coverageBoundary.mode === "FULL_ENTRY_CONTRACT" &&
+        row.uncoveredScope.length === 0,
+    ),
+    true,
   );
   assert.deepEqual(evidence.coverage.complianceWorkbenchPersonalEntryMatrix, [
     {
@@ -657,7 +1027,9 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
   assert.throws(
     () =>
       buildLaunchCoverageEvidence(auditConfig(), {
-        readJson: readKnownEvidence(missingNursingAnesthesiaTransfusionConsumer),
+        readJson: readKnownEvidence(
+          missingNursingAnesthesiaTransfusionConsumer,
+        ),
       }),
     /第三方系统族真实消费者代表切片.*NURSING_ANESTHESIA_TRANSFUSION_ICU.*缺少前置阶段证据/u,
   );
@@ -793,7 +1165,7 @@ test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项�
       buildLaunchCoverageEvidence(auditConfig(), {
         readJson: readKnownEvidence(missingMenuEntry),
       }),
-    /34 个产品入口真实核心动作行.*insurance-audit.*缺少前置阶段证据/u,
+    /产品入口合同真实核心动作行.*insurance-audit.*缺少前置阶段证据/u,
   );
 });
 
@@ -812,6 +1184,58 @@ test("完整覆盖审计遇到任一前置阶段失败时拒绝生成 PASSED 证
   );
 });
 
+function launchLedgerOutcomeFixture({ status, missingEvidence = false }) {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+  const coverage = structuredClone(evidence.coverage);
+  const ledger = structuredClone(evidence.acceptance);
+  const coverageKey = "productLayers";
+  const coverageRow = coverage[coverageKey][0];
+  const launchRow = ledger.find((row) =>
+    row.requiredCoverage.includes(coverageKey),
+  );
+  assert.ok(launchRow);
+
+  if (missingEvidence) {
+    coverageRow.evidenceKey = null;
+  } else {
+    coverageRow.status = status;
+    coverageRow.observedStatus = status;
+  }
+  launchRow.status = "FAILED";
+  launchRow.missingCoverage = launchRow.requiredCoverage.filter(
+    (key) => key === coverageKey,
+  );
+  launchRow.evidenceRefs = launchRow.evidenceRefs.filter(
+    (ref) =>
+      !(
+        ref.coverageKey === coverageKey && ref.observedCode === coverageRow.code
+      ),
+  );
+
+  return { coverage, ledger };
+}
+
+function launchSummaryImplementationGap() {
+  return {
+    gapId: "GAP-LAUNCH-01-STRICT-SUMMARY",
+    launchCode: "LAUNCH-01",
+    evidenceKey: "launch.ledger.strict-summary",
+    gapKind: "IMPLEMENTATION_ABSENT",
+    classification: "IMPLEMENTATION",
+    summary: "严格归零总账实现仍未完成",
+    ownerPath: "scripts/release/launch-coverage-audit.mjs",
+    remediationPlan: {
+      failingTest: "scripts/release/launch-coverage-audit.test.mjs",
+      implementationPath: "scripts/release/launch-coverage-audit.mjs",
+      consumerReadback: "launch.ledger.strict-summary.consumer-readback",
+      auditReadback: "launch.ledger.strict-summary.audit-readback",
+    },
+  };
+}
+
 function auditConfig() {
   return {
     evidenceRoot: "/var/lib/medkernel/evidence/current-launch",
@@ -819,6 +1243,9 @@ function auditConfig() {
       "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
     manifestPath: MANIFEST_PATH,
     source: SOURCE,
+    runId: RUN_ID,
+    sourceManifestPath:
+      "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
   };
 }
 
@@ -829,16 +1256,59 @@ function baseEnv() {
       "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
     FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
     LAUNCH_SOURCE: SOURCE,
+    LAUNCH_RUN_ID: RUN_ID,
+    LAUNCH_EVIDENCE_SOURCE_MANIFEST_PATH:
+      "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
   };
 }
 
-function readKnownEvidence(stageEvidence) {
+function readKnownEvidence(stageEvidence, mutateSourceManifest) {
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
+  const provenance = sourceManifest(stageEvidence);
+  mutateSourceManifest?.(provenance);
   return (_file, stage) => {
     if (stage === "全知识演练清单") return manifest;
+    if (stage === "上线前置证据来源清单") return provenance;
     if (!stageEvidence[stage]) throw new Error(`测试缺少阶段证据 ${stage}`);
     return stageEvidence[stage];
   };
+}
+
+function sourceManifest(stageEvidence) {
+  const config = auditConfig();
+  const sources = Object.entries(auditStageFiles(config)).map(
+    ([stageId, evidencePath]) => ({
+      stageId,
+      evidencePath,
+      contentSha256: sha256Json(stageEvidence[stageId]),
+      capturedAt: "2026-06-22T09:00:00.000Z",
+    }),
+  );
+  return {
+    schemaVersion: "1.0.0",
+    candidateCommit: SOURCE,
+    runId: RUN_ID,
+    generatedAt: "2026-06-22T09:00:00.000Z",
+    sources,
+  };
+}
+
+function auditStageFiles(config) {
+  return {
+    "database-migrations": `${config.evidenceRoot}/database-migrations.json`,
+    "account-bootstrap": `${config.evidenceRoot}/account-bootstrap.json`,
+    "model-provider": `${config.evidenceRoot}/model-provider.json`,
+    "platform-baseline": `${config.evidenceRoot}/platform-baseline.json`,
+    sandbox: `${config.evidenceRoot}/sandbox/seed-summary.json`,
+    "full-knowledge": `${config.evidenceRoot}/full-knowledge.json`,
+    "runtime-resilience": `${config.evidenceRoot}/runtime-resilience.json`,
+    "target-environment": `${config.evidenceRoot}/target-environment.json`,
+    "browser-e2e": `${config.evidenceRoot}/e2e/report/results.json`,
+  };
+}
+
+function sha256Json(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 function completeStageEvidence(options = {}) {
@@ -1066,41 +1536,10 @@ function completeStageEvidence(options = {}) {
     "clinicalEntryCoreActions:CLINICAL_COLLABORATION_CORE_ACTIONS_REPRESENTATIVE",
     "qualityManagementEntryCoreActions:QUALITY_MANAGEMENT_CORE_ACTIONS_REPRESENTATIVE",
     "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
-    "menuEntryCoreActions:ALL_34_MENU_ENTRY_CORE_ACTIONS",
-    "menuEntryCoreActionRows:workbench",
-    "menuEntryCoreActionRows:tenant-onboarding",
-    "menuEntryCoreActionRows:admin-users",
-    "menuEntryCoreActionRows:identity-bindings",
-    "menuEntryCoreActionRows:admin-audit",
-    "menuEntryCoreActionRows:security-baseline",
-    "menuEntryCoreActionRows:implementation-guide",
-    "menuEntryCoreActionRows:adapter-hub",
-    "menuEntryCoreActionRows:system-providers",
-    "menuEntryCoreActionRows:runtime-diagnostics",
-    "menuEntryCoreActionRows:domestic-check",
-    "menuEntryCoreActionRows:notifications",
-    "menuEntryCoreActionRows:notification-settings",
-    "menuEntryCoreActionRows:knowledge-governance",
-    "menuEntryCoreActionRows:runtime-releases",
-    "menuEntryCoreActionRows:institution-knowledge",
-    "menuEntryCoreActionRows:diagnosis-knowledge",
-    "menuEntryCoreActionRows:terminology-mapping",
-    "menuEntryCoreActionRows:rule-definitions",
-    "menuEntryCoreActionRows:pathway-templates",
-    "menuEntryCoreActionRows:provenance",
-    "menuEntryCoreActionRows:graph-explore",
-    "menuEntryCoreActionRows:knowledge-production",
-    "menuEntryCoreActionRows:ai-workflows",
-    "menuEntryCoreActionRows:clinical-followup",
-    "menuEntryCoreActionRows:sandbox",
-    "menuEntryCoreActionRows:qc-dashboard",
-    "menuEntryCoreActionRows:qc-alerts",
-    "menuEntryCoreActionRows:insurance-audit",
-    "menuEntryCoreActionRows:qc-eval-sets",
-    "menuEntryCoreActionRows:mpi",
-    "menuEntryCoreActionRows:patient-pathways",
-    "menuEntryCoreActionRows:cdss-fatigue",
-    "menuEntryCoreActionRows:workflow-todos",
+    "menuEntryCoreActions:ALL_PRODUCT_ENTRY_CORE_ACTIONS",
+    ...PRODUCT_ENTRY_CODES.map(
+      (entryCode) => `menuEntryCoreActionRows:${entryCode}`,
+    ),
     "complianceWorkbenchPersonalEntryMatrix:COMPLIANCE_WORKBENCH_PERSONAL_ENTRY_ACTIONS",
     "complianceWorkbenchPersonalEntryRows:SECURITY_BASELINE_CONFIG_CHANGE",
     "complianceWorkbenchPersonalEntryRows:AUDIT_EVIDENCE_EXPORT_VERIFY",
@@ -1211,6 +1650,11 @@ function completeStageEvidence(options = {}) {
     "specialDiseaseStages:OUTCOME_EVALUATION",
     "specialDiseaseStages:QUALITY_ITERATION",
   ]);
+  evidence["browser-e2e"].launchCoverage.menuEntryCoreActionRows = evidence[
+    "browser-e2e"
+  ].launchCoverage.menuEntryCoreActionRows.map((row) =>
+    fullEntryEvidence(row, PRODUCT_ENTRY_BY_CODE.get(row.code)),
+  );
   return evidence;
 }
 
@@ -1296,6 +1740,98 @@ function launchCoverageClaims(entries) {
     });
   }
   return claims;
+}
+
+function fullEntryEvidence(row, entry) {
+  assert.ok(entry, `测试夹具缺少入口合同 ${row.code}`);
+  return {
+    ...row,
+    requiredEvidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+    evidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+    verifiedCapabilities: [...FULL_ENTRY_STRENGTH_POLICY.requiredCapabilities],
+    verifiedObject: {
+      entryCode: entry.entryCode,
+      route: entry.route,
+      actionCodes: entry.coreActions.map((action) => action.actionCode),
+      permissionCodes: [...entry.requiredPermissions],
+      organizationScopeMode: entry.organizationScopeMode,
+      sixStates: [...entry.sixStates],
+    },
+    coverageBoundary: {
+      mode: "FULL_ENTRY_CONTRACT",
+      statement:
+        "完整入口合同：路由、权威回读、真实核心动作、审计、权限边界、组织范围与六态均已验证。",
+    },
+    uncoveredScope: [],
+  };
+}
+
+function routeOnlyEntryEvidence(entry, requiredStrength) {
+  return {
+    code: entry.entryCode,
+    status: "PASSED",
+    evidenceKey: `launchCoverage.menuEntryCoreActionRows.${entry.entryCode}`,
+    observedAt: "2026-06-22T09:00:00.000Z",
+    requiredEvidenceStrength: requiredStrength,
+    evidenceStrength: "ROUTE_ONLY",
+    verifiedCapabilities: ["ROUTE"],
+    verifiedObject: {
+      entryCode: entry.entryCode,
+      route: entry.route,
+      actionCodes: [],
+      permissionCodes: [],
+      organizationScopeMode: null,
+      sixStates: [],
+    },
+    coverageBoundary: {
+      mode: "LIMITED_ENTRY_SLICE",
+      statement: "仅验证入口路由可达，不代表完整入口合同。",
+    },
+    uncoveredScope: [
+      "AUTHORITATIVE_READBACK",
+      "CORE_ACTION",
+      "AUDIT_READBACK",
+      "PERMISSION_ALLOWED",
+      "PERMISSION_FORBIDDEN",
+      "ORGANIZATION_SCOPE",
+      "STATE_LOADING",
+      "STATE_EMPTY",
+      "STATE_READY",
+      "STATE_ERROR",
+      "STATE_FORBIDDEN",
+      "STATE_PARTIAL",
+    ],
+  };
+}
+
+function coreActionEntryEvidence(entry) {
+  const verifiedCapabilities = [
+    ...CORE_ACTION_STRENGTH_POLICY.requiredCapabilities,
+  ];
+  return {
+    code: entry.entryCode,
+    status: "PASSED",
+    evidenceKey: `launchCoverage.menuEntryCoreActionRows.${entry.entryCode}`,
+    observedAt: "2026-06-22T09:00:00.000Z",
+    requiredEvidenceStrength: "CORE_ACTION_WITH_SIX_STATE",
+    evidenceStrength: "CORE_ACTION",
+    verifiedCapabilities,
+    verifiedObject: {
+      entryCode: entry.entryCode,
+      route: entry.route,
+      actionCodes: entry.coreActions.map((action) => action.actionCode),
+      permissionCodes: [],
+      organizationScopeMode: null,
+      sixStates: [],
+    },
+    coverageBoundary: {
+      mode: "LIMITED_ENTRY_SLICE",
+      statement: "真实核心动作、权威回读和审计已验证，但不代表完整入口合同。",
+    },
+    uncoveredScope: FULL_ENTRY_STRENGTH_POLICY.requiredCapabilities.filter(
+      (capability) => !verifiedCapabilities.includes(capability),
+    ),
+  };
 }
 
 function fullKnowledgeEvidence() {

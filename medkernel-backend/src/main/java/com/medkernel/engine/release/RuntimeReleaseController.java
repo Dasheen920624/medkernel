@@ -184,6 +184,7 @@ public class RuntimeReleaseController {
             tenantId(),
             hospitalId,
             request.targetReleaseId(),
+            request.expectedCurrentReleaseId(),
             actor(),
             RequestContext.currentTraceId()
         ));

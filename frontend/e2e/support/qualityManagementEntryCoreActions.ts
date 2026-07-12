@@ -91,7 +91,7 @@ const pathByMenuKey: Record<QualityManagementEntryCoreActionMenuKey, string> = {
 };
 
 export const qualityManagementEntryCoreActionScopeStatement =
-  "质量管理入口核心动作代表矩阵：围绕质量风险概览、质量问题与整改、医保审核和评价指标四个入口完成真实前台核心动作、服务回读与审计或来源对象审计链证据；不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，不代表完整 S9-S11，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。";
+  "质量管理入口核心动作代表矩阵：围绕质量风险概览、质量问题与整改、医保审核和评价指标四个入口完成真实前台核心动作、服务回读与审计或来源对象审计链证据；不代表质量管理 4 个入口全部完整上线，不代表完整 DRG/DIP 或医保支付审核，不代表完整 S9-S11，不代表全部产品入口业务动作闭环，不代表完整上线验收。";
 
 export async function attachQualityManagementEntryCoreActionEvidence(
   testInfo: TestInfo,

@@ -95,7 +95,7 @@ const routeByMenuKey = new Map(
 const interactionRoleFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_ROLES);
 const interactionMenuFilter = parseCsvSet(process.env.E2E_ROLE_MENU_INTERACTION_MENU_KEYS);
 const dashboardWorkbenchScopeStatement =
-  "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表 35 个入口全部业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。";
+  "四职责工作台核心动作代表矩阵：四个固定职责均从 /dashboard 读取当前角色工作台、真实来源状态和主动作/高频任务入口，并完成主动作跳转；不代表全部产品入口业务动作闭环，不代表每个入口的完整业务流程，不代表完整上线验收。";
 const dashboardWorkbenchScenarioConditionEvidence = [
   {
     code: "S0__NORMAL",

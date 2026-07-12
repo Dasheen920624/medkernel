@@ -40,7 +40,7 @@
 
 ### Requirement: 确定性 manifest 与内容寻址
 
-manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序规则，至少绑定 packageId、authorityId、issuerInstanceId、keyId、发布序号、包类型、平台发布稳定身份、父包或 fromDigest、兼容范围以及逐文件路径、大小和 SM3 摘要。相同已登记发布输入 MUST 生成逐字节相同的 manifest 和相同 manifest 摘要；本地 evidenceId、数据库主键、绝对路径、主机名、IP 和临时导出时间 MUST NOT 进入内容寻址字段。
+manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序规则，至少绑定 deliveryId、authorityId、issuerInstanceId、keyId、发布序号、平台发布稳定身份、父交付摘要、兼容范围以及逐文件路径、大小和 SM3 摘要。首发包类型 MUST 为 FULL。deliveryId 只标识该可移植交付制品，不得进入临床运行选择；相同已登记发布输入 MUST 生成逐字节相同的 manifest 和相同 manifest 摘要；本地 evidenceId、数据库主键、绝对路径、主机名、IP 和临时导出时间 MUST NOT 进入内容寻址字段。
 
 #### Scenario: 在不同宿主重复导出同一发布
 
@@ -73,7 +73,7 @@ manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序�
 
 ### Requirement: 防篡改与防重放校验
 
-导入服务 MUST 先按真实文件字节重算逐文件和整包 SM3 摘要，再验证锚定到固定平台信任根的 SM2 签名、authorityId、issuerInstanceId、keyId、发布序号及吊销状态。系统 SHALL 以 authorityId、packageId、发布序号和 manifest 摘要登记幂等事实；完全相同的包重复提交不得产生重复业务副作用，同序号异摘要、普通升级路径中的旧序号或分叉父摘要 MUST 被拒绝，历史版本只能经显式本地回滚流程重新生效。
+导入服务 MUST 先按真实文件字节重算逐文件和整包 SM3 摘要，再验证锚定到固定平台信任根的 SM2 签名、authorityId、issuerInstanceId、keyId、发布序号及吊销状态。系统 SHALL 以 authorityId、deliveryId、发布序号和 manifest 摘要登记幂等事实；完全相同的包重复提交不得产生重复业务副作用，同序号异摘要、普通升级路径中的旧序号或分叉父摘要 MUST 被拒绝，历史版本只能经显式本地回滚流程重新生效。
 
 #### Scenario: 包内容被篡改
 
@@ -82,17 +82,17 @@ manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序�
 
 #### Scenario: 完全相同的包重复提交
 
-- **WHEN** 已成功登记的 packageId 和 manifest 摘要再次提交
+- **WHEN** 已成功登记的 deliveryId 和 manifest 摘要再次提交
 - **THEN** 系统 SHALL 返回既有导入结果且不得重复创建资产版本、发布或激活修订
 
 #### Scenario: 重放较旧或分叉包
 
-- **WHEN** 普通导入提交的发布序号低于本地已接受序号，或 fromDigest 不在本地已验证连续链上
+- **WHEN** 普通导入提交的发布序号低于本地已接受序号，或父交付摘要与本地已验证连续链冲突
 - **THEN** 系统 MUST 拒绝激活并保留当前机构生效版本
 
 ### Requirement: 受管隔离区预检
 
-线上拉取和离线介质上传的未信任字节 SHALL 先进入受管隔离区。预检 MUST 在不修改活动资产、平台发布和机构生效版本的前提下，校验包格式与边界、路径穿越和符号链接、文件数量与大小及解压比、信任与吊销状态、全文件摘要、目标范围、许可、软件与模式兼容性、13 类正文校验、精确依赖闭包、测试向量、撤回传播、差量链和无患者数据约束，并输出绑定 manifest 摘要的差异、冲突、影响和撤回预览。
+离线介质上传的未信任字节 SHALL 先进入受管隔离区。预检 MUST 在不修改活动资产、平台发布和机构生效版本的前提下，校验包格式与边界、路径穿越和符号链接、文件数量与大小及解压比、信任与吊销状态、全文件摘要、目标范围、许可、软件与模式兼容性、13 类正文校验、精确依赖闭包、测试向量、撤回传播和无患者数据约束，并输出绑定 manifest 摘要的差异、冲突、影响和撤回预览。
 
 #### Scenario: 隔离预检通过
 
@@ -147,38 +147,19 @@ manifest.json SHALL 使用固定 UTF-8 规范化编码、字段集合和排序�
 - **WHEN** 包已成功激活后临床调用方发送不含包 ID、领域或资产版本的请求
 - **THEN** 服务端 SHALL 按医院解析唯一当前机构生效版本并锁定其中的精确资产版本
 
-### Requirement: 在线与离线共用同一导入服务
+### Requirement: 真实下载与离线上传共用文件合同
 
-HTTPS 在线拉取和人工离线介质上传 SHALL 仅作为获取真实包字节的传输适配器，二者 MUST 调用同一隔离、验签、预检、物化、差异分析、CAS 激活和审计服务，不得存在跳过校验的在线直写数据库路径或依赖本地 evidenceId 的离线旁路。同一包字节在两种入口下 MUST 得到相同的 manifest 摘要、内容判断和幂等键。
+平台 SHALL 提供真实 `.mkp` 文件下载，医院 SHALL 提供真实文件流式上传；上传后 MUST 调用统一隔离、验签、预检、物化、差异分析、CAS 激活和审计服务，不得存在依赖本地 evidenceId 的离线旁路。后续若增加 HTTPS 拉取，它 MUST 先取得真实包字节并复用同一服务，不得直写医院数据库。
 
-#### Scenario: 同一包分别在线和离线提交
+#### Scenario: 平台下载后由离线介质上传
 
-- **WHEN** 在线拉取和离线介质上传提供逐字节相同的 .mkp 文件
-- **THEN** 统一服务 SHALL 生成相同预检摘要、差异结果和包登记身份
+- **WHEN** 操作者从平台下载已登记 `.mkp`，经离线介质把逐字节相同的文件上传到医院
+- **THEN** 医院 SHALL 按下载登记重算出相同 manifest 摘要，并生成唯一预检和包登记身份
 
-#### Scenario: 在线来源试图直接同步数据库
+#### Scenario: 后续在线来源试图直接同步数据库
 
 - **WHEN** 在线平台请求绕过真实文件和统一预检直接向医院写入资产或发布行
 - **THEN** 医院系统 MUST 拒绝请求且不得产生业务数据
-
-### Requirement: 差量缺链时回退完整包
-
-差量包 SHALL 声明精确 fromDigest、目标 manifest 摘要、连续父链和累积撤回信息，并只可应用于完全匹配的本地已验证基线。任一基线缺失、摘要不符、父链断裂或撤回链不完整时，系统 MUST 停止差量物化并回退获取同一目标发布的完整包；在线不可达且介质没有完整包时，系统 MUST 返回 NOT_SYNCED 或 IMPORT_BLOCKED 并继续运行当前版本，不得猜测或部分合并差量。
-
-#### Scenario: 本地具备精确差量基线
-
-- **WHEN** 差量包的 fromDigest 与本地已验证活动基线完全一致且父链与撤回链完整
-- **THEN** 系统 SHALL 允许差量进入统一预检并验证合成后的目标 manifest 摘要
-
-#### Scenario: 差量基线缺失
-
-- **WHEN** 空库或已清理历史的医院收到只含差量的包
-- **THEN** 系统 MUST 请求或提示提供目标完整包，不得以差量自举
-
-#### Scenario: 断网且没有完整包介质
-
-- **WHEN** 差量链校验失败、平台在线端不可达且当前介质不含目标完整包
-- **THEN** 系统 MUST 保留当前生效版本并返回 NOT_SYNCED 或 IMPORT_BLOCKED
 
 ### Requirement: 医院本地可审计回滚
 

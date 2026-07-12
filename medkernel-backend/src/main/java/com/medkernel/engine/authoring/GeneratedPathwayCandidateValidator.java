@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextFieldPathPolicy;
 import com.medkernel.engine.versioning.AssetDependencyDeclaration;
 import com.medkernel.engine.versioning.AssetDependencyKind;
+import com.medkernel.engine.versioning.AssetSelfContainmentPolicy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -51,7 +52,7 @@ public class GeneratedPathwayCandidateValidator implements GeneratedAssetCandida
             throw invalid("路径稳定编码必须与资产身份一致");
         }
         requiredText(content, "name");
-        rejectFragmentsAndSubpaths(content);
+        AssetSelfContainmentPolicy.requirePathwaySelfContained(content);
         String startNode = requiredText(content, "startNodeCode");
         Set<String> terminals = requireTerminalNodes(content);
         validateTriggerBindings(content);
@@ -192,30 +193,6 @@ public class GeneratedPathwayCandidateValidator implements GeneratedAssetCandida
         }
         if (node.isArray()) {
             node.forEach(item -> collectRuleIdentities(item, refs));
-        }
-    }
-
-    private void rejectFragmentsAndSubpaths(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return;
-        }
-        if (node.isObject()) {
-            node.fields().forEachRemaining(entry -> {
-                String key = entry.getKey();
-                if ("subPaths".equals(key) || "subPathRefs".equals(key) || "childPathways".equals(key)) {
-                    throw invalid("路径必须保持单图自包含，禁止子路径或路径嵌套");
-                }
-                if ("conditionFragments".equals(key)
-                        || "conditionFragmentRefs".equals(key)
-                        || "conditionFragmentRef".equals(key)) {
-                    throw invalid("路径条件必须直接写入条件树，禁止条件片段库");
-                }
-                rejectFragmentsAndSubpaths(entry.getValue());
-            });
-            return;
-        }
-        if (node.isArray()) {
-            node.forEach(this::rejectFragmentsAndSubpaths);
         }
     }
 

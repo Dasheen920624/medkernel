@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { productEntryCatalog } from "@/shared/contracts/productEntryCatalog.generated";
 import { menuSections } from "./menu";
 import { routeMetas } from "./routes";
 
@@ -67,54 +68,22 @@ describe("menu config", () => {
     );
   });
 
-  it("locks the exact 33 customer and production primary entries", () => {
+  it("matches every primary entry from the product entry contract", () => {
     const visibleTotal = menuSections.reduce((sum, section) => sum + section.items.length, 0);
+    const primaryEntries = productEntryCatalog.filter((entry) => entry.placement === "primary");
+    const expectedBySection = new Map<string, string[]>();
+    primaryEntries.forEach((entry) => {
+      expectedBySection.set(entry.sectionCode, [
+        ...(expectedBySection.get(entry.sectionCode) ?? []),
+        entry.entryCode,
+      ]);
+    });
 
-    expect(visibleTotal).toBe(33);
+    expect(visibleTotal).toBe(primaryEntries.length);
     expect(
       menuSections.map((section) => [section.key, section.items.map((item) => item.key)]),
-    ).toEqual([
-      ["workbench", ["workbench"]],
-      ["organization-people", ["tenant-onboarding", "admin-users", "identity-bindings"]],
-      [
-        "knowledge-governance",
-        [
-          "knowledge-governance",
-          "runtime-releases",
-          "institution-knowledge",
-          "diagnosis-knowledge",
-          "terminology-mapping",
-          "domain-facade-b0-evidence",
-          "rule-definitions",
-          "pathway-templates",
-          "provenance",
-          "graph-explore",
-        ],
-      ],
-      ["knowledge-production", ["knowledge-production", "ai-workflows"]],
-      [
-        "clinical-collaboration",
-        [
-          "mpi",
-          "patient-pathways",
-          "cdss-fatigue",
-          "workflow-todos",
-          "clinical-followup",
-          "sandbox",
-        ],
-      ],
-      ["quality-management", ["qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"]],
-      ["compliance-security", ["admin-audit", "security-baseline"]],
-      [
-        "system-operations",
-        [
-          "implementation-guide",
-          "adapter-hub",
-          "system-providers",
-          "runtime-diagnostics",
-          "domestic-check",
-        ],
-      ],
-    ]);
+    ).toEqual(
+      menuSections.map((section) => [section.key, expectedBySection.get(section.key) ?? []]),
+    );
   });
 });

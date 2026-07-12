@@ -702,11 +702,12 @@ export default function ReleaseGovernance() {
   }
 
   async function rollback(target: ClinicalRuntimeRelease) {
-    if (!hospitalId) return;
+    if (!hospitalId || !currentRuntime?.release.releaseId) return;
     try {
       const result = await rollbackHospital.mutateAsync({
         hospitalId,
         targetReleaseId: target.releaseId,
+        expectedCurrentReleaseId: currentRuntime.release.releaseId,
       });
       message.success(`已生成回滚版本 ${revision("H", result.revisionNo)}`);
     } catch (error) {

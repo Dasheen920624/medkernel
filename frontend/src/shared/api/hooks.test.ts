@@ -3767,6 +3767,7 @@ describe("release governance api hooks", () => {
     await renderApiHook(() => useRollbackHospitalRuntime()).result.current.mutateAsync({
       hospitalId: "hospital-A",
       targetReleaseId: "runtime-H7",
+      expectedCurrentReleaseId: "runtime-H9",
     });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/releases/platform-baselines", {
@@ -3788,7 +3789,10 @@ describe("release governance api hooks", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(
       3,
       "/engine/releases/hospitals/hospital-A/runtime-releases:rollback",
-      { targetReleaseId: "runtime-H7" },
+      {
+        targetReleaseId: "runtime-H7",
+        expectedCurrentReleaseId: "runtime-H9",
+      },
     );
   });
 

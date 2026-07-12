@@ -31,7 +31,8 @@ class D0DomainAcceptanceTest {
     ObjectMapper objectMapper;
 
     @Test
-    void fourteenResponsibilityRolesResolveEffectiveFiveDimensionProfileAndSecondLevelMenus() throws Exception {
+    void assignableResponsibilityRolesResolveEffectiveFiveDimensionProfileAndProductEntries()
+            throws Exception {
         Set<String> lockedMenuKeys = Set.copyOf(MenuPermissionCatalog.allMenuKeys());
         Set<String> observedDimensions = new HashSet<>();
 
@@ -60,7 +61,7 @@ class D0DomainAcceptanceTest {
                 .as("%s 必须具备菜单、动作、数据和环境权限；无资产职责的角色不得被迫扩权", role.code())
                 .contains("MENU", "ACTION", "DATA", "ENVIRONMENT");
             assertThat(textValues(data.path("menuKeys")))
-                .as("%s 入口必须来自 33+1 顶栏+1 个人入口导航权限目录", role.code())
+                .as("%s 入口必须来自产品入口唯一合同", role.code())
                 .isNotEmpty()
                 .contains("workbench")
                 .doesNotContain("pilot-setup", "clinical-run", "quality-improve", "compliance-ops",
@@ -75,16 +76,23 @@ class D0DomainAcceptanceTest {
 
     @Test
     void d0LockedMenuCatalogMatchesEightDomainsAndExplicitPlacements() {
-        assertThat(MenuPermissionCatalog.allMenus()).hasSize(35);
+        assertThat(MenuPermissionCatalog.allMenus())
+            .isNotEmpty()
+            .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
+            .doesNotHaveDuplicates();
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(33);
+            .isNotEmpty();
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
-            .hasSize(1);
+            .singleElement()
+            .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
+            .isEqualTo("notifications");
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PROFILE)
-            .hasSize(1);
+            .singleElement()
+            .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
+            .isEqualTo("notification-settings");
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> "sandbox".equals(menu.menuKey()))
             .singleElement()

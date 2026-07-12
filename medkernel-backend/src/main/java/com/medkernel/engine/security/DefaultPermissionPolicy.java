@@ -2,7 +2,6 @@ package com.medkernel.engine.security;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,10 +20,14 @@ public final class DefaultPermissionPolicy {
     static {
         EnumMap<RoleCode, Set<PermissionCode>> map = new EnumMap<>(RoleCode.class);
         map.put(RoleCode.SYSTEM_SUPERADMIN, allRuntimePermissions());
-        map.put(RoleCode.PLATFORM_ADMIN, platformAdministrationPermissions());
-        map.put(RoleCode.ENGINE_OPERATOR, engineOperationsPermissions());
-        map.put(RoleCode.CLINICAL_USER, clinicalUserPermissions());
-        map.put(RoleCode.AUDITOR, auditPermissions());
+        map.put(RoleCode.PLATFORM_ADMIN,
+            permissionsWithCatalogMenus(RoleCode.PLATFORM_ADMIN, platformAdministrationPermissions()));
+        map.put(RoleCode.ENGINE_OPERATOR,
+            permissionsWithCatalogMenus(RoleCode.ENGINE_OPERATOR, engineOperationsPermissions()));
+        map.put(RoleCode.CLINICAL_USER,
+            permissionsWithCatalogMenus(RoleCode.CLINICAL_USER, clinicalUserPermissions()));
+        map.put(RoleCode.AUDITOR,
+            permissionsWithCatalogMenus(RoleCode.AUDITOR, auditPermissions()));
         POLICY = Map.copyOf(map);
     }
 
@@ -32,7 +35,7 @@ public final class DefaultPermissionPolicy {
     }
 
     private static EnumSet<PermissionCode> platformAdministrationPermissions() {
-        return withMenus(EnumSet.of(
+        return EnumSet.of(
             DATA_GROUP, DATA_DESENSITIZED,
             ASSET_RUNTIME_RELEASE, ASSET_DICTIONARY,
             ENV_TEST, ENV_TRIAL, ENV_PRODUCTION,
@@ -49,24 +52,11 @@ public final class DefaultPermissionPolicy {
             MPI_READ, MPI_CREATE, MPI_WRITE,
             PROJECTION_READ, PROJECTION_REBUILD,
             WORKBENCH_READINESS_VIEW,
-            LIST_EXPORT),
-            MENU_WORKBENCH,
-            MENU_TENANT_ONBOARDING,
-            MENU_ADMIN_USERS,
-            MENU_IDENTITY_BINDINGS,
-            MENU_ADMIN_AUDIT,
-            MENU_SECURITY_BASELINE,
-            MENU_IMPLEMENTATION_GUIDE,
-            MENU_ADAPTER_HUB,
-            MENU_SYSTEM_PROVIDERS,
-            MENU_DOMESTIC_CHECK,
-            MENU_RUNTIME_DIAGNOSTICS,
-            MENU_NOTIFICATIONS,
-            MENU_NOTIFICATION_SETTINGS);
+            LIST_EXPORT);
     }
 
     private static EnumSet<PermissionCode> engineOperationsPermissions() {
-        return withMenus(EnumSet.of(
+        return EnumSet.of(
             DATA_GROUP, DATA_HOSPITAL, DATA_DESENSITIZED,
             ASSET_RUNTIME_RELEASE, ASSET_DICTIONARY, ASSET_KNOWLEDGE,
             ASSET_RULE, ASSET_PATHWAY,
@@ -95,33 +85,11 @@ public final class DefaultPermissionPolicy {
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
             FOLLOWUP_WRITE, FOLLOWUP_PUBLISH,
-            LIST_EXPORT),
-            MENU_WORKBENCH,
-            MENU_KNOWLEDGE_GOVERNANCE,
-            MENU_INSTITUTION_KNOWLEDGE,
-            MENU_DIAGNOSIS_KNOWLEDGE,
-            MENU_DOMAIN_FACADE_B0_EVIDENCE,
-            MENU_RUNTIME_RELEASES,
-            MENU_TERMINOLOGY_MAPPING,
-            MENU_RULE_DEFINITIONS,
-            MENU_PATHWAY_TEMPLATES,
-            MENU_PROVENANCE,
-            MENU_GRAPH_EXPLORE,
-            MENU_KNOWLEDGE_PRODUCTION,
-            MENU_AI_WORKFLOWS,
-            MENU_CLINICAL_FOLLOWUP,
-            MENU_SANDBOX,
-            MENU_QC_DASHBOARD,
-            MENU_QC_ALERTS,
-            MENU_INSURANCE_AUDIT,
-            MENU_QC_EVAL_SETS,
-            MENU_ADMIN_AUDIT,
-            MENU_NOTIFICATIONS,
-            MENU_NOTIFICATION_SETTINGS);
+            LIST_EXPORT);
     }
 
     private static EnumSet<PermissionCode> clinicalUserPermissions() {
-        return withMenus(EnumSet.of(
+        return EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_KNOWLEDGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_PRODUCTION,
@@ -137,20 +105,11 @@ public final class DefaultPermissionPolicy {
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
             SANDBOX_RUN,
-            LLM_READ, LLM_EXECUTE),
-            MENU_WORKBENCH,
-            MENU_MPI,
-            MENU_PATIENT_PATHWAYS,
-            MENU_CDSS_FATIGUE,
-            MENU_WORKFLOW_TODOS,
-            MENU_CLINICAL_FOLLOWUP,
-            MENU_SANDBOX,
-            MENU_NOTIFICATIONS,
-            MENU_NOTIFICATION_SETTINGS);
+            LLM_READ, LLM_EXECUTE);
     }
 
     private static EnumSet<PermissionCode> auditPermissions() {
-        return withMenus(EnumSet.of(
+        return EnumSet.of(
             DATA_GROUP, DATA_DESENSITIZED,
             ASSET_RUNTIME_RELEASE, ASSET_DICTIONARY, ASSET_KNOWLEDGE,
             ASSET_RULE, ASSET_PATHWAY,
@@ -167,23 +126,20 @@ public final class DefaultPermissionPolicy {
             LLM_READ,
             ENGINE_DATA_READ, ENGINE_DATA_EXPORT,
             INTEGRATION_READ, MPI_READ, PROJECTION_READ,
-            LIST_EXPORT),
-            MENU_WORKBENCH,
-            MENU_PROVENANCE,
-            MENU_ADMIN_AUDIT,
-            MENU_SECURITY_BASELINE,
-            MENU_NOTIFICATIONS,
-            MENU_NOTIFICATION_SETTINGS);
+            LIST_EXPORT);
     }
 
     private static EnumSet<PermissionCode> allRuntimePermissions() {
         return EnumSet.allOf(PermissionCode.class);
     }
 
-    private static EnumSet<PermissionCode> withMenus(
-            EnumSet<PermissionCode> permissions,
-            PermissionCode... menuPermissions) {
-        permissions.addAll(List.of(menuPermissions));
+    private static EnumSet<PermissionCode> permissionsWithCatalogMenus(
+            RoleCode role,
+            EnumSet<PermissionCode> permissions) {
+        MenuPermissionCatalog.allMenus().stream()
+            .filter(menu -> menu.responsibilityRoles().contains(role))
+            .map(MenuPermissionCatalog.MenuPermission::permission)
+            .forEach(permissions::add);
         return permissions;
     }
 

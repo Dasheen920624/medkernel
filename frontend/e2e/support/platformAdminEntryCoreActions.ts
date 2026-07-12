@@ -31,10 +31,10 @@ const pathByMenuKey: Record<PlatformAdminEntryCoreActionMenuKey, string> = {
 };
 
 export const platformAdminEntryCoreActionScopeStatement =
-  "平台管理员 P0 入口核心动作代表矩阵：围绕服务机构、身份来源、系统接入和服务运行保障四个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。";
+  "平台管理员 P0 入口核心动作代表矩阵：围绕服务机构、身份来源、系统接入和服务运行保障四个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收。";
 
 export const platformAdminP1EntryCoreActionScopeStatement =
-  "平台管理员 P1 系统运维入口核心动作代表矩阵：围绕运行诊断和国产化适配自检两个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表 34 个入口全部业务动作闭环，不代表完整上线验收。";
+  "平台管理员 P1 系统运维入口核心动作代表矩阵：围绕运行诊断和国产化适配自检两个入口完成真实前台核心动作、服务回读与审计证据；不代表 6 个平台管理员入口全部闭环，不代表全部产品入口业务动作闭环，不代表完整上线验收。";
 
 export async function attachPlatformAdminEntryCoreActionEvidence(
   testInfo: TestInfo,

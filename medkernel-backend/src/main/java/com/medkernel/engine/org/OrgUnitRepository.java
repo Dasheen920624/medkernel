@@ -37,6 +37,16 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
     Optional<OrgUnit> findByTenantIdAndId(String tenantId, String id);
 
     /**
+     * 锁定医院组织行，串行化首次空状态和后续机构生效版本 CAS。
+     *
+     * @param tenantId 租户标识
+     * @param id 组织单元主键
+     * @return 匹配且已加行锁的组织单元
+     */
+    @Query("SELECT * FROM org_unit WHERE tenant_id = :tenantId AND id = :id FOR UPDATE")
+    Optional<OrgUnit> findByTenantIdAndIdForUpdate(String tenantId, String id);
+
+    /**
      * 按租户和规范组织路径读取组织单元。
      *
      * @param tenantId 租户标识

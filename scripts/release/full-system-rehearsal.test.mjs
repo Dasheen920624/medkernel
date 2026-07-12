@@ -9,13 +9,16 @@ import test from "node:test";
 import {
   assertCompleteLaunchCoverage,
   buildFullSystemStagePlan,
+  buildLaunchAcceptance,
   buildRequiredLaunchAcceptance,
   buildRequiredLaunchCoverage,
   buildTargetEnvironmentRehearsalEvidence,
+  PRODUCT_ENTRY_CODES,
   readFullSystemRehearsalConfig,
   runFullSystemRehearsal,
   validateStageEvidence,
 } from "./full-system-rehearsal-lib.mjs";
+import { summarizeLaunchLedger } from "./launch-coverage-audit.mjs";
 
 const MANIFEST_PATH = fileURLToPath(
   new URL(
@@ -24,6 +27,7 @@ const MANIFEST_PATH = fileURLToPath(
   ),
 );
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const RUN_ID = "rc0-20260711T132737Z-7674532fd-r10";
 
 test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
   const config = rehearsalConfig();
@@ -85,6 +89,11 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
     true,
   );
   assert.equal(plan[9].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
+  assert.equal(plan[9].env.LAUNCH_RUN_ID, RUN_ID);
+  assert.equal(
+    plan[9].env.LAUNCH_EVIDENCE_SOURCE_MANIFEST_PATH,
+    config.sourceManifestPath,
+  );
 
   const requiredCoverage = buildRequiredLaunchCoverage();
   assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
@@ -112,7 +121,6 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
     ),
     false,
   );
-  assert.equal(requiredCoverage.menuEntryCoreActionRows.length, 34);
   assert.deepEqual(
     requiredCoverage.thirdPartySystemFamilyDegradationRows.map(
       (item) => item.code,
@@ -135,42 +143,7 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
   );
   assert.deepEqual(
     requiredCoverage.menuEntryCoreActionRows.map((item) => item.code),
-    [
-      "workbench",
-      "tenant-onboarding",
-      "admin-users",
-      "identity-bindings",
-      "admin-audit",
-      "security-baseline",
-      "implementation-guide",
-      "adapter-hub",
-      "system-providers",
-      "runtime-diagnostics",
-      "domestic-check",
-      "notifications",
-      "notification-settings",
-      "knowledge-governance",
-      "runtime-releases",
-      "institution-knowledge",
-      "diagnosis-knowledge",
-      "terminology-mapping",
-      "rule-definitions",
-      "pathway-templates",
-      "provenance",
-      "graph-explore",
-      "knowledge-production",
-      "ai-workflows",
-      "clinical-followup",
-      "sandbox",
-      "qc-dashboard",
-      "qc-alerts",
-      "insurance-audit",
-      "qc-eval-sets",
-      "mpi",
-      "patient-pathways",
-      "cdss-fatigue",
-      "workflow-todos",
-    ],
+    PRODUCT_ENTRY_CODES,
   );
   const requiredAcceptance = buildRequiredLaunchAcceptance();
   assert.equal(requiredAcceptance.length, 15);
@@ -225,7 +198,12 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
     config.indexPath,
     "/var/lib/medkernel/evidence/current-launch/full-system.json",
   );
+  assert.equal(
+    config.sourceManifestPath,
+    "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
+  );
   assert.equal(config.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
+  assert.equal(config.runId, RUN_ID);
 
   delete env.LAUNCH_SOURCE;
   assert.throws(
@@ -238,6 +216,14 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
     () =>
       readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
     /40 位提交哈希/u,
+  );
+
+  env.LAUNCH_SOURCE = "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17";
+  env.LAUNCH_RUN_ID = "short";
+  assert.throws(
+    () =>
+      readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
+    /LAUNCH_RUN_ID 格式非法/u,
   );
 });
 
@@ -319,6 +305,7 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
 
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
+  assert.equal(result.runId, RUN_ID);
   assert.equal(result.stages.length, 10);
   assert.deepEqual(
     result.coverage.scenarios,
@@ -331,6 +318,7 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   );
   assert.equal(result.coverage.databaseDialects.length, 5);
   assert.equal(result.acceptance.length, 15);
+  assert.deepEqual(result.ledgerSummary, coverageEvidence.ledgerSummary);
   assert.equal(
     result.acceptance.find((item) => item.code === "LAUNCH-11")?.status,
     "PASSED",
@@ -339,13 +327,28 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(result.coverage.deliveryShapes.length, 5);
   assert.equal(result.coverage.serviceCombinations.length, 7);
   assert.equal(result.coverage.stakeholderViews.length, 12);
-  assert.equal(result.coverage.menuEntryCoreActionRows.length, 34);
+  assert.deepEqual(
+    result.coverage.menuEntryCoreActionRows.map((item) => item.code),
+    PRODUCT_ENTRY_CODES,
+  );
   assert.equal(
     result.acceptance.find((item) => item.code === "LAUNCH-09")?.status,
     "PASSED",
   );
-  assert.equal(written.length, 1);
-  assert.equal(written[0].value.status, "PASSED");
+  assert.equal(written.length, 2);
+  const sourceManifest = written.find(
+    (item) => item.file === rehearsalConfig().sourceManifestPath,
+  )?.value;
+  assert.equal(sourceManifest.runId, RUN_ID);
+  assert.equal(sourceManifest.candidateCommit, result.source);
+  assert.equal(sourceManifest.sources.length, 9);
+  assert.equal(
+    sourceManifest.sources.every((item) =>
+      /^[a-f0-9]{64}$/u.test(item.contentSha256),
+    ),
+    true,
+  );
+  assert.equal(written.at(-1).value.status, "PASSED");
 });
 
 test("整套演练持续输出十阶段进度并在总索引记录阶段耗时", async () => {
@@ -378,6 +381,71 @@ test("整套演练持续输出十阶段进度并在总索引记录阶段耗时",
 test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放行", () => {
   const complete = completeLaunchCoverageEvidence();
   assert.doesNotThrow(() => assertCompleteLaunchCoverage(complete));
+
+  const reorderedSummary = structuredClone(complete);
+  reorderedSummary.ledgerSummary.accounting = Object.fromEntries(
+    Object.entries(reorderedSummary.ledgerSummary.accounting).reverse(),
+  );
+  reorderedSummary.ledgerSummary.gapClassification.classificationCounts =
+    Object.fromEntries(
+      Object.entries(
+        reorderedSummary.ledgerSummary.gapClassification.classificationCounts,
+      ).reverse(),
+    );
+  assert.doesNotThrow(() => assertCompleteLaunchCoverage(reorderedSummary));
+
+  const missingSummary = structuredClone(complete);
+  delete missingSummary.ledgerSummary;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingSummary),
+    /严格归零总账/u,
+  );
+
+  const waivedSummary = structuredClone(complete);
+  waivedSummary.ledgerSummary.accounting.manualWaiverCount = 1;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(waivedSummary),
+    /人工豁免.*全部为零/u,
+  );
+
+  const detachedSummary = structuredClone(complete);
+  detachedSummary.ledgerSummary.runId = "rc0-20260711T132737Z-other-run";
+  assert.throws(
+    () => assertCompleteLaunchCoverage(detachedSummary),
+    /严格归零总账/u,
+  );
+
+  const duplicatedCoverage = structuredClone(complete);
+  duplicatedCoverage.coverage.versionedAssets.push(
+    structuredClone(duplicatedCoverage.coverage.versionedAssets[0]),
+  );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(duplicatedCoverage),
+    /13 类版本化资产.*重复/u,
+  );
+
+  const missingLedger = structuredClone(complete);
+  delete missingLedger.acceptance;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingLedger),
+    /LAUNCH 总账缺失/u,
+  );
+
+  const duplicateLedgerCode = structuredClone(complete);
+  duplicateLedgerCode.acceptance[14] = structuredClone(
+    duplicateLedgerCode.acceptance[0],
+  );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(duplicateLedgerCode),
+    /LAUNCH 总账编码重复 LAUNCH-01/u,
+  );
+
+  const unknownLedgerCode = structuredClone(complete);
+  unknownLedgerCode.acceptance[14].code = "LAUNCH-16";
+  assert.throws(
+    () => assertCompleteLaunchCoverage(unknownLedgerCode),
+    /LAUNCH 总账包含未知编码 LAUNCH-16/u,
+  );
 
   const missingScenario = structuredClone(complete);
   missingScenario.coverage.scenarios =
@@ -581,10 +649,51 @@ test("目标环境复演 CLI 从外部源证据生成标准阶段证据", () => 
 });
 
 function completeLaunchCoverageEvidence() {
+  const coverage = completeLaunchCoverageRows();
+  const acceptance = completeLaunchLedger(coverage);
   return {
+    schemaVersion: "1.0.0",
     status: "PASSED",
-    coverage: completeLaunchCoverageRows(),
+    source: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    candidateCommit: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    runId: RUN_ID,
+    generatedAt: "2026-06-22T09:00:00.000Z",
+    coverage,
+    acceptance,
+    ledgerSummary: summarizeLaunchLedger(acceptance, {
+      coverage,
+      gaps: [],
+      manualWaivers: [],
+    }),
   };
+}
+
+function completeLaunchLedger(coverage) {
+  return buildLaunchAcceptance(coverage).map((row) => {
+    const evidenceRefs = row.requiredCoverage.flatMap((coverageKey) =>
+      coverage[coverageKey].map((item) => ({
+        coverageKey,
+        evidenceStage: item.evidenceStage,
+        evidencePath: item.evidencePath,
+        evidenceKey: item.evidenceKey,
+        observedCode: item.observedCode,
+        observedStatus: item.observedStatus,
+        observedAt: item.observedAt,
+        sourceRunId: RUN_ID,
+        sourceCandidateCommit: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+        sourceContentSha256: "a".repeat(64),
+        sourceCapturedAt: "2026-06-22T09:00:00.000Z",
+      })),
+    );
+    return {
+      ...row,
+      actualEvidenceScope: [...row.requiredCoverage],
+      evidenceRefs,
+      candidateCommit: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+      runId: RUN_ID,
+      decidedAt: "2026-06-22T09:00:00.000Z",
+    };
+  });
 }
 
 function completeLaunchCoverageRows() {
@@ -948,5 +1057,6 @@ function baseEnv() {
       "/var/lib/medkernel/evidence/target-environment-source.json",
     FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
     LAUNCH_SOURCE: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    LAUNCH_RUN_ID: RUN_ID,
   };
 }

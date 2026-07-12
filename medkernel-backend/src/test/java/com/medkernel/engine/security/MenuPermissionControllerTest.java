@@ -39,7 +39,7 @@ class MenuPermissionControllerTest {
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.menus", hasSize(35)))
+            .andExpect(jsonPath("$.data.menus", hasSize(MenuPermissionCatalog.allMenus().size())))
             .andExpect(jsonPath("$.data.menus[*].menuKey")
                 .value(org.hamcrest.Matchers.not(hasItem("model-evaluation-review"))))
             .andExpect(jsonPath("$.data.menus[*].menuKey", hasItem("terminology-mapping")))

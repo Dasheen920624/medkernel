@@ -804,6 +804,28 @@ class ClinicalRuntimeReleaseServiceTest {
     }
 
     @Test
+    void rollbackRejectsStaleExpectedCurrentReleaseBeforeWriting() {
+        stubHospital();
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(release("runtime-H9", 9L)));
+
+        assertThatThrownBy(() -> service.rollback(
+            "tenant-A",
+            "hospital-A",
+            "runtime-H3",
+            "runtime-H8",
+            "operator-A",
+            "trace-stale-rollback"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("当前机构生效版本已变化")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(releases, org.mockito.Mockito.never()).save(any(ClinicalRuntimeRelease.class));
+    }
+
+    @Test
     void rejectsWithdrawnPlatformVersionFromNewRuntimeRelease() {
         stubHospitalAndBaseline();
         when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
@@ -1100,8 +1122,7 @@ class ClinicalRuntimeReleaseServiceTest {
     }
 
     private void stubHospital() {
-        when(organizations.findByTenantIdAndId("tenant-A", "hospital-A"))
-            .thenReturn(Optional.of(new OrgUnit(
+        OrgUnit hospital = new OrgUnit(
                 "hospital-A",
                 "group-A",
                 "tenant-A",
@@ -1117,7 +1138,11 @@ class ClinicalRuntimeReleaseServiceTest {
                 "operator-old",
                 NOW.minusSeconds(3600),
                 "operator-old"
-            )));
+            );
+        when(organizations.findByTenantIdAndId("tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(hospital));
+        when(organizations.findByTenantIdAndIdForUpdate("tenant-A", "hospital-A"))
+            .thenReturn(Optional.of(hospital));
     }
 
     private PlatformBaselineItem baselineItem(

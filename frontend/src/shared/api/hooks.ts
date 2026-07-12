@@ -8325,12 +8325,19 @@ export function useActivateHospitalRuntime() {
 export function useRollbackHospitalRuntime() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { hospitalId: string; targetReleaseId: string }) => {
+    mutationFn: async (payload: {
+      hospitalId: string;
+      targetReleaseId: string;
+      expectedCurrentReleaseId: string;
+    }) => {
       const { data } = await apiClient.post<{ data: ClinicalRuntimeRelease }>(
         `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
           payload.hospitalId,
         )}/runtime-releases:rollback`,
-        { targetReleaseId: payload.targetReleaseId },
+        {
+          targetReleaseId: payload.targetReleaseId,
+          expectedCurrentReleaseId: payload.expectedCurrentReleaseId,
+        },
       );
       return data.data;
     },

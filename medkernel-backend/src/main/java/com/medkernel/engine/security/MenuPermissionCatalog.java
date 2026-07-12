@@ -1,119 +1,29 @@
 package com.medkernel.engine.security;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static com.medkernel.engine.security.PermissionCode.MENU_ADMIN_AUDIT;
-import static com.medkernel.engine.security.PermissionCode.MENU_ADMIN_USERS;
-import static com.medkernel.engine.security.PermissionCode.MENU_AI_WORKFLOWS;
-import static com.medkernel.engine.security.PermissionCode.MENU_KNOWLEDGE_GOVERNANCE;
-import static com.medkernel.engine.security.PermissionCode.MENU_ADAPTER_HUB;
-import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
-import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
-import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_RELEASES;
-import static com.medkernel.engine.security.PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE;
-import static com.medkernel.engine.security.PermissionCode.MENU_DOMAIN_FACADE_B0_EVIDENCE;
-import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
-import static com.medkernel.engine.security.PermissionCode.MENU_GRAPH_EXPLORE;
-import static com.medkernel.engine.security.PermissionCode.MENU_IDENTITY_BINDINGS;
-import static com.medkernel.engine.security.PermissionCode.MENU_IMPLEMENTATION_GUIDE;
-import static com.medkernel.engine.security.PermissionCode.MENU_INSTITUTION_KNOWLEDGE;
-import static com.medkernel.engine.security.PermissionCode.MENU_INSURANCE_AUDIT;
-import static com.medkernel.engine.security.PermissionCode.MENU_KNOWLEDGE_PRODUCTION;
-import static com.medkernel.engine.security.PermissionCode.MENU_MPI;
-import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATIONS;
-import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATION_SETTINGS;
-import static com.medkernel.engine.security.PermissionCode.MENU_PATIENT_PATHWAYS;
-import static com.medkernel.engine.security.PermissionCode.MENU_PATHWAY_TEMPLATES;
-import static com.medkernel.engine.security.PermissionCode.MENU_PROVENANCE;
-import static com.medkernel.engine.security.PermissionCode.MENU_QC_ALERTS;
-import static com.medkernel.engine.security.PermissionCode.MENU_QC_DASHBOARD;
-import static com.medkernel.engine.security.PermissionCode.MENU_QC_EVAL_SETS;
-import static com.medkernel.engine.security.PermissionCode.MENU_RULE_DEFINITIONS;
-import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_DIAGNOSTICS;
-import static com.medkernel.engine.security.PermissionCode.MENU_SANDBOX;
-import static com.medkernel.engine.security.PermissionCode.MENU_SECURITY_BASELINE;
-import static com.medkernel.engine.security.PermissionCode.MENU_SYSTEM_PROVIDERS;
-import static com.medkernel.engine.security.PermissionCode.MENU_TENANT_ONBOARDING;
-import static com.medkernel.engine.security.PermissionCode.MENU_TERMINOLOGY_MAPPING;
-import static com.medkernel.engine.security.PermissionCode.MENU_WORKBENCH;
-import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>入口权限只承认 33 个按业务域分类的主导航、1 个页头和 1 个个人入口。
+ * <p>运行时只读取由产品入口唯一合同生成的类路径资源，禁止在 Java 中再次维护入口集合、
+ * 路由、展示位置或职责快照。
  */
 public final class MenuPermissionCatalog {
 
-    private static final List<MenuPermission> ALL_MENUS = List.of(
-        menu("workbench", "workbench", "工作台", MENU_WORKBENCH, MenuPlacement.PRIMARY),
-        menu("organization-people", "tenant-onboarding", "服务机构",
-            MENU_TENANT_ONBOARDING, MenuPlacement.PRIMARY),
-        menu("organization-people", "admin-users", "人员与账号",
-            MENU_ADMIN_USERS, MenuPlacement.PRIMARY),
-        menu("organization-people", "identity-bindings", "身份来源",
-            MENU_IDENTITY_BINDINGS, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "knowledge-governance", "知识审核发布中心",
-            MENU_KNOWLEDGE_GOVERNANCE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "runtime-releases", "机构生效版本",
-            MENU_RUNTIME_RELEASES, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "institution-knowledge", "机构知识库",
-            MENU_INSTITUTION_KNOWLEDGE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "diagnosis-knowledge", "诊断知识库",
-            MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "terminology-mapping", "术语字典",
-            MENU_TERMINOLOGY_MAPPING, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "domain-facade-b0-evidence", "领域门面无模型证据",
-            MENU_DOMAIN_FACADE_B0_EVIDENCE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "rule-definitions", "临床规则",
-            MENU_RULE_DEFINITIONS, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "pathway-templates", "临床路径库",
-            MENU_PATHWAY_TEMPLATES, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "provenance", "来源与血缘",
-            MENU_PROVENANCE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "graph-explore", "知识关系",
-            MENU_GRAPH_EXPLORE, MenuPlacement.PRIMARY),
-        menu("knowledge-production", "knowledge-production", "知识生产工作台",
-            MENU_KNOWLEDGE_PRODUCTION, MenuPlacement.PRIMARY),
-        menu("knowledge-production", "ai-workflows", "模型能力与安全",
-            MENU_AI_WORKFLOWS, MenuPlacement.PRIMARY),
-        menu("clinical-collaboration", "mpi", "患者索引", MENU_MPI, MenuPlacement.PRIMARY),
-        menu("clinical-collaboration", "patient-pathways", "患者路径",
-            MENU_PATIENT_PATHWAYS, MenuPlacement.PRIMARY),
-        menu("clinical-collaboration", "cdss-fatigue", "提醒与推荐",
-            MENU_CDSS_FATIGUE, MenuPlacement.PRIMARY),
-        menu("clinical-collaboration", "workflow-todos", "协同任务",
-            MENU_WORKFLOW_TODOS, MenuPlacement.PRIMARY),
-        menu("clinical-collaboration", "clinical-followup", "随访协同",
-            MENU_CLINICAL_FOLLOWUP, MenuPlacement.PRIMARY),
-        menu("clinical-collaboration", "sandbox", "全真体验沙盘",
-            MENU_SANDBOX, MenuPlacement.PRIMARY),
-        menu("quality-management", "qc-dashboard", "质量风险概览",
-            MENU_QC_DASHBOARD, MenuPlacement.PRIMARY),
-        menu("quality-management", "qc-alerts", "质量问题与整改",
-            MENU_QC_ALERTS, MenuPlacement.PRIMARY),
-        menu("quality-management", "insurance-audit", "医保审核",
-            MENU_INSURANCE_AUDIT, MenuPlacement.PRIMARY),
-        menu("quality-management", "qc-eval-sets", "评价指标",
-            MENU_QC_EVAL_SETS, MenuPlacement.PRIMARY),
-        menu("compliance-security", "admin-audit", "审计与证据",
-            MENU_ADMIN_AUDIT, MenuPlacement.PRIMARY),
-        menu("compliance-security", "security-baseline", "安全与配置",
-            MENU_SECURITY_BASELINE, MenuPlacement.PRIMARY),
-        menu("system-operations", "implementation-guide", "实施与验收",
-            MENU_IMPLEMENTATION_GUIDE, MenuPlacement.PRIMARY),
-        menu("system-operations", "adapter-hub", "系统接入",
-            MENU_ADAPTER_HUB, MenuPlacement.PRIMARY),
-        menu("system-operations", "system-providers", "服务运行保障",
-            MENU_SYSTEM_PROVIDERS, MenuPlacement.PRIMARY),
-        menu("system-operations", "runtime-diagnostics", "运行诊断",
-            MENU_RUNTIME_DIAGNOSTICS, MenuPlacement.PRIMARY),
-        menu("system-operations", "domestic-check", "国产化适配自检",
-            MENU_DOMESTIC_CHECK, MenuPlacement.PRIMARY),
-        menu("workbench", "notifications", "消息通知", MENU_NOTIFICATIONS, MenuPlacement.HEADER),
-        menu("workbench", "notification-settings", "通知偏好",
-            MENU_NOTIFICATION_SETTINGS, MenuPlacement.PROFILE));
+    private static final String CATALOG_RESOURCE = "/catalog/menu-permission-catalog.generated.json";
+    private static final String CATALOG_ID = "medkernel-menu-permission-catalog";
+    private static final String SOURCE_CATALOG_ID = "medkernel-product-entry-catalog";
+    private static final String GENERATED_FROM = "docs/contracts/product/product-entry-catalog.v1.json";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final List<MenuPermission> ALL_MENUS = loadCatalog();
 
     private MenuPermissionCatalog() {
     }
@@ -148,26 +58,154 @@ public final class MenuPermissionCatalog {
             .toList();
     }
 
-    private static MenuPermission menu(
-            String sectionKey,
-            String menuKey,
-            String displayName,
-            PermissionCode permission,
-            MenuPlacement placement) {
-        return new MenuPermission(sectionKey, menuKey, displayName, permission, placement);
+    private static List<MenuPermission> loadCatalog() {
+        try (InputStream input = MenuPermissionCatalog.class.getResourceAsStream(CATALOG_RESOURCE)) {
+            if (input == null) {
+                throw new IllegalStateException("入口目录生成资源不存在：" + CATALOG_RESOURCE);
+            }
+            GeneratedCatalog catalog = OBJECT_MAPPER.readValue(input, GeneratedCatalog.class);
+            validateCatalogHeader(catalog);
+            return parseMenus(catalog.menus());
+        } catch (IOException exception) {
+            throw new IllegalStateException("入口目录生成资源读取失败：" + CATALOG_RESOURCE, exception);
+        }
     }
 
+    private static void validateCatalogHeader(GeneratedCatalog catalog) {
+        if (catalog == null
+                || !"1.0.0".equals(catalog.schemaVersion())
+                || !CATALOG_ID.equals(catalog.catalogId())
+                || !SOURCE_CATALOG_ID.equals(catalog.sourceCatalogId())
+                || !GENERATED_FROM.equals(catalog.generatedFrom())
+                || catalog.sourceCatalogSha256() == null
+                || !catalog.sourceCatalogSha256().matches("[0-9a-f]{64}")) {
+            throw new IllegalStateException("入口目录生成资源头信息非法：" + CATALOG_RESOURCE);
+        }
+    }
+
+    private static List<MenuPermission> parseMenus(List<GeneratedMenu> generatedMenus) {
+        if (generatedMenus == null || generatedMenus.isEmpty()) {
+            throw new IllegalStateException("入口目录生成资源不得为空：" + CATALOG_RESOURCE);
+        }
+        Set<String> menuKeys = new HashSet<>();
+        Set<String> routes = new HashSet<>();
+        List<MenuPermission> menus = generatedMenus.stream()
+            .map(menu -> parseMenu(menu, menuKeys, routes))
+            .toList();
+        return List.copyOf(menus);
+    }
+
+    private static MenuPermission parseMenu(
+            GeneratedMenu generated,
+            Set<String> menuKeys,
+            Set<String> routes) {
+        if (generated == null) {
+            throw new IllegalStateException("入口目录生成资源包含空行");
+        }
+        String sectionKey = requireText(generated.sectionKey(), "sectionKey");
+        String menuKey = requireText(generated.menuKey(), "menuKey");
+        String displayName = requireText(generated.displayName(), "displayName");
+        String route = requireText(generated.route(), "route");
+        if (!menuKeys.add(menuKey)) {
+            throw new IllegalStateException("入口目录 menuKey 重复：" + menuKey);
+        }
+        if (!route.startsWith("/") || !routes.add(route)) {
+            throw new IllegalStateException("入口目录 route 非法或重复：" + route);
+        }
+
+        PermissionCode permission = PermissionCode.fromCode(
+                requireText(generated.permissionCode(), "permissionCode"))
+            .orElseThrow(() -> new IllegalStateException("入口目录权限未登记：" + generated.permissionCode()));
+        if (permission.dimension() != PermissionDimension.MENU || !menuKey.equals(permission.target())) {
+            throw new IllegalStateException("入口目录权限与 menuKey 不一致：" + menuKey);
+        }
+
+        MenuPlacement placement;
+        try {
+            placement = MenuPlacement.valueOf(requireText(generated.placement(), "placement"));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("入口目录 placement 非法：" + generated.placement(), exception);
+        }
+
+        Set<RoleCode> responsibilityRoles = parseResponsibilityRoles(
+            generated.responsibilityRoles(), menuKey);
+        return new MenuPermission(
+            sectionKey,
+            menuKey,
+            displayName,
+            permission,
+            placement,
+            route,
+            responsibilityRoles);
+    }
+
+    private static Set<RoleCode> parseResponsibilityRoles(List<String> roleCodes, String menuKey) {
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            throw new IllegalStateException("入口目录职责不得为空：" + menuKey);
+        }
+        Set<RoleCode> roles = new LinkedHashSet<>();
+        for (String roleCode : roleCodes) {
+            RoleCode role = RoleCode.fromCode(roleCode)
+                .filter(RoleCode::customerAssignable)
+                .orElseThrow(() -> new IllegalStateException("入口目录职责非法：" + roleCode));
+            if (!roles.add(role)) {
+                throw new IllegalStateException("入口目录职责重复：" + menuKey + "/" + roleCode);
+            }
+        }
+        return Collections.unmodifiableSet(roles);
+    }
+
+    private static String requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("入口目录字段为空：" + field);
+        }
+        return value;
+    }
+
+    /** 产品入口展示位置。 */
     public enum MenuPlacement {
         PRIMARY,
         HEADER,
         PROFILE
     }
 
+    /**
+     * 从唯一产品入口合同生成的后端运行时入口。
+     *
+     * @param sectionKey 所属一级业务域
+     * @param menuKey 产品入口编码
+     * @param displayName 中文入口名称
+     * @param permission 菜单权限
+     * @param placement 展示位置
+     * @param route 前端唯一入口路由
+     * @param responsibilityRoles 对该入口负责的客户职责集合
+     */
     public record MenuPermission(
         String sectionKey,
         String menuKey,
         String displayName,
         PermissionCode permission,
-        MenuPlacement placement
+        MenuPlacement placement,
+        String route,
+        Set<RoleCode> responsibilityRoles
+    ) {}
+
+    private record GeneratedCatalog(
+        String schemaVersion,
+        String catalogId,
+        String generatedFrom,
+        String sourceCatalogId,
+        String sourceCatalogSha256,
+        List<GeneratedMenu> menus
+    ) {}
+
+    private record GeneratedMenu(
+        String sectionKey,
+        String menuKey,
+        String displayName,
+        String permissionCode,
+        String placement,
+        String route,
+        List<String> responsibilityRoles
     ) {}
 }

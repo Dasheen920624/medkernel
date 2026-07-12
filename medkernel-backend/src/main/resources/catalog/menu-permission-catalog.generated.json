@@ -1,0 +1,409 @@
+{
+  "schemaVersion": "1.0.0",
+  "catalogId": "medkernel-menu-permission-catalog",
+  "generatedFrom": "docs/contracts/product/product-entry-catalog.v1.json",
+  "sourceCatalogId": "medkernel-product-entry-catalog",
+  "sourceCatalogSha256": "db671bc8c188abb0c8365855c2f395d6f310965f9eb589f56e7026e961ca005f",
+  "menus": [
+    {
+      "sectionKey": "workbench",
+      "menuKey": "workbench",
+      "displayName": "工作台",
+      "permissionCode": "menu.workbench",
+      "placement": "PRIMARY",
+      "route": "/dashboard",
+      "responsibilityRoles": [
+        "platform-admin",
+        "engine-operator",
+        "clinical-user",
+        "auditor"
+      ]
+    },
+    {
+      "sectionKey": "organization-people",
+      "menuKey": "tenant-onboarding",
+      "displayName": "服务机构",
+      "permissionCode": "menu.tenant-onboarding",
+      "placement": "PRIMARY",
+      "route": "/tenant/onboarding",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "organization-people",
+      "menuKey": "admin-users",
+      "displayName": "人员与账号",
+      "permissionCode": "menu.admin-users",
+      "placement": "PRIMARY",
+      "route": "/admin/users",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "organization-people",
+      "menuKey": "identity-bindings",
+      "displayName": "身份来源",
+      "permissionCode": "menu.identity-bindings",
+      "placement": "PRIMARY",
+      "route": "/security/identity-binding",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "knowledge-governance",
+      "displayName": "知识审核发布中心",
+      "permissionCode": "menu.knowledge-governance",
+      "placement": "PRIMARY",
+      "route": "/knowledge/governance",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "runtime-releases",
+      "displayName": "机构生效版本",
+      "permissionCode": "menu.runtime-releases",
+      "placement": "PRIMARY",
+      "route": "/config/releases",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "institution-knowledge",
+      "displayName": "机构知识库",
+      "permissionCode": "menu.institution-knowledge",
+      "placement": "PRIMARY",
+      "route": "/knowledge/institution",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "diagnosis-knowledge",
+      "displayName": "诊断知识库",
+      "permissionCode": "menu.diagnosis-knowledge",
+      "placement": "PRIMARY",
+      "route": "/knowledge/diagnosis",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "terminology-mapping",
+      "displayName": "术语字典",
+      "permissionCode": "menu.terminology-mapping",
+      "placement": "PRIMARY",
+      "route": "/terminology/mapping",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "domain-facade-b0-evidence",
+      "displayName": "领域门面无模型证据",
+      "permissionCode": "menu.domain-facade-b0-evidence",
+      "placement": "PRIMARY",
+      "route": "/knowledge/domain-facades/b0-evidence",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "rule-definitions",
+      "displayName": "临床规则",
+      "permissionCode": "menu.rule-definitions",
+      "placement": "PRIMARY",
+      "route": "/rule/definitions",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "pathway-templates",
+      "displayName": "临床路径库",
+      "permissionCode": "menu.pathway-templates",
+      "placement": "PRIMARY",
+      "route": "/pathway/templates",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "provenance",
+      "displayName": "来源与血缘",
+      "permissionCode": "menu.provenance",
+      "placement": "PRIMARY",
+      "route": "/advanced/provenance",
+      "responsibilityRoles": [
+        "engine-operator",
+        "auditor"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-governance",
+      "menuKey": "graph-explore",
+      "displayName": "知识关系",
+      "permissionCode": "menu.graph-explore",
+      "placement": "PRIMARY",
+      "route": "/advanced/graph",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-production",
+      "menuKey": "knowledge-production",
+      "displayName": "知识生产工作台",
+      "permissionCode": "menu.knowledge-production",
+      "placement": "PRIMARY",
+      "route": "/knowledge/production",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "knowledge-production",
+      "menuKey": "ai-workflows",
+      "displayName": "模型能力与安全",
+      "permissionCode": "menu.ai-workflows",
+      "placement": "PRIMARY",
+      "route": "/advanced/ai-workflows",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "clinical-collaboration",
+      "menuKey": "mpi",
+      "displayName": "患者索引",
+      "permissionCode": "menu.mpi",
+      "placement": "PRIMARY",
+      "route": "/mpi",
+      "responsibilityRoles": [
+        "clinical-user"
+      ]
+    },
+    {
+      "sectionKey": "clinical-collaboration",
+      "menuKey": "patient-pathways",
+      "displayName": "患者路径",
+      "permissionCode": "menu.patient-pathways",
+      "placement": "PRIMARY",
+      "route": "/pathway/patients",
+      "responsibilityRoles": [
+        "clinical-user"
+      ]
+    },
+    {
+      "sectionKey": "clinical-collaboration",
+      "menuKey": "cdss-fatigue",
+      "displayName": "提醒与推荐",
+      "permissionCode": "menu.cdss-fatigue",
+      "placement": "PRIMARY",
+      "route": "/cdss/fatigue",
+      "responsibilityRoles": [
+        "clinical-user"
+      ]
+    },
+    {
+      "sectionKey": "clinical-collaboration",
+      "menuKey": "workflow-todos",
+      "displayName": "协同任务",
+      "permissionCode": "menu.workflow-todos",
+      "placement": "PRIMARY",
+      "route": "/workflow/todos",
+      "responsibilityRoles": [
+        "clinical-user"
+      ]
+    },
+    {
+      "sectionKey": "clinical-collaboration",
+      "menuKey": "clinical-followup",
+      "displayName": "随访协同",
+      "permissionCode": "menu.clinical-followup",
+      "placement": "PRIMARY",
+      "route": "/clinical/followup",
+      "responsibilityRoles": [
+        "engine-operator",
+        "clinical-user"
+      ]
+    },
+    {
+      "sectionKey": "clinical-collaboration",
+      "menuKey": "sandbox",
+      "displayName": "全真体验沙盘",
+      "permissionCode": "menu.sandbox",
+      "placement": "PRIMARY",
+      "route": "/sandbox",
+      "responsibilityRoles": [
+        "engine-operator",
+        "clinical-user"
+      ]
+    },
+    {
+      "sectionKey": "quality-management",
+      "menuKey": "qc-dashboard",
+      "displayName": "质量风险概览",
+      "permissionCode": "menu.qc-dashboard",
+      "placement": "PRIMARY",
+      "route": "/qc/dashboard",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "quality-management",
+      "menuKey": "qc-alerts",
+      "displayName": "质量问题与整改",
+      "permissionCode": "menu.qc-alerts",
+      "placement": "PRIMARY",
+      "route": "/qc/alerts",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "quality-management",
+      "menuKey": "insurance-audit",
+      "displayName": "医保审核",
+      "permissionCode": "menu.insurance-audit",
+      "placement": "PRIMARY",
+      "route": "/qc/insurance",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "quality-management",
+      "menuKey": "qc-eval-sets",
+      "displayName": "评价指标",
+      "permissionCode": "menu.qc-eval-sets",
+      "placement": "PRIMARY",
+      "route": "/qc/eval/sets",
+      "responsibilityRoles": [
+        "engine-operator"
+      ]
+    },
+    {
+      "sectionKey": "compliance-security",
+      "menuKey": "admin-audit",
+      "displayName": "审计与证据",
+      "permissionCode": "menu.admin-audit",
+      "placement": "PRIMARY",
+      "route": "/admin/audit",
+      "responsibilityRoles": [
+        "platform-admin",
+        "engine-operator",
+        "auditor"
+      ]
+    },
+    {
+      "sectionKey": "compliance-security",
+      "menuKey": "security-baseline",
+      "displayName": "安全与配置",
+      "permissionCode": "menu.security-baseline",
+      "placement": "PRIMARY",
+      "route": "/security/baseline",
+      "responsibilityRoles": [
+        "platform-admin",
+        "auditor"
+      ]
+    },
+    {
+      "sectionKey": "system-operations",
+      "menuKey": "implementation-guide",
+      "displayName": "实施与验收",
+      "permissionCode": "menu.implementation-guide",
+      "placement": "PRIMARY",
+      "route": "/onboarding/guide",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "system-operations",
+      "menuKey": "adapter-hub",
+      "displayName": "系统接入",
+      "permissionCode": "menu.adapter-hub",
+      "placement": "PRIMARY",
+      "route": "/adapter/hub",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "system-operations",
+      "menuKey": "system-providers",
+      "displayName": "服务运行保障",
+      "permissionCode": "menu.system-providers",
+      "placement": "PRIMARY",
+      "route": "/system/providers",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "system-operations",
+      "menuKey": "runtime-diagnostics",
+      "displayName": "运行诊断",
+      "permissionCode": "menu.runtime-diagnostics",
+      "placement": "PRIMARY",
+      "route": "/system/runtime-diagnostics",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "system-operations",
+      "menuKey": "domestic-check",
+      "displayName": "国产化适配自检",
+      "permissionCode": "menu.domestic-check",
+      "placement": "PRIMARY",
+      "route": "/advanced/domestic",
+      "responsibilityRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "sectionKey": "workbench",
+      "menuKey": "notifications",
+      "displayName": "消息通知",
+      "permissionCode": "menu.notifications",
+      "placement": "HEADER",
+      "route": "/notifications",
+      "responsibilityRoles": [
+        "platform-admin",
+        "engine-operator",
+        "clinical-user",
+        "auditor"
+      ]
+    },
+    {
+      "sectionKey": "workbench",
+      "menuKey": "notification-settings",
+      "displayName": "通知偏好",
+      "permissionCode": "menu.notification-settings",
+      "placement": "PROFILE",
+      "route": "/notifications/settings",
+      "responsibilityRoles": [
+        "platform-admin",
+        "engine-operator",
+        "clinical-user",
+        "auditor"
+      ]
+    }
+  ]
+}

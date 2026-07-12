@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  productEntryCatalog,
+  productEntryCatalogContract,
+} from "@/shared/contracts/productEntryCatalog.generated";
 import {
   canAccessRoute,
   findRouteByPath,
@@ -10,22 +12,15 @@ import {
   customerRouteMetas,
 } from "./routes";
 
-function backendDefaultMenuSnapshots(): Map<string, string[]> {
-  const source = readFileSync(
-    resolve(
-      process.cwd(),
-      "../medkernel-backend/src/test/java/com/medkernel/engine/security/DefaultPermissionPolicyTest.java",
-    ),
-    "utf8",
+function productEntryRoleSnapshots(): Map<string, string[]> {
+  return new Map(
+    productEntryCatalogContract.responsibilityRoles.map((roleCode) => [
+      roleCode,
+      productEntryCatalog
+        .filter((entry) => (entry.responsibilityRoles as readonly string[]).includes(roleCode))
+        .map((entry) => entry.entryCode),
+    ]),
   );
-  const snapshots = new Map<string, string[]>();
-  const entryPattern = /"([a-z-]+)", List\.of\(([\s\S]*?)\)(?=,\n\s*"[a-z-]+"|\n\s*\);)/g;
-  for (const match of source.matchAll(entryPattern)) {
-    const roleCode = match[1];
-    const menuKeys = Array.from(match[2].matchAll(/"([^"]+)"/g), (quoted) => quoted[1]);
-    snapshots.set(roleCode, menuKeys);
-  }
-  return snapshots;
 }
 
 describe("route metadata", () => {
@@ -53,12 +48,15 @@ describe("route metadata", () => {
         counts[route.placement] = (counts[route.placement] ?? 0) + 1;
         return counts;
       }, {});
+    const expectedPlacementCounts = productEntryCatalog.reduce<Record<string, number>>(
+      (counts, entry) => {
+        counts[entry.placement] = (counts[entry.placement] ?? 0) + 1;
+        return counts;
+      },
+      {},
+    );
 
-    expect(placementCounts).toEqual({
-      primary: 33,
-      header: 1,
-      profile: 1,
-    });
+    expect(placementCounts).toEqual(expectedPlacementCounts);
   });
 
   it("removes duplicate menu permissions from merged pages", () => {
@@ -1231,10 +1229,10 @@ describe("route metadata", () => {
         .filter((route) => route.requireAuth && route.menuKey)
         .map((route) => [route.menuKey, route]),
     );
-    const snapshots = backendDefaultMenuSnapshots();
+    const snapshots = productEntryRoleSnapshots();
     const mismatches: string[] = [];
 
-    expect(snapshots.size).toBe(4);
+    expect([...snapshots.keys()]).toEqual([...productEntryCatalogContract.responsibilityRoles]);
     snapshots.forEach((menuKeys, roleCode) => {
       menuKeys.forEach((menuKey) => {
         const route = routeByMenuKey.get(menuKey);

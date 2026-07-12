@@ -700,6 +700,7 @@ describe("ReleaseGovernance", () => {
       expect(rollbackHospitalAsync).toHaveBeenCalledWith({
         hospitalId: "hospital-a",
         targetReleaseId: "runtime-H7",
+        expectedCurrentReleaseId: "runtime-H9",
       }),
     );
   });

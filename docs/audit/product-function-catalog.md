@@ -9,8 +9,8 @@
 - 前端路由：44 项。
 - 后端菜单：35 项。
 - 页面与页内组件：54 项。
-- 后端控制器：94 项。
-- 批量、导入、导出和异步任务承载类：16 项。
+- 后端控制器：95 项。
+- 批量、导入、导出和异步任务承载类：18 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、知识生产、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
 
@@ -18,7 +18,7 @@
 |---|---:|
 | API_ONLY | 7 |
 | KEEP | 86 |
-| MERGE | 54 |
+| MERGE | 57 |
 | MOVE | 60 |
 | REMOVE | 1 |
 | RENAME | 24 |
@@ -478,6 +478,8 @@
 | `KnowledgeVersionController` | GET /api/v1/engine/knowledge/identities/{identityId}/versions<br>POST /api/v1/engine/knowledge/identities/{identityId}/versions<br>GET /api/v1/engine/knowledge/versions/{versionId}<br>GET /api/v1/engine/knowledge/review-queue<br>POST /api/v1/engine/knowledge/identities/{identityId}/versions/{versionId}/submit<br>GET /api/v1/engine/knowledge/identities/{identityId}/versions/{versionId}/replay<br>GET /api/v1/engine/knowledge/identities/{identityId}/candidates<br>POST /api/v1/engine/knowledge/candidates/{candidateId}/review<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@AcquisitionController decision=KEEP -->
 | `AcquisitionController` | POST /api/v1/engine/knowledge/acquisition/runs<br>GET /api/v1/engine/knowledge/acquisition/sources<br>PUT /api/v1/engine/knowledge/acquisition/sources/{sourceCode}<br>POST /api/v1/engine/knowledge/acquisition/sources/{sourceCode}/enable<br>POST /api/v1/engine/knowledge/acquisition/sources/{sourceCode}/disable<br>GET /api/v1/engine/knowledge/acquisition/runs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@FullPackageExportController decision=MERGE -->
+| `FullPackageExportController` | POST /api/v1/engine/knowledge/packages<br>GET /api/v1/engine/knowledge/packages/{deliveryId}<br>GET /api/v1/engine/knowledge/packages/{deliveryId}/download<br>POST /api/v1/engine/knowledge/packages/hospitals/{hospitalId}/preflights<br>POST /api/v1/engine/knowledge/packages/hospitals/{hospitalId}/preflights/{preflightId}:activate | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@DiagnosisKnowledgeController decision=KEEP -->
 | `DiagnosisKnowledgeController` | POST /api/v1/engine/knowledge/diagnosis/assets<br>POST /api/v1/engine/knowledge/diagnosis/identities/{identityId}/versions<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/differentials<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/differentials<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/care-pointers<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/care-pointers<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DiagnosisAssistController decision=KEEP -->
@@ -605,6 +607,10 @@
 | `KnowledgeExportController` | `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportController.java` | MERGE | 对应页面的受控导出 |
 <!-- capability:batch:batch@KnowledgeExportService decision=MERGE -->
 | `KnowledgeExportService` | `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportService.java` | MERGE | 对应页面的受控导出 |
+<!-- capability:batch:batch@FullPackageExportController decision=MERGE -->
+| `FullPackageExportController` | `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/delivery/FullPackageExportController.java` | MERGE | 对应页面的受控导出 |
+<!-- capability:batch:batch@FullPackageExportService decision=MERGE -->
+| `FullPackageExportService` | `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/delivery/FullPackageExportService.java` | MERGE | 对应页面的受控导出 |
 <!-- capability:batch:batch@AsyncTaskExecutorConfig decision=MERGE -->
 | `AsyncTaskExecutorConfig` | `medkernel-backend/src/main/java/com/medkernel/shared/observability/AsyncTaskExecutorConfig.java` | MERGE | 对应业务页的异步任务 |
 <!-- capability:batch:batch@DefaultRuntimeTaskExecutor decision=MERGE -->

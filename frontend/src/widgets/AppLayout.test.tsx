@@ -5,6 +5,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AUTH_SESSION_EVENT_STORAGE_KEY } from "@/shared/auth/sessionEvents";
+import { productEntryCatalog } from "@/shared/contracts/productEntryCatalog.generated";
 import { AppLayout } from "./AppLayout";
 
 const originalInnerWidth = window.innerWidth;
@@ -216,41 +217,7 @@ function superAdminProfile() {
   };
 }
 
-const allMenuKeys = [
-  "workbench",
-  "implementation-guide",
-  "tenant-onboarding",
-  "runtime-releases",
-  "pathway-templates",
-  "rule-definitions",
-  "terminology-mapping",
-  "adapter-hub",
-  "mpi",
-  "patient-pathways",
-  "cdss-fatigue",
-  "workflow-todos",
-  "notifications",
-  "clinical-followup",
-  "qc-dashboard",
-  "qc-alerts",
-  "insurance-audit",
-  "qc-eval-sets",
-  "knowledge-governance",
-  "institution-knowledge",
-  "diagnosis-knowledge",
-  "knowledge-production",
-  "admin-users",
-  "identity-bindings",
-  "admin-audit",
-  "security-baseline",
-  "system-providers",
-  "notification-settings",
-  "provenance",
-  "graph-explore",
-  "ai-workflows",
-  "domestic-check",
-  "runtime-diagnostics",
-];
+const allMenuKeys = productEntryCatalog.map((entry) => entry.entryCode);
 
 beforeEach(() => {
   authMutationState.logout.mockReset();

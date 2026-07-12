@@ -1,4 +1,50 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+import { productEntryCatalog } from "../../src/shared/contracts/productEntryCatalog.generated";
+
+const launchEntryEvidenceSchemaPath = [
+  path.resolve(process.cwd(), "scripts/release/launch-entry-evidence.schema.json"),
+  path.resolve(process.cwd(), "../scripts/release/launch-entry-evidence.schema.json"),
+].find((candidate) => existsSync(candidate));
+
+if (!launchEntryEvidenceSchemaPath) {
+  throw new Error(
+    "无法定位 launch-entry-evidence.schema.json；必须从仓库根目录或 frontend 目录运行",
+  );
+}
+
+const launchEntryEvidenceSchema = JSON.parse(
+  readFileSync(launchEntryEvidenceSchemaPath, "utf8"),
+) as Record<string, unknown>;
+
+type LaunchEntryEvidenceStrength =
+  | "ROUTE_ONLY"
+  | "READBACK_ONLY"
+  | "CORE_ACTION"
+  | "CORE_ACTION_WITH_PERMISSION"
+  | "CORE_ACTION_WITH_SIX_STATE";
+
+type LaunchEntryVerifiedCapability =
+  | "ROUTE"
+  | "AUTHORITATIVE_READBACK"
+  | "CORE_ACTION"
+  | "AUDIT_READBACK"
+  | "PERMISSION_ALLOWED"
+  | "PERMISSION_FORBIDDEN"
+  | "ORGANIZATION_SCOPE"
+  | "STATE_LOADING"
+  | "STATE_EMPTY"
+  | "STATE_READY"
+  | "STATE_ERROR"
+  | "STATE_FORBIDDEN"
+  | "STATE_PARTIAL";
+
+type ProductEntryRuntimeObservation = {
+  permissionCodes: string[];
+  organizationScopeMode: string;
+  sixStates: string[];
+};
 
 export type BrowserE2eRunStats = {
   startTime?: string;
@@ -28,6 +74,22 @@ export type LaunchCoverageRow = {
   status: "PASSED";
   evidenceKey: string;
   observedAt: string;
+  requiredEvidenceStrength?: LaunchEntryEvidenceStrength;
+  evidenceStrength?: LaunchEntryEvidenceStrength;
+  verifiedCapabilities?: LaunchEntryVerifiedCapability[];
+  verifiedObject?: {
+    entryCode: string;
+    route: string;
+    actionCodes: string[];
+    permissionCodes: string[];
+    organizationScopeMode: string | null;
+    sixStates: string[];
+  };
+  coverageBoundary?: {
+    mode: "LIMITED_ENTRY_SLICE" | "FULL_ENTRY_CONTRACT";
+    statement: string;
+  };
+  uncoveredScope?: LaunchEntryVerifiedCapability[];
 };
 
 export type BrowserE2eLaunchEvidence = {
@@ -662,43 +724,37 @@ const medicalRecordInsurancePaymentConsumerSliceClaims = [
 const knowledgeOperationsAssetEntryCoreActionsClaims = [
   "knowledgeOperationsAssetEntryCoreActions:KNOWLEDGE_OPERATIONS_ASSET_ENTRY_FAMILY_REPRESENTATIVE",
 ];
-const menuEntryCoreActionsClaims = ["menuEntryCoreActions:ALL_34_MENU_ENTRY_CORE_ACTIONS"];
-const requiredMenuEntryCoreActionRows = [
-  "workbench",
-  "tenant-onboarding",
-  "admin-users",
-  "identity-bindings",
-  "admin-audit",
-  "security-baseline",
-  "implementation-guide",
-  "adapter-hub",
-  "system-providers",
-  "runtime-diagnostics",
-  "domestic-check",
-  "notifications",
-  "notification-settings",
-  "knowledge-governance",
-  "runtime-releases",
-  "institution-knowledge",
-  "diagnosis-knowledge",
-  "terminology-mapping",
-  "rule-definitions",
-  "pathway-templates",
-  "provenance",
-  "graph-explore",
-  "knowledge-production",
-  "ai-workflows",
-  "clinical-followup",
-  "sandbox",
-  "qc-dashboard",
-  "qc-alerts",
-  "insurance-audit",
-  "qc-eval-sets",
-  "mpi",
-  "patient-pathways",
-  "cdss-fatigue",
-  "workflow-todos",
-] as const;
+const menuEntryCoreActionsClaims = ["menuEntryCoreActions:ALL_PRODUCT_ENTRY_CORE_ACTIONS"];
+const requiredMenuEntryCoreActionRows = productEntryCatalog.map((entry) => entry.entryCode);
+const launchEntryStrengthPolicy = launchEntryEvidenceSchema[
+  "x-medkernel-strength-policy"
+] as Array<{
+  level: LaunchEntryEvidenceStrength;
+  requiredCapabilities: LaunchEntryVerifiedCapability[];
+}>;
+const requiredProductEntryEvidenceStrength = launchEntryEvidenceSchema[
+  "x-medkernel-product-entry-required-strength"
+] as LaunchEntryEvidenceStrength;
+const coreActionEntryStrengthPolicy = requireLaunchEntryStrengthPolicy("CORE_ACTION");
+const fullEntryStrengthPolicy = requireLaunchEntryStrengthPolicy(
+  requiredProductEntryEvidenceStrength,
+);
+const coreActionVerifiedCapabilities = Object.freeze([
+  ...coreActionEntryStrengthPolicy.requiredCapabilities,
+]);
+const coreActionUncoveredScope = Object.freeze(
+  fullEntryStrengthPolicy.requiredCapabilities.filter(
+    (capability) => !coreActionVerifiedCapabilities.includes(capability),
+  ),
+);
+
+function requireLaunchEntryStrengthPolicy(level: LaunchEntryEvidenceStrength) {
+  const policy = launchEntryStrengthPolicy.find((item) => item.level === level);
+  if (!policy) {
+    throw new Error(`产品入口证据强度 schema 缺少 ${level} 策略`);
+  }
+  return policy;
+}
 
 const knowledgeSupplyChainEvidenceMatrixClaims = [
   "knowledgeSupplyChainEvidenceMatrix:CONTROLLED_SOURCE_TO_RUNTIME_ROLLBACK_REPRESENTATIVE",
@@ -1461,6 +1517,9 @@ const requiredIdentityBindingScenarioEvidence: Record<string, string[]> = {
 
 const requiredIdentityBindingScenarioCodes = Object.keys(requiredIdentityBindingScenarioEvidence);
 
+const domainFacadeB0EvidenceSpecFile = "domain-facade-b0-evidence.spec.ts";
+const domainFacadeB0EvidenceTestTitle = "运营员从前台回读全专业领域门面 B0 复用链路证据";
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
@@ -1644,8 +1703,8 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosisKnowledgeScenarioAttachment: true,
   },
   {
-    file: "domain-facade-b0-evidence.spec.ts",
-    titleIncludes: "运营员从前台回读全专业领域门面 B0 复用链路证据",
+    file: domainFacadeB0EvidenceSpecFile,
+    titleIncludes: domainFacadeB0EvidenceTestTitle,
     claims: domainFacadeB0Claims,
     requiresDomainFacadeB0EvidenceAttachment: true,
   },
@@ -1808,13 +1867,11 @@ export function buildBrowserE2eLaunchEvidence(input: {
     );
   }
   if (hasRequiredMenuEntryCoreActionEvidence(input.tests)) {
-    mergeClaims(
+    mergeClaims(evidence.launchCoverage, menuEntryCoreActionsClaims, generatedAt);
+    mergeProductEntryCoreActionEvidence(
       evidence.launchCoverage,
-      [
-        ...menuEntryCoreActionsClaims,
-        ...requiredMenuEntryCoreActionRows.map((row) => `menuEntryCoreActionRows:${row}`),
-      ],
       generatedAt,
+      collectProductEntryRuntimeObservations(input.tests),
     );
   }
   if (hasRequiredKnowledgeSupplyChainEvidenceAttachment(input.tests)) {
@@ -1951,7 +2008,7 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresPlatformAdminEntryCoreActionsAttachment ||
         hasRequiredPlatformAdminEntryCoreActionsAttachment([test])) &&
       (!proof.requiresDomainFacadeB0EvidenceAttachment ||
-        hasRequiredDomainFacadeB0EvidenceAttachment(test)) &&
+        isRequiredDomainFacadeB0EvidenceTest(test)) &&
       (!proof.requiresFollowupPatientServiceConsumerSliceAttachment ||
         hasRequiredFollowupPatientServiceConsumerSliceAttachment(test)) &&
       (!proof.requiresHisEmrCdrConsumerSliceAttachment ||
@@ -2682,14 +2739,14 @@ function hasFourRoleCoreActionScopeBoundary(value: unknown) {
   const statement = String(value);
   return (
     statement.includes("四职责主动作代表闭环") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveFourRoleCoreActionCompleteScopeClaim(statement)
   );
 }
 
 function hasPositiveFourRoleCoreActionCompleteScopeClaim(statement: string) {
-  return /(?:34\s*个入口全部业务动作闭环|完整上线验收|完整上线|全量验收|上线验收|上线级验收)(?:已上线|完整上线|完成上线|已完成|完成|完整覆盖|全面覆盖|通过)/u.test(
+  return /(?:全部产品入口业务动作闭环|完整上线验收|完整上线|全量验收|上线验收|上线级验收)(?:已上线|完整上线|完成上线|已完成|完成|完整覆盖|全面覆盖|通过)/u.test(
     statement,
   );
 }
@@ -2768,7 +2825,7 @@ function hasSixEntryCoreActionScopeBoundary(value: unknown) {
   const statement = String(value);
   return (
     statement.includes("六入口核心动作代表闭环") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveFourRoleCoreActionCompleteScopeClaim(statement)
   );
@@ -2867,12 +2924,230 @@ function hasRequiredMenuEntryCoreActionEvidence(tests: BrowserE2eTestResult[]) {
     "graph-explore",
     "ai-workflows",
   ]);
+  addMenuRowsIf(observed, hasRequiredDomainFacadeB0EvidenceFromTargetSpec(tests), [
+    "domain-facade-b0-evidence",
+  ]);
   return requiredMenuEntryCoreActionRows.every((row) => observed.has(row));
 }
 
 function addMenuRowsIf(target: Set<string>, condition: boolean, rows: readonly string[]) {
   if (!condition) return;
   for (const row of rows) target.add(row);
+}
+
+function collectProductEntryRuntimeObservations(
+  tests: BrowserE2eTestResult[],
+): Map<string, ProductEntryRuntimeObservation> | null {
+  for (const test of tests) {
+    if (
+      path.basename(test.file) !== "all-done-route-smoke.spec.ts" ||
+      test.title !== "每个真实角色打开全部授权页面且没有系统级错误" ||
+      test.status !== "passed" ||
+      (test.outcome ?? "expected") !== "expected"
+    ) {
+      continue;
+    }
+    const attachment = test.attachments?.find(
+      (item) => item.name === "product-entry-runtime-observations",
+    );
+    if (attachment?.contentType !== "application/json" || !attachment.body) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(attachment.body) as unknown;
+    } catch {
+      continue;
+    }
+    const observations = validateProductEntryRuntimeObservations(parsed);
+    if (observations) return observations;
+  }
+  return null;
+}
+
+function validateProductEntryRuntimeObservations(
+  value: unknown,
+): Map<string, ProductEntryRuntimeObservation> | null {
+  const body = exactRecord(value, [
+    "schemaVersion",
+    "observationEvidence",
+    "stateRenderer",
+    "entries",
+  ]);
+  if (
+    !body ||
+    body.schemaVersion !== "1.0.0" ||
+    body.observationEvidence !== "launch.entry.runtime-observation" ||
+    !hasCompletePageStateRuntimeObservations(body.stateRenderer) ||
+    !Array.isArray(body.entries) ||
+    body.entries.length !== productEntryCatalog.length
+  ) {
+    return null;
+  }
+
+  const observations = new Map<string, ProductEntryRuntimeObservation>();
+  for (const entry of productEntryCatalog) {
+    const matches = body.entries.filter(
+      (candidate) => recordValue(candidate)?.entryCode === entry.entryCode,
+    );
+    if (matches.length !== 1) return null;
+    const observation = validateProductEntryRuntimeObservation(matches[0], entry);
+    if (!observation) return null;
+    observations.set(entry.entryCode, observation);
+  }
+  return observations.size === productEntryCatalog.length ? observations : null;
+}
+
+function hasCompletePageStateRuntimeObservations(value: unknown) {
+  const renderer = exactRecord(value, ["runner", "testFile", "resultSha256", "assertions"]);
+  if (
+    !renderer ||
+    renderer.runner !== "vitest" ||
+    renderer.testFile !== "frontend/src/shared/ui/PageState.test.tsx" ||
+    !isSha256(renderer.resultSha256) ||
+    !Array.isArray(renderer.assertions)
+  ) {
+    return false;
+  }
+  const requiredCodes = productEntryCatalog[0].sixStates.map(
+    (state) => `STATE_${state.toUpperCase()}`,
+  );
+  if (renderer.assertions.length !== requiredCodes.length) return false;
+  const observedCodes = new Set<string>();
+  for (const candidate of renderer.assertions) {
+    const assertion = exactRecord(candidate, ["observedCode", "testName", "status"]);
+    if (
+      !assertion ||
+      !requiredCodes.includes(assertion.observedCode as (typeof requiredCodes)[number]) ||
+      assertion.status !== "passed" ||
+      !hasText(assertion.testName) ||
+      !String(assertion.testName).includes(`[${String(assertion.observedCode)}]`) ||
+      observedCodes.has(String(assertion.observedCode))
+    ) {
+      return false;
+    }
+    observedCodes.add(String(assertion.observedCode));
+  }
+  return requiredCodes.every((code) => observedCodes.has(code));
+}
+
+function validateProductEntryRuntimeObservation(
+  value: unknown,
+  expected: (typeof productEntryCatalog)[number],
+): ProductEntryRuntimeObservation | null {
+  const entry = exactRecord(value, [
+    "entryCode",
+    "route",
+    "allowed",
+    "forbidden",
+    "organizationScope",
+  ]);
+  if (!entry || entry.entryCode !== expected.entryCode || entry.route !== expected.route) {
+    return null;
+  }
+  const allowed = exactRecord(entry.allowed, [
+    "observedCode",
+    "role",
+    "profileStatus",
+    "actualPath",
+    "headingText",
+    "permissionCodes",
+  ]);
+  if (
+    !allowed ||
+    allowed.observedCode !== "ENTRY_PERMISSION_ALLOWED" ||
+    !(expected.responsibilityRoles as readonly string[]).includes(String(allowed.role)) ||
+    !is2xxStatus(allowed.profileStatus) ||
+    !pathMatchesRoute(allowed.actualPath, expected.route) ||
+    !hasText(allowed.headingText) ||
+    !arrayEquals(allowed.permissionCodes, expected.requiredPermissions)
+  ) {
+    return null;
+  }
+
+  const forbidden = exactRecord(entry.forbidden, [
+    "observedCode",
+    "userId",
+    "profileStatus",
+    "actualPath",
+    "title",
+    "permissionCodes",
+    "menuKeys",
+  ]);
+  if (
+    !forbidden ||
+    forbidden.observedCode !== "ENTRY_PERMISSION_FORBIDDEN" ||
+    !hasText(forbidden.userId) ||
+    !is2xxStatus(forbidden.profileStatus) ||
+    !pathMatchesRoute(forbidden.actualPath, expected.route) ||
+    forbidden.title !== "当前权限不足" ||
+    !arrayEquals(forbidden.permissionCodes, []) ||
+    !arrayEquals(forbidden.menuKeys, [])
+  ) {
+    return null;
+  }
+
+  const organizationScope = exactRecord(entry.organizationScope, [
+    "observedCode",
+    "mode",
+    "tenantId",
+    "assignmentScopeLevel",
+    "assignmentScopeCode",
+    "effectiveScopeField",
+    "effectiveScopeCode",
+  ]);
+  const scopeLevel = textValue(organizationScope?.assignmentScopeLevel)?.toUpperCase();
+  const effectiveFieldByLevel: Record<string, string> = {
+    TENANT: "tenantId",
+    GROUP: "groupId",
+    FACILITY: "hospitalId",
+    CAMPUS: "campusId",
+    SITE: "siteId",
+    DEPARTMENT: "departmentId",
+    WARD: "wardId",
+    SPECIALTY: "specialtyId",
+  };
+  if (
+    !organizationScope ||
+    organizationScope.observedCode !== "ENTRY_ORGANIZATION_SCOPE" ||
+    organizationScope.mode !== expected.organizationScopeMode ||
+    !hasText(organizationScope.tenantId) ||
+    !scopeLevel ||
+    organizationScope.effectiveScopeField !== effectiveFieldByLevel[scopeLevel] ||
+    !hasText(organizationScope.assignmentScopeCode) ||
+    organizationScope.effectiveScopeCode !== organizationScope.assignmentScopeCode
+  ) {
+    return null;
+  }
+
+  return {
+    permissionCodes: [...expected.requiredPermissions],
+    organizationScopeMode: expected.organizationScopeMode,
+    sixStates: [...expected.sixStates],
+  };
+}
+
+function exactRecord(value: unknown, expectedKeys: readonly string[]) {
+  const record = recordValue(value);
+  if (!record) return null;
+  const actualKeys = Object.keys(record).sort();
+  const canonicalKeys = [...expectedKeys].sort();
+  return actualKeys.length === canonicalKeys.length &&
+    actualKeys.every((key, index) => key === canonicalKeys[index])
+    ? record
+    : null;
+}
+
+function hasRequiredDomainFacadeB0EvidenceFromTargetSpec(tests: BrowserE2eTestResult[]) {
+  return tests.some(isRequiredDomainFacadeB0EvidenceTest);
+}
+
+function isRequiredDomainFacadeB0EvidenceTest(test: BrowserE2eTestResult) {
+  return (
+    path.basename(test.file) === domainFacadeB0EvidenceSpecFile &&
+    test.title === domainFacadeB0EvidenceTestTitle &&
+    test.status === "passed" &&
+    (test.outcome ?? "expected") === "expected" &&
+    hasRequiredDomainFacadeB0EvidenceAttachment(test)
+  );
 }
 
 function hasRequiredFourRoleCoreActionsFromTargetSpec(tests: BrowserE2eTestResult[]) {
@@ -3152,7 +3427,7 @@ function hasPlatformAdminEntryCoreActionScopeBoundary(value: unknown) {
   return (
     statement.includes("平台管理员 P0 入口核心动作代表矩阵") &&
     hasNegatedScopeTerm(statement, "6 个平台管理员入口全部闭环") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositivePlatformAdminEntryCompleteScopeClaim(statement)
   );
@@ -3215,7 +3490,7 @@ function hasPlatformAdminP1EntryCoreActionScopeBoundary(value: unknown) {
   return (
     statement.includes("平台管理员 P1 系统运维入口核心动作代表矩阵") &&
     hasNegatedScopeTerm(statement, "6 个平台管理员入口全部闭环") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositivePlatformAdminEntryCompleteScopeClaim(statement)
   );
@@ -3257,7 +3532,7 @@ function hasImplementationGuideEntryCoreActionScopeBoundary(value: unknown) {
   const statement = String(value);
   return (
     statement.includes("实施与验收入口代表动作矩阵") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "第三方系统族全部真实消费者完成") &&
     hasNegatedScopeTerm(statement, "134 清库重部署") &&
     hasNegatedScopeTerm(statement, "完整交付验收") &&
@@ -3267,7 +3542,7 @@ function hasImplementationGuideEntryCoreActionScopeBoundary(value: unknown) {
 
 function hasPositiveImplementationGuideCompleteScopeClaim(statement: string) {
   return [
-    "34 个入口全部业务动作闭环",
+    "全部产品入口业务动作闭环",
     "第三方系统族全部真实消费者完成",
     "134 清库重部署",
     "134清库重部署",
@@ -3406,7 +3681,7 @@ function hasDashboardWorkbenchCoreActionScopeBoundary(value: unknown) {
   const statement = String(value);
   return (
     statement.includes("四职责工作台核心动作代表矩阵") &&
-    hasNegatedScopeTerm(statement, "35 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "每个入口的完整业务流程") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveDashboardWorkbenchCompleteScopeClaim(statement)
@@ -3415,7 +3690,7 @@ function hasDashboardWorkbenchCoreActionScopeBoundary(value: unknown) {
 
 function hasPositiveDashboardWorkbenchCompleteScopeClaim(statement: string) {
   return [
-    "35 个入口全部业务动作闭环",
+    "全部产品入口业务动作闭环",
     "每个入口的完整业务流程",
     "完整上线",
     "完整上线验收",
@@ -4324,7 +4599,7 @@ function hasClinicalEntryCoreActionScopeBoundary(value: unknown) {
   return (
     statement.includes("临床协同入口核心动作代表矩阵") &&
     hasNegatedScopeTerm(statement, "完整临床流程") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整 S0-S40") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveClinicalEntryCompleteScopeClaim(statement)
@@ -4339,7 +4614,7 @@ function hasQualityManagementEntryCoreActionScopeBoundary(value: unknown) {
     hasNegatedScopeTerm(statement, "质量管理 4 个入口全部完整上线") &&
     hasNegatedScopeTerm(statement, "完整 DRG/DIP") &&
     hasNegatedScopeTerm(statement, "完整 S9-S11") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveQualityManagementEntryCompleteScopeClaim(statement)
   );
@@ -4354,7 +4629,7 @@ function hasKnowledgeOperationsAssetEntryCoreActionScopeBoundary(value: unknown)
     hasNegatedScopeTerm(statement, "13 类医学资产全部生产闭环") &&
     hasNegatedScopeTerm(statement, "所有医学知识和术语体系已收集完成") &&
     hasNegatedScopeTerm(statement, "完整 S0-S40") &&
-    hasNegatedScopeTerm(statement, "34 个入口全部业务动作闭环") &&
+    hasNegatedScopeTerm(statement, "全部产品入口业务动作闭环") &&
     hasNegatedScopeTerm(statement, "完整上线验收") &&
     !hasPositiveKnowledgeOperationsAssetEntryCompleteScopeClaim(statement)
   );
@@ -4363,7 +4638,7 @@ function hasKnowledgeOperationsAssetEntryCoreActionScopeBoundary(value: unknown)
 function hasPositiveClinicalEntryCompleteScopeClaim(statement: string) {
   return [
     "完整临床流程",
-    "34 个入口全部业务动作闭环",
+    "全部产品入口业务动作闭环",
     "完整S0-S40",
     "完整 S0-S40",
     "完整上线",
@@ -4381,7 +4656,7 @@ function hasPositiveQualityManagementEntryCompleteScopeClaim(statement: string) 
     "完整医保支付审核",
     "完整 S9-S11",
     "完整S9-S11",
-    "34 个入口全部业务动作闭环",
+    "全部产品入口业务动作闭环",
     "完整上线",
     "完整上线验收",
     "上线验收",
@@ -4399,7 +4674,7 @@ function hasPositiveKnowledgeOperationsAssetEntryCompleteScopeClaim(statement: s
     "所有医学知识和术语体系已收集完成",
     "完整 S0-S40",
     "完整S0-S40",
-    "34 个入口全部业务动作闭环",
+    "全部产品入口业务动作闭环",
     "完整上线",
     "完整上线验收",
     "上线验收",
@@ -4410,7 +4685,7 @@ function hasPositivePlatformAdminEntryCompleteScopeClaim(statement: string) {
   return [
     "6 个平台管理员入口全部闭环",
     "六个平台管理员入口全部闭环",
-    "34 个入口全部业务动作闭环",
+    "全部产品入口业务动作闭环",
     "完整上线",
     "完整上线验收",
     "上线验收",
@@ -7014,7 +7289,7 @@ function hasPlatformAdminP1SystemOperationsScopeBoundary(value: unknown) {
   if (typeof value !== "string") return false;
   return (
     value.includes("不代表 6 个平台管理员入口全部闭环") &&
-    value.includes("不代表 34 个入口全部业务动作闭环") &&
+    value.includes("不代表全部产品入口业务动作闭环") &&
     value.includes("不代表完整上线验收")
   );
 }
@@ -8593,7 +8868,7 @@ function hasRequiredDomainFacadeB0EvidenceAttachment(test: BrowserE2eTestResult)
   const attachment = test.attachments?.find(
     (item) => item.name === "domain-facade-b0-evidence-codes",
   );
-  if (!attachment?.body) return false;
+  if (attachment?.contentType !== "application/json" || !attachment.body) return false;
   try {
     const parsed = recordValue(JSON.parse(attachment.body));
     if (!parsed) return false;
@@ -17277,6 +17552,10 @@ function is2xxStatus(value: unknown) {
   return typeof value === "number" && value >= 200 && value < 300;
 }
 
+function pathMatchesRoute(value: unknown, route: string) {
+  return typeof value === "string" && (value === route || value.endsWith(route));
+}
+
 function isPositiveNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
@@ -17297,6 +17576,48 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 
 function isSha256(value: unknown) {
   return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
+
+function mergeProductEntryCoreActionEvidence(
+  target: Record<string, LaunchCoverageRow[]>,
+  observedAt: string,
+  runtimeObservations: Map<string, ProductEntryRuntimeObservation> | null,
+) {
+  const key = "menuEntryCoreActionRows";
+  target[key] ??= [];
+  for (const entry of productEntryCatalog) {
+    if (target[key].some((row) => row.code === entry.entryCode)) continue;
+    const runtimeObservation = runtimeObservations?.get(entry.entryCode);
+    const hasFullEntryContract = runtimeObservation !== undefined;
+    target[key].push({
+      code: entry.entryCode,
+      status: "PASSED",
+      evidenceKey: `launchCoverage.${key}.${entry.entryCode}`,
+      observedAt,
+      requiredEvidenceStrength: requiredProductEntryEvidenceStrength,
+      evidenceStrength: hasFullEntryContract
+        ? fullEntryStrengthPolicy.level
+        : coreActionEntryStrengthPolicy.level,
+      verifiedCapabilities: hasFullEntryContract
+        ? [...fullEntryStrengthPolicy.requiredCapabilities]
+        : [...coreActionVerifiedCapabilities],
+      verifiedObject: {
+        entryCode: entry.entryCode,
+        route: entry.route,
+        actionCodes: entry.coreActions.map((action) => action.actionCode),
+        permissionCodes: runtimeObservation?.permissionCodes ?? [],
+        organizationScopeMode: runtimeObservation?.organizationScopeMode ?? null,
+        sixStates: runtimeObservation?.sixStates ?? [],
+      },
+      coverageBoundary: {
+        mode: hasFullEntryContract ? "FULL_ENTRY_CONTRACT" : "LIMITED_ENTRY_SLICE",
+        statement: hasFullEntryContract
+          ? "真实核心动作、权威回读、审计、允许与拒绝权限边界、有效组织范围及六态均已通过可执行观察验证，构成完整入口合同。"
+          : "真实核心动作、权威回读和审计已验证；权限拒绝边界、有效组织范围与六态尚未逐入口完成，不代表完整入口合同。",
+      },
+      uncoveredScope: hasFullEntryContract ? [] : [...coreActionUncoveredScope],
+    });
+  }
 }
 
 function mergeClaims(

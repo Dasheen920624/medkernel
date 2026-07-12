@@ -12,6 +12,7 @@ import com.medkernel.engine.context.ContextFieldCatalogAssets;
 import com.medkernel.engine.context.ContextFieldPathPolicy;
 import com.medkernel.engine.versioning.AssetDependencyDeclaration;
 import com.medkernel.engine.versioning.AssetDependencyKind;
+import com.medkernel.engine.versioning.AssetSelfContainmentPolicy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -54,7 +55,7 @@ public class GeneratedRuleCandidateValidator implements GeneratedAssetCandidateV
         }
         validateThenActions(then);
         requiredObject(dsl, "explain");
-        rejectConditionFragments(dsl);
+        AssetSelfContainmentPolicy.requireRuleSelfContained(dsl);
         String fieldCatalog = requiredText(content, "fieldCatalogIdentity");
         if (!ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY.equals(fieldCatalog)) {
             throw invalid("规则字段目录必须使用统一临床上下文字段目录资产 "
@@ -129,27 +130,6 @@ public class GeneratedRuleCandidateValidator implements GeneratedAssetCandidateV
             if (text(action, "actionCardRef") == null && text(action, "actionCode") == null) {
                 throw invalid("规则 then 动作必须包含 actionCardRef 或完整 actionCode");
             }
-        }
-    }
-
-    private void rejectConditionFragments(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return;
-        }
-        if (node.isObject()) {
-            node.fields().forEachRemaining(entry -> {
-                String field = entry.getKey();
-                if ("conditionFragments".equals(field)
-                        || "conditionFragmentRef".equals(field)
-                        || "fragmentRef".equals(field)) {
-                    throw invalid("规则 DSL 已支持任意层级条件树，禁止引用条件片段库");
-                }
-                rejectConditionFragments(entry.getValue());
-            });
-            return;
-        }
-        if (node.isArray()) {
-            node.forEach(this::rejectConditionFragments);
         }
     }
 
