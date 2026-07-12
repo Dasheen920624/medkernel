@@ -215,10 +215,40 @@ public class ClinicalRuntimeReleaseService {
             String targetReleaseId,
             String actor,
             String traceId) {
+        String expectedCurrentReleaseId = releases
+            .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+                required(tenantId, "租户"), required(hospitalId, "医院"))
+            .map(ClinicalRuntimeRelease::releaseId)
+            .orElse(null);
+        return rollback(
+            tenantId,
+            hospitalId,
+            targetReleaseId,
+            expectedCurrentReleaseId,
+            actor,
+            traceId);
+    }
+
+    /**
+     * 按调用方确认的当前机构版本执行 CAS 回滚；历史清单始终复制为更高不可变修订。
+     */
+    @Transactional
+    public ClinicalRuntimeRelease rollback(
+            String tenantId,
+            String hospitalId,
+            String targetReleaseId,
+            String expectedCurrentReleaseId,
+            String actor,
+            String traceId) {
         String normalizedTenant = required(tenantId, "租户");
         String normalizedHospital = required(hospitalId, "医院");
         String normalizedActor = required(actor, "操作人");
         requireHospital(normalizedTenant, normalizedHospital);
+        ClinicalRuntimeRelease current = releases
+            .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+                normalizedTenant, normalizedHospital)
+            .orElse(null);
+        assertExpectedCurrent(current, expectedCurrentReleaseId);
         ClinicalRuntimeRelease target = releases
             .findByTenantIdAndReleaseId(
                 normalizedTenant, required(targetReleaseId, "目标机构生效版本"))
@@ -230,11 +260,7 @@ public class ClinicalRuntimeReleaseService {
             runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
                 target.releaseId());
         assertActiveVersionsStillPublished(normalizedTenant, targetItems);
-        long nextRevision = releases
-            .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
-                normalizedTenant, normalizedHospital)
-            .map(ClinicalRuntimeRelease::revisionNo)
-            .orElse(0L) + 1L;
+        long nextRevision = current == null ? 1L : current.revisionNo() + 1L;
         Instant now = clock.instant();
         String newReleaseId = "runtime-" + Ulid.newUlid();
         ClinicalRuntimeRelease release = releases.save(new ClinicalRuntimeRelease(
@@ -764,7 +790,7 @@ public class ClinicalRuntimeReleaseService {
     }
 
     private OrgUnit requireHospital(String tenantId, String hospitalId) {
-        OrgUnit hospital = organizations.findByTenantIdAndId(tenantId, hospitalId)
+        OrgUnit hospital = organizations.findByTenantIdAndIdForUpdate(tenantId, hospitalId)
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "医院不存在"));
         if (hospital.level() != OrgLevel.FACILITY
                 || hospital.facilityType() != OrgFacilityType.HOSPITAL

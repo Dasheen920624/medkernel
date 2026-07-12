@@ -56,6 +56,14 @@ grep -q 'postgres:16.14-bookworm' "$ROOT/deploy/docker/compose.yml"
 grep -q 'neo4j:5.23.0-community' "$ROOT/deploy/docker/compose.yml"
 grep -q 'MEDKERNEL_RUNTIME_ROOT' "$ROOT/deploy/docker/compose.yml"
 grep -q 'MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT' "$ROOT/deploy/docker/compose.yml"
+grep -q 'MEDKERNEL_KNOWLEDGE_PACKAGE_STORAGE_ROOT: /opt/medkernel/runtime/knowledge-packages' \
+  "$ROOT/deploy/docker/compose.yml"
+grep -q 'MEDKERNEL_KNOWLEDGE_PACKAGE_QUARANTINE_ROOT: /opt/medkernel/runtime/knowledge-package-quarantine' \
+  "$ROOT/deploy/docker/compose.yml"
+grep -q '/data/knowledge-packages:/opt/medkernel/runtime/knowledge-packages' \
+  "$ROOT/deploy/docker/compose.yml"
+grep -q '/data/knowledge-package-quarantine:/opt/medkernel/runtime/knowledge-package-quarantine' \
+  "$ROOT/deploy/docker/compose.yml"
 grep -q '^MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT=development$' "$ROOT/deploy/docker/.env.example"
 grep -q '^MEDKERNEL_BACKUP_RPO=24h$' "$ROOT/deploy/docker/.env.example"
 grep -q '^MEDKERNEL_BACKUP_RTO=4h$' "$ROOT/deploy/docker/.env.example"

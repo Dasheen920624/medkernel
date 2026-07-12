@@ -104,6 +104,38 @@ class PackageSignatureServiceTest {
     }
 
     @Test
+    void acceptsFirstIssuerWhenOnlyTheIndependentRootWasPreloaded() {
+        PackageSignatureEnvelope envelope = signer.sign(MANIFEST_DIGEST, 8);
+        Authority rootOnlyAuthority = new Authority(
+            1L,
+            PlatformTenant.ID,
+            AUTHORITY_ID,
+            null,
+            provisioned.rootFingerprint(),
+            0,
+            0,
+            0L,
+            NOW.minusSeconds(60),
+            "site-installer",
+            NOW.minusSeconds(60),
+            "site-installer",
+            "trace-preloaded-root");
+        when(authorities.findByTenantIdAndAuthorityId(PlatformTenant.ID, AUTHORITY_ID))
+            .thenReturn(Optional.of(rootOnlyAuthority));
+        when(issuers.findByTenantIdAndAuthorityIdAndIssuerInstanceId(
+            PlatformTenant.ID, AUTHORITY_ID, ISSUER_ID)).thenReturn(Optional.empty());
+        when(signingKeys.findByTenantIdAndAuthorityIdAndKeyId(
+            PlatformTenant.ID, AUTHORITY_ID, provisioned.keyId())).thenReturn(Optional.empty());
+
+        VerifiedPackageSignature verified = verifier.verify(
+            new TrustedAuthorityAnchor(AUTHORITY_ID, provisioned.rootFingerprint()),
+            envelope);
+
+        assertThat(verified.issuerInstanceId()).isEqualTo(ISSUER_ID);
+        assertThat(verified.keyId()).isEqualTo(provisioned.keyId());
+    }
+
+    @Test
     void rejectsRogueSelfSignedChainAndHostIdentityImpersonation() {
         PackageSignatureEnvelope legitimate = signer.sign(MANIFEST_DIGEST, 8);
 

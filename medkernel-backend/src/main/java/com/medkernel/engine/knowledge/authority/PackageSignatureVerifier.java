@@ -81,6 +81,10 @@ public class PackageSignatureVerifier {
         List<X509Certificate> chain = parseAndVerifyChain(envelope.certificateChainPem());
         X509Certificate leaf = chain.getFirst();
         X509Certificate root = chain.getLast();
+        if (envelope.signedAt().isBefore(leaf.getNotBefore().toInstant())
+                || !envelope.signedAt().isBefore(leaf.getNotAfter().toInstant())) {
+            throw conflict("医疗资源包签发时间不在签名证书有效期内");
+        }
         String calculatedRoot = certificateFingerprint(root);
         if (!Objects.equals(calculatedRoot, anchor.rootFingerprint())) {
             throw conflict("包证书链无法锚定到固定平台信任根");
@@ -107,6 +111,9 @@ public class PackageSignatureVerifier {
             envelope.rootFingerprint(),
             envelope.releaseSequence(),
             envelope.manifestDigest(),
+            envelope.certificateChainPem(),
+            leaf.getNotBefore().toInstant(),
+            leaf.getNotAfter().toInstant(),
             envelope.signedAt(),
             clock.instant());
     }
@@ -116,9 +123,12 @@ public class PackageSignatureVerifier {
             .findByTenantIdAndAuthorityId(PlatformTenant.ID, envelope.authorityId())
             .orElse(null);
         if (authority != null
-                && (!Objects.equals(authority.activeIssuerInstanceId(), envelope.issuerInstanceId())
-                    || !Objects.equals(
-                        authority.activeTrustRootFingerprint(), envelope.rootFingerprint()))) {
+                && (!Objects.equals(
+                        authority.activeTrustRootFingerprint(), envelope.rootFingerprint())
+                    || (authority.activeIssuerInstanceId() == null
+                        ? authority.releaseSequence() != 0
+                        : !Objects.equals(
+                            authority.activeIssuerInstanceId(), envelope.issuerInstanceId())))) {
             throw conflict("包不是由本地已知的活动 issuer 和固定根签发");
         }
         IssuerInstance issuer = issuers

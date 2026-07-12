@@ -10,6 +10,9 @@ public record VerifiedPackageSignature(
     String rootFingerprint,
     long releaseSequence,
     String manifestDigest,
+    String certificateChainPem,
+    Instant keyNotBefore,
+    Instant keyNotAfter,
     Instant signedAt,
     Instant verifiedAt
 ) {

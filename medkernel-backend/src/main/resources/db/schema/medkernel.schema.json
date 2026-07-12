@@ -45112,6 +45112,927 @@
             ]
           }
         ]
+      },
+      {
+        "name": "mk_knowledge_package_preflight",
+        "comment": "医院完整医疗资源包通过固定根验签后的不可变只读预检事实",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "preflight_id",
+            "type": "string",
+            "length": 96,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "绑定目标医院、包摘要和医院状态快照的稳定预检标识"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "目标医院所属租户标识"
+          },
+          {
+            "name": "hospital_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "执行只读预检的目标医院标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已由院内固定信任根确认的平台知识权威标识"
+          },
+          {
+            "name": "delivery_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "便携医疗资源交付制品标识"
+          },
+          {
+            "name": "release_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已通过防重放校验的医疗资源发布序号"
+          },
+          {
+            "name": "manifest_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已验签的包目录 SM3 摘要"
+          },
+          {
+            "name": "platform_release_identity",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "包内平台标准版本稳定标识"
+          },
+          {
+            "name": "package_file_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "隔离区完整包真实字节的 SM3 摘要"
+          },
+          {
+            "name": "package_file_size",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "隔离区完整包真实字节数"
+          },
+          {
+            "name": "quarantine_coordinate",
+            "type": "string",
+            "length": 512,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "与宿主根目录无关的受管隔离区相对坐标"
+          },
+          {
+            "name": "issuer_instance_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已验签的交付制品签发实例标识"
+          },
+          {
+            "name": "key_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已验签的交付制品签名密钥标识"
+          },
+          {
+            "name": "root_fingerprint",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "院内预置固定信任根的 SM3 指纹"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "length": 16,
+            "nullable": false,
+            "default": "'PASSED'",
+            "identity": false,
+            "comment": "不可变预检状态，仅持久化通过事实"
+          },
+          {
+            "name": "preview_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "不可变预览正文的 SM3 摘要"
+          },
+          {
+            "name": "preview_json",
+            "type": "text",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "绑定包清单与目标医院当前状态的差异、冲突、依赖和撤回预览"
+          },
+          {
+            "name": "lock_version",
+            "type": "int64",
+            "nullable": false,
+            "default": 0,
+            "identity": false,
+            "comment": "乐观锁版本号"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_package_preflight",
+          "columns": [
+            "id"
+          ]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_preflight_id",
+            "columns": [
+              "preflight_id"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_preflight_release_seq",
+            "expression": "release_sequence >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_manifest_digest",
+            "expression": "REGEXP_LIKE(manifest_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_file_digest",
+            "expression": "REGEXP_LIKE(package_file_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_file_size",
+            "expression": "package_file_size >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_quarantine",
+            "expression": "REGEXP_LIKE(quarantine_coordinate, '^objects/[0-9a-f]{2}/[0-9a-f]{64}\\.mkp$')"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_root",
+            "expression": "REGEXP_LIKE(root_fingerprint, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_preview",
+            "expression": "REGEXP_LIKE(preview_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_preflight_status",
+            "expression": "status = 'PASSED'"
+          }
+        ],
+        "foreignKeys": [],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_preflight_recent",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "hospital_id",
+                "order": "ASC"
+              },
+              {
+                "name": "created_at",
+                "order": "DESC"
+              }
+            ]
+          },
+          {
+            "name": "idx_mk_knowledge_preflight_replay",
+            "unique": false,
+            "columns": [
+              {
+                "name": "tenant_id",
+                "order": "ASC"
+              },
+              {
+                "name": "hospital_id",
+                "order": "ASC"
+              },
+              {
+                "name": "authority_id",
+                "order": "ASC"
+              },
+              {
+                "name": "release_sequence",
+                "order": "DESC"
+              },
+              {
+                "name": "created_at",
+                "order": "DESC"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_version_asset_provenance",
+        "comment": "可移植资产来源事实：保留来源、许可、精确依赖、校验和合成测试，不重复保存正文",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "provenance_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "由权威、版本和来源事实摘要确定性派生的稳定标识"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "资产所属租户；完整包平台资产固定为 t-1"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "首次恢复该不可变版本的平台知识权威标识"
+          },
+          {
+            "name": "delivery_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "首次恢复该不可变版本的交付制品标识"
+          },
+          {
+            "name": "asset_type",
+            "type": "string",
+            "length": 32,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "统一版本化资产类型"
+          },
+          {
+            "name": "asset_identity",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "跨实例稳定资产身份"
+          },
+          {
+            "name": "version_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "精确绑定的不可变资产版本标识"
+          },
+          {
+            "name": "provenance_json",
+            "type": "text",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "规范编码的来源、许可、依赖、校验和合成测试事实"
+          },
+          {
+            "name": "provenance_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "来源事实规范字节的 SM3 摘要"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_version_asset_provenance",
+          "columns": ["id"]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_version_asset_provenance_id",
+            "columns": ["provenance_id"]
+          },
+          {
+            "name": "uk_mk_version_asset_provenance_version",
+            "columns": ["tenant_id", "version_id"]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_version_asset_provenance_digest",
+            "expression": "REGEXP_LIKE(provenance_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_version_asset_provenance_type",
+            "expression": "asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD')"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_version_asset_provenance_version",
+            "columns": ["version_id"],
+            "referencedTable": "mk_version_asset_version",
+            "referencedColumns": ["version_id"],
+            "onDelete": "CASCADE",
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_version_asset_provenance_delivery",
+            "unique": false,
+            "columns": [
+              {"name": "tenant_id", "order": "ASC"},
+              {"name": "authority_id", "order": "ASC"},
+              {"name": "delivery_id", "order": "ASC"}
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_knowledge_package_withdrawal",
+        "comment": "完整医疗资源包安全撤回事实：即使空库不存在被撤回正文也永久保留",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "withdrawal_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "由交付和被撤回版本确定性派生的稳定标识"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "撤回事实所属平台租户"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "签发撤回事实的平台知识权威标识"
+          },
+          {
+            "name": "delivery_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "携带撤回事实的交付制品标识"
+          },
+          {
+            "name": "release_sequence",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "权威内单调医疗资源发布序号"
+          },
+          {
+            "name": "asset_type",
+            "type": "string",
+            "length": 32,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "被撤回资产类型"
+          },
+          {
+            "name": "asset_identity",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "被撤回资产稳定身份"
+          },
+          {
+            "name": "withdrawn_version_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "被撤回不可变版本标识；允许本地尚无该版本"
+          },
+          {
+            "name": "successor_version_id",
+            "type": "string",
+            "length": 64,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "安全替代版本标识；为空表示尚无替代版本"
+          },
+          {
+            "name": "reason_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "撤回原因不可变正文摘要"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "更新人标识"
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_package_withdrawal",
+          "columns": ["id"]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_package_withdrawal_id",
+            "columns": ["withdrawal_id"]
+          },
+          {
+            "name": "uk_mk_knowledge_package_withdrawal_fact",
+            "columns": [
+              "tenant_id",
+              "authority_id",
+              "delivery_id",
+              "asset_type",
+              "asset_identity",
+              "withdrawn_version_id"
+            ]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_package_withdrawal_sequence",
+            "expression": "release_sequence >= 1"
+          },
+          {
+            "name": "ck_mk_knowledge_package_withdrawal_reason",
+            "expression": "REGEXP_LIKE(reason_digest, '^(sm3|sha256):[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_package_withdrawal_type",
+            "expression": "asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD')"
+          }
+        ],
+        "foreignKeys": [],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_package_withdrawal_version",
+            "unique": false,
+            "columns": [
+              {"name": "tenant_id", "order": "ASC"},
+              {"name": "withdrawn_version_id", "order": "ASC"}
+            ]
+          }
+        ]
+      },
+      {
+        "name": "mk_knowledge_package_activation",
+        "comment": "完整医疗资源包机构激活账本：绑定预检确认、期望当前版本和新机构修订，支撑网络重试幂等",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": true,
+            "comment": "数据库内部主键"
+          },
+          {
+            "name": "activation_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "由预检和新机构版本确定性派生的稳定激活标识"
+          },
+          {
+            "name": "preflight_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "精确绑定的不可变包预检标识"
+          },
+          {
+            "name": "tenant_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "目标医院所属租户"
+          },
+          {
+            "name": "hospital_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "目标医院标识"
+          },
+          {
+            "name": "authority_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已验签平台知识权威标识"
+          },
+          {
+            "name": "delivery_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "已激活交付制品标识"
+          },
+          {
+            "name": "preview_digest",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "操作者确认且激活前重新计算一致的预览摘要"
+          },
+          {
+            "name": "expected_current_release_id",
+            "type": "string",
+            "length": 64,
+            "nullable": true,
+            "default": null,
+            "identity": false,
+            "comment": "首次激活为空，升级时为操作者确认的当前机构版本"
+          },
+          {
+            "name": "runtime_release_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "原子激活产生的不可变机构生效版本标识"
+          },
+          {
+            "name": "runtime_revision_no",
+            "type": "int64",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "原子激活产生的机构内单调修订号"
+          },
+          {
+            "name": "baseline_release_id",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "本次机构版本采用的平台标准版本标识"
+          },
+          {
+            "name": "activated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "原子激活完成时间"
+          },
+          {
+            "name": "activated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "激活操作人标识"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "创建时间"
+          },
+          {
+            "name": "created_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "identity": false,
+            "comment": "创建人标识"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP",
+            "identity": false,
+            "comment": "更新时间"
+          },
+          {
+            "name": "updated_by",
+            "type": "string",
+            "length": 64,
+            "nullable": false,
+            "default": "'system'",
+            "comment": "更新人标识",
+            "identity": false
+          },
+          {
+            "name": "trace_id",
+            "type": "string",
+            "length": 128,
+            "nullable": false,
+            "default": null,
+            "identity": false,
+            "comment": "全链路追踪标识"
+          }
+        ],
+        "primaryKey": {
+          "name": "pk_mk_knowledge_package_activation",
+          "columns": ["id"]
+        },
+        "uniqueConstraints": [
+          {
+            "name": "uk_mk_knowledge_package_activation_id",
+            "columns": ["activation_id"]
+          },
+          {
+            "name": "uk_mk_knowledge_package_activation_preflight",
+            "columns": ["preflight_id"]
+          },
+          {
+            "name": "uk_mk_knowledge_package_activation_runtime",
+            "columns": ["runtime_release_id"]
+          }
+        ],
+        "checkConstraints": [
+          {
+            "name": "ck_mk_knowledge_package_activation_preview",
+            "expression": "REGEXP_LIKE(preview_digest, '^sm3:[0-9a-f]{64}$')"
+          },
+          {
+            "name": "ck_mk_knowledge_package_activation_revision",
+            "expression": "runtime_revision_no >= 1"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "fk_mk_knowledge_package_activation_preflight",
+            "columns": ["preflight_id"],
+            "referencedTable": "mk_knowledge_package_preflight",
+            "referencedColumns": ["preflight_id"],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_package_activation_runtime",
+            "columns": ["runtime_release_id"],
+            "referencedTable": "clinical_runtime_release",
+            "referencedColumns": ["release_id"],
+            "onDelete": null,
+            "onUpdate": null
+          },
+          {
+            "name": "fk_mk_knowledge_package_activation_baseline",
+            "columns": ["baseline_release_id"],
+            "referencedTable": "platform_baseline_release",
+            "referencedColumns": ["baseline_release_id"],
+            "onDelete": null,
+            "onUpdate": null
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_mk_knowledge_package_activation_hospital",
+            "unique": false,
+            "columns": [
+              {"name": "tenant_id", "order": "ASC"},
+              {"name": "hospital_id", "order": "ASC"},
+              {"name": "activated_at", "order": "DESC"}
+            ]
+          }
+        ]
       }
   ]
 }

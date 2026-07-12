@@ -10,6 +10,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.versioning.AssetDependencyKind;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -46,6 +48,9 @@ class PortableAssetAdapterRegistryTest {
             assertThat(file.sm3Digest()).startsWith("sm3:").hasSize(68);
             assertThat(validated.assetType()).isEqualTo(type);
             assertThat(validated.assetIdentity()).isEqualTo("ASSET." + type.name());
+            assertThat(validated.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
+            assertThat(validated.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
+            assertThat(validated.contentSha256()).hasSize(64);
             assertThat(validated.contentDigest()).startsWith("sm3:").hasSize(68);
             assertThat(materialized.get()).isEqualTo(validated);
         }
@@ -123,14 +128,40 @@ class PortableAssetAdapterRegistryTest {
             .validate(withRuntimeHost.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 
+    @Test
+    void rejectsVersionNumberThatRuntimeConsumersCannotResolve() throws Exception {
+        PortableAssetDocument.ExportInput valid = input(
+            VersionedAssetType.RULE,
+            json.readTree("{\"schemaVersion\":\"1.0\",\"name\":\"规则\"}"));
+        PortableAssetDocument.ExportInput incompatible = new PortableAssetDocument.ExportInput(
+            valid.assetType(),
+            valid.assetIdentity(),
+            valid.versionId(),
+            "1.0.0",
+            valid.organizationScope(),
+            valid.applicableScope(),
+            valid.safetyPolicy(),
+            valid.overridePolicy(),
+            valid.content(),
+            valid.sources(),
+            valid.licenses(),
+            valid.dependencies(),
+            valid.validation(),
+            valid.testVectors());
+
+        assertValidation(() -> registry.require(VersionedAssetType.RULE).export(incompatible));
+    }
+
     private PortableAssetDocument.ExportInput input(VersionedAssetType type, JsonNode content) {
         return new PortableAssetDocument.ExportInput(
             type,
             "ASSET." + type.name(),
             "version-" + type.name().toLowerCase(java.util.Locale.ROOT) + "-0001",
-            "1.0.0",
+            "V1",
             "PLATFORM",
             "ALL",
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED,
             content,
             List.of(new PortableAssetDocument.Source(
                 "LICENSED_GUIDELINE", "可交付来源", "2026.1", "chapter-1", DIGEST,
@@ -141,7 +172,7 @@ class PortableAssetAdapterRegistryTest {
                 VersionedAssetType.FIELD_CATALOG,
                 "CONTEXT.CLINICAL.V1",
                 "version-field-catalog-0001",
-                "1.0.0",
+                "V1",
                 DIGEST,
                 AssetDependencyKind.FIELD)),
             new PortableAssetDocument.Validation(

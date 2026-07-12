@@ -8,6 +8,8 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -90,6 +92,8 @@ class FullPackageAssemblerTest {
             original.versionNo(),
             original.organizationScope(),
             original.applicableScope(),
+            original.safetyPolicy(),
+            original.overridePolicy(),
             original.content(),
             original.sources(),
             original.licenses(),
@@ -128,6 +132,8 @@ class FullPackageAssemblerTest {
             original.versionNo(),
             original.organizationScope(),
             original.applicableScope(),
+            original.safetyPolicy(),
+            original.overridePolicy(),
             original.content(),
             original.sources(),
             original.licenses(),
@@ -157,7 +163,7 @@ class FullPackageAssemblerTest {
                 "ASSET.KNOWLEDGE",
                 ReleaseEntryState.ACTIVE,
                 "version-knowledge-1",
-                "1.0.0",
+                "V1",
                 null,
                 DIGEST,
                 "assets/KNOWLEDGE/knowledge.json")),
@@ -179,6 +185,8 @@ class FullPackageAssemblerTest {
             original.versionNo(),
             original.organizationScope(),
             original.applicableScope(),
+            original.safetyPolicy(),
+            original.overridePolicy(),
             json.readTree("{\"body\":\"完整正文\",\"client_secret\" : \"sensitive\"}"),
             original.sources(),
             original.licenses(),
@@ -196,19 +204,59 @@ class FullPackageAssemblerTest {
         assertValidation(() -> assembler.assemble(unsafe), "私钥或凭据");
     }
 
+    @Test
+    void rejectsSourceContentHashThatDoesNotMatchRecoverableCanonicalBody() throws Exception {
+        FullPackageSnapshot complete = completeSnapshot();
+        List<FullPackageSnapshot.Entry> entries = new ArrayList<>(complete.entries());
+        FullPackageSnapshot.Entry original = entries.getFirst();
+        entries.set(0, new FullPackageSnapshot.Entry(
+            original.assetType(),
+            original.assetIdentity(),
+            original.state(),
+            original.versionId(),
+            original.versionNo(),
+            "sha256:" + "c".repeat(64)));
+        FullPackageSnapshot inconsistent = new FullPackageSnapshot(
+            complete.platformReleaseIdentity(),
+            complete.revisionNo(),
+            complete.platformManifestSha256(),
+            entries,
+            complete.activeAssets(),
+            complete.withdrawals());
+
+        assertValidation(() -> assembler.assemble(inconsistent), "可恢复正文");
+    }
+
+    @Test
+    void rejectsPlatformManifestHashThatDoesNotMatchExactReleaseEntries() throws Exception {
+        FullPackageSnapshot complete = completeSnapshot();
+        FullPackageSnapshot inconsistent = new FullPackageSnapshot(
+            complete.platformReleaseIdentity(),
+            complete.revisionNo(),
+            "sha256:" + "d".repeat(64),
+            complete.entries(),
+            complete.activeAssets(),
+            complete.withdrawals());
+
+        assertValidation(() -> assembler.assemble(inconsistent), "平台版本明细");
+    }
+
     private FullPackageSnapshot completeSnapshot() throws Exception {
         List<FullPackageSnapshot.Entry> entries = new ArrayList<>();
         List<PortableAssetDocument.ExportInput> assets = new ArrayList<>();
         for (VersionedAssetType type : VersionedAssetType.values()) {
             String suffix = type.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+            PortableAssetDocument.ExportInput input = input(type, suffix);
+            PortableAssetDocument document = adapters.require(type).validate(
+                adapters.require(type).export(input).bytes());
             entries.add(new FullPackageSnapshot.Entry(
                 type,
                 "ASSET." + type.name(),
                 ReleaseEntryState.ACTIVE,
                 "version-" + suffix + "-1",
-                "1.0.0",
-                SHA256));
-            assets.add(input(type, suffix));
+                "V1",
+                "sha256:" + document.contentSha256()));
+            assets.add(input);
         }
         entries.add(new FullPackageSnapshot.Entry(
             VersionedAssetType.KNOWLEDGE,
@@ -220,7 +268,17 @@ class FullPackageAssemblerTest {
         return new FullPackageSnapshot(
             "baseline-release-0008",
             8,
-            SHA256,
+            "sha256:" + FullPackageReleaseIntegrity.manifestSha256(entries.stream()
+                .map(entry -> new FullPackageReleaseDocument.Entry(
+                    entry.assetType(),
+                    entry.assetIdentity(),
+                    entry.state(),
+                    entry.versionId(),
+                    entry.versionNo(),
+                    entry.sourceContentSha256(),
+                    entry.state() == ReleaseEntryState.ACTIVE ? DIGEST : null,
+                    entry.state() == ReleaseEntryState.ACTIVE ? "unused" : null))
+                .toList()),
             entries,
             assets,
             List.of(new FullPackageSnapshot.Withdrawal(
@@ -239,9 +297,11 @@ class FullPackageAssemblerTest {
             type,
             "ASSET." + type.name(),
             versionId,
-            "1.0.0",
+            "V1",
             "/PLATFORM",
             "ALL",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
             json.readTree("{\"schemaVersion\":\"1.0\",\"body\":\"完整正文-" + suffix + "\"}"),
             List.of(new PortableAssetDocument.Source(
                 "GUIDELINE",

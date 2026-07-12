@@ -90,6 +90,9 @@ class PackageRegistrationServiceTest {
             ROOT_FINGERPRINT,
             1,
             MANIFEST_DIGEST,
+            envelope.certificateChainPem(),
+            NOW.minusSeconds(3600),
+            NOW.plusSeconds(3600),
             NOW.minusSeconds(1),
             NOW));
         when(authorities.findByTenantIdAndAuthorityId(PlatformTenant.ID, AUTHORITY_ID))
@@ -173,6 +176,9 @@ class PackageRegistrationServiceTest {
             ROOT_FINGERPRINT,
             1,
             alteredDigest,
+            alteredEnvelope.certificateChainPem(),
+            NOW.minusSeconds(3600),
+            NOW.plusSeconds(3600),
             NOW.minusSeconds(1),
             NOW));
         when(registrations.findByTenantIdAndAuthorityIdAndDeliveryId(

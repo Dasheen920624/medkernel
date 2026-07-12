@@ -78,6 +78,7 @@ class AuthorityRepositoryContractTest {
             PackageRegistration.class,
             "mk_knowledge_package_registration",
             "id", "tenantId", "authorityId", "deliveryId", "releaseSequence", "manifestDigest",
+            "platformReleaseIdentity", "packageFileDigest", "packageFileSize", "storageCoordinate",
             "issuerInstanceId", "keyId", "parentDeliveryId", "parentManifestDigest",
             "baseManifestDigest", "packageType", "signingStatus", "signedAt", "registeredAt",
             "lockVersion", "createdAt", "createdBy", "updatedAt", "updatedBy", "traceId");

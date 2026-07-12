@@ -69,11 +69,18 @@ services:
       MEDKERNEL_BACKUP_RPO: ${MEDKERNEL_BACKUP_RPO:-24 小时}
       MEDKERNEL_BACKUP_RTO: ${MEDKERNEL_BACKUP_RTO:-4 小时}
       MEDKERNEL_BACKUP_DRILL_EVIDENCE_FILE: /opt/medkernel/runtime/backups/drills/latest-restore-drill.properties
+      MEDKERNEL_KNOWLEDGE_PACKAGE_STORAGE_ROOT: /opt/medkernel/runtime/knowledge-packages
+      MEDKERNEL_KNOWLEDGE_PACKAGE_QUARANTINE_ROOT: /opt/medkernel/runtime/knowledge-package-quarantine
+      MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_FILE_SIZE: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_FILE_SIZE:-512MB}
+      MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_REQUEST_SIZE: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_REQUEST_SIZE:-520MB}
+      MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_BYTES: ${MEDKERNEL_KNOWLEDGE_PACKAGE_MAX_BYTES:-536870912}
       SERVER_PORT: 18080
     ports:
       - "${MEDKERNEL_BACKEND_PORT:-18080}:18080"
     volumes:
       - ${MEDKERNEL_RUNTIME_ROOT:?set MEDKERNEL_RUNTIME_ROOT}/backups/drills:/opt/medkernel/runtime/backups/drills:ro
+      - ${MEDKERNEL_RUNTIME_ROOT:?set MEDKERNEL_RUNTIME_ROOT}/data/knowledge-packages:/opt/medkernel/runtime/knowledge-packages
+      - ${MEDKERNEL_RUNTIME_ROOT:?set MEDKERNEL_RUNTIME_ROOT}/data/knowledge-package-quarantine:/opt/medkernel/runtime/knowledge-package-quarantine
     depends_on:
       postgres:
         condition: service_healthy

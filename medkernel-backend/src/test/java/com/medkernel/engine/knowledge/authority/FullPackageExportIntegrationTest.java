@@ -32,12 +32,16 @@ import com.medkernel.engine.knowledge.delivery.FullPackageExportResult;
 import com.medkernel.engine.knowledge.delivery.FullPackageExportService;
 import com.medkernel.engine.knowledge.delivery.FullPackageManifestCodec;
 import com.medkernel.engine.knowledge.delivery.FullPackageReleaseDocumentCodec;
+import com.medkernel.engine.knowledge.delivery.FullPackageReleaseDocument;
+import com.medkernel.engine.knowledge.delivery.FullPackageReleaseIntegrity;
 import com.medkernel.engine.knowledge.delivery.FullPackageSnapshot;
 import com.medkernel.engine.knowledge.delivery.FullPackageStorageProperties;
 import com.medkernel.engine.knowledge.delivery.PackageSignatureEnvelopeCodec;
 import com.medkernel.engine.knowledge.delivery.PortableAssetAdapterRegistry;
 import com.medkernel.engine.knowledge.delivery.PortableAssetDocument;
 import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
@@ -274,25 +278,22 @@ class FullPackageExportIntegrationTest {
 
     private FullPackageSnapshot completeSnapshot(ObjectMapper json) {
         try {
+            PortableAssetAdapterRegistry adapters =
+                new PortableAssetAdapterRegistry(json, crypto);
             List<FullPackageSnapshot.Entry> entries = new ArrayList<>();
             List<PortableAssetDocument.ExportInput> assets = new ArrayList<>();
             for (VersionedAssetType type : VersionedAssetType.values()) {
                 String suffix = type.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
                 String versionId = "version-" + suffix + "-1";
-                entries.add(new FullPackageSnapshot.Entry(
-                    type,
-                    "ASSET." + type.name(),
-                    ReleaseEntryState.ACTIVE,
-                    versionId,
-                    "1.0.0",
-                    SHA256));
-                assets.add(new PortableAssetDocument.ExportInput(
+                PortableAssetDocument.ExportInput input = new PortableAssetDocument.ExportInput(
                     type,
                     "ASSET." + type.name(),
                     versionId,
-                    "1.0.0",
+                    "V1",
                     "/PLATFORM",
                     "ALL",
+                    AssetVersionSafetyPolicy.NORMAL,
+                    AssetVersionOverridePolicy.FREE,
                     json.readTree(
                         "{\"schemaVersion\":\"1.0\",\"body\":\"完整正文-" + suffix + "\"}"),
                     List.of(new PortableAssetDocument.Source(
@@ -318,7 +319,17 @@ class FullPackageExportIntegrationTest {
                             "generator-medkernel",
                             "1.0.0",
                             "scenario-" + suffix,
-                            DIGEST)))));
+                            DIGEST))));
+                PortableAssetDocument document = adapters.require(type).validate(
+                    adapters.require(type).export(input).bytes());
+                entries.add(new FullPackageSnapshot.Entry(
+                    type,
+                    "ASSET." + type.name(),
+                    ReleaseEntryState.ACTIVE,
+                    versionId,
+                    "V1",
+                    "sha256:" + document.contentSha256()));
+                assets.add(input);
             }
             entries.add(new FullPackageSnapshot.Entry(
                 VersionedAssetType.KNOWLEDGE,
@@ -330,7 +341,13 @@ class FullPackageExportIntegrationTest {
             return new FullPackageSnapshot(
                 RELEASE_ID,
                 1,
-                SHA256,
+                "sha256:" + FullPackageReleaseIntegrity.manifestSha256(entries.stream()
+                    .map(entry -> new FullPackageReleaseDocument.Entry(
+                        entry.assetType(), entry.assetIdentity(), entry.state(),
+                        entry.versionId(), entry.versionNo(), entry.sourceContentSha256(),
+                        entry.state() == ReleaseEntryState.ACTIVE ? DIGEST : null,
+                        entry.state() == ReleaseEntryState.ACTIVE ? "unused" : null))
+                    .toList()),
                 entries,
                 assets,
                 List.of(new FullPackageSnapshot.Withdrawal(

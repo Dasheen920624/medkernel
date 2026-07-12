@@ -126,6 +126,76 @@ public class FullPackageArtifactStore {
     }
 
     /**
+     * 将已完成隔离区逐条校验和固定根验签的真实文件收敛到可下载注册坐标。
+     *
+     * <p>不重新打包、不信任调用方文件名；目标坐标只由 deliveryId 和已验签 manifest 摘要派生，
+     * 复制前后都按整包大小和 SM3 重读。数据库事务失败时可能留下无注册引用的安全孤儿文件，
+     * 后续同包重试会逐字节复用，不会形成业务半包。
+     */
+    public StoredFullPackage adoptVerified(
+            QuarantinedFullPackage artifact,
+            FullPackageManifest manifest,
+            String manifestDigest) {
+        if (artifact == null
+                || artifact.path() == null
+                || manifest == null
+                || manifest.deliveryId() == null
+                || manifestDigest == null
+                || !manifestDigest.matches("sm3:[0-9a-f]{64}")
+                || artifact.packageFileDigest() == null
+                || !artifact.packageFileDigest().matches("sm3:[0-9a-f]{64}")
+                || artifact.packageFileSize() <= 0
+                || !Files.isRegularFile(artifact.path(), LinkOption.NOFOLLOW_LINKS)
+                || Files.isSymbolicLink(artifact.path())) {
+            throw invalid("只能收敛已验签的真实隔离区完整包文件");
+        }
+        String coordinate = manifest.deliveryId() + "/"
+            + manifestDigest.substring("sm3:".length()) + ".mkp";
+        Path target = resolveCoordinate(coordinate);
+        Path temporary = null;
+        try {
+            verifyPackageFile(
+                artifact.path(), artifact.packageFileDigest(), artifact.packageFileSize());
+            prepareDeliveryDirectory(target);
+            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                verifyPackageFile(
+                    target, artifact.packageFileDigest(), artifact.packageFileSize());
+                return facts(target, coordinate);
+            }
+            temporary = Files.createTempFile(target.getParent(), ".adopt-", ".part");
+            Files.copy(
+                artifact.path(), temporary, StandardCopyOption.REPLACE_EXISTING);
+            forceFile(temporary);
+            verifyPackageFile(
+                temporary, artifact.packageFileDigest(), artifact.packageFileSize());
+            try {
+                moveAtomically(temporary, target);
+                temporary = null;
+            } catch (FileAlreadyExistsException ignored) {
+                // 并发激活同一包时只接受已经按相同整包事实落盘的目标。
+            }
+            verifyPackageFile(
+                target, artifact.packageFileDigest(), artifact.packageFileSize());
+            return facts(target, coordinate);
+        } catch (ApiException exception) {
+            throw exception;
+        } catch (IOException exception) {
+            throw new ApiException(
+                ErrorCode.DOWNSTREAM_UNAVAILABLE,
+                "已验签医疗资源包无法收敛到可注册受管目录",
+                exception);
+        } finally {
+            if (temporary != null) {
+                try {
+                    Files.deleteIfExists(temporary);
+                } catch (IOException ignored) {
+                    // 主错误优先；未注册临时文件不构成可下载业务事实。
+                }
+            }
+        }
+    }
+
+    /**
      * 恢复已签名但因数据库事务回滚尚未登记的真实文件。
      *
      * <p>只有 manifest 和全部正文与本次快照逐字节一致、容器仍为确定性布局、公开签名信封
@@ -378,6 +448,22 @@ public class FullPackageArtifactStore {
             packageDigest = "sm3:" + crypto.sm3Hex(input);
         }
         return new StoredFullPackage(path, coordinate, packageDigest, size);
+    }
+
+    private void verifyPackageFile(Path path, String expectedDigest, long expectedSize)
+            throws IOException {
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                || Files.isSymbolicLink(path)
+                || Files.size(path) != expectedSize) {
+            throw conflict("医疗资源包受管文件大小、类型或链接状态不一致");
+        }
+        String actual;
+        try (InputStream input = Files.newInputStream(path, StandardOpenOption.READ)) {
+            actual = "sm3:" + crypto.sm3Hex(input);
+        }
+        if (!expectedDigest.equals(actual)) {
+            throw conflict("医疗资源包受管文件整包 SM3 摘要不一致");
+        }
     }
 
     private Path resolveCoordinate(String coordinate) {

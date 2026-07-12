@@ -10,10 +10,12 @@ import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.medkernel.engine.versioning.AssetSelfContainmentPolicy;
+import com.medkernel.engine.versioning.AssetVersionNumbers;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.crypto.SmCryptoService;
+import com.medkernel.shared.hash.Sha256ContentHash;
 
 /** 基于统一稳定资产文档的单类型确定性适配器。 */
 final class CanonicalPortableAssetAdapter implements PortableAssetAdapter {
@@ -61,7 +63,10 @@ final class CanonicalPortableAssetAdapter implements PortableAssetAdapter {
             throw invalid("适配器输入资产类型与登记类型不一致: " + type);
         }
         JsonNode content = canonicalJson.normalize(input.content());
-        String contentDigest = digest(canonicalJson.encode(content));
+        byte[] contentBytes = canonicalJson.encode(content);
+        String contentSha256 = Sha256ContentHash.sha256Bytes(
+            contentBytes, "资产规范正文不能为空");
+        String contentDigest = digest(contentBytes);
         List<PortableAssetDocument.Source> sources = copySources(input.sources());
         List<PortableAssetDocument.License> licenses = copyLicenses(input.licenses());
         List<PortableAssetDocument.Dependency> dependencies = copyDependencies(input.dependencies());
@@ -74,6 +79,9 @@ final class CanonicalPortableAssetAdapter implements PortableAssetAdapter {
             input.versionNo(),
             input.organizationScope(),
             input.applicableScope(),
+            input.safetyPolicy(),
+            input.overridePolicy(),
+            contentSha256,
             contentDigest,
             content,
             sources,
@@ -109,14 +117,24 @@ final class CanonicalPortableAssetAdapter implements PortableAssetAdapter {
         requireStableId(document.assetIdentity(), "assetIdentity");
         requireStableId(document.versionId(), "versionId");
         requireText(document.versionNo(), "versionNo");
+        AssetVersionNumbers.sequence(document.versionNo(), "资产版本号");
         requireText(document.organizationScope(), "organizationScope");
         requireText(document.applicableScope(), "applicableScope");
+        if (document.safetyPolicy() == null || document.overridePolicy() == null) {
+            throw invalid("资产必须携带医疗安全策略和下游覆盖策略");
+        }
         if (document.content() == null || document.content().isNull()
                 || (!document.content().isObject() && !document.content().isArray())
                 || document.content().isEmpty()) {
             throw invalid("资产必须携带可恢复的非空结构化正文");
         }
-        String actualContentDigest = digest(canonicalJson.encode(document.content()));
+        byte[] contentBytes = canonicalJson.encode(document.content());
+        String actualContentSha256 = Sha256ContentHash.sha256Bytes(
+            contentBytes, "资产规范正文不能为空");
+        if (!actualContentSha256.equals(document.contentSha256())) {
+            throw invalid("资产正文 SHA-256 与规范正文不一致: " + document.assetIdentity());
+        }
+        String actualContentDigest = digest(contentBytes);
         if (!actualContentDigest.equals(document.contentDigest())) {
             throw invalid("资产正文摘要与规范正文不一致: " + document.assetIdentity());
         }
@@ -139,6 +157,9 @@ final class CanonicalPortableAssetAdapter implements PortableAssetAdapter {
             document.versionNo(),
             document.organizationScope(),
             document.applicableScope(),
+            document.safetyPolicy(),
+            document.overridePolicy(),
+            document.contentSha256(),
             document.contentDigest(),
             canonicalJson.normalize(document.content()),
             List.copyOf(document.sources()),
@@ -213,6 +234,7 @@ final class CanonicalPortableAssetAdapter implements PortableAssetAdapter {
             requireStableId(dependency.assetIdentity(), "dependency.assetIdentity");
             requireStableId(dependency.versionId(), "dependency.versionId");
             requireText(dependency.versionNo(), "dependency.versionNo");
+            AssetVersionNumbers.sequence(dependency.versionNo(), "依赖资产版本号");
             requireDigest(dependency.contentDigest(), "dependency.contentDigest");
             String key = dependency.assetType() + "|" + dependency.assetIdentity() + "|" + dependency.versionId();
             if (!unique.add(key)) {

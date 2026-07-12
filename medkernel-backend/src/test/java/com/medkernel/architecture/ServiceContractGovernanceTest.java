@@ -142,6 +142,24 @@ class ServiceContractGovernanceTest {
     }
 
     @Test
+    void knowledgePackageContractCoversSignedRoundTripAndHospitalActivation() {
+        ServiceContract contract = ServiceContractCatalog.contractOfController(
+                "com.medkernel.engine.knowledge.delivery.FullPackageExportController")
+            .orElseThrow(() -> new AssertionError("完整医疗资源包控制器缺少服务契约"));
+
+        assertThat(contract.title()).isEqualTo("完整医疗资源包签发与医院导入服务");
+        assertThat(contract.permissions())
+            .extracting(permission -> permission.code())
+            .containsExactlyInAnyOrder("platform.publish", "knowledge.export", "tenant.override");
+        assertThat(contract.auditPoints())
+            .extracting(audit -> audit.purpose())
+            .contains(
+                "签发并登记完整医疗资源包",
+                "记录完整医疗资源包固定根验签只读预检",
+                "原子物化并激活完整医疗资源包");
+    }
+
+    @Test
     void controllersMustExposeSingleCanonicalBasePath() {
         assertThat(apiControllers())
             .allSatisfy(controller -> assertThat(classPaths(controller))

@@ -1,21 +1,18 @@
 package com.medkernel.engine.knowledge.delivery;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.medkernel.engine.release.ReleaseEntryState;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,26 +23,27 @@ import org.springframework.stereotype.Service;
 @Service
 public class FullPackageAssembler {
 
-    private static final Set<String> DIRECT_IDENTIFIER_KEYS = Set.of(
-        "patientid", "patientname", "mrn", "medicalrecordnumber", "idcard",
-        "identitynumber", "phone", "mobile", "email");
-    private static final List<Pattern> FORBIDDEN_SECRET_PATTERNS = List.of(
-        Pattern.compile("-----BEGIN [^-\\r\\n]*PRIVATE KEY-----", Pattern.CASE_INSENSITIVE),
-        Pattern.compile(
-            "\"(?:password|passphrase|client[_-]?secret|api[_-]?key|access[_-]?token|"
-                + "refresh[_-]?token|authorization)\"\\s*:",
-            Pattern.CASE_INSENSITIVE),
-        Pattern.compile("\\bbearer\\s+[A-Za-z0-9._~+/-]+=*", Pattern.CASE_INSENSITIVE));
     private static final String RELEASE_PATH = "release/platform-release.json";
 
     private final PortableAssetAdapterRegistry adapters;
     private final FullPackageReleaseDocumentCodec releaseCodec;
+    private final PortablePackageContentPolicy contentPolicy;
 
+    @Autowired
+    public FullPackageAssembler(
+            PortableAssetAdapterRegistry adapters,
+            FullPackageReleaseDocumentCodec releaseCodec,
+            PortablePackageContentPolicy contentPolicy) {
+        this.adapters = adapters;
+        this.releaseCodec = releaseCodec;
+        this.contentPolicy = contentPolicy;
+    }
+
+    /** 兼容纯单元组合根；生产组合根统一注入内容策略。 */
     public FullPackageAssembler(
             PortableAssetAdapterRegistry adapters,
             FullPackageReleaseDocumentCodec releaseCodec) {
-        this.adapters = adapters;
-        this.releaseCodec = releaseCodec;
+        this(adapters, releaseCodec, new PortablePackageContentPolicy());
     }
 
     /** 装配并逐项校验完整平台快照。 */
@@ -88,8 +86,13 @@ public class FullPackageAssembler {
             }
             PortableAssetFile file = adapters.require(entry.assetType()).export(input);
             PortableAssetDocument document = adapters.require(entry.assetType()).validate(file.bytes());
-            assertSyntheticSafety(document);
-            assertNoSecrets(file);
+            contentPolicy.validateDocument(document);
+            contentPolicy.validateFile(file.path(), file.bytes());
+            if (!normalizeSha256(entry.sourceContentSha256())
+                    .equals("sha256:" + document.contentSha256())) {
+                throw invalid("平台资产来源 SHA-256 与包内可恢复正文不一致: "
+                    + entry.assetIdentity());
+            }
             documents.put(key, document);
             assetFiles.put(key, file);
             activeTypes.add(entry.assetType());
@@ -114,6 +117,11 @@ public class FullPackageAssembler {
         assertDependencyClosure(documents);
         List<FullPackageReleaseDocument.Withdrawal> withdrawals =
             normalizeWithdrawals(snapshot.withdrawals(), entries, documents);
+        String actualManifestSha256 = FullPackageReleaseIntegrity.manifestSha256(releaseEntries);
+        if (!normalizeSha256(snapshot.platformManifestSha256())
+                .equals("sha256:" + actualManifestSha256)) {
+            throw invalid("平台版本明细 SHA-256 与完整精确条目不一致");
+        }
         byte[] releaseBytes = releaseCodec.encode(new FullPackageReleaseDocument(
             "1.0",
             snapshot.platformReleaseIdentity(),
@@ -218,42 +226,6 @@ public class FullPackageAssembler {
                 withdrawal.reasonDigest()));
         }
         return result;
-    }
-
-    private void assertSyntheticSafety(PortableAssetDocument document) {
-        for (PortableAssetDocument.TestVector vector : document.testVectors()) {
-            assertNoDirectIdentifier(vector.input(), "");
-            assertNoDirectIdentifier(vector.expected(), "");
-        }
-    }
-
-    private void assertNoDirectIdentifier(JsonNode node, String parent) {
-        if (node == null || node.isNull()) {
-            return;
-        }
-        if (node.isObject()) {
-            node.fields().forEachRemaining(field -> {
-                String key = field.getKey().replace("_", "")
-                    .replace("-", "").toLowerCase(Locale.ROOT);
-                if (DIRECT_IDENTIFIER_KEYS.contains(key)
-                        && !field.getValue().isNull()
-                        && !field.getValue().asText("").isBlank()) {
-                    throw invalid("合成测试向量含直接患者标识字段: " + field.getKey());
-                }
-                assertNoDirectIdentifier(field.getValue(), field.getKey());
-            });
-        } else if (node.isArray()) {
-            node.forEach(item -> assertNoDirectIdentifier(item, parent));
-        }
-    }
-
-    private void assertNoSecrets(PortableAssetFile file) {
-        String text = new String(file.bytes(), StandardCharsets.UTF_8);
-        for (Pattern pattern : FORBIDDEN_SECRET_PATTERNS) {
-            if (pattern.matcher(text).find()) {
-                throw invalid("完整医疗资源包正文含私钥或凭据标记: " + file.path());
-            }
-        }
     }
 
     private String normalizeSha256(String value) {

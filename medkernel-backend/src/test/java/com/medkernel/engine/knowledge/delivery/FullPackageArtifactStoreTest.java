@@ -14,6 +14,7 @@ import java.util.zip.ZipFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.knowledge.authority.MedicalPackageType;
+import com.medkernel.engine.knowledge.authority.FullPackageTestFixture;
 import com.medkernel.engine.knowledge.authority.PackageRegistration;
 import com.medkernel.engine.knowledge.authority.PackageSignatureEnvelope;
 import com.medkernel.engine.knowledge.authority.PackageSigningStatus;
@@ -35,6 +36,41 @@ class FullPackageArtifactStoreTest {
 
     @TempDir
     Path root;
+
+    @Test
+    void adoptsAnAlreadyVerifiedQuarantineFileIntoCanonicalRegisteredStorage()
+            throws Exception {
+        SmCryptoService crypto = new SmCryptoService();
+        ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+        FullPackageManifestCodec manifests = new FullPackageManifestCodec(json, crypto);
+        FullPackageArtifactStore store = new FullPackageArtifactStore(
+            root.resolve("artifacts"),
+            manifests,
+            new PackageSignatureEnvelopeCodec(json),
+            crypto);
+        FullPackageTestFixture.SignedPackage source =
+            new FullPackageTestFixture().build("mkp-full-adopt-1", 1);
+        Path quarantine = root.resolve("quarantine.mkp");
+        Files.write(quarantine, source.bytes());
+        String packageDigest = digest(crypto, source.bytes());
+        QuarantinedFullPackage artifact = new QuarantinedFullPackage(
+            quarantine,
+            "objects/aa/" + packageDigest.substring(4) + ".mkp",
+            packageDigest,
+            source.bytes().length);
+
+        StoredFullPackage stored = store.adoptVerified(
+            artifact, source.manifest(), source.envelope().manifestDigest());
+        StoredFullPackage repeated = store.adoptVerified(
+            artifact, source.manifest(), source.envelope().manifestDigest());
+
+        assertThat(repeated).isEqualTo(stored);
+        assertThat(stored.storageCoordinate()).isEqualTo(
+            source.manifest().deliveryId() + "/"
+                + source.envelope().manifestDigest().substring(4) + ".mkp");
+        assertThat(Files.readAllBytes(stored.path())).containsExactly(source.bytes());
+        assertThat(stored.packageFileDigest()).isEqualTo(packageDigest);
+    }
 
     @Test
     void writesCanonicalStoredZipRereadsEveryDeclaredByteAndStreamsRegisteredArtifact()

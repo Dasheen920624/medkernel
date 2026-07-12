@@ -8,6 +8,7 @@ import com.medkernel.engine.context.ClinicalEventProperties;
 import com.medkernel.engine.integration.service.IntegrationProperties;
 import com.medkernel.engine.knowledge.delivery.FullPackageStorageProperties;
 import com.medkernel.engine.knowledge.delivery.FullPackageExportProperties;
+import com.medkernel.engine.knowledge.delivery.FullPackageImportProperties;
 import com.medkernel.shared.idempotency.IdempotencyProperties;
 
 /**
@@ -20,7 +21,8 @@ import com.medkernel.shared.idempotency.IdempotencyProperties;
     RealtimeCdsProperties.class,
     IdempotencyProperties.class,
     FullPackageStorageProperties.class,
-    FullPackageExportProperties.class
+    FullPackageExportProperties.class,
+    FullPackageImportProperties.class
 })
 public class MedKernelConfigurationProperties {
 }

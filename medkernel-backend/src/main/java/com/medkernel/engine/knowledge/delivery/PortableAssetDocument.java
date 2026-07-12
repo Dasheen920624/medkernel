@@ -4,6 +4,8 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.medkernel.engine.versioning.AssetDependencyKind;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
 /**
@@ -19,6 +21,9 @@ import com.medkernel.engine.versioning.VersionedAssetType;
  * @param versionNo 业务版本号
  * @param organizationScope 资产适用组织范围
  * @param applicableScope 资产业务适用范围
+ * @param safetyPolicy 医疗安全继承策略
+ * @param overridePolicy 下游覆盖策略护栏
+ * @param contentSha256 可恢复规范正文的 SHA-256 摘要
  * @param contentDigest 规范正文的 SM3 摘要
  * @param content 可完整恢复的规范正文
  * @param sources 全部来源与精确引用锚点
@@ -35,6 +40,9 @@ public record PortableAssetDocument(
     String versionNo,
     String organizationScope,
     String applicableScope,
+    AssetVersionSafetyPolicy safetyPolicy,
+    AssetVersionOverridePolicy overridePolicy,
+    String contentSha256,
     String contentDigest,
     JsonNode content,
     List<Source> sources,
@@ -54,6 +62,8 @@ public record PortableAssetDocument(
         String versionNo,
         String organizationScope,
         String applicableScope,
+        AssetVersionSafetyPolicy safetyPolicy,
+        AssetVersionOverridePolicy overridePolicy,
         JsonNode content,
         List<Source> sources,
         List<License> licenses,

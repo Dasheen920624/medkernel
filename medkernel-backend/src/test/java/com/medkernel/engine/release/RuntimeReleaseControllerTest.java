@@ -98,6 +98,34 @@ class RuntimeReleaseControllerTest {
     }
 
     @Test
+    void hospitalRollbackRequiresAndForwardsTheConfirmedCurrentRelease() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(runtimes.rollback(
+            "tenant-A",
+            "hospital-A",
+            "runtime-target-A",
+            "runtime-current-A",
+            "operator-hospital",
+            "trace-hospital"
+        )).thenReturn(runtimeRelease());
+
+        controller.rollbackHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeRollbackRequest("runtime-target-A", "runtime-current-A")
+        );
+
+        verify(runtimes).rollback(
+            "tenant-A",
+            "hospital-A",
+            "runtime-target-A",
+            "runtime-current-A",
+            "operator-hospital",
+            "trace-hospital"
+        );
+    }
+
+    @Test
     void hospitalActivationRequiresConfirmedPlatformUpgradeAnalysisWhenBaselineChanges() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
