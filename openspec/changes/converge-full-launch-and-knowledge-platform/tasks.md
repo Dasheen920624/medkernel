@@ -43,7 +43,7 @@
 
 - [x] 3.1 定义权威领域模型与仓储合同。依赖：2.12；主要文件/接口：创建 com.medkernel.engine.knowledge.authority 下 Authority、IssuerInstance、TrustRoot、SigningKey、Handover、Revocation、PackageRegistration 及 repository 端口；失败测试：AuthorityRepositoryContractTest 先因类型缺失失败；验证：BE -Dtest=AuthorityRepositoryContractTest test；证据键：authority.domain.contract。
 - [x] 3.2 扩展唯一 schema 并生成五方言。依赖：3.1；主要文件/接口：medkernel.schema.json 及五方言 V1；失败测试：schema 测试对缺 tenant/version/audit/唯一约束/中文 COMMENT 失败；验证：DB；证据键：authority.database.five-dialects。
-- [ ] 3.3 初始化稳定 authorityId 与唯一 t-1。依赖：3.2；主要文件/接口：AuthorityService.initialize、AuthorityRepository；失败测试：第二 authorityId、宿主/IP/目录变化和备份恢复生成新身份时失败；验证：BE -Dtest=AuthorityServiceTest test；证据键：authority.identity.stable-t1。
+- [x] 3.3 初始化稳定 authorityId 与唯一 t-1。依赖：3.2；主要文件/接口：AuthorityService.initialize、AuthorityRepository；失败测试：第二 authorityId、宿主/IP/目录变化和备份恢复生成新身份时失败；验证：BE -Dtest=AuthorityServiceTest test；证据键：authority.identity.stable-t1。
 - [ ] 3.4 为每个 issuer 创建独立身份和独立 keyId。依赖：3.3；主要文件/接口：IssuerRegistrationService、SigningKeyPort；失败测试：两个 issuer 复用 keyId 或密钥材料时失败；验证：BE -Dtest=IssuerRegistrationServiceTest test；证据键：authority.issuer.independent-key。
 - [ ] 3.5 建立外置 HSM/KMS 密钥端口。依赖：3.4；主要文件/接口：SigningKeyPort、HsmKmsSigningAdapter、测试 InMemorySigningAdapter；失败测试：私钥进入数据库实体、普通备份、包或日志时失败；验证：BE -Dtest=SigningKeyBoundaryTest test 和秘密 inventory；证据键：authority.key.external-boundary。
 - [ ] 3.6 预置首次信任根。依赖：3.5；主要文件/接口：软件 manifest 的 authorityId/rootFingerprint、site trust-bootstrap 配置、HospitalTrustCheckpointService；失败测试：空医院没有已签软件 manifest 或独立认证通道时无法初始化根；验证：BE -Dtest=TrustBootstrapServiceTest test；证据键：authority.trust.preprovisioned-root。
