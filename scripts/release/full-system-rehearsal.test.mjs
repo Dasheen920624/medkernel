@@ -9,6 +9,7 @@ import test from "node:test";
 import {
   assertCompleteLaunchCoverage,
   buildFullSystemStagePlan,
+  buildLaunchAcceptance,
   buildRequiredLaunchAcceptance,
   buildRequiredLaunchCoverage,
   buildTargetEnvironmentRehearsalEvidence,
@@ -25,6 +26,7 @@ const MANIFEST_PATH = fileURLToPath(
   ),
 );
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const RUN_ID = "rc0-20260711T132737Z-7674532fd-r10";
 
 test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
   const config = rehearsalConfig();
@@ -86,6 +88,7 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
     true,
   );
   assert.equal(plan[9].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
+  assert.equal(plan[9].env.LAUNCH_RUN_ID, RUN_ID);
 
   const requiredCoverage = buildRequiredLaunchCoverage();
   assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
@@ -191,6 +194,7 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
     "/var/lib/medkernel/evidence/current-launch/full-system.json",
   );
   assert.equal(config.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
+  assert.equal(config.runId, RUN_ID);
 
   delete env.LAUNCH_SOURCE;
   assert.throws(
@@ -203,6 +207,14 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
     () =>
       readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
     /40 位提交哈希/u,
+  );
+
+  env.LAUNCH_SOURCE = "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17";
+  env.LAUNCH_RUN_ID = "short";
+  assert.throws(
+    () =>
+      readFullSystemRehearsalConfig(env, { repoRoot: "/workspace/medkernel" }),
+    /LAUNCH_RUN_ID 格式非法/u,
   );
 });
 
@@ -284,6 +296,7 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
 
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
+  assert.equal(result.runId, RUN_ID);
   assert.equal(result.stages.length, 10);
   assert.deepEqual(
     result.coverage.scenarios,
@@ -346,6 +359,29 @@ test("整套演练持续输出十阶段进度并在总索引记录阶段耗时",
 test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放行", () => {
   const complete = completeLaunchCoverageEvidence();
   assert.doesNotThrow(() => assertCompleteLaunchCoverage(complete));
+
+  const missingLedger = structuredClone(complete);
+  delete missingLedger.acceptance;
+  assert.throws(
+    () => assertCompleteLaunchCoverage(missingLedger),
+    /LAUNCH 总账缺失/u,
+  );
+
+  const duplicateLedgerCode = structuredClone(complete);
+  duplicateLedgerCode.acceptance[14] = structuredClone(
+    duplicateLedgerCode.acceptance[0],
+  );
+  assert.throws(
+    () => assertCompleteLaunchCoverage(duplicateLedgerCode),
+    /LAUNCH 总账编码重复 LAUNCH-01/u,
+  );
+
+  const unknownLedgerCode = structuredClone(complete);
+  unknownLedgerCode.acceptance[14].code = "LAUNCH-16";
+  assert.throws(
+    () => assertCompleteLaunchCoverage(unknownLedgerCode),
+    /LAUNCH 总账包含未知编码 LAUNCH-16/u,
+  );
 
   const missingScenario = structuredClone(complete);
   missingScenario.coverage.scenarios =
@@ -549,9 +585,11 @@ test("目标环境复演 CLI 从外部源证据生成标准阶段证据", () => 
 });
 
 function completeLaunchCoverageEvidence() {
+  const coverage = completeLaunchCoverageRows();
   return {
     status: "PASSED",
-    coverage: completeLaunchCoverageRows(),
+    coverage,
+    acceptance: buildLaunchAcceptance(coverage),
   };
 }
 
@@ -916,5 +954,6 @@ function baseEnv() {
       "/var/lib/medkernel/evidence/target-environment-source.json",
     FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
     LAUNCH_SOURCE: "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    LAUNCH_RUN_ID: RUN_ID,
   };
 }

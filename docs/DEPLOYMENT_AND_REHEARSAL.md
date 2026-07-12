@@ -143,7 +143,7 @@ API 模型、外部模型服务或 Codex/CLI 生成知识时，也可以在授�
 性别、年龄、身份证后四位等必要字段；模型使用边界必须从页面确认公网模型可使用患者上下文的前提、
 字段允许范围、脱敏算子、敏感级别和责任确认阈值。脚本可校验结果，但不得绕过页面生成这些证据。
 
-## 5. 八段全系统演练
+## 5. 十段全系统演练
 
 准备可信 HTTPS 地址、运行目录、首次接管令牌文件、外置凭据文件和本机模型提供方后运行：
 
@@ -158,14 +158,17 @@ export LAUNCH_MODEL_PROVIDER_TYPE=OLLAMA
 export LAUNCH_MODEL_PROVIDER_ENDPOINT=http://127.0.0.1:11434
 export LAUNCH_MODEL_VERSION=medkernel-qwen25:1.5b-v1
 export FULL_KNOWLEDGE_MANIFEST_PATH="$PWD/scripts/knowledge/manifests/full-knowledge-rehearsal-1.0.0.json"
-export LAUNCH_SOURCE=<40位本地提交哈希>
+export LAUNCH_SOURCE=<RC0 的 40 位 candidateCommit>
+export LAUNCH_RUN_ID=<同一 RC0 的 run-id>
 
 node scripts/release/full-system-rehearsal.mjs
 ```
 
 编排器按以下顺序执行，任何阶段失败都不得生成整套通过结论。最后的完整产品范围覆盖审计会重新读取
 前置阶段证据；任一前置阶段失败、覆盖矩阵缺项、`SKIPPED` 或 `UNKNOWN` 都不能生成 `PASSED`
-总索引。
+总索引。审计同时按 `docs/contracts/release/launch-ledger.v1.schema.json` 生成恰好
+`LAUNCH-01` 至 `LAUNCH-15` 的机器总账；每项绑定同一 `candidateCommit`、`runId`、判定时间、
+要求范围、实际证据范围和逐条前置证据引用，自由文本“已通过”不能替代 `PASSED` 机器状态。
 
 ### 5.1 基础治理
 

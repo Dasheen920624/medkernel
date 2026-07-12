@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medkernel.local/contracts/release/launch-ledger.v1.schema.json",
+  "title": "MedKernel LAUNCH-01 至 LAUNCH-15 上线验收总账",
+  "description": "固定 PRODUCT_SCOPE 第 15 节的十五项机器验收语义；总账状态只能由真实覆盖证据计算，禁止自由文本或静态完成声明。",
+  "type": "array",
+  "minItems": 15,
+  "maxItems": 15,
+  "items": {
+    "$ref": "#/$defs/entry"
+  },
+  "x-medkernel-contract-version": "1.0.0",
+  "x-medkernel-launch-acceptance": [
+    {
+      "code": "LAUNCH-01",
+      "label": "六层能力均有真实存储、服务、权限、消费者和审计",
+      "requiredCoverage": ["productLayers"]
+    },
+    {
+      "code": "LAUNCH-02",
+      "label": "13 类标准患者资源可由真实接入落地并驱动运行",
+      "requiredCoverage": [
+        "standardPatientResources",
+        "standardPatientResourceConsumerMatrix",
+        "standardPatientResourceRepresentativeRows"
+      ]
+    },
+    {
+      "code": "LAUNCH-03",
+      "label": "13 类版本化资产均有正文、校验、依赖、发布和运行消费者",
+      "requiredCoverage": [
+        "versionedAssets",
+        "versionedAssetSupplyChainMatrix",
+        "versionedAssetRepresentativeRows",
+        "versionedAssetRollbackRepresentativeMatrix",
+        "versionedAssetRollbackRepresentativeRows"
+      ]
+    },
+    {
+      "code": "LAUNCH-04",
+      "label": "11 个知识内容分类可生产、审核、发布、替换和回滚",
+      "requiredCoverage": [
+        "knowledgeDomains",
+        "knowledgeSupplyChainEvidenceMatrix",
+        "knowledgeSupplyChainEvidenceRows"
+      ]
+    },
+    {
+      "code": "LAUNCH-05",
+      "label": "全医疗专业领域具备权威代表资产和运行证据闭环",
+      "requiredCoverage": ["specialtyDomains"]
+    },
+    {
+      "code": "LAUNCH-06",
+      "label": "S0-S40 完成正常、异常、缺数、高风险和降级演练",
+      "requiredCoverage": ["scenarios", "scenarioConditionRows"]
+    },
+    {
+      "code": "LAUNCH-07",
+      "label": "平台标准、两机构差异、部分选择、升级和回滚可重放",
+      "requiredCoverage": [
+        "versionedAssetDedicatedReleaseContractMatrix",
+        "versionedAssetDedicatedReleaseContractRows",
+        "versionedAssetRollbackRepresentativeMatrix",
+        "versionedAssetRollbackRepresentativeRows"
+      ]
+    },
+    {
+      "code": "LAUNCH-08",
+      "label": "运行端服务端解析当前机构生效版本",
+      "requiredCoverage": [
+        "versionedAssets",
+        "versionedAssetDedicatedReleaseContractMatrix",
+        "versionedAssetDedicatedReleaseContractRows"
+      ]
+    },
+    {
+      "code": "LAUNCH-09",
+      "label": "四职责覆盖全部菜单和运行端点，MFA 默认关闭且可真实开启",
+      "requiredCoverage": [
+        "stakeholderViews",
+        "roleRepresentativeCoreActions",
+        "entryRepresentativeCoreActions",
+        "dashboardWorkbenchCoreActions",
+        "dashboardWorkbenchCoreActionRows",
+        "platformAdminEntryCoreActions",
+        "platformAdminP1EntryCoreActions",
+        "clinicalEntryCoreActions",
+        "qualityManagementEntryCoreActions",
+        "knowledgeOperationsAssetEntryCoreActions",
+        "menuEntryCoreActions",
+        "menuEntryCoreActionRows"
+      ]
+    },
+    {
+      "code": "LAUNCH-10",
+      "label": "模型候选生成可用，关闭模型后 B0 主链完整",
+      "requiredCoverage": [
+        "modelEnablementSurfaces",
+        "knowledgeSupplyChainEvidenceMatrix"
+      ]
+    },
+    {
+      "code": "LAUNCH-11",
+      "label": "五数据库方言由一个模式源生成同版本迁移",
+      "requiredCoverage": ["databaseMigrationSource", "databaseDialects"]
+    },
+    {
+      "code": "LAUNCH-12",
+      "label": "五种交付形态、七类业务组合和第三方系统族有消费者与降级验证",
+      "requiredCoverage": [
+        "deliveryShapes",
+        "serviceCombinations",
+        "thirdPartySystemFamilies",
+        "thirdPartySystemFamilyConsumerSlices",
+        "thirdPartySystemFamilyDegradationRows",
+        "diagnosticReportFamilyConsumerMatrix"
+      ]
+    },
+    {
+      "code": "LAUNCH-13",
+      "label": "集团、医院、院区、科室、病区、团队和跨机构任职得到验证",
+      "requiredCoverage": ["organizationLevels"]
+    },
+    {
+      "code": "LAUNCH-14",
+      "label": "完整医疗语义、专病十阶段和全中枢模型赋能矩阵具备代表用例",
+      "requiredCoverage": [
+        "semanticFamilies",
+        "specialDiseaseStages",
+        "modelEnablementSurfaces"
+      ]
+    },
+    {
+      "code": "LAUNCH-15",
+      "label": "目标环境完成备份恢复、清库 V1、部署、全功能全知识演练和重启恢复",
+      "requiredCoverage": ["targetEnvironmentRehearsal"]
+    }
+  ],
+  "$defs": {
+    "status": {
+      "type": "string",
+      "enum": ["PASSED", "FAILED"]
+    },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverageKey",
+        "evidenceStage",
+        "evidencePath",
+        "evidenceKey",
+        "observedCode",
+        "observedStatus",
+        "observedAt"
+      ],
+      "properties": {
+        "coverageKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidenceStage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidencePath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidenceKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedStatus": {
+          "const": "PASSED"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "label",
+        "requiredCoverage",
+        "actualEvidenceScope",
+        "status",
+        "missingCoverage",
+        "evidenceRefs",
+        "candidateCommit",
+        "runId",
+        "decidedAt"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "LAUNCH-01",
+            "LAUNCH-02",
+            "LAUNCH-03",
+            "LAUNCH-04",
+            "LAUNCH-05",
+            "LAUNCH-06",
+            "LAUNCH-07",
+            "LAUNCH-08",
+            "LAUNCH-09",
+            "LAUNCH-10",
+            "LAUNCH-11",
+            "LAUNCH-12",
+            "LAUNCH-13",
+            "LAUNCH-14",
+            "LAUNCH-15"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requiredCoverage": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "actualEvidenceScope": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "missingCoverage": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceRef"
+          }
+        },
+        "candidateCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

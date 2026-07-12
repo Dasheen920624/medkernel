@@ -15,8 +15,15 @@ const PRODUCT_ENTRY_CATALOG_PATH = path.join(
   REPO_ROOT,
   "docs/contracts/product/product-entry-catalog.v1.json",
 );
+const LAUNCH_LEDGER_SCHEMA_PATH = path.join(
+  REPO_ROOT,
+  "docs/contracts/release/launch-ledger.v1.schema.json",
+);
 const productEntryCatalog = JSON.parse(
   readFileSync(PRODUCT_ENTRY_CATALOG_PATH, "utf8"),
+);
+const launchLedgerSchema = JSON.parse(
+  readFileSync(LAUNCH_LEDGER_SCHEMA_PATH, "utf8"),
 );
 export const PRODUCT_ENTRY_CODES = Object.freeze(
   productEntryCatalog.entries.map((entry) => entry.entryCode),
@@ -486,133 +493,8 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   },
 });
 
-const REQUIRED_LAUNCH_ACCEPTANCE = Object.freeze([
-  {
-    code: "LAUNCH-01",
-    label: "六层能力均有真实存储、服务、权限、消费者和审计",
-    requiredCoverage: ["productLayers"],
-  },
-  {
-    code: "LAUNCH-02",
-    label: "13 类标准患者资源可由真实接入落地并驱动运行",
-    requiredCoverage: [
-      "standardPatientResources",
-      "standardPatientResourceConsumerMatrix",
-      "standardPatientResourceRepresentativeRows",
-    ],
-  },
-  {
-    code: "LAUNCH-03",
-    label: "13 类版本化资产均有正文、校验、依赖、发布和运行消费者",
-    requiredCoverage: [
-      "versionedAssets",
-      "versionedAssetSupplyChainMatrix",
-      "versionedAssetRepresentativeRows",
-      "versionedAssetRollbackRepresentativeMatrix",
-      "versionedAssetRollbackRepresentativeRows",
-    ],
-  },
-  {
-    code: "LAUNCH-04",
-    label: "11 个知识内容分类可生产、审核、发布、替换和回滚",
-    requiredCoverage: [
-      "knowledgeDomains",
-      "knowledgeSupplyChainEvidenceMatrix",
-      "knowledgeSupplyChainEvidenceRows",
-    ],
-  },
-  {
-    code: "LAUNCH-05",
-    label: "全医疗专业领域具备权威代表资产和运行证据闭环",
-    requiredCoverage: ["specialtyDomains"],
-  },
-  {
-    code: "LAUNCH-06",
-    label: "S0-S40 完成正常、异常、缺数、高风险和降级演练",
-    requiredCoverage: ["scenarios", "scenarioConditionRows"],
-  },
-  {
-    code: "LAUNCH-07",
-    label: "平台标准、两机构差异、部分选择、升级和回滚可重放",
-    requiredCoverage: [
-      "versionedAssetDedicatedReleaseContractMatrix",
-      "versionedAssetDedicatedReleaseContractRows",
-      "versionedAssetRollbackRepresentativeMatrix",
-      "versionedAssetRollbackRepresentativeRows",
-    ],
-  },
-  {
-    code: "LAUNCH-08",
-    label: "运行端服务端解析当前机构生效版本",
-    requiredCoverage: [
-      "versionedAssets",
-      "versionedAssetDedicatedReleaseContractMatrix",
-      "versionedAssetDedicatedReleaseContractRows",
-    ],
-  },
-  {
-    code: "LAUNCH-09",
-    label: "四职责覆盖全部菜单和运行端点，MFA 默认关闭且可真实开启",
-    requiredCoverage: [
-      "stakeholderViews",
-      "roleRepresentativeCoreActions",
-      "entryRepresentativeCoreActions",
-      "dashboardWorkbenchCoreActions",
-      "dashboardWorkbenchCoreActionRows",
-      "platformAdminEntryCoreActions",
-      "platformAdminP1EntryCoreActions",
-      "clinicalEntryCoreActions",
-      "qualityManagementEntryCoreActions",
-      "knowledgeOperationsAssetEntryCoreActions",
-      "menuEntryCoreActions",
-      "menuEntryCoreActionRows",
-    ],
-  },
-  {
-    code: "LAUNCH-10",
-    label: "模型候选生成可用，关闭模型后 B0 主链完整",
-    requiredCoverage: [
-      "modelEnablementSurfaces",
-      "knowledgeSupplyChainEvidenceMatrix",
-    ],
-  },
-  {
-    code: "LAUNCH-11",
-    label: "五数据库方言由一个模式源生成同版本迁移",
-    requiredCoverage: ["databaseMigrationSource", "databaseDialects"],
-  },
-  {
-    code: "LAUNCH-12",
-    label: "五种交付形态、七类业务组合和第三方系统族有消费者与降级验证",
-    requiredCoverage: [
-      "deliveryShapes",
-      "serviceCombinations",
-      "thirdPartySystemFamilies",
-      "thirdPartySystemFamilyConsumerSlices",
-      "thirdPartySystemFamilyDegradationRows",
-      "diagnosticReportFamilyConsumerMatrix",
-    ],
-  },
-  {
-    code: "LAUNCH-13",
-    label: "集团、医院、院区、科室、病区、团队和跨机构任职得到验证",
-    requiredCoverage: ["organizationLevels"],
-  },
-  {
-    code: "LAUNCH-14",
-    label: "完整医疗语义、专病十阶段和全中枢模型赋能矩阵具备代表用例",
-    requiredCoverage: [
-      "semanticFamilies",
-      "specialDiseaseStages",
-      "modelEnablementSurfaces",
-    ],
-  },
-  {
-    code: "LAUNCH-15",
-    label: "目标环境完成备份恢复、清库 V1、部署、全功能全知识演练和重启恢复",
-    requiredCoverage: ["targetEnvironmentRehearsal"],
-  },
-]);
+const REQUIRED_LAUNCH_ACCEPTANCE =
+  loadLaunchAcceptanceCatalog(launchLedgerSchema);
 
 export function readFullSystemRehearsalConfig(env, options = {}) {
   const repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
@@ -629,6 +511,7 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     "LAUNCH_TARGET_ENVIRONMENT_SOURCE_PATH",
     "FULL_KNOWLEDGE_MANIFEST_PATH",
     "LAUNCH_SOURCE",
+    "LAUNCH_RUN_ID",
   ];
   for (const key of required) {
     if (!hasText(env?.[key])) throw new Error(`缺少必填环境变量 ${key}`);
@@ -679,6 +562,7 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     targetEnvironmentSourcePath,
     manifestPath: path.resolve(env.FULL_KNOWLEDGE_MANIFEST_PATH.trim()),
     source: normalizeSource(env.LAUNCH_SOURCE),
+    runId: normalizeRunId(env.LAUNCH_RUN_ID),
     webBaseUrl,
     apiBaseUrl,
     provider: {
@@ -882,6 +766,7 @@ export function buildFullSystemStagePlan(config) {
         LAUNCH_COVERAGE_EVIDENCE_PATH: launchCoverageEvidence,
         FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
         LAUNCH_SOURCE: config.source,
+        LAUNCH_RUN_ID: config.runId,
       },
     },
   ];
@@ -949,8 +834,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     const summary = validateStageEvidence(stage.id, evidence);
     if (stage.id === "launch-coverage") {
       launchCoverage = evidence.coverage;
-      launchAcceptance =
-        evidence.acceptance ?? buildLaunchAcceptance(launchCoverage);
+      launchAcceptance = evidence.acceptance;
     }
     const stageFinishedAt = now(clock);
     const durationMs = elapsedMs(stageStartedAt, stageFinishedAt);
@@ -984,6 +868,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     status: "PASSED",
     stage: "FULL_SYSTEM_REHEARSAL",
     source: config.source,
+    runId: config.runId,
     startedAt,
     finishedAt,
     durationMs: elapsedMs(startedAt, finishedAt),
@@ -1309,6 +1194,54 @@ function validateTargetEnvironmentEvidence(evidence) {
   };
 }
 
+function loadLaunchAcceptanceCatalog(schema) {
+  const catalog = schema?.["x-medkernel-launch-acceptance"];
+  const schemaCodes = schema?.$defs?.entry?.properties?.code?.enum;
+  const statuses = schema?.$defs?.status?.enum;
+  const expectedCodes = Array.from(
+    { length: 15 },
+    (_, index) => `LAUNCH-${String(index + 1).padStart(2, "0")}`,
+  );
+  if (
+    schema?.["x-medkernel-contract-version"] !== "1.0.0" ||
+    !Array.isArray(catalog) ||
+    !Array.isArray(schemaCodes) ||
+    !Array.isArray(statuses) ||
+    catalog.length !== expectedCodes.length ||
+    schemaCodes.length !== expectedCodes.length ||
+    expectedCodes.some(
+      (code, index) =>
+        catalog[index]?.code !== code || schemaCodes[index] !== code,
+    ) ||
+    statuses.length !== 2 ||
+    statuses[0] !== "PASSED" ||
+    statuses[1] !== "FAILED"
+  ) {
+    throw new Error("LAUNCH 总账 schema 必须固定 LAUNCH-01 至 LAUNCH-15");
+  }
+  return Object.freeze(
+    catalog.map((item) => {
+      const label = requireText(item.label, `${item.code} 验收语义`);
+      const requiredCoverage = item.requiredCoverage;
+      if (
+        !Array.isArray(requiredCoverage) ||
+        requiredCoverage.length === 0 ||
+        new Set(requiredCoverage).size !== requiredCoverage.length ||
+        requiredCoverage.some(
+          (key) => !hasText(key) || !REQUIRED_LAUNCH_COVERAGE[key],
+        )
+      ) {
+        throw new Error(`${item.code} 要求范围未绑定有效覆盖矩阵`);
+      }
+      return Object.freeze({
+        code: item.code,
+        label,
+        requiredCoverage: Object.freeze([...requiredCoverage]),
+      });
+    }),
+  );
+}
+
 export function buildRequiredLaunchAcceptance() {
   return REQUIRED_LAUNCH_ACCEPTANCE.map((item) => ({
     code: item.code,
@@ -1464,7 +1397,10 @@ export function assertCompleteLaunchCoverage(evidence) {
       throw new Error(`${requirement.label} 覆盖不完整`);
     }
   }
-  const acceptance = evidence.acceptance ?? buildLaunchAcceptance(coverage);
+  const acceptance = validateLaunchAcceptanceStructure(
+    evidence.acceptance,
+    coverage,
+  );
   const failed = acceptance.filter((item) => item.status !== "PASSED");
   if (
     failed.length > 0 ||
@@ -1477,6 +1413,66 @@ export function assertCompleteLaunchCoverage(evidence) {
     );
   }
   return true;
+}
+
+function validateLaunchAcceptanceStructure(value, coverage) {
+  if (!Array.isArray(value)) {
+    throw new Error("LAUNCH 总账缺失");
+  }
+  const definitionByCode = new Map(
+    REQUIRED_LAUNCH_ACCEPTANCE.map((item) => [item.code, item]),
+  );
+  const rowByCode = new Map();
+  for (const row of value) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      throw new Error("LAUNCH 总账项无效");
+    }
+    const code = requireText(row.code, "LAUNCH 总账编码");
+    if (!definitionByCode.has(code)) {
+      throw new Error(`LAUNCH 总账包含未知编码 ${code}`);
+    }
+    if (rowByCode.has(code)) {
+      throw new Error(`LAUNCH 总账编码重复 ${code}`);
+    }
+    rowByCode.set(code, row);
+  }
+  const missingCodes = REQUIRED_LAUNCH_ACCEPTANCE.map(
+    (item) => item.code,
+  ).filter((code) => !rowByCode.has(code));
+  if (missingCodes.length > 0) {
+    throw new Error(`LAUNCH 总账缺少 ${missingCodes.join("、")}`);
+  }
+  const expectedRows = buildLaunchAcceptance(coverage);
+  return REQUIRED_LAUNCH_ACCEPTANCE.map((definition, index) => {
+    const row = rowByCode.get(definition.code);
+    const expected = expectedRows[index];
+    if (
+      row.label !== definition.label ||
+      !sameStringArray(row.requiredCoverage, definition.requiredCoverage)
+    ) {
+      throw new Error(
+        `${definition.code} 总账语义或要求范围与固定 schema 不一致`,
+      );
+    }
+    if (row.status !== "PASSED" && row.status !== "FAILED") {
+      throw new Error(`${definition.code} 总账状态必须为 PASSED 或 FAILED`);
+    }
+    if (
+      row.status !== expected.status ||
+      !sameStringArray(row.missingCoverage, expected.missingCoverage)
+    ) {
+      throw new Error(`${definition.code} 总账状态与覆盖矩阵不一致`);
+    }
+    return row;
+  });
+}
+
+function sameStringArray(actual, expected) {
+  return (
+    Array.isArray(actual) &&
+    actual.length === expected.length &&
+    actual.every((item, index) => item === expected[index])
+  );
 }
 
 function coverageKeyComplete(coverage, key) {
@@ -1627,6 +1623,14 @@ function normalizeSource(value) {
     throw new Error("LAUNCH_SOURCE 必须是 40 位提交哈希");
   }
   return source.toLowerCase();
+}
+
+function normalizeRunId(value) {
+  const runId = requireText(value, "LAUNCH_RUN_ID");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(runId)) {
+    throw new Error("LAUNCH_RUN_ID 格式非法");
+  }
+  return runId;
 }
 
 function outsideRepo(value, repoRoot, label) {

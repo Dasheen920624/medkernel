@@ -7,6 +7,7 @@ import {
   assertCompleteLaunchCoverage,
   buildLaunchAcceptance,
   buildLaunchCoverageFromStageEvidence,
+  buildRequiredLaunchAcceptance,
   validateStageEvidence,
 } from "./full-system-rehearsal-lib.mjs";
 import { writeJsonAtomic } from "./launch-account-bootstrap-lib.mjs";
@@ -24,12 +25,34 @@ const PRODUCT_ENTRY_CATALOG_PATH = path.join(
   REPO_ROOT,
   "docs/contracts/product/product-entry-catalog.v1.json",
 );
+const LAUNCH_LEDGER_SCHEMA_PATH = path.join(
+  REPO_ROOT,
+  "docs/contracts/release/launch-ledger.v1.schema.json",
+);
 const launchEntryEvidenceSchema = JSON.parse(
   readFileSync(LAUNCH_ENTRY_EVIDENCE_SCHEMA_PATH, "utf8"),
 );
 const productEntryCatalog = JSON.parse(
   readFileSync(PRODUCT_ENTRY_CATALOG_PATH, "utf8"),
 );
+const launchLedgerSchema = JSON.parse(
+  readFileSync(LAUNCH_LEDGER_SCHEMA_PATH, "utf8"),
+);
+const launchLedgerDefinitions = Object.freeze(
+  buildRequiredLaunchAcceptance().map((item) =>
+    Object.freeze({
+      code: item.code,
+      label: item.label,
+      requiredCoverage: Object.freeze([...item.requiredCoverage]),
+    }),
+  ),
+);
+const launchLedgerDefinitionByCode = new Map(
+  launchLedgerDefinitions.map((item) => [item.code, item]),
+);
+const launchLedgerStatuses = Object.freeze([
+  ...launchLedgerSchema.$defs.status.enum,
+]);
 const entryStrengthPolicy = loadEntryStrengthPolicy(launchEntryEvidenceSchema);
 const entryStrengthByLevel = new Map(
   entryStrengthPolicy.map((item, index) => [item.level, { ...item, index }]),
@@ -60,11 +83,13 @@ export function readLaunchCoverageAuditConfig(env, options = {}) {
     requireText(env.FULL_KNOWLEDGE_MANIFEST_PATH, "全知识清单路径"),
   );
   const source = normalizeSource(env.LAUNCH_SOURCE);
+  const runId = normalizeRunId(env.LAUNCH_RUN_ID);
   return {
     evidenceRoot,
     outputPath,
     manifestPath,
     source,
+    runId,
   };
 }
 
@@ -126,18 +151,308 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
   validateFullKnowledgeManifest(manifest);
 
   const coverage = buildLaunchCoverageFromStageEvidence(stageEvidence);
+  const generatedAt = now();
   const evidence = {
     schemaVersion: "1.0.0",
     status: "PASSED",
     source: config.source,
-    generatedAt: now(),
+    candidateCommit: config.source,
+    runId: config.runId,
+    generatedAt,
+    ledgerSchemaVersion: launchLedgerSchema["x-medkernel-contract-version"],
+    ledgerSchema: "docs/contracts/release/launch-ledger.v1.schema.json",
     stageStatus,
     coverage,
   };
-  evidence.acceptance = buildLaunchAcceptance(coverage);
+  evidence.acceptance = validateLaunchLedger(
+    buildLaunchLedger(coverage, {
+      candidateCommit: config.source,
+      runId: config.runId,
+      decidedAt: generatedAt,
+    }),
+    { coverage, candidateCommit: config.source, runId: config.runId },
+  );
   assertCompleteLaunchCoverage(evidence);
   evidence.entryEvidence = validateProductEntryEvidence(stageEvidence);
   return evidence;
+}
+
+function buildLaunchLedger(coverage, provenance) {
+  const baseRows = buildLaunchAcceptance(coverage);
+  return baseRows.map((item) => {
+    const evidenceRefs = item.requiredCoverage.flatMap((coverageKey) =>
+      launchLedgerEvidenceRefs(coverage, coverageKey),
+    );
+    const actualEvidenceScope = item.requiredCoverage.filter((coverageKey) =>
+      evidenceRefs.some((ref) => ref.coverageKey === coverageKey),
+    );
+    return {
+      code: item.code,
+      label: item.label,
+      requiredCoverage: [...item.requiredCoverage],
+      actualEvidenceScope,
+      status: item.status,
+      missingCoverage: [...item.missingCoverage],
+      evidenceRefs,
+      candidateCommit: provenance.candidateCommit,
+      runId: provenance.runId,
+      decidedAt: provenance.decidedAt,
+    };
+  });
+}
+
+export function validateLaunchLedger(value, options = {}) {
+  const rows = requireArray(value, "LAUNCH 总账");
+  const rowByCode = new Map();
+  for (const rawRow of rows) {
+    const row = requireRecord(rawRow, "LAUNCH 总账项");
+    const code = requireText(row.code, "LAUNCH 总账编码");
+    if (!launchLedgerDefinitionByCode.has(code)) {
+      throw new Error(`LAUNCH 总账包含未知编码 ${code}`);
+    }
+    if (rowByCode.has(code)) {
+      throw new Error(`LAUNCH 总账编码重复 ${code}`);
+    }
+    rowByCode.set(code, row);
+  }
+  const missingCodes = launchLedgerDefinitions
+    .map((item) => item.code)
+    .filter((code) => !rowByCode.has(code));
+  if (missingCodes.length > 0) {
+    throw new Error(`LAUNCH 总账缺少 ${missingCodes.join("、")}`);
+  }
+  if (rowByCode.size !== launchLedgerDefinitions.length) {
+    throw new Error(`LAUNCH 总账必须恰含 ${launchLedgerDefinitions.length} 项`);
+  }
+
+  const normalized = launchLedgerDefinitions.map((definition) =>
+    validateLaunchLedgerRow(rowByCode.get(definition.code), definition),
+  );
+  const candidateCommit = normalized[0].candidateCommit;
+  const runId = normalized[0].runId;
+  const decidedAt = normalized[0].decidedAt;
+  for (const row of normalized) {
+    if (
+      row.candidateCommit !== candidateCommit ||
+      row.runId !== runId ||
+      row.decidedAt !== decidedAt
+    ) {
+      throw new Error("LAUNCH 总账十五项必须绑定同一候选、运行标识和判定时间");
+    }
+  }
+  if (
+    options.candidateCommit !== undefined &&
+    candidateCommit !== options.candidateCommit
+  ) {
+    throw new Error("LAUNCH 总账候选提交与本次审计不一致");
+  }
+  if (options.runId !== undefined && runId !== options.runId) {
+    throw new Error("LAUNCH 总账运行标识与本次审计不一致");
+  }
+  if (options.coverage !== undefined) {
+    validateLaunchLedgerAgainstCoverage(normalized, options.coverage);
+  }
+  return normalized;
+}
+
+function validateLaunchLedgerRow(row, definition) {
+  requireExactObjectKeys(
+    row,
+    launchLedgerSchema.$defs.entry.required,
+    `${definition.code} 总账项`,
+  );
+  if (row.label !== definition.label) {
+    throw new Error(`${definition.code} 验收语义与固定 schema 不一致`);
+  }
+  requireExactStringArray(
+    row.requiredCoverage,
+    definition.requiredCoverage,
+    `${definition.code} 要求范围`,
+  );
+  const actualEvidenceScope = requireCanonicalSubset(
+    row.actualEvidenceScope,
+    definition.requiredCoverage,
+    `${definition.code} 实际证据范围`,
+  );
+  const missingCoverage = requireCanonicalSubset(
+    row.missingCoverage,
+    definition.requiredCoverage,
+    `${definition.code} 缺失范围`,
+  );
+  if (!launchLedgerStatuses.includes(row.status)) {
+    throw new Error(`${definition.code} 状态必须为 PASSED 或 FAILED`);
+  }
+  if (
+    (row.status === "PASSED" &&
+      (missingCoverage.length !== 0 ||
+        !arraysEqual(actualEvidenceScope, definition.requiredCoverage))) ||
+    (row.status === "FAILED" && missingCoverage.length === 0)
+  ) {
+    throw new Error(`${definition.code} 状态与实际/缺失范围不一致`);
+  }
+  const candidateCommit = requireText(
+    row.candidateCommit,
+    `${definition.code} candidateCommit`,
+  );
+  if (!/^[a-f0-9]{40}$/u.test(candidateCommit)) {
+    throw new Error(
+      `${definition.code} candidateCommit 必须为 40 位小写提交哈希`,
+    );
+  }
+  const runId = requireText(row.runId, `${definition.code} runId`);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(runId)) {
+    throw new Error(`${definition.code} runId 格式非法`);
+  }
+  if (!isIsoDateTime(row.decidedAt)) {
+    throw new Error(`${definition.code} 缺少有效判定时间`);
+  }
+  const evidenceRefs = validateLaunchLedgerEvidenceRefs(
+    row.evidenceRefs,
+    definition,
+    actualEvidenceScope,
+  );
+  return {
+    code: definition.code,
+    label: definition.label,
+    requiredCoverage: [...definition.requiredCoverage],
+    actualEvidenceScope,
+    status: row.status,
+    missingCoverage,
+    evidenceRefs,
+    candidateCommit,
+    runId,
+    decidedAt: row.decidedAt,
+  };
+}
+
+function validateLaunchLedgerEvidenceRefs(value, definition, actualScope) {
+  const refs = requireArray(value, `${definition.code} 前置证据引用`);
+  const allowedKeyOrder = new Map(
+    definition.requiredCoverage.map((key, index) => [key, index]),
+  );
+  const actualScopeSet = new Set(actualScope);
+  const seen = new Set();
+  let previousKeyIndex = -1;
+  const normalized = refs.map((rawRef) => {
+    const ref = requireRecord(rawRef, `${definition.code} 前置证据引用`);
+    requireExactObjectKeys(
+      ref,
+      launchLedgerSchema.$defs.evidenceRef.required,
+      `${definition.code} 前置证据引用`,
+    );
+    const coverageKey = requireText(
+      ref.coverageKey,
+      `${definition.code} 证据覆盖键`,
+    );
+    const keyIndex = allowedKeyOrder.get(coverageKey);
+    if (keyIndex === undefined || !actualScopeSet.has(coverageKey)) {
+      throw new Error(`${definition.code} 前置证据引用超出实际证据范围`);
+    }
+    if (keyIndex < previousKeyIndex) {
+      throw new Error(`${definition.code} 前置证据引用未按固定范围排序`);
+    }
+    previousKeyIndex = keyIndex;
+    const evidenceStage = requireText(
+      ref.evidenceStage,
+      `${definition.code} 前置证据阶段`,
+    );
+    if (evidenceStage === "launch-coverage") {
+      throw new Error(`${definition.code} 不得引用最终审计自身作为前置证据`);
+    }
+    const evidencePath = requireText(
+      ref.evidencePath,
+      `${definition.code} 前置证据路径`,
+    );
+    const evidenceKey = requireText(
+      ref.evidenceKey,
+      `${definition.code} 前置证据键`,
+    );
+    const observedCode = requireText(
+      ref.observedCode,
+      `${definition.code} 观察码`,
+    );
+    if (ref.observedStatus !== "PASSED") {
+      throw new Error(`${definition.code} 前置证据观察状态必须为 PASSED`);
+    }
+    if (!isIsoDateTime(ref.observedAt)) {
+      throw new Error(`${definition.code} 前置证据缺少有效观察时间`);
+    }
+    const identity = [
+      coverageKey,
+      evidenceStage,
+      evidencePath,
+      evidenceKey,
+      observedCode,
+    ].join("\u0000");
+    if (seen.has(identity)) {
+      throw new Error(`${definition.code} 前置证据引用重复`);
+    }
+    seen.add(identity);
+    return {
+      coverageKey,
+      evidenceStage,
+      evidencePath,
+      evidenceKey,
+      observedCode,
+      observedStatus: "PASSED",
+      observedAt: ref.observedAt,
+    };
+  });
+  const referencedScope = definition.requiredCoverage.filter((coverageKey) =>
+    normalized.some((ref) => ref.coverageKey === coverageKey),
+  );
+  if (!arraysEqual(referencedScope, actualScope)) {
+    throw new Error(`${definition.code} 实际证据范围缺少对应前置证据引用`);
+  }
+  return normalized;
+}
+
+function validateLaunchLedgerAgainstCoverage(ledger, coverage) {
+  const expectedBase = buildLaunchAcceptance(coverage);
+  for (const [index, row] of ledger.entries()) {
+    const expected = expectedBase[index];
+    const expectedRefs = expected.requiredCoverage.flatMap((coverageKey) =>
+      launchLedgerEvidenceRefs(coverage, coverageKey),
+    );
+    const expectedActualScope = expected.requiredCoverage.filter(
+      (coverageKey) =>
+        expectedRefs.some((ref) => ref.coverageKey === coverageKey),
+    );
+    if (
+      row.status !== expected.status ||
+      !arraysEqual(row.missingCoverage, expected.missingCoverage) ||
+      !arraysEqual(row.actualEvidenceScope, expectedActualScope) ||
+      JSON.stringify(row.evidenceRefs) !== JSON.stringify(expectedRefs)
+    ) {
+      throw new Error(`${row.code} 总账判定或证据引用与覆盖矩阵不一致`);
+    }
+  }
+}
+
+function launchLedgerEvidenceRefs(coverage, coverageKey) {
+  const rows = coverage?.[coverageKey];
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter(
+      (row) =>
+        row?.status === "PASSED" &&
+        row.observedStatus === "PASSED" &&
+        hasText(row.evidenceStage) &&
+        row.evidenceStage !== "launch-coverage" &&
+        hasText(row.evidencePath) &&
+        hasText(row.evidenceKey) &&
+        hasText(row.observedCode) &&
+        isIsoDateTime(row.observedAt),
+    )
+    .map((row) => ({
+      coverageKey,
+      evidenceStage: row.evidenceStage,
+      evidencePath: row.evidencePath,
+      evidenceKey: row.evidenceKey,
+      observedCode: row.observedCode,
+      observedStatus: "PASSED",
+      observedAt: row.observedAt,
+    }));
 }
 
 export function validateLaunchEntryEvidence(
@@ -444,6 +759,29 @@ function requireCanonicalCapabilities(value, entryCode) {
   return capabilities;
 }
 
+function requireExactObjectKeys(value, expectedKeys, label) {
+  const actualKeys = Object.keys(value).sort();
+  const requiredKeys = [...expectedKeys].sort();
+  if (!arraysEqual(actualKeys, requiredKeys)) {
+    throw new Error(`${label}字段必须与固定 schema 完全一致`);
+  }
+}
+
+function requireCanonicalSubset(value, allowed, label) {
+  const actual = requireTextArray(value, label);
+  if (
+    new Set(actual).size !== actual.length ||
+    actual.some((item) => !allowed.includes(item))
+  ) {
+    throw new Error(`${label}包含重复或未知项`);
+  }
+  const canonical = allowed.filter((item) => actual.includes(item));
+  if (!arraysEqual(actual, canonical)) {
+    throw new Error(`${label}未按固定 schema 顺序记录`);
+  }
+  return actual;
+}
+
 function requireExactStringArray(value, expected, label) {
   const actual = requireTextArray(value, label);
   if (
@@ -521,6 +859,14 @@ function normalizeSource(value) {
     throw new Error("LAUNCH_SOURCE 必须是 40 位提交哈希");
   }
   return source.toLowerCase();
+}
+
+function normalizeRunId(value) {
+  const runId = requireText(value, "LAUNCH_RUN_ID");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(runId)) {
+    throw new Error("LAUNCH_RUN_ID 格式非法");
+  }
+  return runId;
 }
 
 function requireText(value, label) {

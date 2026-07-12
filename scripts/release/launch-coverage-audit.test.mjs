@@ -7,6 +7,7 @@ import {
   buildLaunchCoverageEvidence,
   readLaunchCoverageAuditConfig,
   validateLaunchEntryEvidence,
+  validateLaunchLedger,
 } from "./launch-coverage-audit.mjs";
 import { PRODUCT_ENTRY_CODES } from "./full-system-rehearsal-lib.mjs";
 
@@ -17,6 +18,7 @@ const MANIFEST_PATH = fileURLToPath(
   ),
 );
 const SOURCE = "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17";
+const RUN_ID = "rc0-20260711T132737Z-7674532fd-r10";
 const PRODUCT_ENTRY_CATALOG = JSON.parse(
   readFileSync(
     fileURLToPath(
@@ -44,6 +46,17 @@ const FULL_ENTRY_STRENGTH_POLICY =
 const CORE_ACTION_STRENGTH_POLICY = LAUNCH_ENTRY_EVIDENCE_SCHEMA[
   "x-medkernel-strength-policy"
 ].find((item) => item.level === "CORE_ACTION");
+const LAUNCH_LEDGER_SCHEMA = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../docs/contracts/release/launch-ledger.v1.schema.json",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  ),
+);
 
 test("入口证据 schema 固定五级强度及逐级验证能力", () => {
   assert.deepEqual(
@@ -115,6 +128,74 @@ test("真实 CORE_ACTION 证据仍不能冒充完整入口合同", () => {
   );
 });
 
+test("LAUNCH 总账 schema 固定且仅固定 LAUNCH-01 至 LAUNCH-15", () => {
+  assert.deepEqual(
+    LAUNCH_LEDGER_SCHEMA["x-medkernel-launch-acceptance"].map(
+      (item) => item.code,
+    ),
+    Array.from(
+      { length: 15 },
+      (_, index) => `LAUNCH-${String(index + 1).padStart(2, "0")}`,
+    ),
+  );
+  assert.deepEqual(LAUNCH_LEDGER_SCHEMA.$defs.status.enum, [
+    "PASSED",
+    "FAILED",
+  ]);
+  assert.deepEqual(LAUNCH_LEDGER_SCHEMA.$defs.entry.required, [
+    "code",
+    "label",
+    "requiredCoverage",
+    "actualEvidenceScope",
+    "status",
+    "missingCoverage",
+    "evidenceRefs",
+    "candidateCommit",
+    "runId",
+    "decidedAt",
+  ]);
+});
+
+test("LAUNCH 总账拒绝缺项、重复、未知码和自由文本状态", () => {
+  const evidence = buildLaunchCoverageEvidence(auditConfig(), {
+    readJson: readKnownEvidence(completeStageEvidence()),
+    now: () => "2026-06-22T09:00:00.000Z",
+  });
+  const validLedger = evidence.acceptance;
+  assert.equal(validateLaunchLedger(validLedger).length, 15);
+
+  assert.throws(
+    () => validateLaunchLedger(validLedger.slice(1)),
+    /缺少.*LAUNCH-01/u,
+  );
+  assert.throws(
+    () =>
+      validateLaunchLedger([
+        ...validLedger.slice(0, -1),
+        structuredClone(validLedger[0]),
+      ]),
+    /重复.*LAUNCH-01/u,
+  );
+  assert.throws(
+    () =>
+      validateLaunchLedger(
+        validLedger.map((item, index) =>
+          index === 14 ? { ...item, code: "LAUNCH-16" } : item,
+        ),
+      ),
+    /未知.*LAUNCH-16/u,
+  );
+  assert.throws(
+    () =>
+      validateLaunchLedger(
+        validLedger.map((item, index) =>
+          index === 0 ? { ...item, status: "已通过" } : item,
+        ),
+      ),
+    /LAUNCH-01.*状态.*PASSED.*FAILED/u,
+  );
+});
+
 test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () => {
   const env = baseEnv();
   const config = readLaunchCoverageAuditConfig(env, {
@@ -131,6 +212,7 @@ test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () =
   );
   assert.equal(config.manifestPath, MANIFEST_PATH);
   assert.equal(config.source, SOURCE);
+  assert.equal(config.runId, RUN_ID);
 
   env.LAUNCH_COVERAGE_EVIDENCE_PATH =
     "/workspace/medkernel/tmp/launch-coverage.json";
@@ -147,6 +229,14 @@ test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () =
     () =>
       readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
     /40 位提交哈希/u,
+  );
+
+  env.LAUNCH_SOURCE = SOURCE;
+  env.LAUNCH_RUN_ID = "short";
+  assert.throws(
+    () =>
+      readLaunchCoverageAuditConfig(env, { repoRoot: "/workspace/medkernel" }),
+    /LAUNCH_RUN_ID 格式非法/u,
   );
 });
 
@@ -900,6 +990,7 @@ function auditConfig() {
       "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
     manifestPath: MANIFEST_PATH,
     source: SOURCE,
+    runId: RUN_ID,
   };
 }
 
@@ -910,6 +1001,7 @@ function baseEnv() {
       "/var/lib/medkernel/evidence/current-launch/launch-coverage.json",
     FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
     LAUNCH_SOURCE: SOURCE,
+    LAUNCH_RUN_ID: RUN_ID,
   };
 }
 
