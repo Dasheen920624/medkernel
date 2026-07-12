@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -557,6 +558,7 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
     runtimeRoot,
     evidenceRoot,
     indexPath: path.join(evidenceRoot, "full-system.json"),
+    sourceManifestPath: path.join(evidenceRoot, "source-provenance.json"),
     credentialsPath,
     bootstrapTokenPath,
     targetEnvironmentSourcePath,
@@ -767,6 +769,7 @@ export function buildFullSystemStagePlan(config) {
         FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
         LAUNCH_SOURCE: config.source,
         LAUNCH_RUN_ID: config.runId,
+        LAUNCH_EVIDENCE_SOURCE_MANIFEST_PATH: config.sourceManifestPath,
       },
     },
   ];
@@ -796,6 +799,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
   const progress = createProgressReporter(dependencies.onProgress, clock);
   const startedAt = now(clock);
   const completed = [];
+  const sourceRecords = [];
   let launchCoverage = null;
   let launchAcceptance = null;
   const stages = buildFullSystemStagePlan(config);
@@ -813,6 +817,12 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
       evidencePath: stage.evidencePath,
     });
     const stageStartedAt = now(clock);
+    if (stage.id === "launch-coverage") {
+      writeJson(
+        config.sourceManifestPath,
+        buildEvidenceSourceManifest(config, sourceRecords, stageStartedAt),
+      );
+    }
     const commandResult = await runCommand(stage);
     if (commandResult?.exitCode !== 0) {
       progress({
@@ -837,6 +847,14 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
       launchAcceptance = evidence.acceptance;
     }
     const stageFinishedAt = now(clock);
+    if (stage.id !== "launch-coverage") {
+      sourceRecords.push({
+        stageId: stage.id,
+        evidencePath: stage.evidencePath,
+        contentSha256: sha256Json(evidence),
+        capturedAt: stageFinishedAt,
+      });
+    }
     const durationMs = elapsedMs(stageStartedAt, stageFinishedAt);
     completed.push({
       id: stage.id,
@@ -876,6 +894,10 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     apiBaseUrl: config.apiBaseUrl,
     coverage: launchCoverage,
     acceptance: launchAcceptance,
+    sourceProvenance: {
+      path: config.sourceManifestPath,
+      sourceCount: sourceRecords.length,
+    },
     observability: {
       stageCount: completed.length,
       completedStages: completed.length,
@@ -1191,6 +1213,35 @@ function validateTargetEnvironmentEvidence(evidence) {
     environmentHost: evidence.environment.host,
     checkCount: TARGET_ENVIRONMENT_REHEARSAL_CHECKS.length,
     destructiveConfirmed: true,
+  };
+}
+
+function buildEvidenceSourceManifest(config, sourceRecords, generatedAt) {
+  const expectedStages = buildFullSystemStagePlan(config).filter(
+    (stage) => stage.id !== "launch-coverage",
+  );
+  if (
+    !Array.isArray(sourceRecords) ||
+    sourceRecords.length !== expectedStages.length ||
+    expectedStages.some((stage, index) => {
+      const source = sourceRecords[index];
+      return (
+        source?.stageId !== stage.id ||
+        source.evidencePath !== stage.evidencePath ||
+        !/^[a-f0-9]{64}$/u.test(source.contentSha256 ?? "") ||
+        !hasText(source.capturedAt) ||
+        Date.parse(source.capturedAt) > Date.parse(generatedAt)
+      );
+    })
+  ) {
+    throw new Error("上线前置证据来源清单必须按九阶段固定顺序完整生成");
+  }
+  return {
+    schemaVersion: "1.0.0",
+    candidateCommit: config.source,
+    runId: config.runId,
+    generatedAt,
+    sources: sourceRecords.map((source) => ({ ...source })),
   };
 }
 
@@ -1718,4 +1769,8 @@ function requireText(value, label) {
 
 function hasText(value) {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function sha256Json(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }

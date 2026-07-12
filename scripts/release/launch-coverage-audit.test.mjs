@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -6,6 +7,7 @@ import test from "node:test";
 import {
   buildLaunchCoverageEvidence,
   readLaunchCoverageAuditConfig,
+  validateEvidenceSource,
   validateLaunchEntryEvidence,
   validateLaunchLedger,
 } from "./launch-coverage-audit.mjs";
@@ -154,6 +156,12 @@ test("LAUNCH 总账 schema 固定且仅固定 LAUNCH-01 至 LAUNCH-15", () => {
     "runId",
     "decidedAt",
   ]);
+  assert.deepEqual(LAUNCH_LEDGER_SCHEMA.$defs.evidenceRef.required.slice(-4), [
+    "sourceRunId",
+    "sourceCandidateCommit",
+    "sourceContentSha256",
+    "sourceCapturedAt",
+  ]);
 });
 
 test("LAUNCH 总账拒绝缺项、重复、未知码和自由文本状态", () => {
@@ -196,6 +204,77 @@ test("LAUNCH 总账拒绝缺项、重复、未知码和自由文本状态", () =
   );
 });
 
+test("前置证据来源拒绝自证、白名单外路径、旧 run-id、未来时间和摘要替换", () => {
+  const stageEvidence = completeStageEvidence();
+  const cases = [
+    {
+      name: "最终审计引用自身",
+      mutate(manifest) {
+        manifest.sources[0].stageId = "launch-coverage";
+        manifest.sources[0].evidencePath = auditConfig().outputPath;
+      },
+      pattern: /不得引用最终审计自身/u,
+    },
+    {
+      name: "白名单外路径",
+      mutate(manifest) {
+        manifest.sources[0].evidencePath =
+          "/var/lib/medkernel/evidence/not-allowed.json";
+      },
+      pattern: /白名单/u,
+    },
+    {
+      name: "旧 run-id",
+      mutate(manifest) {
+        manifest.runId = "rc0-20260710T000000Z-old-run";
+      },
+      pattern: /运行标识.*不一致/u,
+    },
+    {
+      name: "晚于判定时间",
+      mutate(manifest) {
+        manifest.sources[0].capturedAt = "2026-06-22T09:00:00.001Z";
+      },
+      pattern: /晚于.*判定时间/u,
+    },
+    {
+      name: "摘要被替换",
+      mutate(manifest) {
+        manifest.sources[0].contentSha256 = "0".repeat(64);
+      },
+      pattern: /内容摘要.*不一致/u,
+    },
+  ];
+
+  for (const invalidCase of cases) {
+    assert.throws(
+      () =>
+        buildLaunchCoverageEvidence(auditConfig(), {
+          readJson: readKnownEvidence(stageEvidence, invalidCase.mutate),
+          now: () => "2026-06-22T09:00:00.000Z",
+        }),
+      invalidCase.pattern,
+      invalidCase.name,
+    );
+  }
+
+  const manifest = sourceManifest(stageEvidence);
+  assert.doesNotThrow(() =>
+    validateEvidenceSource({
+      stageId: manifest.sources[0].stageId,
+      evidencePath: manifest.sources[0].evidencePath,
+      evidence: stageEvidence[manifest.sources[0].stageId],
+      sourceRecord: manifest.sources[0],
+      expectedPath: manifest.sources[0].evidencePath,
+      expectedRunId: RUN_ID,
+      expectedCandidateCommit: SOURCE,
+      manifest,
+      decidedAt: "2026-06-22T09:00:00.000Z",
+      outputPath: auditConfig().outputPath,
+    }),
+  );
+});
+
 test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () => {
   const env = baseEnv();
   const config = readLaunchCoverageAuditConfig(env, {
@@ -213,6 +292,10 @@ test("完整覆盖审计配置固定仓库外证据与 40 位来源提交", () =
   assert.equal(config.manifestPath, MANIFEST_PATH);
   assert.equal(config.source, SOURCE);
   assert.equal(config.runId, RUN_ID);
+  assert.equal(
+    config.sourceManifestPath,
+    "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
+  );
 
   env.LAUNCH_COVERAGE_EVIDENCE_PATH =
     "/workspace/medkernel/tmp/launch-coverage.json";
@@ -991,6 +1074,8 @@ function auditConfig() {
     manifestPath: MANIFEST_PATH,
     source: SOURCE,
     runId: RUN_ID,
+    sourceManifestPath:
+      "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
   };
 }
 
@@ -1002,16 +1087,58 @@ function baseEnv() {
     FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
     LAUNCH_SOURCE: SOURCE,
     LAUNCH_RUN_ID: RUN_ID,
+    LAUNCH_EVIDENCE_SOURCE_MANIFEST_PATH:
+      "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
   };
 }
 
-function readKnownEvidence(stageEvidence) {
+function readKnownEvidence(stageEvidence, mutateSourceManifest) {
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
+  const provenance = sourceManifest(stageEvidence);
+  mutateSourceManifest?.(provenance);
   return (_file, stage) => {
     if (stage === "全知识演练清单") return manifest;
+    if (stage === "上线前置证据来源清单") return provenance;
     if (!stageEvidence[stage]) throw new Error(`测试缺少阶段证据 ${stage}`);
     return stageEvidence[stage];
   };
+}
+
+function sourceManifest(stageEvidence) {
+  const config = auditConfig();
+  const sources = Object.entries(auditStageFiles(config)).map(
+    ([stageId, evidencePath]) => ({
+      stageId,
+      evidencePath,
+      contentSha256: sha256Json(stageEvidence[stageId]),
+      capturedAt: "2026-06-22T09:00:00.000Z",
+    }),
+  );
+  return {
+    schemaVersion: "1.0.0",
+    candidateCommit: SOURCE,
+    runId: RUN_ID,
+    generatedAt: "2026-06-22T09:00:00.000Z",
+    sources,
+  };
+}
+
+function auditStageFiles(config) {
+  return {
+    "database-migrations": `${config.evidenceRoot}/database-migrations.json`,
+    "account-bootstrap": `${config.evidenceRoot}/account-bootstrap.json`,
+    "model-provider": `${config.evidenceRoot}/model-provider.json`,
+    "platform-baseline": `${config.evidenceRoot}/platform-baseline.json`,
+    sandbox: `${config.evidenceRoot}/sandbox/seed-summary.json`,
+    "full-knowledge": `${config.evidenceRoot}/full-knowledge.json`,
+    "runtime-resilience": `${config.evidenceRoot}/runtime-resilience.json`,
+    "target-environment": `${config.evidenceRoot}/target-environment.json`,
+    "browser-e2e": `${config.evidenceRoot}/e2e/report/results.json`,
+  };
+}
+
+function sha256Json(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 function completeStageEvidence(options = {}) {

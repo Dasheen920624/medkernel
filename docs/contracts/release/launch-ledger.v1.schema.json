@@ -152,7 +152,11 @@
         "evidenceKey",
         "observedCode",
         "observedStatus",
-        "observedAt"
+        "observedAt",
+        "sourceRunId",
+        "sourceCandidateCommit",
+        "sourceContentSha256",
+        "sourceCapturedAt"
       ],
       "properties": {
         "coverageKey": {
@@ -179,6 +183,22 @@
           "const": "PASSED"
         },
         "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceRunId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+        },
+        "sourceCandidateCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "sourceContentSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceCapturedAt": {
           "type": "string",
           "format": "date-time"
         }

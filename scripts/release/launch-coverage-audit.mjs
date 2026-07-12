@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,52 +85,68 @@ export function readLaunchCoverageAuditConfig(env, options = {}) {
   );
   const source = normalizeSource(env.LAUNCH_SOURCE);
   const runId = normalizeRunId(env.LAUNCH_RUN_ID);
+  const sourceManifestPath = outsideRepo(
+    env.LAUNCH_EVIDENCE_SOURCE_MANIFEST_PATH,
+    repoRoot,
+    "上线前置证据来源清单路径",
+  );
+  const expectedSourceManifestPath = path.join(
+    evidenceRoot,
+    "source-provenance.json",
+  );
+  if (sourceManifestPath !== expectedSourceManifestPath) {
+    throw new Error("上线前置证据来源清单必须位于本次证据目录固定路径");
+  }
   return {
     evidenceRoot,
     outputPath,
     manifestPath,
     source,
     runId,
+    sourceManifestPath,
   };
 }
 
 export function buildLaunchCoverageEvidence(config, options = {}) {
   const readJson = options.readJson ?? readJsonFile;
   const now = options.now ?? (() => new Date().toISOString());
-  const stageFiles = {
-    "database-migrations": path.join(
-      config.evidenceRoot,
-      "database-migrations.json",
-    ),
-    "account-bootstrap": path.join(
-      config.evidenceRoot,
-      "account-bootstrap.json",
-    ),
-    "model-provider": path.join(config.evidenceRoot, "model-provider.json"),
-    "platform-baseline": path.join(
-      config.evidenceRoot,
-      "platform-baseline.json",
-    ),
-    sandbox: path.join(config.evidenceRoot, "sandbox/seed-summary.json"),
-    "full-knowledge": path.join(config.evidenceRoot, "full-knowledge.json"),
-    "runtime-resilience": path.join(
-      config.evidenceRoot,
-      "runtime-resilience.json",
-    ),
-    "target-environment": path.join(
-      config.evidenceRoot,
-      "target-environment.json",
-    ),
-    "browser-e2e": path.join(config.evidenceRoot, "e2e/report/results.json"),
-  };
+  const decidedAt = now();
+  if (!isIsoDateTime(decidedAt)) {
+    throw new Error("完整覆盖审计判定时间无效");
+  }
+  const stageFiles = launchStageFiles(config.evidenceRoot);
+  const sourceManifest = readJson(
+    config.sourceManifestPath,
+    "上线前置证据来源清单",
+  );
+  const sourceRecordByStage = validateEvidenceSourceManifest(
+    sourceManifest,
+    stageFiles,
+    config,
+    decidedAt,
+  );
+  const sourceByEvidencePath = new Map();
   const stageStatus = {};
   const failedStages = [];
   const stageEvidence = [];
   for (const [stage, file] of Object.entries(stageFiles)) {
     const evidence = readJson(file, stage);
     try {
+      const source = validateEvidenceSource({
+        stageId: stage,
+        evidencePath: file,
+        evidence,
+        sourceRecord: sourceRecordByStage.get(stage),
+        expectedPath: file,
+        expectedRunId: config.runId,
+        expectedCandidateCommit: config.source,
+        manifest: sourceManifest,
+        decidedAt,
+        outputPath: config.outputPath,
+      });
       validateStageEvidence(stage, evidence);
       stageStatus[stage] = "PASSED";
+      sourceByEvidencePath.set(file, source);
       stageEvidence.push({
         stageId: stage,
         evidencePath: file,
@@ -147,11 +164,11 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
         .join("；")}`,
     );
   }
-  const manifest = readJson(config.manifestPath, "全知识演练清单");
-  validateFullKnowledgeManifest(manifest);
+  const knowledgeManifest = readJson(config.manifestPath, "全知识演练清单");
+  validateFullKnowledgeManifest(knowledgeManifest);
 
   const coverage = buildLaunchCoverageFromStageEvidence(stageEvidence);
-  const generatedAt = now();
+  const generatedAt = decidedAt;
   const evidence = {
     schemaVersion: "1.0.0",
     status: "PASSED",
@@ -165,23 +182,189 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
     coverage,
   };
   evidence.acceptance = validateLaunchLedger(
-    buildLaunchLedger(coverage, {
+    buildLaunchLedger(
+      coverage,
+      {
+        candidateCommit: config.source,
+        runId: config.runId,
+        decidedAt: generatedAt,
+      },
+      sourceByEvidencePath,
+    ),
+    {
+      coverage,
       candidateCommit: config.source,
       runId: config.runId,
-      decidedAt: generatedAt,
-    }),
-    { coverage, candidateCommit: config.source, runId: config.runId },
+      sourceByEvidencePath,
+    },
   );
   assertCompleteLaunchCoverage(evidence);
   evidence.entryEvidence = validateProductEntryEvidence(stageEvidence);
   return evidence;
 }
 
-function buildLaunchLedger(coverage, provenance) {
+function launchStageFiles(evidenceRoot) {
+  return {
+    "database-migrations": path.join(evidenceRoot, "database-migrations.json"),
+    "account-bootstrap": path.join(evidenceRoot, "account-bootstrap.json"),
+    "model-provider": path.join(evidenceRoot, "model-provider.json"),
+    "platform-baseline": path.join(evidenceRoot, "platform-baseline.json"),
+    sandbox: path.join(evidenceRoot, "sandbox/seed-summary.json"),
+    "full-knowledge": path.join(evidenceRoot, "full-knowledge.json"),
+    "runtime-resilience": path.join(evidenceRoot, "runtime-resilience.json"),
+    "target-environment": path.join(evidenceRoot, "target-environment.json"),
+    "browser-e2e": path.join(evidenceRoot, "e2e/report/results.json"),
+  };
+}
+
+function validateEvidenceSourceManifest(
+  manifest,
+  stageFiles,
+  config,
+  decidedAt,
+) {
+  const sourceManifest = requireRecord(manifest, "上线前置证据来源清单");
+  requireExactObjectKeys(
+    sourceManifest,
+    ["schemaVersion", "candidateCommit", "runId", "generatedAt", "sources"],
+    "上线前置证据来源清单",
+  );
+  if (sourceManifest.schemaVersion !== "1.0.0") {
+    throw new Error("上线前置证据来源清单 schemaVersion 必须为 1.0.0");
+  }
+  if (sourceManifest.candidateCommit !== config.source) {
+    throw new Error("上线前置证据来源清单候选提交与本次审计不一致");
+  }
+  if (sourceManifest.runId !== config.runId) {
+    throw new Error("上线前置证据来源清单运行标识与本次审计不一致");
+  }
+  if (
+    !isIsoDateTime(sourceManifest.generatedAt) ||
+    Date.parse(sourceManifest.generatedAt) > Date.parse(decidedAt)
+  ) {
+    throw new Error("上线前置证据来源清单生成时间晚于审计判定时间");
+  }
+  const sources = requireArray(sourceManifest.sources, "上线前置证据来源项");
+  const sourceByStage = new Map();
+  for (const rawSource of sources) {
+    const source = requireRecord(rawSource, "上线前置证据来源项");
+    const stageId = requireText(source.stageId, "上线前置证据来源阶段");
+    const evidencePath = requireText(
+      source.evidencePath,
+      `${stageId} 前置证据路径`,
+    );
+    if (
+      stageId === "launch-coverage" ||
+      path.resolve(evidencePath) === path.resolve(config.outputPath)
+    ) {
+      throw new Error("上线前置证据不得引用最终审计自身");
+    }
+    if (!Object.hasOwn(stageFiles, stageId)) {
+      throw new Error(`上线前置证据包含未知阶段 ${stageId}`);
+    }
+    if (sourceByStage.has(stageId)) {
+      throw new Error(`上线前置证据来源阶段重复 ${stageId}`);
+    }
+    if (path.resolve(evidencePath) !== stageFiles[stageId]) {
+      throw new Error(`${stageId} 证据路径不在固定白名单`);
+    }
+    sourceByStage.set(stageId, source);
+  }
+  const missingStages = Object.keys(stageFiles).filter(
+    (stageId) => !sourceByStage.has(stageId),
+  );
+  if (
+    missingStages.length > 0 ||
+    sourceByStage.size !== Object.keys(stageFiles).length
+  ) {
+    throw new Error(`上线前置证据来源清单缺少 ${missingStages.join("、")}`);
+  }
+  return sourceByStage;
+}
+
+export function validateEvidenceSource({
+  stageId,
+  evidencePath,
+  evidence,
+  sourceRecord,
+  expectedPath,
+  expectedRunId,
+  expectedCandidateCommit,
+  manifest,
+  decidedAt,
+  outputPath,
+}) {
+  const sourceManifest = requireRecord(manifest, "上线前置证据来源清单");
+  const source = requireRecord(sourceRecord, `${stageId} 前置证据来源`);
+  requireExactObjectKeys(
+    source,
+    ["stageId", "evidencePath", "contentSha256", "capturedAt"],
+    `${stageId} 前置证据来源`,
+  );
+  const sourceStageId = requireText(
+    source.stageId,
+    `${stageId} 前置证据来源阶段`,
+  );
+  const sourceEvidencePath = requireText(
+    source.evidencePath,
+    `${stageId} 前置证据来源路径`,
+  );
+  if (
+    stageId === "launch-coverage" ||
+    path.resolve(evidencePath) === path.resolve(outputPath) ||
+    sourceStageId === "launch-coverage" ||
+    path.resolve(sourceEvidencePath) === path.resolve(outputPath)
+  ) {
+    throw new Error("上线前置证据不得引用最终审计自身");
+  }
+  if (
+    path.resolve(evidencePath) !== path.resolve(expectedPath) ||
+    path.resolve(sourceEvidencePath) !== path.resolve(expectedPath) ||
+    sourceStageId !== stageId
+  ) {
+    throw new Error(`${stageId} 证据路径不在固定白名单`);
+  }
+  if (
+    sourceManifest.runId !== expectedRunId ||
+    sourceManifest.candidateCommit !== expectedCandidateCommit
+  ) {
+    throw new Error(`${stageId} 前置证据候选或运行标识与本次审计不一致`);
+  }
+  if (
+    !isIsoDateTime(source.capturedAt) ||
+    !isIsoDateTime(decidedAt) ||
+    Date.parse(source.capturedAt) > Date.parse(decidedAt)
+  ) {
+    throw new Error(`${stageId} 前置证据捕获时间晚于总账判定时间`);
+  }
+  if (
+    !isIsoDateTime(sourceManifest.generatedAt) ||
+    Date.parse(source.capturedAt) > Date.parse(sourceManifest.generatedAt)
+  ) {
+    throw new Error(`${stageId} 前置证据捕获时间晚于来源清单生成时间`);
+  }
+  const actualSha256 = sha256Json(evidence);
+  if (
+    !/^[a-f0-9]{64}$/u.test(source.contentSha256 ?? "") ||
+    source.contentSha256 !== actualSha256
+  ) {
+    throw new Error(`${stageId} 前置证据内容摘要与来源清单不一致`);
+  }
+  return Object.freeze({
+    stageId,
+    evidencePath: path.resolve(evidencePath),
+    sourceRunId: expectedRunId,
+    sourceCandidateCommit: expectedCandidateCommit,
+    sourceContentSha256: actualSha256,
+    sourceCapturedAt: source.capturedAt,
+  });
+}
+
+function buildLaunchLedger(coverage, provenance, sourceByEvidencePath) {
   const baseRows = buildLaunchAcceptance(coverage);
   return baseRows.map((item) => {
     const evidenceRefs = item.requiredCoverage.flatMap((coverageKey) =>
-      launchLedgerEvidenceRefs(coverage, coverageKey),
+      launchLedgerEvidenceRefs(coverage, coverageKey, sourceByEvidencePath),
     );
     const actualEvidenceScope = item.requiredCoverage.filter((coverageKey) =>
       evidenceRefs.some((ref) => ref.coverageKey === coverageKey),
@@ -250,7 +433,11 @@ export function validateLaunchLedger(value, options = {}) {
     throw new Error("LAUNCH 总账运行标识与本次审计不一致");
   }
   if (options.coverage !== undefined) {
-    validateLaunchLedgerAgainstCoverage(normalized, options.coverage);
+    validateLaunchLedgerAgainstCoverage(
+      normalized,
+      options.coverage,
+      options.sourceByEvidencePath,
+    );
   }
   return normalized;
 }
@@ -311,6 +498,20 @@ function validateLaunchLedgerRow(row, definition) {
     definition,
     actualEvidenceScope,
   );
+  if (
+    evidenceRefs.some(
+      (ref) =>
+        ref.sourceRunId !== runId ||
+        ref.sourceCandidateCommit !== candidateCommit ||
+        Date.parse(ref.sourceCapturedAt) > Date.parse(row.decidedAt) ||
+        Date.parse(ref.observedAt) > Date.parse(ref.sourceCapturedAt) ||
+        Date.parse(ref.observedAt) > Date.parse(row.decidedAt),
+    )
+  ) {
+    throw new Error(
+      `${definition.code} 前置证据来源未绑定同一候选、运行标识和时间窗`,
+    );
+  }
   return {
     code: definition.code,
     label: definition.label,
@@ -377,12 +578,35 @@ function validateLaunchLedgerEvidenceRefs(value, definition, actualScope) {
     if (!isIsoDateTime(ref.observedAt)) {
       throw new Error(`${definition.code} 前置证据缺少有效观察时间`);
     }
+    const sourceRunId = requireText(
+      ref.sourceRunId,
+      `${definition.code} 前置证据来源运行标识`,
+    );
+    const sourceCandidateCommit = requireText(
+      ref.sourceCandidateCommit,
+      `${definition.code} 前置证据来源候选提交`,
+    );
+    const sourceContentSha256 = requireText(
+      ref.sourceContentSha256,
+      `${definition.code} 前置证据来源摘要`,
+    );
+    if (!/^[a-f0-9]{64}$/u.test(sourceContentSha256)) {
+      throw new Error(`${definition.code} 前置证据来源摘要必须为 SHA-256`);
+    }
+    if (!isIsoDateTime(ref.sourceCapturedAt)) {
+      throw new Error(`${definition.code} 前置证据来源捕获时间无效`);
+    }
+    const sourceCapturedAt = ref.sourceCapturedAt;
     const identity = [
       coverageKey,
       evidenceStage,
       evidencePath,
       evidenceKey,
       observedCode,
+      sourceRunId,
+      sourceCandidateCommit,
+      sourceContentSha256,
+      sourceCapturedAt,
     ].join("\u0000");
     if (seen.has(identity)) {
       throw new Error(`${definition.code} 前置证据引用重复`);
@@ -396,6 +620,10 @@ function validateLaunchLedgerEvidenceRefs(value, definition, actualScope) {
       observedCode,
       observedStatus: "PASSED",
       observedAt: ref.observedAt,
+      sourceRunId,
+      sourceCandidateCommit,
+      sourceContentSha256,
+      sourceCapturedAt,
     };
   });
   const referencedScope = definition.requiredCoverage.filter((coverageKey) =>
@@ -407,12 +635,16 @@ function validateLaunchLedgerEvidenceRefs(value, definition, actualScope) {
   return normalized;
 }
 
-function validateLaunchLedgerAgainstCoverage(ledger, coverage) {
+function validateLaunchLedgerAgainstCoverage(
+  ledger,
+  coverage,
+  sourceByEvidencePath,
+) {
   const expectedBase = buildLaunchAcceptance(coverage);
   for (const [index, row] of ledger.entries()) {
     const expected = expectedBase[index];
     const expectedRefs = expected.requiredCoverage.flatMap((coverageKey) =>
-      launchLedgerEvidenceRefs(coverage, coverageKey),
+      launchLedgerEvidenceRefs(coverage, coverageKey, sourceByEvidencePath),
     );
     const expectedActualScope = expected.requiredCoverage.filter(
       (coverageKey) =>
@@ -429,7 +661,7 @@ function validateLaunchLedgerAgainstCoverage(ledger, coverage) {
   }
 }
 
-function launchLedgerEvidenceRefs(coverage, coverageKey) {
+function launchLedgerEvidenceRefs(coverage, coverageKey, sourceByEvidencePath) {
   const rows = coverage?.[coverageKey];
   if (!Array.isArray(rows)) return [];
   return rows
@@ -444,15 +676,25 @@ function launchLedgerEvidenceRefs(coverage, coverageKey) {
         hasText(row.observedCode) &&
         isIsoDateTime(row.observedAt),
     )
-    .map((row) => ({
-      coverageKey,
-      evidenceStage: row.evidenceStage,
-      evidencePath: row.evidencePath,
-      evidenceKey: row.evidenceKey,
-      observedCode: row.observedCode,
-      observedStatus: "PASSED",
-      observedAt: row.observedAt,
-    }));
+    .map((row) => {
+      const source = sourceByEvidencePath?.get(row.evidencePath);
+      if (!source) {
+        throw new Error(`${coverageKey} 前置证据来源清单绑定缺失`);
+      }
+      return {
+        coverageKey,
+        evidenceStage: row.evidenceStage,
+        evidencePath: row.evidencePath,
+        evidenceKey: row.evidenceKey,
+        observedCode: row.observedCode,
+        observedStatus: "PASSED",
+        observedAt: row.observedAt,
+        sourceRunId: source.sourceRunId,
+        sourceCandidateCommit: source.sourceCandidateCommit,
+        sourceContentSha256: source.sourceContentSha256,
+        sourceCapturedAt: source.sourceCapturedAt,
+      };
+    });
 }
 
 export function validateLaunchEntryEvidence(
@@ -828,6 +1070,10 @@ function hasText(value) {
 
 function isIsoDateTime(value) {
   return hasText(value) && Number.isFinite(Date.parse(value));
+}
+
+function sha256Json(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 function stateCapability(state) {

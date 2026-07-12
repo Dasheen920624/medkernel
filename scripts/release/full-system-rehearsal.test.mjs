@@ -89,6 +89,10 @@ test("整套演练固定覆盖迁移、四职责、Provider、平台基线、沙
   );
   assert.equal(plan[9].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
   assert.equal(plan[9].env.LAUNCH_RUN_ID, RUN_ID);
+  assert.equal(
+    plan[9].env.LAUNCH_EVIDENCE_SOURCE_MANIFEST_PATH,
+    config.sourceManifestPath,
+  );
 
   const requiredCoverage = buildRequiredLaunchCoverage();
   assert.equal(requiredCoverage.scenarios[0].status, "UNKNOWN");
@@ -192,6 +196,10 @@ test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库
   assert.equal(
     config.indexPath,
     "/var/lib/medkernel/evidence/current-launch/full-system.json",
+  );
+  assert.equal(
+    config.sourceManifestPath,
+    "/var/lib/medkernel/evidence/current-launch/source-provenance.json",
   );
   assert.equal(config.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
   assert.equal(config.runId, RUN_ID);
@@ -325,8 +333,20 @@ test("十阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
     result.acceptance.find((item) => item.code === "LAUNCH-09")?.status,
     "PASSED",
   );
-  assert.equal(written.length, 1);
-  assert.equal(written[0].value.status, "PASSED");
+  assert.equal(written.length, 2);
+  const sourceManifest = written.find(
+    (item) => item.file === rehearsalConfig().sourceManifestPath,
+  )?.value;
+  assert.equal(sourceManifest.runId, RUN_ID);
+  assert.equal(sourceManifest.candidateCommit, result.source);
+  assert.equal(sourceManifest.sources.length, 9);
+  assert.equal(
+    sourceManifest.sources.every((item) =>
+      /^[a-f0-9]{64}$/u.test(item.contentSha256),
+    ),
+    true,
+  );
+  assert.equal(written.at(-1).value.status, "PASSED");
 });
 
 test("整套演练持续输出十阶段进度并在总索引记录阶段耗时", async () => {

@@ -169,6 +169,9 @@ node scripts/release/full-system-rehearsal.mjs
 总索引。审计同时按 `docs/contracts/release/launch-ledger.v1.schema.json` 生成恰好
 `LAUNCH-01` 至 `LAUNCH-15` 的机器总账；每项绑定同一 `candidateCommit`、`runId`、判定时间、
 要求范围、实际证据范围和逐条前置证据引用，自由文本“已通过”不能替代 `PASSED` 机器状态。
+总控会在进入最终覆盖审计前生成 `source-provenance.json`：仅允许九个固定前置阶段路径，逐文件记录
+同一 RC0 的候选提交、运行标识、捕获时间和 JSON 内容 SHA-256。审计会重新读取并计算摘要；旧
+run-id、最终审计自证、白名单外路径、判定后的时间或摘要漂移都会直接阻断。
 
 ### 5.1 基础治理
 
