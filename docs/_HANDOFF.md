@@ -8,7 +8,9 @@
 
 - 唯一 OpenSpec：`converge-full-launch-and-knowledge-platform`，当前 **8/23 个结果任务完成、15 个待执行**。
 - 隔离工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/launch-convergence`；分支：`codex/launch-ledger`。
+- 2.3/2.4 已完成实现提交：`7f32168c4`（`导入：闭环完整医疗资源包预检与原子激活`）；交接时该隔离工作树除本文件交接更新外无未提交实现改动。
 - 当前下一项：任务 2.5，复用已经闭环的真实 `.mkp` 导出、隔离预检、空库物化和 CAS 激活能力，在现有 `ReleaseGovernance` 完成真实文件交互，并以两个数据库、目录和实例身份完全独立的本地实例证明导出—介质复制—导入—运行—升级—回滚；不得提前实现 DELTA、HTTPS 拉取或第二套发布框架。
+- 2.5 已完成只读定位：后端现有 `POST /api/v1/engine/knowledge/packages`、`GET /api/v1/engine/knowledge/packages/{deliveryId}/download`、`POST /api/v1/engine/knowledge/packages/hospitals/{hospitalId}/preflights` 和 `POST /api/v1/engine/knowledge/packages/hospitals/{hospitalId}/preflights/{preflightId}:activate`；前端 `ReleaseGovernance` 仍只有旧离线交付对象流，尚无真实 `.mkp` 下载、multipart 上传、预检事实展示与确认激活。下一位执行者应先为这四段真实文件交互补失败测试，再做最小 UI/Hook 接线；双实例证明必须使用两套数据库、包目录、隔离目录和实例身份，不得用单实例换租户代替。
 - 受保护原工作树 `/Users/zhikunzheng/个人/郑志坤/medkernel/codex3` 含用户改动，禁止回滚、暂存、清理或污染。
 
 ## 当前路线为何是主线
@@ -44,7 +46,7 @@
 
 ## 下一执行序列
 
-1. 2.3～2.5：真实上传进入隔离区，统一预检，空 V1 库全有或全无物化，CAS 激活/回滚，并在两个独立实例间完成文件往返。
+1. 2.5：在现有 `ReleaseGovernance` 接通真实 `.mkp` 下载、multipart 上传、预检与确认激活，并在两个完全独立实例间完成导出—复制—导入—运行—升级—回滚。
 2. 3.1～3.3：只补齐覆盖矩阵、获许可来源、13 类资产生命周期、readiness 和正式包快照的软件能力；本地验证资源不得冒充生产内容。
 3. 4.1～4.3：完成本地双实例软件演练，冻结同一提交的软件 RC，随后只读预检 134。
 4. 5.1～5.4：在唯一确认内先部署 134，再在 134 生产审核完整资源、签发包、全系统演练并完成 48～72 小时稳定窗口。
